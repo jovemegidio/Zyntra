@@ -64,16 +64,11 @@ class ManifestacaoSefazService {
 
         const codEvento = EVENTOS[tipoEvento] || tipoEvento;
 
-        // Buscar config empresa
-        const [config] = await pool.query('SELECT * FROM empresa_config WHERE id = 1');
-        const empresa = config[0] || {};
-        const ambiente = empresa.nfe_ambiente || 2; // 2 = homologação
-        const cnpj = empresa.cnpj || '';
+        // CNPJ do manifestante (própria empresa = destinatário)
+        const [config] = await pool.query('SELECT cnpj FROM empresa_config WHERE id = 1');
+        const cnpj = params.cnpj || config[0]?.cnpj || '';
 
-        // Buscar certificado
-        const cert = await ManifestacaoSefazService._getCertificado(empresa);
-
-        // Buscar sequência do evento
+        // Próxima sequência do evento
         let sequencia = 1;
         try {
             const [seqRows] = await pool.query(
@@ -83,67 +78,47 @@ class ManifestacaoSefazService {
             sequencia = (seqRows[0]?.seq || 0) + 1;
         } catch (e) { /* tabela pode não existir ainda */ }
 
-        // Gerar XML do evento
-        const xmlEvento = ManifestacaoSefazService._gerarXMLEvento({
-            chaveNFe,
-            cnpj,
-            tipoEvento: codEvento,
-            sequencia,
-            justificativa,
-            ambiente
-        });
-
-        // Gerar XML do lote (envLote)
-        const xmlLote = ManifestacaoSefazService._gerarXMLLote(xmlEvento, ambiente);
-
-        // Assinar XML (se certificado disponível)
-        let xmlAssinado = xmlLote;
-        if (cert) {
-            try {
-                xmlAssinado = await ManifestacaoSefazService._assinarXML(xmlLote, cert);
-            } catch (e) {
-                console.warn('[MD-e] Erro ao assinar XML:', e.message);
-                // Em homologação, pode continuar sem assinatura para testes
-            }
-        }
-
-        // Enviar para SEFAZ
-        const urlBase = ambiente === 1 ? WS_URLS.producao : WS_URLS.homologacao;
+        // [MD-e REAL] Delega ao motor NF-e comprovado (cert + assinatura xml-crypto +
+        // SOAP NFeRecepcaoEvento4 no Ambiente Nacional). O ambiente (homologação/produção)
+        // segue nfeConfig.ambiente, igual ao restante da emissão de NF-e.
+        const sefazService = require('./sefaz.service');
         let resultado;
-
         try {
-            resultado = await ManifestacaoSefazService._enviarSOAP(
-                urlBase.recepcaoEvento,
-                xmlAssinado,
-                'nfeRecepcaoEvento',
-                cert
-            );
-        } catch (e) {
-            // Salvar tentativa mesmo com erro
-            await ManifestacaoSefazService._salvarEvento(pool, {
-                chaveNFe, tipoEvento: codEvento, sequencia,
-                xmlEnvio: xmlAssinado, xmlRetorno: null,
-                status: 'erro', protocolo: null,
-                motivo: e.message, userId: params.userId
+            resultado = await sefazService.enviarManifestacao({
+                chaveAcesso: chaveNFe,
+                cnpj,
+                tpEvento: codEvento,
+                sequenciaEvento: sequencia,
+                justificativa
             });
+        } catch (e) {
+            try {
+                await ManifestacaoSefazService._salvarEvento(pool, {
+                    chaveNFe, tipoEvento: codEvento, sequencia,
+                    xmlEnvio: null, xmlRetorno: null,
+                    status: 'erro', protocolo: null,
+                    motivo: e.message, userId: params.userId
+                });
+            } catch (_) { /* tabela pode não existir */ }
             throw new Error(`Erro na comunicação com SEFAZ: ${e.message}`);
         }
 
-        // Parsear retorno
-        const parsedResult = ManifestacaoSefazService._parsearRetorno(resultado);
+        const sucesso = !!resultado.sucesso;
 
-        // Salvar evento no banco
-        await ManifestacaoSefazService._salvarEvento(pool, {
-            chaveNFe,
-            tipoEvento: codEvento,
-            sequencia,
-            xmlEnvio: xmlAssinado,
-            xmlRetorno: resultado,
-            status: parsedResult.sucesso ? 'autorizado' : 'rejeitado',
-            protocolo: parsedResult.protocolo,
-            motivo: parsedResult.motivo,
-            userId: params.userId
-        });
+        // Persistir evento
+        try {
+            await ManifestacaoSefazService._salvarEvento(pool, {
+                chaveNFe,
+                tipoEvento: codEvento,
+                sequencia,
+                xmlEnvio: null,
+                xmlRetorno: resultado.xmlCompleto || null,
+                status: sucesso ? 'autorizado' : 'rejeitado',
+                protocolo: resultado.numeroProtocolo,
+                motivo: resultado.motivo,
+                userId: params.userId
+            });
+        } catch (_) { /* tabela pode não existir ainda */ }
 
         // Atualizar status na NF de entrada (se existir)
         try {
@@ -154,19 +129,20 @@ class ManifestacaoSefazService {
                 '210240': 'nao_realizada'
             };
             await pool.query(
-                'UPDATE nf_entrada SET manifestacao_status = ? WHERE chave_acesso = ?',
+                'UPDATE nf_entrada SET manifestacao_status = ? WHERE chave_nfe = ?',
                 [statusMap[codEvento] || 'manifestada', chaveNFe]
             );
         } catch (e) { /* NF pode não existir na tabela local */ }
 
         return {
-            sucesso: parsedResult.sucesso,
+            sucesso,
             evento: codEvento,
             descricao: DESC_EVENTOS[codEvento],
             chaveNFe,
-            protocolo: parsedResult.protocolo,
-            codigoRetorno: parsedResult.codigoRetorno,
-            motivo: parsedResult.motivo,
+            protocolo: resultado.numeroProtocolo,
+            codigoRetorno: resultado.codigoStatus,
+            motivo: resultado.motivo,
+            integracaoSEFAZ: true,
             dataHora: new Date().toISOString()
         };
     }
@@ -180,10 +156,10 @@ class ManifestacaoSefazService {
         const [config] = await pool.query('SELECT * FROM empresa_config WHERE id = 1');
         const empresa = config[0] || {};
         const ambiente = empresa.nfe_ambiente || 2;
-        const cnpj = empresa.cnpj || '';
-        const cUF = empresa.codigo_uf || '35';
+        const cnpj = String(empresa.cnpj || '').replace(/\D/g, '');
+        const cUF = String(empresa.codigo_uf || '35').replace(/\D/g, '') || '35';
 
-        const cert = await ManifestacaoSefazService._getCertificado(empresa);
+        const cert = await ManifestacaoSefazService._getCertificado(empresa, pool);
 
         // Montar XML de consulta
         let xmlConsulta;
@@ -211,15 +187,12 @@ class ManifestacaoSefazService {
             xmlConsulta = doc.end({ prettyPrint: false });
         }
 
-        // SOAP envelope
-        const soapXML = ManifestacaoSefazService._wrapSOAP(xmlConsulta, 'nfeDistDFeInteresse');
-
         const urlBase = ambiente === 1 ? WS_URLS.producao : WS_URLS.homologacao;
 
         try {
             const resultado = await ManifestacaoSefazService._enviarSOAP(
                 urlBase.distDFe,
-                soapXML,
+                xmlConsulta,
                 'nfeDistDFeInteresse',
                 cert
             );
@@ -228,7 +201,10 @@ class ManifestacaoSefazService {
             const documentos = ManifestacaoSefazService._parsearDistDFe(resultado);
 
             return {
-                sucesso: true,
+                sucesso: ['137', '138'].includes(documentos.cStat) || (!documentos.cStat && documentos.docs.length >= 0),
+                cStat: documentos.cStat,
+                xMotivo: documentos.xMotivo,
+                error: ['137', '138'].includes(documentos.cStat) || !documentos.cStat ? null : documentos.xMotivo,
                 documentos: documentos.docs,
                 ultNSU: documentos.ultNSU,
                 maxNSU: documentos.maxNSU,
@@ -318,13 +294,28 @@ class ManifestacaoSefazService {
     }
 
     static _wrapSOAP(xmlContent, metodo) {
+        const xmlSemProlog = String(xmlContent || '').replace(/^\s*<\?xml[^>]*\?>\s*/i, '');
+        if (metodo === 'nfeDistDFeInteresse') {
+            const ns = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe';
+            return `<?xml version="1.0" encoding="UTF-8"?>` +
+                `<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ` +
+                `xmlns:xsd="http://www.w3.org/2001/XMLSchema" ` +
+                `xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">` +
+                `<soap12:Body>` +
+                `<nfeDistDFeInteresse xmlns="${ns}">` +
+                `<nfeDadosMsg>${xmlSemProlog}</nfeDadosMsg>` +
+                `</nfeDistDFeInteresse>` +
+                `</soap12:Body>` +
+                `</soap12:Envelope>`;
+        }
+
         return `<?xml version="1.0" encoding="UTF-8"?>` +
             `<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ` +
             `xmlns:xsd="http://www.w3.org/2001/XMLSchema" ` +
             `xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">` +
             `<soap12:Body>` +
             `<nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/${metodo}">` +
-            xmlContent +
+            xmlSemProlog +
             `</nfeDadosMsg>` +
             `</soap12:Body>` +
             `</soap12:Envelope>`;
@@ -344,7 +335,7 @@ class ManifestacaoSefazService {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/soap+xml; charset=utf-8',
-                    'Content-Length': Buffer.byteLength(xmlContent)
+                    'Content-Length': 0
                 },
                 timeout: 30000,
                 minVersion: 'TLSv1.2'
@@ -362,8 +353,14 @@ class ManifestacaoSefazService {
             }
 
             const soapEnvelope = ManifestacaoSefazService._wrapSOAP(xmlContent, metodo);
+            options.headers['Content-Length'] = Buffer.byteLength(soapEnvelope);
+            if (metodo === 'nfeDistDFeInteresse') {
+                options.headers['Content-Type'] = 'application/soap+xml; charset=utf-8; action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe/nfeDistDFeInteresse"';
+            }
 
-            const req = https.request(options, (res) => {
+            let req;
+            try {
+                req = https.request(options, (res) => {
                 let data = '';
                 res.on('data', chunk => data += chunk);
                 res.on('end', () => {
@@ -373,9 +370,12 @@ class ManifestacaoSefazService {
                         reject(new Error(`HTTP ${res.statusCode}: ${data.substring(0, 200)}`));
                     }
                 });
-            });
+                });
+            } catch (e) {
+                return reject(new Error(ManifestacaoSefazService._normalizarErroCertificado(e)));
+            }
 
-            req.on('error', (e) => reject(new Error(`Erro de rede: ${e.message}`)));
+            req.on('error', (e) => reject(new Error(ManifestacaoSefazService._normalizarErroCertificado(e, 'Erro de rede'))));
             req.on('timeout', () => {
                 req.destroy();
                 reject(new Error('Timeout na comunicação com SEFAZ (30s)'));
@@ -421,6 +421,8 @@ class ManifestacaoSefazService {
 
         const ultNSU = getTag(xmlRetorno, 'ultNSU');
         const maxNSU = getTag(xmlRetorno, 'maxNSU');
+        const cStat = getTag(xmlRetorno, 'cStat');
+        const xMotivo = getTag(xmlRetorno, 'xMotivo');
 
         // Extrair documentos (docZip)
         const docZipRegex = /<docZip[^>]*NSU="(\d+)"[^>]*schema="([^"]*)"[^>]*>([^<]*)<\/docZip>/gi;
@@ -434,14 +436,31 @@ class ManifestacaoSefazService {
             });
         }
 
-        return { docs, ultNSU, maxNSU };
+        return { docs, ultNSU, maxNSU, cStat, xMotivo };
     }
 
     // ============================================================
     // CERTIFICADO DIGITAL
     // ============================================================
 
-    static async _getCertificado(empresa) {
+    static async _getCertificado(empresa, pool) {
+        if (pool) {
+            try {
+                const { loadCertFromDb } = require('../../../services/sefaz.service');
+                const cred = await loadCertFromDb(pool, empresa?.id || 1);
+                return {
+                    cert: cred.pemCert,
+                    key: cred.pemKey
+                };
+            } catch (e) {
+                const msg = ManifestacaoSefazService._normalizarErroCertificado(e);
+                const podeTentarFallback = /não configurado|nao configurado/i.test(msg);
+                if (!podeTentarFallback) {
+                    throw new Error(msg);
+                }
+            }
+        }
+
         try {
             // Tentar carregar PFX
             const certDir = path.join(__dirname, '..', '..', '..', 'ssl');
@@ -467,11 +486,24 @@ class ManifestacaoSefazService {
             }
 
             console.warn('[MD-e] Certificado digital não encontrado em', certDir);
-            return null;
+            throw new Error('Certificado digital A1 não configurado.');
         } catch (e) {
-            console.warn('[MD-e] Erro ao carregar certificado:', e.message);
-            return null;
+            const msg = ManifestacaoSefazService._normalizarErroCertificado(e);
+            console.warn('[MD-e] Erro ao carregar certificado:', msg);
+            throw new Error(msg);
         }
+    }
+
+    static _normalizarErroCertificado(error, prefixo) {
+        const msg = String(error?.message || error || '');
+        let normalizado = msg;
+        if (/mac verify failure|invalid password|bad decrypt|unsupported pkcs12/i.test(msg)) {
+            normalizado = 'Senha do certificado digital incorreta ou arquivo PFX/P12 incompatível. Reenvie o certificado A1 correto em Configurações > Certificado Digital.';
+        }
+        if (/no such file|ENOENT/i.test(msg)) {
+            normalizado = 'Arquivo do certificado digital não encontrado. Reenvie o certificado A1 em Configurações > Certificado Digital.';
+        }
+        return prefixo ? `${prefixo}: ${normalizado}` : normalizado;
     }
 
     static async _assinarXML(xml, cert) {

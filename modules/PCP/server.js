@@ -3212,6 +3212,39 @@ app.put('/api/pcp/ordens-producao/:id', authRequired, async (req, res) => {
     }
 });
 
+// DELETE /api/pcp/ordens-producao/:id
+// Exclui da tabela correta (ordens_producao ou ordens_producao_kanban).
+// O kanban unifica as duas tabelas via GET /api/pcp/ordens-kanban, então
+// o ID pode pertencer a qualquer uma delas.
+app.delete('/api/pcp/ordens-producao/:id', authRequired, async (req, res) => {
+    const { id } = req.params;
+    try {
+        // 1) Tenta na tabela principal
+        const [ordensRows] = await db.query('SELECT id, status FROM ordens_producao WHERE id = ?', [id]);
+        if (ordensRows.length > 0) {
+            const status = ordensRows[0].status;
+            const bloqueados = ['em_producao', 'finalizada', 'concluida', 'armazenado'];
+            if (bloqueados.includes(status)) {
+                return res.status(400).json({ error: `Não é possível excluir ordem com status "${status}". Apenas ordens pendentes ou canceladas podem ser excluídas.` });
+            }
+            await db.query('DELETE FROM ordens_producao WHERE id = ?', [id]);
+            return res.json({ success: true, message: 'Ordem de produção excluída com sucesso.' });
+        }
+
+        // 2) Tenta na tabela kanban
+        const [kanbanRows] = await db.query('SELECT id, status FROM ordens_producao_kanban WHERE id = ?', [id]);
+        if (kanbanRows.length > 0) {
+            await db.query('DELETE FROM ordens_producao_kanban WHERE id = ?', [id]);
+            return res.json({ success: true, message: 'Ordem de produção excluída com sucesso.' });
+        }
+
+        res.status(404).json({ error: 'Ordem de produção não encontrada.' });
+    } catch (error) {
+        console.error('[API_ORDENS_PRODUCAO] Erro ao excluir:', error.message);
+        res.status(500).json({ error: 'Erro ao excluir ordem de produção.' });
+    }
+});
+
 // ==================== ROTAS DE FATURAMENTO ====================
 
 // Buscar todos os faturamentos

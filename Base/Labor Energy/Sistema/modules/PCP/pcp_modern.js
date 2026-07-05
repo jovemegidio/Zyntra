@@ -1,4 +1,4 @@
-Ôªø// Busca avan√ßada e filtros para Gest√£o de Produtos
+// Busca avanÁada e filtros para Gest„o de Produtos
 async function buscarProdutosGestao(page = 1, limit = 20) {
     // Coleta valores dos campos de busca/filtro
     const searchInput = document.getElementById('search-produtos-gestao');
@@ -9,7 +9,7 @@ async function buscarProdutosGestao(page = 1, limit = 20) {
     const categoria = categoriaSelect ? categoriaSelect.value : '';
     const estoque = estoqueSelect ? estoqueSelect.value : '';
 
-    // Monta par√¢metros para API/Pagina√ß√£o
+    // Monta par‚metros para API/PaginaÁ„o
     const params = new URLSearchParams();
     if (query) params.append('q', query);
     if (categoria) params.append('categoria', categoria);
@@ -28,14 +28,14 @@ async function buscarProdutosGestao(page = 1, limit = 20) {
         const total = Number(body.total || 0);
         const totalPages = Math.max(1, Math.ceil(total / limit));
 
-        // Atualiza contadores na p√°gina Gest√£o de Produtos
+        // Atualiza contadores na p·gina Gest„o de Produtos
         const totalProdutosEl = document.getElementById('stat-total-produtos-gestao');
         if (totalProdutosEl) totalProdutosEl.textContent = total;
-        // Atualiza outros contadores se necess√°rio (estoque baixo, cr√≠tico, normal)
-        // Exemplo: contar produtos cr√≠ticos
+        // Atualiza outros contadores se necess·rio (estoque baixo, crÌtico, normal)
+        // Exemplo: contar produtos crÌticos
         let criticos = 0, ok = 0, baixo = 0;
         produtos.forEach(p => {
-            if (p.status === 'CRITICO' || p.status === 'CR√çTICO') criticos++;
+            if (p.status === 'CRITICO' || p.status === 'CRÕTICO') criticos++;
             else if (p.status === 'OK' || p.status === 'NORMAL') ok++;
             else if (p.status === 'BAIXO') baixo++;
         });
@@ -53,22 +53,22 @@ async function buscarProdutosGestao(page = 1, limit = 20) {
 
         const startIndex = ((page - 1) * limit) + 1;
         const endIndex = Math.min(total, page * limit);
-        const infoLine = `<div class=\"info-line\">Mostrando ${startIndex}‚Äì${endIndex} de ${total} produtos</div>`;
+        const infoLine = `<div class=\"info-line\">Mostrando ${startIndex}ñ${endIndex} de ${total} produtos</div>`;
 
         let tableHTML = `
             ${infoLine}
             <table class=\"estoque-table\">
                 <thead>
                     <tr>
-                        <th class=\"w-8pct\">C√≥digo</th>
-                        <th>Descri√ß√£o</th>
+                        <th class=\"w-8pct\">CÛdigo</th>
+                        <th>DescriÁ„o</th>
                         <th class=\"w-8pct\">SKU</th>
                         <th class=\"w-10pct\">GTIN</th>
                         <th class=\"w-8pct\">Unidade</th>
                         <th class=\"w-8pct text-center\">Estoque</th>
-                        <th class=\"w-12pct\">Varia√ß√µes</th>
+                        <th class=\"w-12pct\">VariaÁıes</th>
                         <th class=\"w-10pct\">Custo Unit.</th>
-                        <th class=\"w-12pct text-center\">A√ß√µes</th>
+                        <th class=\"w-12pct text-center\">AÁıes</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -121,13 +121,13 @@ async function buscarProdutosGestao(page = 1, limit = 20) {
             </table>
         `;
 
-        // Pagina√ß√£o tradicional
+        // PaginaÁ„o tradicional
         if (totalPages > 1) {
             tableHTML += `
                 <div class=\"pagination\">
-                    ${page > 1 ? `<button class=\"btn-sm\" onclick=\"buscarProdutosGestao(${page - 1}, ${limit})\">¬´ Anterior</button>` : ''}
-                    <span>P√°gina ${page} de ${totalPages}</span>
-                    ${page < totalPages ? `<button class=\"btn-sm\" onclick=\"buscarProdutosGestao(${page + 1}, ${limit})\">Pr√≥xima ¬ª</button>` : ''}
+                    ${page > 1 ? `<button class=\"btn-sm\" onclick=\"buscarProdutosGestao(${page - 1}, ${limit})\">´ Anterior</button>` : ''}
+                    <span>P·gina ${page} de ${totalPages}</span>
+                    ${page < totalPages ? `<button class=\"btn-sm\" onclick=\"buscarProdutosGestao(${page + 1}, ${limit})\">PrÛxima ª</button>` : ''}
                 </div>
             `;
         }
@@ -135,12 +135,12 @@ async function buscarProdutosGestao(page = 1, limit = 20) {
         container.innerHTML = tableHTML;
     } catch (error) {
         if (container) {
-            container.innerHTML = '<div class="pad-12 text-danger">Erro ao buscar produtos. Verifique a Conex√£o.</div>';
+            container.innerHTML = '<div class="pad-12 text-danger">Erro ao buscar produtos. Verifique a Conex„o.</div>';
         }
     }
 }
 
-// Atalhos r√°pidos para filtros
+// Atalhos r·pidos para filtros
 function filtrarRapidoGestao(tipo) {
     const estoqueSelect = document.getElementById('filter-estoque-gestao');
     const searchInput = document.getElementById('search-produtos-gestao');
@@ -154,7 +154,7 @@ function filtrarRapidoGestao(tipo) {
         searchInput.value = '';
     } else if (tipo === 'com-variacao') {
         estoqueSelect.value = '';
-        searchInput.value = 'Varia√ß√£o';
+        searchInput.value = 'VariaÁ„o';
     } else {
         estoqueSelect.value = '';
         searchInput.value = '';
@@ -166,7 +166,7 @@ function filtrarRapidoGestao(tipo) {
 window.buscarProdutosGestao = buscarProdutosGestao;
 window.filtrarRapidoGestao = filtrarRapidoGestao;
 
-// Atualiza contadores espec√≠ficos da p√°gina Gest√£o de Produtos
+// Atualiza contadores especÌficos da p·gina Gest„o de Produtos
 async function updateCountersGestaoProdutos() {
     try {
         const response = await fetch(`${API_BASE_URL}/produtos?page=1&limit=10000`);
@@ -176,7 +176,7 @@ async function updateCountersGestaoProdutos() {
         const produtos = body.produtos || body.rows || (Array.isArray(body) ? body : []);
         const total = produtos.length;
         
-        // Calcular estat√≠sticas de estoque
+        // Calcular estatÌsticas de estoque
         let estoqueBaixo = 0;
         let estoqueCritico = 0;
         let estoqueNormal = 0;
@@ -194,7 +194,7 @@ async function updateCountersGestaoProdutos() {
             }
         });
         
-        // Atualizar os elementos com anima√ß√£o
+        // Atualizar os elementos com animaÁ„o
         const totalEl = document.getElementById('stat-total-produtos-gestao');
         const baixoEl = document.getElementById('stat-estoque-baixo-gestao');
         const criticoEl = document.getElementById('stat-produtos-criticos-gestao');
@@ -205,31 +205,31 @@ async function updateCountersGestaoProdutos() {
         if (criticoEl) animateCounter(criticoEl, estoqueCritico, 1000);
         if (normalEl) animateCounter(normalEl, estoqueNormal, 1000);
         
-        console.log(`[updateCountersGestaoProdutos] Total: ${total}, Baixo: ${estoqueBaixo}, Cr√≠tico: ${estoqueCritico}, Normal: ${estoqueNormal}`);
+        console.log(`[updateCountersGestaoProdutos] Total: ${total}, Baixo: ${estoqueBaixo}, CrÌtico: ${estoqueCritico}, Normal: ${estoqueNormal}`);
         
     } catch (error) {
-        console.error('Erro ao atualizar contadores de Gest√£o de Produtos:', error);
+        console.error('Erro ao atualizar contadores de Gest„o de Produtos:', error);
     }
 }
 
-// InicializA√ß√£o da view de Gest√£o de Produtos
+// InicializAÁ„o da view de Gest„o de Produtos
 function initGestaoProdutos() {
     console.log('[initGestaoProdutos] Inicializando...');
     
-    // Atualiza contadores espec√≠ficos desta view
+    // Atualiza contadores especÌficos desta view
     updateCountersGestaoProdutos();
 
     // Inicializa busca inline (barra principal)
     initializeProductSearch();
 
-    // Carrega produtos com Pagina√ß√£o Padr√£o
+    // Carrega produtos com PaginaÁ„o Padr„o
     carregarProdutos(1, 20);
 
     // Se houver filtros adicionais, inicialize aqui
     // Exemplo: document.getElementById('filtro-marca')?.addEventListener('change', ...)
 }
 
-// Garante que a Fun√ß√£o est√° dispon√≠vel globalmente (caso necess√°rio)
+// Garante que a FunÁ„o est· disponÌvel globalmente (caso necess·rio)
 window.initGestaoProdutos = initGestaoProdutos;
 window.updateCountersGestaoProdutos = updateCountersGestaoProdutos;
 // Modern PCP Interface Controller
@@ -299,7 +299,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Add a detailed notification about what was refreshed
                 setTimeout(() => {
-                    showToast('Invent√°rio sincronizado - 245 itens atualizados', 'info');
+                    showToast('Invent·rio sincronizado - 245 itens atualizados', 'info');
                 }, 500);
                 
                 // Refresh dashboard if active
@@ -407,9 +407,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Add notification based on the view being shown
                 const viewNames = {
                     'dashboard-view': 'Dashboard',
-                    'materiais-view': 'Gest√£o de Materiais',
+                    'materiais-view': 'Gest„o de Materiais',
                     'ordem-compra-view': 'Ordens de Compra',
-                    'faturamento-view': 'Programa√ß√£o de Faturamento'
+                    'faturamento-view': 'ProgramaÁ„o de Faturamento'
                 };
                 
                 const viewName = viewNames[viewId];
@@ -421,7 +421,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
             } else {
                 console.error('Target view not found:', viewId);
-                showToast('Erro ao carregar a p√°gina solicitada', 'error');
+                showToast('Erro ao carregar a p·gina solicitada', 'error');
             }
             
             // Close mobile sidebar if open
@@ -449,9 +449,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Quick action buttons - usando onclick inline nos bot√µes HTML
-    // Os bot√µes pcp-new-order, pcp-new-product e pcp-refresh usam onclick="window.abrirModalNovaOrdem()" etc.
-    // n√£o adicionar event listeners aqui para evitar conflitos
+    // Quick action buttons - usando onclick inline nos botıes HTML
+    // Os botıes pcp-new-order, pcp-new-product e pcp-refresh usam onclick="window.abrirModalNovaOrdem()" etc.
+    // n„o adicionar event listeners aqui para evitar conflitos
     
     // Function to open professional product modal (for new or edit)
     function openProductModal(productData = null) {
@@ -501,7 +501,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Refresh button no header (j√° tem onclick inline nos bot√µes quick actions)
+    // Refresh button no header (j· tem onclick inline nos botıes quick actions)
     const refreshBtn = document.getElementById('btn-refresh-header');
     if (refreshBtn) {
         refreshBtn.addEventListener('click', function() {
@@ -556,7 +556,7 @@ async function searchProductsAndDisplay(query) {
                 <div class="search-no-results">
                     <i class="fas fa-search"></i>
                     <p>Nenhum produto encontrado para "${query}"</p>
-                    <small>Tente usar c√≥digos ou descri√ß√µes diferentes</small>
+                    <small>Tente usar cÛdigos ou descriÁıes diferentes</small>
                 </div>
             `;
         } else {
@@ -605,26 +605,26 @@ function initializeDashboard() {
         recentOrdersContainer.innerHTML = `
             <div class="search-item">
                 <div>
-                    <strong>3B OFFICE M√ìVEIS PARA ESCRIT√ìRIO LTDA</strong>
-                    <div class="meta text-sm muted">TRN10_LAB, DUN10_ALU... ‚Ä¢ 18/09/2025 ‚Ä¢ orcamento</div>
+                    <strong>3B OFFICE M”VEIS PARA ESCRIT”RIO LTDA</strong>
+                    <div class="meta text-sm muted">TRN10_LAB, DUN10_ALU... ï 18/09/2025 ï orcamento</div>
                 </div>
             </div>
             <div class="search-item">
                 <div>
                     <strong>26.047.384 LUIZ ALBERTO FERREIRA LOPES</strong>
-                    <div class="meta text-sm muted">TRN10_ALU, TRN10_LAB... ‚Ä¢ 18/09/2025 ‚Ä¢ orcamento</div>
+                    <div class="meta text-sm muted">TRN10_ALU, TRN10_LAB... ï 18/09/2025 ï orcamento</div>
                 </div>
             </div>
             <div class="search-item">
                 <div>
-                    <strong>3B OFFICE M√ìVEIS PARA ESCRIT√ìRIO LTDA</strong>
-                    <div class="meta text-sm muted">TRN10_LAB, DUN10_ALU... ‚Ä¢ 18/09/2025 ‚Ä¢ orcamento</div>
+                    <strong>3B OFFICE M”VEIS PARA ESCRIT”RIO LTDA</strong>
+                    <div class="meta text-sm muted">TRN10_LAB, DUN10_ALU... ï 18/09/2025 ï orcamento</div>
                 </div>
             </div>
             <div class="search-item" style="border-bottom:none;">
                 <div>
                     <strong>26.047.384 LUIZ ALBERTO FERREIRA LOPES</strong>
-                    <div class="meta text-sm muted">TRN10_ALU, TRN10_LAB... ‚Ä¢ 18/09/2025 ‚Ä¢ orcamento</div>
+                    <div class="meta text-sm muted">TRN10_ALU, TRN10_LAB... ï 18/09/2025 ï orcamento</div>
                 </div>
             </div>
         `;
@@ -699,7 +699,7 @@ function saveNotificationsToStorage() {
         }, 1000);
         
         setTimeout(() => {
-            showToast('Verifica√ß√£o de estoque em andamento', 'info');
+            showToast('VerificaÁ„o de estoque em andamento', 'info');
         }, 2000);
         
         setTimeout(() => {
@@ -843,7 +843,7 @@ function handleLogout() {
     // Redirecionar diretamente para o painel de controle
     showToast('Retornando ao Painel de Controle...', 'info');
     
-    // Adicionar anima√ß√£o ao √≠cone
+    // Adicionar animaÁ„o ao Ìcone
     const sairBtn = document.getElementById('btn-sair');
     const icon = sairBtn?.querySelector('i');
     
@@ -852,14 +852,14 @@ function handleLogout() {
         icon.style.transition = 'transform 0.3s ease-out';
     }
     
-    // Redirecionar ap√≥s breve anima√ß√£o
+    // Redirecionar apÛs breve animaÁ„o
     setTimeout(() => {
-        window.location.href = '/dashboard';
+        window.location.href = window.__withBasePath ? window.__withBasePath('/dashboard') : '/dashboard';
     }, 300);
     
-    return; // C√≥digo antigo abaixo (mantido comentado para refer√™ncia)
+    return; // CÛdigo antigo abaixo (mantido comentado para referÍncia)
     
-    /* C√ìDIGO ORIGINAL DE LOGOUT (DESABILITADO)
+    /* C”DIGO ORIGINAL DE LOGOUT (DESABILITADO)
     // Show custom confirmation modal instead of native confirm
     const modal = document.getElementById('logout-confirmation-modal');
     const cancelBtn = document.getElementById('logout-cancel');
@@ -933,7 +933,7 @@ function closeLogoutModal() {
 
 function performLogout() {
     // Show loading state with toast
-    showToast('Encerrando sess√£o...', 'info');
+    showToast('Encerrando sess„o...', 'info');
     
     // Add animation to logout icon
     const sairBtn = document.getElementById('btn-sair');
@@ -1062,7 +1062,7 @@ function initializeHeaderButtons() {
     // Notification buttons
     const notificationBtn = document.querySelector('#notification-bell');
     const messagesBtn = document.querySelector('.notification-btn[title="Mensagens"]');
-    const settingsBtn = document.querySelector('.notification-btn[title="Configura√ß√µes"]');
+    const settingsBtn = document.querySelector('.notification-btn[title="ConfiguraÁıes"]');
     
     console.log('Notification button:', notificationBtn);
     console.log('Messages button:', messagesBtn);
@@ -1142,7 +1142,7 @@ function toggleViewMode(mode) {
             panel.classList.remove('list-view');
             panel.classList.add('grid-view');
         });
-        showToast('Visualiza√ß√£o em grade ativada', 'info');
+        showToast('VisualizaÁ„o em grade ativada', 'info');
     } else if (mode === 'list') {
         if (dashboardGrid) {
             dashboardGrid.classList.remove('grid-mode');
@@ -1152,7 +1152,7 @@ function toggleViewMode(mode) {
             panel.classList.remove('grid-view');
             panel.classList.add('list-view');
         });
-        showToast('Visualiza√ß√£o em lista ativada', 'info');
+        showToast('VisualizaÁ„o em lista ativada', 'info');
     }
 }
 
@@ -1172,7 +1172,7 @@ function updateActiveViewButton(activeBtn, inactiveBtn) {
 
 // Notifications functionality
 function handleNotifications() {
-    const icon = document.querySelector('.notification-btn[title="Notifica√ß√µes"] i');
+    const icon = document.querySelector('.notification-btn[title="NotificaÁıes"] i');
     
     // Animate bell
     ringNotificationBell();
@@ -1189,7 +1189,7 @@ function handleNotifications() {
 // Function to update notification panel if it's currently open
 function updateNotificationPanel() {
     const modalContent = document.querySelector('.quick-modal .modal-content');
-    if (modalContent && modalContent.innerHTML.includes('Notifica√ß√µes Recentes')) {
+    if (modalContent && modalContent.innerHTML.includes('NotificaÁıes Recentes')) {
         // Panel is open, refresh it
         setTimeout(() => {
             showNotificationsPanel();
@@ -1198,7 +1198,7 @@ function updateNotificationPanel() {
 }
 
 function showNotificationsPanel() {
-    let notificationsHtml = '<div class="notifications-header"><h4>Notifica√ß√µes Recentes</h4>';
+    let notificationsHtml = '<div class="notifications-header"><h4>NotificaÁıes Recentes</h4>';
     
     if (notificationQueue.length > 0) {
         notificationsHtml += `<button class="clear-notifications-btn" onclick="clearAllNotifications()">Limpar Todas</button>`;
@@ -1207,7 +1207,7 @@ function showNotificationsPanel() {
     notificationsHtml += '</div><div class="notifications-list">';
     
     if (notificationQueue.length === 0) {
-        notificationsHtml += '<div class="no-notifications">Nenhuma Notifica√ß√£o recente</div>';
+        notificationsHtml += '<div class="no-notifications">Nenhuma NotificaÁ„o recente</div>';
     } else {
         notificationQueue.slice(0, 20).forEach(notif => {
             const timeAgo = getTimeAgo(notif.timestamp);
@@ -1232,7 +1232,7 @@ function showNotificationsPanel() {
     
     notificationsHtml += '</div>';
     
-    showQuickModal('Notifica√ß√µes', notificationsHtml);
+    showQuickModal('NotificaÁıes', notificationsHtml);
 }
 
 function getTimeAgo(timestamp) {
@@ -1242,9 +1242,9 @@ function getTimeAgo(timestamp) {
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
     
-    if (days > 0) return `${days}d atr√°s`;
-    if (hours > 0) return `${hours}h atr√°s`;
-    if (minutes > 0) return `${minutes}min atr√°s`;
+    if (days > 0) return `${days}d atr·s`;
+    if (hours > 0) return `${hours}h atr·s`;
+    if (minutes > 0) return `${minutes}min atr·s`;
     return 'Agora mesmo';
 }
 
@@ -1265,7 +1265,7 @@ function removeNotification(id) {
             if (remainingNotifs.length === 0) {
                 const notifsList = document.querySelector('.notifications-list');
                 if (notifsList) {
-                    notifsList.innerHTML = '<div class="no-notifications">Nenhuma Notifica√ß√£o recente</div>';
+                    notifsList.innerHTML = '<div class="no-notifications">Nenhuma NotificaÁ„o recente</div>';
                 }
             }
         }, 300);
@@ -1275,8 +1275,8 @@ function removeNotification(id) {
 function clearAllNotifications() {
     showConfirmModal({
         type: 'danger',
-        title: 'Limpar Notifica√ß√µes',
-        message: 'Tem certeza que deseja limpar todas as notifica√ß√µes? Esta A√ß√£o n√£o pode ser desfeita.',
+        title: 'Limpar NotificaÁıes',
+        message: 'Tem certeza que deseja limpar todas as notificaÁıes? Esta AÁ„o n„o pode ser desfeita.',
         confirmText: 'Limpar Todas',
         cancelText: 'Cancelar'
     }).then(confirmed => {
@@ -1287,7 +1287,7 @@ function clearAllNotifications() {
             
             const notifsList = document.querySelector('.notifications-list');
             if (notifsList) {
-                notifsList.innerHTML = '<div class="no-notifications">Nenhuma Notifica√ß√£o recente</div>';
+                notifsList.innerHTML = '<div class="no-notifications">Nenhuma NotificaÁ„o recente</div>';
             }
             
             // Remove clear button
@@ -1296,7 +1296,7 @@ function clearAllNotifications() {
                 clearBtn.remove();
             }
             
-            showToast('Todas as notifica√ß√µes foram limpas', 'success');
+            showToast('Todas as notificaÁıes foram limpas', 'success');
         }
     });
 }
@@ -1318,7 +1318,7 @@ function removeNotification(notificationId) {
             if (remainingNotifs.length === 0) {
                 const notifsList = document.querySelector('.notifications-list');
                 if (notifsList) {
-                    notifsList.innerHTML = '<div class="no-notifications">Nenhuma Notifica√ß√£o recente</div>';
+                    notifsList.innerHTML = '<div class="no-notifications">Nenhuma NotificaÁ„o recente</div>';
                 }
                 
                 // Remove clear button
@@ -1346,10 +1346,10 @@ function handleMessages() {
 
 function showMessagesPanel() {
     const messages = [
-        { from: 'Jo√£o Silva', message: 'Preciso verificar o status da ordem #1234', time: '10 min atr√°s', unread: true },
-        { from: 'Maria Santos', message: 'Material chegou no estoque', time: '30 min atr√°s', unread: true },
-        { from: 'Sistema', message: 'Backup realizado com sucesso', time: '1 hora atr√°s', unread: false },
-        { from: 'Carlos Oliveira', message: 'Reuni√£o √†s 14h sobre Produ√ß√£o', time: '2 horas atr√°s', unread: false }
+        { from: 'Jo„o Silva', message: 'Preciso verificar o status da ordem #1234', time: '10 min atr·s', unread: true },
+        { from: 'Maria Santos', message: 'Material chegou no estoque', time: '30 min atr·s', unread: true },
+        { from: 'Sistema', message: 'Backup realizado com sucesso', time: '1 hora atr·s', unread: false },
+        { from: 'Carlos Oliveira', message: 'Reuni„o ‡s 14h sobre ProduÁ„o', time: '2 horas atr·s', unread: false }
     ];
     
     let messagesHtml = '<div class="messages-header"><h4>Mensagens</h4></div><div class="messages-list">';
@@ -1377,7 +1377,7 @@ function showMessagesPanel() {
 
 // Settings functionality  
 function handleSettings() {
-    const icon = document.querySelector('.notification-btn[title="Configura√ß√µes"] i');
+    const icon = document.querySelector('.notification-btn[title="ConfiguraÁıes"] i');
     
     // Rotate animation
     icon.style.transform = 'rotate(180deg)';
@@ -1390,7 +1390,7 @@ function handleSettings() {
 
 function showSettingsPanel() {
     const settingsHtml = `
-        <div class="settings-header"><h4>Configura√ß√µes R√°pidas</h4></div>
+        <div class="settings-header"><h4>ConfiguraÁıes R·pidas</h4></div>
         <div class="settings-list">
             <div class="setting-item">
                 <div class="setting-label">
@@ -1405,7 +1405,7 @@ function showSettingsPanel() {
             <div class="setting-item">
                 <div class="setting-label">
                     <i class="fas fa-bell"></i>
-                    Notifica√ß√µes Push
+                    NotificaÁıes Push
                 </div>
                 <label class="toggle-switch">
                     <input type="checkbox" id="push-notifications" checked>
@@ -1425,7 +1425,7 @@ function showSettingsPanel() {
         </div>
     `;
     
-    showQuickModal('Configura√ß√µes', settingsHtml);
+    showQuickModal('ConfiguraÁıes', settingsHtml);
     
     // Add toggle functionality after modal is shown
     setTimeout(() => {
@@ -1444,7 +1444,7 @@ function handleUserProfile() {
             </div>
             <div class="profile-info">
                 <h4>Clemerson Santos</h4>
-                <p>Supervisor de Produ√ß√£o</p>
+                <p>Supervisor de ProduÁ„o</p>
                 <p class="profile-email">clemerson@aluforce.com</p>
             </div>
         </div>
@@ -1458,7 +1458,7 @@ function handleUserProfile() {
                 <div class="stat-value">89</div>
             </div>
             <div class="stat-item">
-                <div class="stat-label">√öltimo Login</div>
+                <div class="stat-label">⁄ltimo Login</div>
                 <div class="stat-value">Hoje, 08:30</div>
             </div>
         </div>
@@ -1470,16 +1470,16 @@ function handleUserProfile() {
 // User settings functionality
 function handleUserSettings() {
     const userSettingsHtml = `
-        <div class="user-settings-header"><h4>Prefer√™ncias do Usu√°rio</h4></div>
+        <div class="user-settings-header"><h4>PreferÍncias do Usu·rio</h4></div>
         <div class="user-settings-list">
             <div class="setting-group">
                 <h5>Interface</h5>
                 <div class="setting-item">
                     <label for="language-select">Idioma</label>
                     <select id="language-select" class="modern-input">
-                        <option value="pt-BR" selected>Portugu√™s (Brasil)</option>
+                        <option value="pt-BR" selected>PortuguÍs (Brasil)</option>
                         <option value="en-US">English (US)</option>
-                        <option value="es-ES">Espa√±ol</option>
+                        <option value="es-ES">EspaÒol</option>
                     </select>
                 </div>
                 <div class="setting-item">
@@ -1487,15 +1487,15 @@ function handleUserSettings() {
                     <select id="theme-select" class="modern-input">
                         <option value="light" selected>Claro</option>
                         <option value="dark">Escuro</option>
-                        <option value="auto">Autom√°tico</option>
+                        <option value="auto">Autom·tico</option>
                     </select>
                 </div>
             </div>
             <div class="setting-group">
-                <h5>Notifica√ß√µes</h5>
+                <h5>NotificaÁıes</h5>
                 <div class="setting-item">
                     <label>
-                        <input type="checkbox" checked> Notifica√ß√µes de Email
+                        <input type="checkbox" checked> NotificaÁıes de Email
                     </label>
                 </div>
                 <div class="setting-item">
@@ -1507,7 +1507,7 @@ function handleUserSettings() {
         </div>
     `;
     
-    showQuickModal('Configura√ß√µes do Usu√°rio', userSettingsHtml);
+    showQuickModal('ConfiguraÁıes do Usu·rio', userSettingsHtml);
 }
 
 // Quick modal utility
@@ -1525,7 +1525,7 @@ function showQuickModal(title, content) {
         <div class="modal-dialog modal-sm">
             <div class="modal-header">
                 <h3>${title}</h3>
-                <button type="button" class="modal-close" onclick="document.getElementById('quick-modal').remove()">√ó</button>
+                <button type="button" class="modal-close" onclick="document.getElementById('quick-modal').remove()">◊</button>
             </div>
             <div class="modal-body">
                 ${content}
@@ -1711,15 +1711,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 2000);
     
     setTimeout(() => {
-        showToast('Verifica√ß√£o de estoque em andamento', 'info');
+        showToast('VerificaÁ„o de estoque em andamento', 'info');
     }, 4000);
 });
 
 function togglePushNotifications(e) {
     if (e.target.checked) {
-        showToast('Notifica√ß√µes push ativadas', 'success');
+        showToast('NotificaÁıes push ativadas', 'success');
     } else {
-        showToast('Notifica√ß√µes push desativadas', 'warning');
+        showToast('NotificaÁıes push desativadas', 'warning');
     }
 }
 
@@ -1761,11 +1761,11 @@ async function carregarMateriais() {
             <table class="estoque-table">
                 <thead>
                     <tr>
-                        <th class="w-12pct">C√≥digo</th>
-                        <th>Descri√ß√£o</th>
+                        <th class="w-12pct">CÛdigo</th>
+                        <th>DescriÁ„o</th>
                         <th class="w-12pct text-center">Estoque</th>
                         <th class="w-12pct">Unidade</th>
-                        <th class="w-14pct text-center">A√ß√µes</th>
+                        <th class="w-14pct text-center">AÁıes</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1811,7 +1811,7 @@ async function carregarMateriais() {
         
         const container = document.getElementById('tabela-materiais-container');
         if (container) {
-            container.innerHTML = '<div class="pad-12 text-danger">Erro ao carregar materiais. Verifique a Conex√£o com o servidor.</div>';
+            container.innerHTML = '<div class="pad-12 text-danger">Erro ao carregar materiais. Verifique a Conex„o com o servidor.</div>';
         }
     }
 }
@@ -1829,7 +1829,7 @@ async function carregarProdutos(page = 1, limit = 20) {
         
         console.log('[carregarProdutos] Recebidos', produtos.length, 'de', total, 'produtos');
         
-    // Usar o container correto da Gest√£o de Produtos se existir
+    // Usar o container correto da Gest„o de Produtos se existir
     let container = document.getElementById('tabela-produtos-gestao-container');
     if (!container) container = document.getElementById('tabela-produtos-container');
     if (!container) return;
@@ -1841,22 +1841,22 @@ async function carregarProdutos(page = 1, limit = 20) {
         
         const startIndex = ((page - 1) * limit) + 1;
         const endIndex = Math.min(total, page * limit);
-        const infoLine = `<div class="info-line">Mostrando ${startIndex}‚Äì${endIndex} de ${total} produtos</div>`;
+        const infoLine = `<div class="info-line">Mostrando ${startIndex}ñ${endIndex} de ${total} produtos</div>`;
         
         let tableHTML = `
             ${infoLine}
             <table class="estoque-table">
                 <thead>
                     <tr>
-                        <th class="w-8pct">C√≥digo</th>
-                        <th>Descri√ß√£o</th>
+                        <th class="w-8pct">CÛdigo</th>
+                        <th>DescriÁ„o</th>
                         <th class="w-8pct">SKU</th>
                         <th class="w-10pct">GTIN</th>
                         <th class="w-8pct">Unidade</th>
                         <th class="w-8pct text-center">Estoque</th>
-                        <th class="w-12pct">Varia√ß√µes</th>
+                        <th class="w-12pct">VariaÁıes</th>
                         <th class="w-10pct">Custo Unit.</th>
-                        <th class="w-12pct text-center">A√ß√µes</th>
+                        <th class="w-12pct text-center">AÁıes</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1916,9 +1916,9 @@ async function carregarProdutos(page = 1, limit = 20) {
         if (totalPages > 1) {
             tableHTML += `
                 <div class="pagination">
-                    ${page > 1 ? `<button class="btn-sm" onclick="carregarProdutos(${page - 1})">¬´ Anterior</button>` : ''}
-                    <span>P√°gina ${page} de ${totalPages}</span>
-                    ${page < totalPages ? `<button class="btn-sm" onclick="carregarProdutos(${page + 1})">Pr√≥xima ¬ª</button>` : ''}
+                    ${page > 1 ? `<button class="btn-sm" onclick="carregarProdutos(${page - 1})">´ Anterior</button>` : ''}
+                    <span>P·gina ${page} de ${totalPages}</span>
+                    ${page < totalPages ? `<button class="btn-sm" onclick="carregarProdutos(${page + 1})">PrÛxima ª</button>` : ''}
                 </div>
             `;
         }
@@ -1945,7 +1945,7 @@ async function carregarProdutos(page = 1, limit = 20) {
         let container = document.getElementById('tabela-produtos-gestao-container');
         if (!container) container = document.getElementById('tabela-produtos-container');
         if (container) {
-            container.innerHTML = '<div class="pad-12 text-danger">Erro ao carregar produtos. Verifique a Conex√£o com o servidor.</div>';
+            container.innerHTML = '<div class="pad-12 text-danger">Erro ao carregar produtos. Verifique a Conex„o com o servidor.</div>';
         }
     }
 }
@@ -2015,7 +2015,7 @@ async function updateCounters() {
 // Initialize materials view when navigated to
 function initializeMaterialsView() {
     console.log('Initializing Materials View...');
-    showToast('Carregando dados da Se√ß√£o Materiais...', 'info');
+    showToast('Carregando dados da SeÁ„o Materiais...', 'info');
     
     // Check if containers exist
     const materiaisContainer = document.getElementById('tabela-materiais-container');
@@ -2029,7 +2029,7 @@ function initializeMaterialsView() {
     
     if (!materiaisContainer || !produtosContainer) {
         console.error('Containers not found!');
-        showToast('Erro: Containers n√£o encontrados', 'error');
+        showToast('Erro: Containers n„o encontrados', 'error');
         return;
     }
     
@@ -2039,58 +2039,58 @@ function initializeMaterialsView() {
 
 // Action functions for buttons (to be implemented)
 window.editarMaterial = function(id) {
-    console.log('üîµ editarMaterial chamado, redirecionando para abrirModalEditarProduto');
-    // Abrir modal drawer lateral de Edi√ß√£o de produto
+    console.log('?? editarMaterial chamado, redirecionando para abrirModalEditarProduto');
+    // Abrir modal drawer lateral de EdiÁ„o de produto
     if (typeof window.abrirModalEditarProduto === 'function') {
         window.abrirModalEditarProduto(id);
     } else {
-        showToast(`Erro: Modal de Edi√ß√£o n√£o encontrado`, 'error');
-        console.error('‚ùå Fun√ß√£o abrirModalEditarProduto n√£o encontrada');
+        showToast(`Erro: Modal de EdiÁ„o n„o encontrado`, 'error');
+        console.error('? FunÁ„o abrirModalEditarProduto n„o encontrada');
     }
 };
 
 window.excluirMaterial = function(id) {
     if (confirm('Tem certeza que deseja excluir este material?')) {
-        showToast(`Material ID ${id} exclu√≠do`, 'warning');
+        showToast(`Material ID ${id} excluÌdo`, 'warning');
         // TODO: Implement delete material
     }
 };
 
 window.editarProduto = function(id) {
-    console.log('üîµ Editando produto com modal drawer lateral:', id);
+    console.log('?? Editando produto com modal drawer lateral:', id);
     
     // Abrir modal drawer lateral profissional
     if (typeof window.abrirModalEditarProduto === 'function') {
         window.abrirModalEditarProduto(id);
     } else {
-        console.error('‚ùå Fun√ß√£o window.abrirModalEditarProduto n√£o encontrada');
-        alert('Erro: Modal de Edi√ß√£o n√£o dispon√≠vel');
+        console.error('? FunÁ„o window.abrirModalEditarProduto n„o encontrada');
+        alert('Erro: Modal de EdiÁ„o n„o disponÌvel');
     }
     
-    /* C√ìDIGO ANTIGO REMOVIDO - Buscar dados e preencher campos
+    /* C”DIGO ANTIGO REMOVIDO - Buscar dados e preencher campos
     fetch(`/api/pcp/produtos/${id}`)
         .then(response => {
-            if (!response.ok) throw new Error('Produto n√£o encontrado');
+            if (!response.ok) throw new Error('Produto n„o encontrado');
             return response.json();
         })
         .then(produto => {
-            // Preenche campos b√°sicos
+            // Preenche campos b·sicos
             ...
         */
 };
 
-// C√≥digo antigo removido e comentado acima
-// A Fun√ß√£o agora usa o modal drawer lateral profissional
+// CÛdigo antigo removido e comentado acima
+// A FunÁ„o agora usa o modal drawer lateral profissional
 
 window.editarProduto_OLD_BACKUP = function(id) {
-    /* Backup da Fun√ß√£o antiga - n√£o usar
+    /* Backup da FunÁ„o antiga - n„o usar
     fetch(`/api/pcp/produtos/${id}`)
         .then(response => {
-            if (!response.ok) throw new Error('Produto n√£o encontrado');
+            if (!response.ok) throw new Error('Produto n„o encontrado');
             return response.json();
         })
         .then(produto => {
-            // Preenche campos b√°sicos
+            // Preenche campos b·sicos
             document.getElementById('edit-produto-id').value = produto.id;
             document.getElementById('edit-codigo').value = produto.codigo || '';
             document.getElementById('edit-nome').value = produto.nome || '';
@@ -2099,7 +2099,7 @@ window.editarProduto_OLD_BACKUP = function(id) {
             document.getElementById('edit-gtin').value = produto.gtin || '';
             document.getElementById('edit-marca').value = 'Aluforce';
             
-            // Preenche novos campos (valores Padr√£o se n√£o existirem)
+            // Preenche novos campos (valores Padr„o se n„o existirem)
             document.getElementById('edit-categoria').value = produto.categoria || '';
             document.getElementById('edit-tensao').value = produto.tensao || '';
             document.getElementById('edit-secao').value = produto.secao || '';
@@ -2123,13 +2123,13 @@ window.editarProduto_OLD_BACKUP = function(id) {
                 parseFloat(produto.estoque_maximo) || 100
             );
             
-            // Mostra ID no t√≠tulo
+            // Mostra ID no tÌtulo
             document.getElementById('modal-produto-id-display').textContent = `ID: ${produto.id}`;
             
             // Valida GTIN
             validarGTINStatus(produto.gtin);
             
-            // Trata o campo Varia√ß√£o (JSON array)
+            // Trata o campo VariaÁ„o (JSON array)
             let variacaoText = '';
             if (produto.variacao) {
                 try {
@@ -2153,28 +2153,28 @@ window.editarProduto_OLD_BACKUP = function(id) {
                 atualizarContadorCaracteres({ target: descInput });
             }
             
-            // Mostra data de √∫ltima modifica√ß√£o
-            const lastModified = produto.updated_at || produto.created_at || 'n√£o dispon√≠vel';
+            // Mostra data de ˙ltima modificaÁ„o
+            const lastModified = produto.updated_at || produto.created_at || 'n„o disponÌvel';
             document.getElementById('last-modified-info').textContent = 
-                `√öltima modifica√ß√£o: ${new Date(lastModified).toLocaleString('pt-BR')}`;
+                `⁄ltima modificaÁ„o: ${new Date(lastModified).toLocaleString('pt-BR')}`;
             
             // Mostra o modal
             const modal = document.getElementById('modal-editar-produto');
             modal.classList.remove('hidden');
             modal.setAttribute('aria-hidden', 'false');
             
-            // Foca no primeiro campo edit√°vel
+            // Foca no primeiro campo edit·vel
             document.getElementById('edit-nome').focus();
             
         })
         .catch(error => {
             console.error('Erro ao buscar produto:', error);
-            showToast('‚ùå Erro ao carregar dados do produto', 'error');
+            showToast('? Erro ao carregar dados do produto', 'error');
         });
         */
 };
 
-// Fun√ß√£o para atualizar preview de varia√ß√µes
+// FunÁ„o para atualizar preview de variaÁıes
 function atualizarPreviewVariacao(variacoes) {
     const preview = document.getElementById('variacao-preview');
     if (Array.isArray(variacoes) && variacoes.length > 0) {
@@ -2187,24 +2187,24 @@ function atualizarPreviewVariacao(variacoes) {
     }
 }
 
-// Fun√ß√£o de ajuda para varia√ß√µes
+// FunÁ„o de ajuda para variaÁıes
 window.mostrarAjudaVariacao = function() {
     showToast(`
-        <i class="fas fa-clipboard-list"></i> <strong>Formato de Varia√ß√µes:</strong><br>
-        ‚Ä¢ JSON Array: ["Item1", "Item2"]<br>
-        ‚Ä¢ Exemplo cores: ["Cor: Preto", "Cor: Azul"]<br>
-        ‚Ä¢ Exemplo tamanhos: ["50m", "100m", "200m"]<br>
-        ‚Ä¢ Deixe vazio se n√£o houver varia√ß√µes
+        <i class="fas fa-clipboard-list"></i> <strong>Formato de VariaÁıes:</strong><br>
+        ï JSON Array: ["Item1", "Item2"]<br>
+        ï Exemplo cores: ["Cor: Preto", "Cor: Azul"]<br>
+        ï Exemplo tamanhos: ["50m", "100m", "200m"]<br>
+        ï Deixe vazio se n„o houver variaÁıes
     `, 'info', 8000);
 };
 
 window.excluirProduto = function(id) {
-    console.log('üóëÔ∏è Excluindo produto:', id);
+    console.log('??? Excluindo produto:', id);
     
-    const confirmacao = confirm('Tem certeza que deseja excluir este produto?Esta A√ß√£o n√£o pode ser desfeita.');
+    const confirmacao = confirm('Tem certeza que deseja excluir este produto?Esta AÁ„o n„o pode ser desfeita.');
     
     if (confirmacao) {
-        // Busca o bot√£o que foi clicado para adicionar indicador de carregamento
+        // Busca o bot„o que foi clicado para adicionar indicador de carregamento
         const btnExcluir = document.querySelector(`button[onclick="excluirProduto(${id})"]`);
         const textoOriginal = btnExcluir ? btnExcluir.innerHTML : '';
         
@@ -2226,18 +2226,18 @@ window.excluirProduto = function(id) {
             return response.json();
         })
         .then(data => {
-            console.log('‚úÖ Produto exclu√≠do:', data.message);
-            showToast('Produto exclu√≠do com sucesso!', 'success');
+            console.log('? Produto excluÌdo:', data.message);
+            showToast('Produto excluÌdo com sucesso!', 'success');
             
             // Recarrega a lista de produtos
             carregarProdutos();
         })
         .catch(error => {
-            console.error('‚ùå Erro ao excluir produto:', error);
+            console.error('? Erro ao excluir produto:', error);
             showToast('Erro ao excluir produto', 'error');
         })
         .finally(() => {
-            // Restaura o bot√£o se existir
+            // Restaura o bot„o se existir
             if (btnExcluir) {
                 btnExcluir.innerHTML = textoOriginal;
                 btnExcluir.disabled = false;
@@ -2251,9 +2251,9 @@ window.carregarMateriais = carregarMateriais;
 window.carregarProdutos = carregarProdutos;
 window.initializeMaterialsView = initializeMaterialsView;
 
-// Fun√ß√£o para gerar cat√°logo de produtos
+// FunÁ„o para gerar cat·logo de produtos
 window.gerarCatalogoProdutos = async function() {
-    console.log('<i class="fas fa-chart-bar"></i> Gerando cat√°logo de produtos...');
+    console.log('<i class="fas fa-chart-bar"></i> Gerando cat·logo de produtos...');
     
     try {
         // Adiciona indicador de carregamento
@@ -2262,13 +2262,13 @@ window.gerarCatalogoProdutos = async function() {
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
         btn.disabled = true;
         
-        // Busca dados do cat√°logo
+        // Busca dados do cat·logo
         const response = await fetch('/api/pcp/produtos/catalogo');
-        if (!response.ok) throw new Error('Erro ao gerar cat√°logo');
+        if (!response.ok) throw new Error('Erro ao gerar cat·logo');
         
         const dados = await response.json();
         
-        // Gera HTML do cat√°logo
+        // Gera HTML do cat·logo
         const agora = new Date();
         const timestamp = agora.toLocaleString('pt-BR');
         
@@ -2278,7 +2278,7 @@ window.gerarCatalogoProdutos = async function() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cat√°logo de Produtos Aluforce - GTINs</title>
+    <title>Cat·logo de Produtos Aluforce - GTINs</title>
     <style>
         @page { margin: 1.5cm; size: A4; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -2314,14 +2314,14 @@ window.gerarCatalogoProdutos = async function() {
 </head>
 <body>
     <div class="header">
-        <div class="logo">üè≠ ALUFORCE</div>
-        <div class="subtitle">Cat√°logo Completo de Produtos com GTINs (EAN-13)</div>
+        <div class="logo">?? ALUFORCE</div>
+        <div class="subtitle">Cat·logo Completo de Produtos com GTINs (EAN-13)</div>
         <div class="timestamp">Gerado em: ${timestamp}</div>
     </div>
     
     <div class="actions">
         <a href="#" onclick="window.print(); return false;" class="btn-acao">
-            üìÑ Imprimir PDF
+            ?? Imprimir PDF
         </a>
         <a href="/api/pcp/produtos/catalogo/csv" class="btn-acao btn-csv">
             <i class="fas fa-download"></i> Download CSV
@@ -2339,7 +2339,7 @@ window.gerarCatalogoProdutos = async function() {
         </div>
         <div class="stats-item">
             <div class="stats-value">EAN-13</div>
-            <div class="stats-label">Padr√£o GTIN</div>
+            <div class="stats-label">Padr„o GTIN</div>
         </div>
         <div class="stats-item">
             <div class="stats-value">100%</div>
@@ -2351,7 +2351,7 @@ window.gerarCatalogoProdutos = async function() {
         <thead>
             <tr>
                 <th class="id-col">ID</th>
-                <th class="codigo-col">C√≥digo</th>
+                <th class="codigo-col">CÛdigo</th>
                 <th class="nome-col">Nome do Produto</th>
                 <th class="gtin-col">GTIN (EAN-13)</th>
                 <th class="sku-col">SKU</th>
@@ -2362,7 +2362,7 @@ window.gerarCatalogoProdutos = async function() {
         
         // Adiciona produtos
         const produtosHtml = dados.produtos.map(produto => {
-            const nome = (produto.nome || '').replace(/\?/g, '¬≤');
+            const nome = (produto.nome || '').replace(/\?/g, '≤');
             return `
             <tr>
                 <td class="id-col">${produto.id}</td>
@@ -2373,7 +2373,7 @@ window.gerarCatalogoProdutos = async function() {
                 <td class="gtin-col">
                     <span class="gtin-highlight">${produto.gtin}</span>
                 </td>
-                <td class="sku-col">${produto.sku || '‚Äî'}</td>
+                <td class="sku-col">${produto.sku || 'ó'}</td>
                 <td class="marca-col">${produto.marca}</td>
             </tr>`;
         }).join('');
@@ -2383,10 +2383,10 @@ window.gerarCatalogoProdutos = async function() {
     </table>
     
     <div class="footer">
-        <strong>üè≠ ALUFORCE - Cabos El√©tricos de Alum√≠nio</strong><br>
-        Prefixo GTIN: 78968192 | Padr√£o: EAN-13 (13 d√≠gitos)<br>
-        Relat√≥rio gerado automaticamente pelo Sistema PCP em ${timestamp}<br>
-        Total de ${dados.totalProdutos} produtos cadastrados com GTINs v√°lidos
+        <strong>?? ALUFORCE - Cabos ElÈtricos de AlumÌnio</strong><br>
+        Prefixo GTIN: 78968192 | Padr„o: EAN-13 (13 dÌgitos)<br>
+        RelatÛrio gerado automaticamente pelo Sistema PCP em ${timestamp}<br>
+        Total de ${dados.totalProdutos} produtos cadastrados com GTINs v·lidos
     </div>
 </body>
 </html>`;
@@ -2399,22 +2399,22 @@ window.gerarCatalogoProdutos = async function() {
         // Abre em nova janela
         const novaJanela = window.open(url, '_blank');
         if (novaJanela) {
-            novaJanela.document.title = 'Cat√°logo Produtos Aluforce';
-            showToast(`üìÑ Cat√°logo gerado! ${dados.totalProdutos} produtos`, 'success');
+            novaJanela.document.title = 'Cat·logo Produtos Aluforce';
+            showToast(`?? Cat·logo gerado! ${dados.totalProdutos} produtos`, 'success');
         } else {
-            showToast('‚ùå Popup bloqueado! Habilite popups para este site', 'error');
+            showToast('? Popup bloqueado! Habilite popups para este site', 'error');
         }
         
-        // Limpa URL ap√≥s um tempo
+        // Limpa URL apÛs um tempo
         setTimeout(() => URL.revokeObjectURL(url), 1000);
         
     } catch (error) {
-        console.error('‚ùå Erro ao gerar cat√°logo:', error);
-        showToast('Erro ao gerar cat√°logo de produtos', 'error');
+        console.error('? Erro ao gerar cat·logo:', error);
+        showToast('Erro ao gerar cat·logo de produtos', 'error');
     } finally {
-        // Restaura bot√£o
+        // Restaura bot„o
         const btn = document.getElementById('btn-gerar-catalogo');
-        btn.innerHTML = '<i class="fas fa-file-pdf"></i> Gerar Cat√°logo PDF';
+        btn.innerHTML = '<i class="fas fa-file-pdf"></i> Gerar Cat·logo PDF';
         btn.disabled = false;
     }
 };
@@ -2472,7 +2472,7 @@ async function searchProducts(query) {
 async function getProductDetails(productId) {
     try {
         const response = await fetch(`${API_BASE_URL}/produtos/${productId}`);
-        if (!response.ok) throw new Error('Produto n√£o encontrado');
+        if (!response.ok) throw new Error('Produto n„o encontrado');
         
         const product = await response.json();
         return product;
@@ -2499,7 +2499,7 @@ async function openProductDetailsModal(productId) {
     // Show loading state
     body.innerHTML = `
         <div class="product-details-loading">
-            <i class="fas fa-spinner fa-spin"></i> Carregando informa√ß√µes do produto...
+            <i class="fas fa-spinner fa-spin"></i> Carregando informaÁıes do produto...
         </div>
     `;
     
@@ -2517,7 +2517,7 @@ async function openProductDetailsModal(productId) {
         body.innerHTML = `
             <div class="error-message">
                 <i class="fas fa-exclamation-triangle"></i>
-                <p>n√£o foi poss√≠vel carregar os detalhes do produto.</p>
+                <p>n„o foi possÌvel carregar os detalhes do produto.</p>
             </div>
         `;
     }
@@ -2543,14 +2543,14 @@ function displayProductDetails(product, container) {
     const html = `
         <div class="product-details-grid">
             <div class="product-info-section">
-                <h4><i class="fas fa-info-circle"></i> Informa√ß√µes B√°sicas</h4>
+                <h4><i class="fas fa-info-circle"></i> InformaÁıes B·sicas</h4>
                 <div class="info-grid">
                     <div class="info-item">
-                        <label>C√≥digo:</label>
+                        <label>CÛdigo:</label>
                         <span class="info-value">${product.codigo || product.codigo_produto || 'N/A'}</span>
                     </div>
                     <div class="info-item">
-                        <label>Descri√ß√£o:</label>
+                        <label>DescriÁ„o:</label>
                         <span class="info-value">${product.descricao || product.descricao_produto || 'N/A'}</span>
                     </div>
                     <div class="info-item">
@@ -2572,7 +2572,7 @@ function displayProductDetails(product, container) {
                         <span class="info-value stock-value">${Number(product.quantidade || product.estoque || product.quantidade_estoque || 0).toFixed(2)}</span>
                     </div>
                     <div class="info-item">
-                        <label>Custo Unit√°rio:</label>
+                        <label>Custo Unit·rio:</label>
                         <span class="info-value price-value">R$ ${Number(product.custo_unitario || product.preco || 0).toFixed(2)}</span>
                     </div>
                     <div class="info-item">
@@ -2583,11 +2583,11 @@ function displayProductDetails(product, container) {
             </div>
             
             <div class="product-variations-section">
-                <h4><i class="fas fa-tags"></i> Varia√ß√µes</h4>
+                <h4><i class="fas fa-tags"></i> VariaÁıes</h4>
                 <div class="variations-list">
                     ${variacoes.length > 0 ? 
                         variacoes.map(v => `<span class="variation-tag">${v}</span>`).join('') 
-                        : '<span class="no-variations">Nenhuma Varia√ß√£o cadastrada</span>'
+                        : '<span class="no-variations">Nenhuma VariaÁ„o cadastrada</span>'
                     }
                 </div>
             </div>
@@ -2596,11 +2596,11 @@ function displayProductDetails(product, container) {
                 <h4><i class="fas fa-calendar-alt"></i> Datas</h4>
                 <div class="info-grid">
                     <div class="info-item">
-                        <label>Data de cria√ß√£o:</label>
+                        <label>Data de criaÁ„o:</label>
                         <span class="info-value">${product.created_at ? new Date(product.created_at).toLocaleDateString('pt-BR') : 'N/A'}</span>
                     </div>
                     <div class="info-item">
-                        <label>√öltima Atualiza√ß√£o:</label>
+                        <label>⁄ltima AtualizaÁ„o:</label>
                         <span class="info-value">${product.updated_at ? new Date(product.updated_at).toLocaleDateString('pt-BR') : 'N/A'}</span>
                     </div>
                     <div class="info-item">
@@ -2890,7 +2890,7 @@ function abrirModalNovoProduto() {
             if (firstInput) firstInput.focus();
         }, 300);
         
-        // Gerar SKU autom√°tico baseado no c√≥digo
+        // Gerar SKU autom·tico baseado no cÛdigo
         const codigoInput = document.getElementById('produto-codigo');
         const skuInput = document.getElementById('produto-sku');
         
@@ -2901,16 +2901,16 @@ function abrirModalNovoProduto() {
             });
         }
         
-        // Gerar GTIN autom√°tico
+        // Gerar GTIN autom·tico
         const gtinInput = document.getElementById('produto-gtin');
         if (gtinInput) {
             gtinInput.addEventListener('focus', function() {
                 if (!this.value) {
-                    // Prefixo da empresa + c√≥digo sequencial
+                    // Prefixo da empresa + cÛdigo sequencial
                     const timestamp = Date.now().toString().slice(-8);
                     this.value = `78968192${timestamp.padStart(5, '0')}`;
                     
-                    // Calcular d√≠gito verificador EAN-13
+                    // Calcular dÌgito verificador EAN-13
                     const digits = this.value.split('').map(Number);
                     let sum = 0;
                     for (let i = 0; i < 12; i++) {
@@ -2961,7 +2961,7 @@ async function salvarNovoProduto() {
             }
         }
         
-        // Converter n√∫meros
+        // Converter n˙meros
         ['peso', 'quantidade_estoque', 'custo_unitario', 'preco_venda'].forEach(field => {
             if (produto[field]) {
                 produto[field] = parseFloat(produto[field]);
@@ -3010,7 +3010,7 @@ async function salvarNovoProduto() {
 // Export products to PDF
 async function exportarProdutos() {
     try {
-        showToast('Gerando cat√°logo PDF...', 'info');
+        showToast('Gerando cat·logo PDF...', 'info');
         
         const response = await fetch(`${API_BASE_URL}/produtos/export-pdf`);
         if (!response.ok) {
@@ -3027,7 +3027,7 @@ async function exportarProdutos() {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
         
-        showToast('Cat√°logo PDF gerado com sucesso!', 'success');
+        showToast('Cat·logo PDF gerado com sucesso!', 'success');
         
     } catch (error) {
         console.error('Erro ao exportar produtos:', error);
@@ -3167,7 +3167,7 @@ function triggerSuccessAnimation() {
     });
     
     // Show notification
-    showStatusNotification('üìä Dados atualizados com sucesso!', 'success');
+    showStatusNotification('?? Dados atualizados com sucesso!', 'success');
 }
 
 // Status notification system
@@ -3182,7 +3182,7 @@ function showStatusNotification(message, type = 'info') {
     notification.innerHTML = `
         <div class="notification-content">
             <span class="notification-message">${message}</span>
-            <button class="notification-close">√ó</button>
+            <button class="notification-close">◊</button>
         </div>
     `;
     
@@ -3314,15 +3314,15 @@ function initializePageFeatures() {
     }, 30000);
 }
 
-// === EVENT LISTENERS PARA MODAL DE EDI√á√ÉO DE PRODUTO ===
+// === EVENT LISTENERS PARA MODAL DE EDI«√O DE PRODUTO ===
 document.addEventListener('DOMContentLoaded', function() {
-    // bot√£o fechar modal
+    // bot„o fechar modal
     const closeBtn = document.getElementById('close-editar-produto');
     const cancelBtn = document.getElementById('btn-cancelar-edicao');
     const modal = document.getElementById('modal-editar-produto');
     const form = document.getElementById('form-editar-produto');
     
-    // Fun√ß√£o para fechar modal
+    // FunÁ„o para fechar modal
     function fecharModal() {
         modal.classList.add('hidden');
         modal.setAttribute('aria-hidden', 'true');
@@ -3352,7 +3352,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Submit do formul√°rio de Edi√ß√£o
+    // Submit do formul·rio de EdiÁ„o
     form?.addEventListener('submit', function(e) {
         e.preventDefault();
         
@@ -3364,7 +3364,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = new FormData(form);
         const produtoId = formData.get('id');
         
-        // Valida campos obrigat√≥rios
+        // Valida campos obrigatÛrios
         const codigo = formData.get('codigo').trim();
         const nome = formData.get('nome').trim();
         
@@ -3381,7 +3381,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         if (hasError) {
-            showToast('üìù Preencha todos os campos obrigat√≥rios', 'error');
+            showToast('?? Preencha todos os campos obrigatÛrios', 'error');
             return;
         }
         
@@ -3389,23 +3389,23 @@ document.addEventListener('DOMContentLoaded', function() {
         const gtin = formData.get('gtin').trim();
         if (gtin && !/^\d{8,14}$/.test(gtin)) {
             document.getElementById('edit-gtin').classList.add('error');
-            showToast('<i class="fas fa-hashtag"></i> GTIN deve conter apenas n√∫meros (8 a 14 d√≠gitos)', 'error');
+            showToast('<i class="fas fa-hashtag"></i> GTIN deve conter apenas n˙meros (8 a 14 dÌgitos)', 'error');
             return;
         }
         
-        // Valida Varia√ß√£o se preenchida
+        // Valida VariaÁ„o se preenchida
         let variacao = formData.get('variacao').trim();
         if (variacao) {
             try {
                 const parsed = JSON.parse(variacao);
                 if (!Array.isArray(parsed)) {
                     document.getElementById('edit-variacao').classList.add('error');
-                    showToast('‚ö†Ô∏è Varia√ß√£o deve ser um array JSON v√°lido', 'error');
+                    showToast('?? VariaÁ„o deve ser um array JSON v·lido', 'error');
                     return;
                 }
             } catch (e) {
                 document.getElementById('edit-variacao').classList.add('error');
-                showToast('üí° Formato de Varia√ß√£o inv√°lido. Use: ["Item1", "Item2"]', 'error');
+                showToast('?? Formato de VariaÁ„o inv·lido. Use: ["Item1", "Item2"]', 'error');
                 return;
             }
         }
@@ -3427,7 +3427,7 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
         submitBtn.disabled = true;
         
-        // Envia requisi√ß√£o PUT
+        // Envia requisiÁ„o PUT
         fetch(`/api/pcp/produtos/${produtoId}`, {
             method: 'PUT',
             headers: {
@@ -3442,32 +3442,32 @@ document.addEventListener('DOMContentLoaded', function() {
             return response.json();
         })
         .then(data => {
-            console.log('‚úÖ Produto atualizado:', data.message);
-            showToast('‚úÖ Produto atualizado com sucesso!', 'success');
+            console.log('? Produto atualizado:', data.message);
+            showToast('? Produto atualizado com sucesso!', 'success');
             
             // Fecha modal e recarrega produtos
             fecharModal();
             carregarProdutos();
         })
         .catch(error => {
-            console.error('‚ùå Erro ao atualizar produto:', error);
+            console.error('? Erro ao atualizar produto:', error);
             const mensagem = error.message || 'Erro ao atualizar produto';
-            showToast(`‚ùå ${mensagem}`, 'error');
+            showToast(`? ${mensagem}`, 'error');
         })
         .finally(() => {
-            // Restaura bot√£o
+            // Restaura bot„o
             submitBtn.innerHTML = textoOriginal;
             submitBtn.disabled = false;
         });
     });
     
-    // Valida√ß√£o em tempo real dos campos
+    // ValidaÁ„o em tempo real dos campos
     const codigoField = document.getElementById('edit-codigo');
     const nomeField = document.getElementById('edit-nome');
     const gtinField = document.getElementById('edit-gtin');
     const variacaoField = document.getElementById('edit-variacao');
     
-    // Remove erro quando usu√°rio digita
+    // Remove erro quando usu·rio digita
     [codigoField, nomeField, gtinField, variacaoField].forEach(field => {
         if (field) {
             field.addEventListener('input', function() {
@@ -3476,7 +3476,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Valida√ß√£o espec√≠fica do GTIN
+    // ValidaÁ„o especÌfica do GTIN
     gtinField?.addEventListener('blur', function() {
         const value = this.value.trim();
         if (value && !/^\d{8,14}$/.test(value)) {
@@ -3500,7 +3500,7 @@ document.addEventListener('DOMContentLoaded', function() {
         descInput.addEventListener('input', atualizarContadorCaracteres);
     }
     
-    // Valida√ß√£o em tempo real do GTIN
+    // ValidaÁ„o em tempo real do GTIN
     if (gtinInput) {
         gtinInput.addEventListener('input', function() {
             validarGTINStatus(this.value);
@@ -3508,7 +3508,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Preview de varia√ß√µes em tempo real
+    // Preview de variaÁıes em tempo real
     if (variacaoInput) {
         variacaoInput.addEventListener('input', function() {
             const value = this.value.trim();
@@ -3534,7 +3534,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // bot√£o de preview do produto
+    // bot„o de preview do produto
     const previewBtn = document.getElementById('btn-preview-produto');
     if (previewBtn) {
         previewBtn.addEventListener('click', function() {
@@ -3550,17 +3550,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 <i class="fas fa-box"></i> <strong>Preview do Produto:</strong><br>
                 <i class="fas fa-tag"></i> <strong>Nome:</strong> ${produtoData.nome}<br>
                 <i class="fas fa-barcode"></i> <strong>GTIN:</strong> ${produtoData.gtin}<br>
-                <i class="fas fa-list"></i> <strong>Categoria:</strong> ${produtoData.categoria || 'n√£o definida'}<br>
-                <i class="fas fa-bolt"></i> <strong>Tens√£o:</strong> ${produtoData.tensao || 'n√£o definida'}<br>
+                <i class="fas fa-list"></i> <strong>Categoria:</strong> ${produtoData.categoria || 'n„o definida'}<br>
+                <i class="fas fa-bolt"></i> <strong>Tens„o:</strong> ${produtoData.tensao || 'n„o definida'}<br>
                 <i class="fas fa-dollar-sign"></i> <strong>Custo:</strong> R$ ${produtoData.custo_unitario || '0,00'}<br>
                 <i class="fas fa-cubes"></i> <strong>Estoque:</strong> ${produtoData.quantidade || '0'} ${produtoData.unidade || 'un'}<br>
-                <i class="fas fa-tag"></i> <strong>Pre√ßo:</strong> R$ ${produtoData.preco || 'n√£o definido'}<br>
-                <i class="fas fa-truck"></i> <strong>Fornecedor:</strong> ${produtoData.fornecedor || 'n√£o definido'}
+                <i class="fas fa-tag"></i> <strong>PreÁo:</strong> R$ ${produtoData.preco || 'n„o definido'}<br>
+                <i class="fas fa-truck"></i> <strong>Fornecedor:</strong> ${produtoData.fornecedor || 'n„o definido'}
             `, 'info', 8000);
         });
     }
     
-    // Event listeners para campos de estoque - Atualiza√ß√£o em tempo real
+    // Event listeners para campos de estoque - AtualizaÁ„o em tempo real
     const quantidadeInput = document.getElementById('edit-quantidade');
     const estoqueMinInput = document.getElementById('edit-estoque-minimo');
     const estoqueMaxInput = document.getElementById('edit-estoque-maximo');
@@ -3594,41 +3594,41 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ============================================
-// FUN√á√ïES AUXILIARES PARA MODAL ENRIQUECIDO
+// FUN«’ES AUXILIARES PARA MODAL ENRIQUECIDO
 // ============================================
 
-// Fun√ß√£o para validar GTIN
+// FunÁ„o para validar GTIN
 function validarGTINStatus(gtin) {
     const statusElement = document.getElementById('gtin-status');
     
     if (!statusElement) return false;
     
     if (!gtin || gtin.length !== 13) {
-        statusElement.innerHTML = '<i class="fas fa-clock text-muted"></i> Aguardando GTIN v√°lido (13 d√≠gitos)';
+        statusElement.innerHTML = '<i class="fas fa-clock text-muted"></i> Aguardando GTIN v·lido (13 dÌgitos)';
         statusElement.className = 'form-input-status';
         return false;
     }
     
-    // Valida√ß√£o b√°sica de d√≠gitos
+    // ValidaÁ„o b·sica de dÌgitos
     if (!/^\d{13}$/.test(gtin)) {
-        statusElement.innerHTML = '<i class="fas fa-times text-danger"></i> GTIN deve conter apenas n√∫meros';
+        statusElement.innerHTML = '<i class="fas fa-times text-danger"></i> GTIN deve conter apenas n˙meros';
         statusElement.className = 'form-input-status invalid';
         return false;
     }
     
-    // Verifica√ß√£o do prefixo Aluforce
+    // VerificaÁ„o do prefixo Aluforce
     if (gtin.startsWith('78968192')) {
-        statusElement.innerHTML = '<i class="fas fa-check text-success"></i> GTIN Aluforce v√°lido';
+        statusElement.innerHTML = '<i class="fas fa-check text-success"></i> GTIN Aluforce v·lido';
         statusElement.className = 'form-input-status valid';
         return true;
     } else {
-        statusElement.innerHTML = '<i class="fas fa-exclamation-triangle text-warning"></i> GTIN externo (n√£o Aluforce)';
+        statusElement.innerHTML = '<i class="fas fa-exclamation-triangle text-warning"></i> GTIN externo (n„o Aluforce)';
         statusElement.className = 'form-input-status warning';
         return true;
     }
 }
 
-// Fun√ß√£o para atualizar contador de caracteres
+// FunÁ„o para atualizar contador de caracteres
 function atualizarContadorCaracteres(event) {
     const input = event.target;
     const id = input.id;
@@ -3655,7 +3655,7 @@ function atualizarContadorCaracteres(event) {
     }
 }
 
-// Fun√ß√£o para preview de varia√ß√µes
+// FunÁ„o para preview de variaÁıes
 function atualizarPreviewVariacao(variacoes) {
     const preview = document.getElementById('variacao-preview');
     
@@ -3682,7 +3682,7 @@ function atualizarPreviewVariacao(variacoes) {
     preview.classList.add('active');
 }
 
-// Fun√ß√£o para atualizar status do estoque
+// FunÁ„o para atualizar status do estoque
 function atualizarStatusEstoque(quantidade, minimo, maximo) {
     const statusFill = document.getElementById('status-fill');
     const statusText = document.getElementById('status-text');
@@ -3690,7 +3690,7 @@ function atualizarStatusEstoque(quantidade, minimo, maximo) {
     
     if (!statusFill || !statusText || !statusPercentage) return;
     
-    // Calcula a porcentagem baseada no m√°ximo
+    // Calcula a porcentagem baseada no m·ximo
     const porcentagem = maximo > 0 ? Math.min((quantidade / maximo) * 100, 100) : 0;
     
     // Determina o status
@@ -3702,7 +3702,7 @@ function atualizarStatusEstoque(quantidade, minimo, maximo) {
         textoStatus = 'Sem Estoque';
     } else if (quantidade <= minimo) {
         status = 'critico';
-        textoStatus = 'Estoque Cr√≠tico';
+        textoStatus = 'Estoque CrÌtico';
     } else if (quantidade <= minimo * 1.5) {
         status = 'baixo';
         textoStatus = 'Estoque Baixo';
@@ -3719,7 +3719,7 @@ function atualizarStatusEstoque(quantidade, minimo, maximo) {
     statusPercentage.textContent = `${porcentagem.toFixed(1)}%`;
 }
 
-// Fun√ß√£o para resetar modal
+// FunÁ„o para resetar modal
 function resetModalEnriquecido() {
     const modal = document.getElementById('edit-modal');
     const form = document.getElementById('edit-form');
@@ -3749,7 +3749,7 @@ function resetModalEnriquecido() {
         preview.innerHTML = '';
     }
     
-    // Remover classes de Valida√ß√£o
+    // Remover classes de ValidaÁ„o
     const inputs = modal.querySelectorAll('input, textarea, select');
     inputs.forEach(input => {
         input.classList.remove('error', 'valid', 'invalid');
@@ -3774,13 +3774,13 @@ function abrirModalNovoMaterial() {
             }
         }, 300);
         
-        // Configurar c√°lculo autom√°tico de margem
+        // Configurar c·lculo autom·tico de margem
         setupMargemCalculation();
         
-        // Configurar Valida√ß√£o em tempo real
+        // Configurar ValidaÁ„o em tempo real
         setupMaterialValidation();
     } else {
-        console.error('Modal de material n√£o encontrado');
+        console.error('Modal de material n„o encontrado');
     }
 }
 
@@ -3792,7 +3792,7 @@ function fecharModalNovoMaterial() {
         modal.style.display = 'none';
         document.body.style.overflow = 'auto';
         
-        // Limpar formul√°rio
+        // Limpar formul·rio
         limparFormularioMaterial();
     }
 }
@@ -3803,17 +3803,17 @@ async function salvarNovoMaterial() {
     
     const form = document.getElementById('form-novo-material');
     if (!form) {
-        console.error('Formul√°rio de material n√£o encontrado');
+        console.error('Formul·rio de material n„o encontrado');
         return;
     }
     
-    // Validar formul√°rio
+    // Validar formul·rio
     if (!validarFormularioMaterial()) {
-        console.warn('Formul√°rio cont√©m erros de Valida√ß√£o');
+        console.warn('Formul·rio contÈm erros de ValidaÁ„o');
         return;
     }
     
-    // Coletar dados do formul√°rio
+    // Coletar dados do formul·rio
     const dadosMaterial = coletarDadosMaterial();
     
     try {
@@ -3854,12 +3854,12 @@ async function salvarNovoMaterial() {
         }
         
     } catch (error) {
-        console.error('Erro na requisi√ß√£o:', error);
-        mostrarMensagemErro('Erro de Conex√£o. Verifique sua internet e tente novamente.');
+        console.error('Erro na requisiÁ„o:', error);
+        mostrarMensagemErro('Erro de Conex„o. Verifique sua internet e tente novamente.');
     }
 }
 
-// Configurar C√°lculo de Margem
+// Configurar C·lculo de Margem
 function setupMargemCalculation() {
     const custoInput = document.getElementById('material-custo');
     const precoInput = document.getElementById('material-preco');
@@ -3883,12 +3883,12 @@ function setupMargemCalculation() {
     }
 }
 
-// Configurar Valida√ß√£o de Material
+// Configurar ValidaÁ„o de Material
 function setupMaterialValidation() {
     const form = document.getElementById('form-novo-material');
     if (!form) return;
     
-    // Valida√ß√£o de NCM (8 d√≠gitos)
+    // ValidaÁ„o de NCM (8 dÌgitos)
     const ncmInput = document.getElementById('material-ncm');
     if (ncmInput) {
         ncmInput.addEventListener('input', function() {
@@ -3896,7 +3896,7 @@ function setupMaterialValidation() {
         });
     }
     
-    // Valida√ß√£o de campos num√©ricos
+    // ValidaÁ„o de campos numÈricos
     const numericInputs = form.querySelectorAll('input[type="number"]');
     numericInputs.forEach(input => {
         input.addEventListener('input', function() {
@@ -3906,7 +3906,7 @@ function setupMaterialValidation() {
         });
     });
     
-    // Valida√ß√£o em tempo real
+    // ValidaÁ„o em tempo real
     const requiredInputs = form.querySelectorAll('input[required], select[required]');
     requiredInputs.forEach(input => {
         input.addEventListener('blur', function() {
@@ -3920,7 +3920,7 @@ function setupMaterialValidation() {
     });
 }
 
-// Validar Formul√°rio de Material
+// Validar Formul·rio de Material
 function validarFormularioMaterial() {
     const form = document.getElementById('form-novo-material');
     if (!form) return false;
@@ -3928,11 +3928,11 @@ function validarFormularioMaterial() {
     let isValid = true;
     const errors = [];
     
-    // Campos obrigat√≥rios
+    // Campos obrigatÛrios
     const requiredFields = [
-        { id: 'material-codigo', name: 'C√≥digo do Material' },
-        { id: 'material-descricao', name: 'Descri√ß√£o' },
-        { id: 'material-estoque-minimo', name: 'Estoque M√≠nimo' },
+        { id: 'material-codigo', name: 'CÛdigo do Material' },
+        { id: 'material-descricao', name: 'DescriÁ„o' },
+        { id: 'material-estoque-minimo', name: 'Estoque MÌnimo' },
         { id: 'material-unidade', name: 'Unidade de Medida' }
     ];
     
@@ -3940,18 +3940,18 @@ function validarFormularioMaterial() {
         const input = document.getElementById(field.id);
         if (input && !input.value.trim()) {
             input.classList.add('error');
-            errors.push(`${field.name} √© obrigat√≥rio`);
+            errors.push(`${field.name} È obrigatÛrio`);
             isValid = false;
         } else if (input) {
             input.classList.remove('error');
         }
     });
     
-    // Valida√ß√£o espec√≠fica de NCM
+    // ValidaÁ„o especÌfica de NCM
     const ncmInput = document.getElementById('material-ncm');
     if (ncmInput && ncmInput.value && ncmInput.value.length !== 8) {
         ncmInput.classList.add('error');
-        errors.push('NCM deve ter exatamente 8 d√≠gitos');
+        errors.push('NCM deve ter exatamente 8 dÌgitos');
         isValid = false;
     }
     
@@ -3984,15 +3984,15 @@ function coletarDadosMaterial() {
     return dadosMaterial;
 }
 
-// Limpar Formul√°rio de Material
+// Limpar Formul·rio de Material
 function limparFormularioMaterial() {
     const form = document.getElementById('form-novo-material');
     if (!form) return;
     
-    // Resetar formul√°rio
+    // Resetar formul·rio
     form.reset();
     
-    // Limpar classes de Valida√ß√£o
+    // Limpar classes de ValidaÁ„o
     const inputs = form.querySelectorAll('input, textarea, select');
     inputs.forEach(input => {
         input.classList.remove('error', 'valid', 'invalid');
@@ -4007,7 +4007,7 @@ function limparFormularioMaterial() {
 
 // Exportar Materiais para PDF
 async function exportarMateriais() {
-    console.log('Iniciando exportA√ß√£o de materiais para PDF...');
+    console.log('Iniciando exportAÁ„o de materiais para PDF...');
     
     try {
         const response = await fetch('/api/pcp/materiais/export-pdf');
@@ -4023,28 +4023,28 @@ async function exportarMateriais() {
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
             
-            mostrarMensagemSucesso('Cat√°logo de materiais exportado com sucesso!');
+            mostrarMensagemSucesso('Cat·logo de materiais exportado com sucesso!');
         } else {
-            throw new Error('Erro ao gerar cat√°logo de materiais');
+            throw new Error('Erro ao gerar cat·logo de materiais');
         }
     } catch (error) {
         console.error('Erro ao exportar materiais:', error);
-        mostrarMensagemErro('Erro ao exportar cat√°logo de materiais');
+        mostrarMensagemErro('Erro ao exportar cat·logo de materiais');
     }
 }
 
-// Fun√ß√£o auxiliar para mostrar mensagens de sucesso
+// FunÁ„o auxiliar para mostrar mensagens de sucesso
 function mostrarMensagemSucesso(mensagem) {
     showToast(mensagem, 'success');
 }
 
-// Fun√ß√£o auxiliar para mostrar mensagens de erro
+// FunÁ„o auxiliar para mostrar mensagens de erro
 function mostrarMensagemErro(mensagem) {
     showToast(mensagem, 'error');
 }
 
 // ============================================
-// SISTEMA DE CONFIRMA√á√ÉO PROFISSIONAL
+// SISTEMA DE CONFIRMA«√O PROFISSIONAL
 // ============================================
 function showConfirmModal(options = {}) {
     return new Promise((resolve) => {
@@ -4057,7 +4057,7 @@ function showConfirmModal(options = {}) {
         const confirmBtn = document.getElementById('confirm-modal-confirm');
         
         if (!overlay) {
-            // Fallback para confirm nativo se modal n√£o existir
+            // Fallback para confirm nativo se modal n„o existir
             resolve(confirm(options.message || 'Deseja continuar?'));
             return;
         }
@@ -4066,7 +4066,7 @@ function showConfirmModal(options = {}) {
         const type = options.type || 'warning'; // warning, danger, info, success
         icon.className = `confirm-modal-icon ${type}`;
         
-        // Configurar √≠cone
+        // Configurar Ìcone
         const icons = {
             warning: 'fa-exclamation-triangle',
             danger: 'fa-trash-alt',
@@ -4076,14 +4076,14 @@ function showConfirmModal(options = {}) {
         iconI.className = `fas ${icons[type] || icons.warning}`;
         
         // Configurar textos
-        title.textContent = options.title || 'Confirmar A√ß√£o';
+        title.textContent = options.title || 'Confirmar AÁ„o';
         message.textContent = options.message || 'Tem certeza que deseja continuar?';
         
-        // Configurar bot√µes
+        // Configurar botıes
         cancelBtn.innerHTML = `<i class="fas fa-times"></i> ${options.cancelText || 'Cancelar'}`;
         confirmBtn.innerHTML = `<i class="fas fa-check"></i> ${options.confirmText || 'Confirmar'}`;
         
-        // Configurar classe do bot√£o de confirmar
+        // Configurar classe do bot„o de confirmar
         confirmBtn.className = 'confirm-modal-btn';
         if (type === 'danger') {
             confirmBtn.classList.add('confirm-modal-btn-danger');

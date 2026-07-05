@@ -25,6 +25,12 @@ const ComprasCompleto = {
         total: 0
     },
 
+    extrairData(payload, fallback = null) {
+        if (Array.isArray(payload)) return payload;
+        if (!payload || typeof payload !== 'object') return fallback;
+        return payload.data ?? payload.result ?? payload.items ?? fallback;
+    },
+
     // =====================================================
     // INICIALIZAÇÍO
     // =====================================================
@@ -84,7 +90,13 @@ const ComprasCompleto = {
             const resp = await fetch(`${this.API_BASE}/dashboard`, { credentials: 'include' });
             if (resp.ok) {
                 const data = await resp.json();
-                this.dashboard = data.data;
+                const dashboard = this.extrairData(data, data);
+                this.dashboard = {
+                    ...dashboard,
+                    pedidosPorStatus: dashboard?.pedidosPorStatus || dashboard?.pedidos_por_status || [],
+                    topFornecedores: dashboard?.topFornecedores || dashboard?.top_fornecedores || [],
+                    pedidosAtrasados: dashboard?.pedidosAtrasados || dashboard?.pedidos_atrasados || []
+                };
                 return this.dashboard;
             }
         } catch (error) {
@@ -219,7 +231,7 @@ const ComprasCompleto = {
             const resp = await fetch(`${this.API_BASE}/fornecedores`, { credentials: 'include' });
             if (resp.ok) {
                 const data = await resp.json();
-                this.fornecedores = data.data || [];
+                this.fornecedores = this.extrairData(data, []);
             }
         } catch (error) {
             console.error('Erro ao carregar fornecedores:', error);
@@ -239,7 +251,7 @@ const ComprasCompleto = {
             if (resp.ok && result.success) {
                 this.mostrarNotificacao('success', 'Fornecedor cadastrado com sucesso!');
                 await this.carregarFornecedores();
-                return result.data.id;
+                return result.data?.id || result.id;
             } else {
                 throw new Error(result.error || 'Erro ao cadastrar fornecedor');
             }
@@ -393,7 +405,7 @@ const ComprasCompleto = {
             const resp = await fetch(`${this.API_BASE}/pedidos?${params}`, { credentials: 'include' });
             if (resp.ok) {
                 const data = await resp.json();
-                this.pedidos = data.data || [];
+                this.pedidos = this.extrairData(data, []);
                 this.paginacao.total = data.total || this.pedidos.length;
             }
         } catch (error) {
@@ -414,7 +426,7 @@ const ComprasCompleto = {
             if (resp.ok && result.success) {
                 this.mostrarNotificacao('success', 'Pedido de compra criado!');
                 await this.carregarPedidos();
-                return result.data.id;
+                return result.data?.id || result.id;
             } else {
                 throw new Error(result.error || 'Erro ao criar pedido');
             }

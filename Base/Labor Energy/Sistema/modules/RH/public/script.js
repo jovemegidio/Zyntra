@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Script unificado para o Portal do Funcionário e para a Área Administrativa.
  * * O código detecta em qual página está (admin ou funcionário) e inicializa
  * apenas as funcionalidades relevantes para evitar conflitos.
@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Inicializando o Portal do Funcionário...')
     initEmployeePage()
   } else {
-    console.warn('Nenhum contexto (Admin ou Funcionário) detectado. O script náo foi totalmente inicializado.')
+    console.warn('Nenhum contexto (Admin ou Funcionário) detectado. O script não foi totalmente inicializado.')
   }
 })
 
@@ -42,14 +42,14 @@ function loadPage(pageName) {
   const mainContent = document.querySelector('.content-area') || document.querySelector('main') || document.querySelector('.main-content')
   
   if (!mainContent) {
-    console.error('Contêiner principal náo encontrado para carregar a página')
+    console.error('Contêiner principal não encontrado para carregar a página')
     if (window.headerControls) {
-      window.headerControls.showToast('Erro: Contêiner náo encontrado', 'error')
+      window.headerControls.showToast('Erro: Contêiner não encontrado', 'error')
     }
     return
   }
 
-  // Log de carregamento (sem notificaçáo)
+  // Log de carregamento (sem notificação)
   console.log(`🔄 Carregando ${getPageDisplayName(pageName)}...`)
 
   // Mostra indicador de carregamento
@@ -79,7 +79,7 @@ function loadPage(pageName) {
       const tempDiv = document.createElement('div')
       tempDiv.innerHTML = html
       
-      // Verificar se existe body, senáo usar o conteúdo completo
+      // Verificar se existe body, senão usar o conteúdo completo
       const bodyElement = tempDiv.querySelector('body')
       const pageContent = bodyElement ? bodyElement.innerHTML : html
       
@@ -99,10 +99,10 @@ function loadPage(pageName) {
       
       console.log(`Página ${pageName} carregada com sucesso`)
       
-      // Log de sucesso (sem notificaçáo)
+      // Log de sucesso (sem notificação)
       console.log(`✅ ${getPageDisplayName(pageName)} carregado`)
       
-      // Aplicar visualizaçáo atual (grid/list)
+      // Aplicar visualização atual (grid/list)
       if (window.headerControls && window.headerControls.currentView) {
         setTimeout(() => {
           if (window.headerControls.currentView === 'grid') {
@@ -116,13 +116,13 @@ function loadPage(pageName) {
     .catch(error => {
       console.error('Erro ao carregar página:', error)
       
-      // Log de erro (sem notificaçáo)
+      // Log de erro (sem notificação)
       console.error(`❌ Erro ao carregar ${getPageDisplayName(pageName)}`)
       
       mainContent.innerHTML = `
         <div style="text-align: center; padding: 40px; color: #e74c3c;">
           <h3><i class="fas fa-exclamation-triangle"></i> Erro ao carregar página</h3>
-          <p>Náo foi possível carregar a página "${getPageDisplayName(pageName)}".</p>
+          <p>Não foi possível carregar a página "${getPageDisplayName(pageName)}".</p>
           <p style="font-size: 14px; color: #666; margin: 20px 0;">Erro: ${error.message}</p>
           <button onclick="loadPage('${pageName}')" style="margin: 10px; padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">
             <i class="fas fa-redo"></i> Tentar Novamente
@@ -149,7 +149,7 @@ function updateActiveMenu(pageName) {
   }
 }
 
-// Obter nome de exibiçáo da página
+// Obter nome de exibição da página
 function getPageDisplayName(pageName) {
   const names = {
     dashboard: 'Dashboard',
@@ -220,7 +220,7 @@ function initAdminPage () {
       })
     } catch (error) {
       console.error('Erro ao carregar funcionários:', error)
-      tabelaCorpo.innerHTML = '<tr><td colspan="5" style="color: red;">Náo foi possível carregar os dados. Verifique se a API está online.</td></tr>'
+      tabelaCorpo.innerHTML = '<tr><td colspan="5" style="color: red;">Não foi possível carregar os dados. Verifique se a API está online.</td></tr>'
     }
   }
 
@@ -287,7 +287,7 @@ function initAdminPage () {
     }
     try {
       const response = await fetch(`${API_URL}/${id}`, { headers: getAuthHeaders({ 'Content-Type': 'application/json' }) })
-      if (!response.ok) throw new Error('Náo foi possível buscar os detalhes do funcionário.')
+      if (!response.ok) throw new Error('Não foi possível buscar os detalhes do funcionário.')
       const func = await response.json()
 
       const dataAdmissao = func.data_admissao ? new Date(func.data_admissao).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'N/A'
@@ -368,16 +368,16 @@ function initEmployeePage () {
     userData = null
   }
 
-  // Se náo houver token ou dados de usuário, redireciona para o login
+  // Se não houver token ou dados de usuário, redireciona para o login
   if (!authToken || !userData || (!userData.nome && !userData.nome_completo && !userData.email)) {
-    // Usuário náo autenticado - redireciona para a página de login
-    console.warn('Usuário náo autenticado. Redirecionando para login.', {
+    // Usuário não autenticado - redireciona para a página de login
+    console.warn('Usuário não autenticado. Redirecionando para login.', {
       hasToken: !!authToken,
       hasUserData: !!userData,
       userData: userData
     })
-    if (typeof safeRedirectToLogin === 'function') safeRedirectToLogin(); else window.location.href = '/login.html'
-    return // Para a execuçáo
+    if (typeof safeRedirectToLogin === 'function') safeRedirectToLogin(); else window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html'
+    return // Para a execução
   }
 
   // --- PREENCHIMENTO DOS DADOS NA PÁGINA ---
@@ -411,11 +411,11 @@ function initEmployeePage () {
     })
 
     const bancoEl = document.getElementById('banco')
-    if (bancoEl) bancoEl.textContent = data.banco || 'Náo informado'
+    if (bancoEl) bancoEl.textContent = data.banco || 'Não informado'
     const agenciaEl = document.getElementById('agencia')
-    if (agenciaEl) agenciaEl.textContent = data.agencia || 'Náo informado'
+    if (agenciaEl) agenciaEl.textContent = data.agencia || 'Não informado'
     const contaEl = document.getElementById('conta_corrente')
-    if (contaEl) contaEl.textContent = data.conta || 'Náo informado'
+    if (contaEl) contaEl.textContent = data.conta || 'Não informado'
   }
 
   // --- FUNÇÕES DE EVENTOS (FUNCIONÁRIO) ---
@@ -425,7 +425,7 @@ function initEmployeePage () {
     const menuToggle = document.getElementById('menu-toggle')
     if (menuToggle) menuToggle.addEventListener('click', () => document.querySelector('.sidebar').classList.toggle('open'))
 
-    // Navegaçáo principal
+    // Navegação principal
     const navLinks = document.querySelectorAll('.sidebar-nav .nav-link, .widget-link')
     navLinks.forEach(link => link.addEventListener('click', handleNavLinkClick))
 
@@ -433,7 +433,7 @@ function initEmployeePage () {
     const logoutBtn = document.getElementById('logout-btn')
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout)
 
-    // Ediçáo de dados
+    // Edição de dados
     const editBtn = document.getElementById('edit-btn')
     if (editBtn) editBtn.addEventListener('click', enableFormEditing)
     const dadosForm = document.getElementById('dados-form')
@@ -466,7 +466,7 @@ function initEmployeePage () {
     localStorage.removeItem('authToken')
     localStorage.removeItem('userData')
     showToast('Você foi desconectado.', 'success')
-    window.location.href = '/login.html'
+    window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html'
   }
 
   function enableFormEditing () {
@@ -479,8 +479,8 @@ function initEmployeePage () {
 
   function handleFormSubmit (e) {
     e.preventDefault()
-    // Simulaçáo de salvamento
-    showToast('Dados salvos com sucesso! (Simulaçáo)', 'success');
+    // Simulação de salvamento
+    showToast('Dados salvos com sucesso! (Simulação)', 'success');
     ['telefone', 'estado_civil', 'dependentes'].forEach(id => {
       document.getElementById(id).disabled = true
     })
@@ -509,7 +509,7 @@ function initEmployeePage () {
     if (fileInput.files.length > 0) {
       uploadStatus.textContent = 'Enviando...'
       uploadStatus.style.color = 'blue'
-      // Simulaçáo de upload
+      // Simulação de upload
       setTimeout(() => {
         uploadStatus.textContent = 'Atéstado enviado com sucesso!'
         uploadStatus.style.color = 'green'
@@ -526,7 +526,7 @@ function initEmployeePage () {
   setupEventListeners()
 }
 
-// Simulaçáo de login removida em produçáo.
+// Simulação de login removida em produção.
 // ===================================================================================
 // == FIM - LÓGICA DO PORTAL DO FUNCIONÁRIO
 // ===================================================================================

@@ -330,14 +330,20 @@
             return;
         }
 
-        tbody.innerHTML = materials.map(material => `
-            <tr>
+        tbody.innerHTML = materials.map(material => {
+            const stockClass = getStockClass(material.quantidade_estoque);
+            const isCritico = stockClass === 'stock-zero' || stockClass === 'stock-low';
+            const rowStyle = stockClass === 'stock-zero' ? 'background:rgba(254,226,226,0.45);border-left:3px solid #ef4444;' :
+                             stockClass === 'stock-low' ? 'background:rgba(254,243,199,0.45);border-left:3px solid #f59e0b;' : '';
+            const alertIcon = isCritico ? `<i class="fas fa-exclamation-triangle" style="color:${stockClass==='stock-zero'?'#dc2626':'#f59e0b'};font-size:11px;margin-right:4px;" title="${stockClass==='stock-zero'?'Estoque zerado':'Estoque crítico'}"></i>` : '';
+            return `
+            <tr style="${rowStyle}">
                 <td><input type="checkbox" /></td>
                 <td><strong>${escapeHtml(material.codigo_material || '')}</strong></td>
-                <td>${escapeHtml(material.descricao || '')}</td>
+                <td>${alertIcon}${escapeHtml(material.descricao || '')}</td>
                 <td>${escapeHtml(material.unidade_medida || '')}</td>
                 <td>
-                    <span class="${getStockClass(material.quantidade_estoque)}">
+                    <span class="${stockClass}">
                         ${material.quantidade_estoque || 0}
                     </span>
                 </td>
@@ -353,7 +359,7 @@
                     </button>
                 </td>
             </tr>
-        `).join('');
+        `}).join('');
         
         console.log('✅ Tabela renderizada com', materials.length, 'linhas');
     }

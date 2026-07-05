@@ -1,11 +1,11 @@
-﻿// ============================================
+// ============================================
 // SISTEMA DE CACHE OTIMIZADO PARA APIs
 // ============================================
 
 class APICache {
     constructor(options = {}) {
         this.cache = new Map();
-        this.maxAge = options.maxAge || 5 * 60 * 1000; // 5 minutos padráo
+        this.maxAge = options.maxAge || 5 * 60 * 1000; // 5 minutos padrão
         this.maxSize = options.maxSize || 100; // 100 entradas máximo
         this.stats = {
             hits: 0,
@@ -15,7 +15,7 @@ class APICache {
     }
 
     /**
-     * Gera chave única para a requisiçáo
+     * Gera chave única para a requisição
      */
     _generateKey(url, options = {}) {
         const method = options.method || 'GET';
@@ -115,7 +115,7 @@ class APICache {
         }
 
         try {
-            // Faz requisiçáo
+            // Faz requisição
             const response = await window.fetch(url, options);
             
             if (!response.ok) {
@@ -155,7 +155,7 @@ window.apiCache = new APICache({
  * Fetch com cache automático
  * @param {string} url - URL da API
  * @param {Object} options - Opções do fetch
- * @param {boolean} useCache - Usar cache (padráo: true)
+ * @param {boolean} useCache - Usar cache (padrão: true)
  */
 window.fetchWithCache = async function(url, options = {}, useCache = true) {
     if (useCache) {

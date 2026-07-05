@@ -81,7 +81,9 @@ async function carregarContas() {
         contas.forEach(conta => {
             const option = document.createElement('option');
             option.value = conta.id;
-            option.textContent = `${conta.banco} - ${conta.agencia}/${conta.conta} (${formatarMoeda(conta.saldo)})`;
+            const nomeConta = conta.nome || conta.banco || conta.banco_nome || 'Conta';
+            const detalheConta = (conta.agencia || conta.conta) ? ` - ${conta.agencia || ''}/${conta.conta || ''}` : '';
+            option.textContent = `${nomeConta}${detalheConta} (${formatarMoeda(conta.saldo)})`;
             select.appendChild(option);
         });
     } catch (error) {

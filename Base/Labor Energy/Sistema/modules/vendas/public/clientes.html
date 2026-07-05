@@ -11,7 +11,7 @@
     <title>Zyntra: Gestão de Clientes</title>
     
     <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
-    <script src="/js/auth-unified.js?v=20260301" defer></script>
+    <script src="/js/auth-unified.js?v=20260527" defer></script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -32,7 +32,7 @@
             --header-height: 42px;
             --tab-height: 40px;
             --primary-orange: #225cfa;
-            --primary-dark: #1a1a2e;
+            --primary-dark: #ffffff;
             --bg-gray: #f5f5f5;
             --border-color: #e5e5e5;
             --text-primary: #1a1a1a;
@@ -263,6 +263,16 @@
             color: #6b7280; text-transform: uppercase;
         }
         .clients-table tbody tr:hover { background: #f9fafb; }
+        .clients-table th.th-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+        .clients-table th.th-sortable:hover { color: #1e40af; }
+        .clients-table .sort-icon { font-size: 10px; margin-left: 4px; opacity: 0.5; }
+        .clients-table .sort-icon.active { opacity: 1; color: #1e40af; }
+        .clients-table .filter-row th { background: #fff; padding: 6px 16px 10px; border-bottom: 1px solid #e5e7eb; }
+        .clients-table .col-filter-input {
+            width: 100%; box-sizing: border-box; padding: 5px 8px; font-size: 12px;
+            border: 1px solid #e2e8f0; border-radius: 5px; font-weight: 400; text-transform: none;
+        }
+        .clients-table .col-filter-input:focus { outline: none; border-color: #3b82f6; }
 
         .client-info-cell { display: flex; align-items: center; gap: 12px; }
 
@@ -686,7 +696,7 @@
             font-size: 11px; font-weight: 600; text-transform: capitalize;
         }
         .status-badge.orcamento { background: #fef3c7; color: #92400e; }
-        .status-badge.analise, .status-badge.analise-credito { background: #e0e7ff; color: #3730a3; }
+        .status-badge.análise, .status-badge.análise-crédito { background: #e0e7ff; color: #3730a3; }
         .status-badge.aprovado, .status-badge.pedido-aprovado { background: #dcfce7; color: #166534; }
         .status-badge.faturar, .status-badge.faturado { background: #dbeafe; color: #1e40af; }
         .status-badge.entregue { background: #d1fae5; color: #065f46; }
@@ -732,7 +742,7 @@
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <script src="/js/tooltips-professional.js?v=20260209"></script>
     <script src="/js/modal-title.js?v=20260210"></script>
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
 
     <!-- Chat Widget BOB AI - DESATIVADO -->
     <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
@@ -757,7 +767,9 @@
                 <button class="sidebar-btn" title="Comissões" onclick="window.location.href='comissoes.html'"><i class="fas fa-percentage"></i></button>
             </nav>
             <div class="sidebar-bottom">
-                <button class="sidebar-btn" title="Configurações"><i class="fas fa-cog"></i></button>
+                <button class="sidebar-btn" title="Configurações" onclick="window.location.href='/dashboard'">
+                    <i class="fas fa-cog"></i>
+                </button>
             </div>
         </aside>
 
@@ -772,7 +784,7 @@
                         <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
                         <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
                         <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Clientes</span>
                     </div>
                 </div>
@@ -780,6 +792,10 @@
 
                     <div class="user-greeting">
                         <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo" style="display:none;">
+                            <span id="user-initial">U</span>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -790,7 +806,7 @@
                 <button class="tab active">Clientes</button>
                 <div class="tabs-actions">
                     <button class="tab-action-btn" title="Atualizar" onclick="carregarClientes()"><i class="fas fa-sync-alt"></i></button>
-                    <button class="tab-action-btn" title="Configurações"><i class="fas fa-cog"></i></button>
+
                 </div>
             </div>
 
@@ -858,12 +874,20 @@
                     <table class="clients-table">
                         <thead>
                             <tr>
-                                <th>Cliente</th>
-                                <th>CNPJ/CPF</th>
-                                <th>Telefone</th>
-                                <th>Email</th>
-                                <th>Status</th>
+                                <th class="th-sortable" data-col="nome" onclick="ordenarPorColuna('nome')">Cliente <i class="fas fa-sort sort-icon" id="sort-icon-nome"></i></th>
+                                <th class="th-sortable" data-col="cnpj" onclick="ordenarPorColuna('cnpj')">CNPJ/CPF <i class="fas fa-sort sort-icon" id="sort-icon-cnpj"></i></th>
+                                <th class="th-sortable" data-col="telefone" onclick="ordenarPorColuna('telefone')">Telefone <i class="fas fa-sort sort-icon" id="sort-icon-telefone"></i></th>
+                                <th class="th-sortable" data-col="email" onclick="ordenarPorColuna('email')">Email <i class="fas fa-sort sort-icon" id="sort-icon-email"></i></th>
+                                <th class="th-sortable" data-col="ativo" onclick="ordenarPorColuna('ativo')">Status <i class="fas fa-sort sort-icon" id="sort-icon-ativo"></i></th>
                                 <th>Ações</th>
+                            </tr>
+                            <tr class="filter-row">
+                                <th><input type="text" class="col-filter-input" id="colFiltroNome" placeholder="Filtrar..." oninput="filtrarClientes()"></th>
+                                <th><input type="text" class="col-filter-input" id="colFiltroCnpj" placeholder="Filtrar..." oninput="filtrarClientes()"></th>
+                                <th><input type="text" class="col-filter-input" id="colFiltroTelefone" placeholder="Filtrar..." oninput="filtrarClientes()"></th>
+                                <th><input type="text" class="col-filter-input" id="colFiltroEmail" placeholder="Filtrar..." oninput="filtrarClientes()"></th>
+                                <th></th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody id="clientesTableBody">
@@ -925,12 +949,12 @@
                     <!-- Tabs -->
                     <div class="modal-omie-tabs">
                         <button class="modal-omie-tab" onclick="trocarAbaCliente('resumo')">Resumo</button>
-                        <button class="modal-omie-tab active" onclick="trocarAbaCliente('endereco')">Endereço</button>
+                        <button class="modal-omie-tab active" onclick="trocarAbaCliente('endereço')">Endereço</button>
                         <button class="modal-omie-tab" onclick="trocarAbaCliente('telefones')">Telefones e E-mail</button>
-                        <button class="modal-omie-tab" onclick="trocarAbaCliente('bancarios')">Dados Bancários</button>
+                        <button class="modal-omie-tab" onclick="trocarAbaCliente('bancários')">Dados Bancários</button>
                         <button class="modal-omie-tab" onclick="trocarAbaCliente('inscricoes')">Inscrições, CNAE e Outros</button>
                         <button class="modal-omie-tab" onclick="trocarAbaCliente('caracteristicas')">Características</button>
-                        <button class="modal-omie-tab" onclick="trocarAbaCliente('recomendacoes')">Recomendações</button>
+                        <button class="modal-omie-tab" onclick="trocarAbaCliente('recomendações')">Recomendações</button>
                         <button class="modal-omie-tab" onclick="trocarAbaCliente('faturamento')">Faturamento e Crédito</button>
                         <button class="modal-omie-tab" onclick="trocarAbaCliente('mapa')">Mapa</button>
                     </div>
@@ -950,7 +974,7 @@
                         </div>
                         
                         <!-- Aba Endereço -->
-                        <div class="modal-omie-tab-pane active" id="tab-endereco">
+                        <div class="modal-omie-tab-pane active" id="tab-endereço">
                             <div class="omie-form-grid cols-2">
                                 <div class="omie-form-group span-2">
                                     <label>Endereço <span class="omie-link" onclick="buscarEndereco()" style="margin-left: 8px;"><i class="fas fa-search"></i> Pesquisar Endereço</span></label>
@@ -1086,7 +1110,7 @@
                         </div>
 
                         <!-- Aba Dados Bancários -->
-                        <div class="modal-omie-tab-pane" id="tab-bancarios">
+                        <div class="modal-omie-tab-pane" id="tab-bancários">
                             <p style="margin-bottom: 16px; color: #374151;"><strong>Preencha aqui os dados bancários</strong> deste cliente, fornecedor ou funcionário</p>
                             <p style="margin-bottom: 24px; color: #6b7280; font-size: 13px;">Eles poderão ser utilizados para realizar a integração dos pagamentos automaticamente com o seu banco</p>
                             
@@ -1104,26 +1128,34 @@
                                     </select>
                                 </div>
                                 <div class="omie-form-group">
+                                    <label>Tipo de Conta</label>
+                                    <select id="clienteTipoConta">
+                                        <option value="corrente">Conta Corrente</option>
+                                        <option value="poupanca">Conta Poupança</option>
+                                        <option value="pagamento">Conta Pagamento</option>
+                                    </select>
+                                </div>
+                                <div class="omie-form-group">
                                     <label>Agência</label>
-                                    <input type="text" id="clienteAgencia" placeholder="0000">
+                                    <input type="text" id="clienteAgencia" placeholder="0000" maxlength="10">
                                 </div>
                                 <div class="omie-form-group">
                                     <label>Conta Corrente</label>
-                                    <input type="text" id="clienteConta" placeholder="00000-0">
+                                    <input type="text" id="clienteConta" placeholder="00000-0" maxlength="20">
                                 </div>
                                 <div class="omie-form-group">
                                     <label>Chave Pix</label>
-                                    <input type="text" id="clientePix" placeholder="CPF, E-mail, Telefone ou Chave">
+                                    <input type="text" id="clientePix" placeholder="CPF, E-mail, Telefone ou Chave" maxlength="77">
                                 </div>
                             </div>
                             <div class="omie-form-grid cols-2" style="margin-top: 16px;">
                                 <div class="omie-form-group">
                                     <label>CNPJ ou CPF do Titular</label>
-                                    <input type="text" id="clienteTitularDoc" placeholder="Opcional.">
+                                    <input type="text" id="clienteTitularDoc" placeholder="Opcional." maxlength="18">
                                 </div>
                                 <div class="omie-form-group">
                                     <label>Nome do Titular da Conta</label>
-                                    <input type="text" id="clienteTitularNome" placeholder="Opcional.">
+                                    <input type="text" id="clienteTitularNome" placeholder="Opcional." maxlength="100">
                                 </div>
                             </div>
                         </div>
@@ -1286,7 +1318,7 @@
                     
                     <div class="modal-omie-action-divider"></div>
                     
-                    <button class="modal-omie-action" onclick="abrirHistoricoFinanceiro()">
+                    <button class="modal-omie-action" onclick="abrirHistóricoFinanceiro()">
                         <i class="fas fa-wallet"></i> Histórico Financeiro
                     </button>
                     <button class="modal-omie-action" onclick="abrirEmailsEnviados()">
@@ -1299,7 +1331,7 @@
                     
                     <div class="modal-omie-action-divider"></div>
                     
-                    <button class="modal-omie-action" onclick="abrirHistoricoAlteracoes()">
+                    <button class="modal-omie-action" onclick="abrirHistóricoAlterações()">
                         <i class="fas fa-clipboard-list"></i> Histórico de Alterações
                     </button>
                     <button class="modal-omie-action" onclick="abrirTarefasCliente()">
@@ -1322,7 +1354,7 @@
             <div class="sidebar-panel-header">
                 <div class="panel-icon green"><i class="fas fa-wallet"></i></div>
                 <div><h3>Histórico Financeiro</h3><p id="panelFinanceiroSubtitle">Resumo financeiro do cliente</p></div>
-                <button class="panel-close" onclick="fecharPanel('panelHistoricoFinanceiro')"><i class="fas fa-times"></i></button>
+                <button class="panel-close" onclick="fecharPanel('panelHistóricoFinanceiro')"><i class="fas fa-times"></i></button>
             </div>
             <div class="sidebar-panel-body" id="panelFinanceiroBody">
                 <div class="resumo-loading"><div class="loading-spinner"></div><div class="resumo-loading-text">Carregando...</div></div>
@@ -1373,7 +1405,7 @@
             <div class="sidebar-panel-header">
                 <div class="panel-icon blue"><i class="fas fa-clipboard-list"></i></div>
                 <div><h3>Histórico de Alterações</h3><p>Registro de modificações no cadastro</p></div>
-                <button class="panel-close" onclick="fecharPanel('panelHistoricoAlteracoes')"><i class="fas fa-times"></i></button>
+                <button class="panel-close" onclick="fecharPanel('panelHistóricoAlterações')"><i class="fas fa-times"></i></button>
             </div>
             <div class="sidebar-panel-body" id="panelHistoricoBody">
                 <div class="resumo-loading"><div class="loading-spinner"></div><div class="resumo-loading-text">Carregando...</div></div>
@@ -1455,10 +1487,33 @@
 
         function formatarTelefone(telefone) {
             if (!telefone) return '-';
-            const numeros = telefone.replace(/\D/g, '');
-            if (numeros.length === 11) return numeros.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
-            if (numeros.length === 10) return numeros.replace(/^(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3');
+            const números = telefone.replace(/\D/g, '');
+            if (números.length === 11) return números.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+            if (números.length === 10) return números.replace(/^(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3');
             return telefone;
+        }
+
+        // Ordenação por coluna (estilo planilha)
+        let ordenacaoCol = null, ordenacaoDir = 'asc';
+        function ordenarPorColuna(col) {
+            ordenacaoDir = (ordenacaoCol === col && ordenacaoDir === 'asc') ? 'desc' : 'asc';
+            ordenacaoCol = col;
+            document.querySelectorAll('.clients-table .sort-icon').forEach(i => {
+                i.classList.remove('active');
+                i.className = 'fas fa-sort sort-icon';
+            });
+            const icon = document.getElementById('sort-icon-' + col);
+            if (icon) {
+                icon.classList.add('active');
+                icon.className = 'fas ' + (ordenacaoDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') + ' sort-icon active';
+            }
+            filtrarClientes();
+        }
+
+        function valorOrdenavel(cliente, col) {
+            if (col === 'cnpj') return (cliente.cnpj || cliente.cnpj_cpf || cliente.cpf || '').toString();
+            if (col === 'ativo') return cliente.ativo ? 1 : 0;
+            return (cliente[col] || '').toString().toLowerCase();
         }
 
         function filtrarClientes() {
@@ -1470,11 +1525,31 @@
             const limitSelect = elLimit ? elLimit.value : '25';
             itensPorPagina = limitSelect === 'all' ? 9999 : parseInt(limitSelect);
             paginaAtual = 1;
+
+            // Filtros por coluna (estilo Excel)
+            const fNome = (document.getElementById('colFiltroNome')?.value || '').toLowerCase();
+            const fCnpj = (document.getElementById('colFiltroCnpj')?.value || '').toLowerCase();
+            const fTelefone = (document.getElementById('colFiltroTelefone')?.value || '').toLowerCase();
+            const fEmail = (document.getElementById('colFiltroEmail')?.value || '').toLowerCase();
+
             clientesFiltrados = todosClientes.filter(cliente => {
                 const matchBusca = !busca || (cliente.nome && cliente.nome.toLowerCase().includes(busca)) || (cliente.cnpj && cliente.cnpj.includes(busca)) || (cliente.cnpj_cpf && cliente.cnpj_cpf.includes(busca)) || (cliente.cpf && cliente.cpf.includes(busca)) || (cliente.email && cliente.email.toLowerCase().includes(busca));
                 const matchStatus = !statusFiltro || (statusFiltro === '1' && cliente.ativo) || (statusFiltro === '0' && !cliente.ativo);
-                return matchBusca && matchStatus;
+                const matchNome = !fNome || (cliente.nome || '').toLowerCase().includes(fNome);
+                const matchCnpj = !fCnpj || (cliente.cnpj || cliente.cnpj_cpf || cliente.cpf || '').toLowerCase().includes(fCnpj);
+                const matchTelefone = !fTelefone || (cliente.telefone || '').toLowerCase().includes(fTelefone);
+                const matchEmail = !fEmail || (cliente.email || '').toLowerCase().includes(fEmail);
+                return matchBusca && matchStatus && matchNome && matchCnpj && matchTelefone && matchEmail;
             });
+
+            if (ordenacaoCol) {
+                clientesFiltrados.sort((a, b) => {
+                    const va = valorOrdenavel(a, ordenacaoCol), vb = valorOrdenavel(b, ordenacaoCol);
+                    const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+                    return ordenacaoDir === 'asc' ? cmp : -cmp;
+                });
+            }
+
             renderizarTabela();
         }
 
@@ -1502,10 +1577,10 @@
                     </td>
                 </tr>
             `).join('');
-            atualizarPaginacao(inicio, fim);
+            atualizarPaginação(inicio, fim);
         }
 
-        function atualizarPaginacao(inicio, fim) {
+        function atualizarPaginação(inicio, fim) {
             const container = document.getElementById('paginationContainer');
             if (!container) return;
             container.style.display = 'flex';
@@ -1550,13 +1625,13 @@
         }
 
         function atualizarMapa() {
-            const endereco = document.getElementById('clienteEndereco').value;
-            const numero = document.getElementById('clienteNumero').value;
+            const endereço = document.getElementById('clienteEndereco').value;
+            const número = document.getElementById('clienteNumero').value;
             const cidade = document.getElementById('clienteCidade').value;
             const uf = document.getElementById('clienteUF').value;
             
-            if (endereco && cidade) {
-                const enderecoCompleto = encodeURIComponent(`${endereco}, ${numero} - ${cidade}, ${uf}`);
+            if (endereço && cidade) {
+                const enderecoCompleto = encodeURIComponent(`${endereço}, ${número} - ${cidade}, ${uf}`);
                 const iframe = document.getElementById('mapaFrame');
                 iframe.src = `https://www.google.com/maps?q=${enderecoCompleto}&output=embed`;
             }
@@ -1579,7 +1654,7 @@
             atualizarAvatarModal('Novo Cliente');
             
             // Voltar para primeira aba
-            trocarAbaCliente('endereco');
+            trocarAbaCliente('endereço');
             
             // Mostrar modal
             document.getElementById('modalCliente').classList.add('active');
@@ -1625,7 +1700,7 @@
             document.getElementById('clienteContato').value = cliente.contato || '';
             
             // Aba Endereço
-            document.getElementById('clienteEndereco').value = cliente.endereco || cliente.logradouro || '';
+            document.getElementById('clienteEndereco').value = cliente.endereço || cliente.logradouro || '';
             document.getElementById('clienteNumero').value = cliente.numero || '';
             document.getElementById('clienteComplemento').value = cliente.complemento || '';
             document.getElementById('clienteBairro').value = cliente.bairro || '';
@@ -1656,6 +1731,7 @@
             if (document.getElementById('clienteDDDFax')) document.getElementById('clienteDDDFax').value = cliente.ddd_fax || '';
             if (document.getElementById('clienteEnviarAnexos')) document.getElementById('clienteEnviarAnexos').checked = cliente.enviar_anexos !== 0;
             if (document.getElementById('clienteBanco')) document.getElementById('clienteBanco').value = cliente.banco || '';
+            if (document.getElementById('clienteTipoConta')) document.getElementById('clienteTipoConta').value = cliente.tipo_conta || 'corrente';
             if (document.getElementById('clienteAgencia')) document.getElementById('clienteAgencia').value = cliente.agencia || '';
             if (document.getElementById('clienteConta')) document.getElementById('clienteConta').value = cliente.conta || cliente.conta_corrente || '';
             if (document.getElementById('clientePix')) document.getElementById('clientePix').value = cliente.pix || '';
@@ -1691,7 +1767,7 @@
             carregarStatusMonitoramento(cliente.id);
             
             // Voltar para primeira aba
-            trocarAbaCliente('endereco');
+            trocarAbaCliente('endereço');
             
             // Mostrar modal
             document.getElementById('modalCliente').classList.add('active');
@@ -1784,8 +1860,8 @@
                 celular: celularCompleto,
                 email: document.getElementById('clienteEmail').value.trim(),
                 website: document.getElementById('clienteWebsite').value.trim(),
-                endereco: document.getElementById('clienteEndereco').value.trim(),
-                numero: document.getElementById('clienteNumero').value.trim(),
+                endereço: document.getElementById('clienteEndereco').value.trim(),
+                número: document.getElementById('clienteNumero').value.trim(),
                 complemento: document.getElementById('clienteComplemento').value.trim(),
                 bairro: document.getElementById('clienteBairro').value.trim(),
                 cidade: document.getElementById('clienteCidade').value.trim(),
@@ -1800,6 +1876,7 @@
                 ddd_fax: (document.getElementById('clienteDDDFax') || {}).value || '',
                 enviar_anexos: (document.getElementById('clienteEnviarAnexos') || {}).checked ? 1 : 0,
                 banco: (document.getElementById('clienteBanco') || {}).value || '',
+                tipo_conta: (document.getElementById('clienteTipoConta') || {}).value || 'corrente',
                 agencia: (document.getElementById('clienteAgencia') || {}).value || '',
                 conta: (document.getElementById('clienteConta') || {}).value || '',
                 pix: (document.getElementById('clientePix') || {}).value || '',
@@ -1944,13 +2021,13 @@
             if (/^(\d)\1+$/.test(cnpj)) return false; // Rejeita CNPJs com todos os dígitos iguais
             
             let tamanho = cnpj.length - 2;
-            let numeros = cnpj.substring(0, tamanho);
+            let números = cnpj.substring(0, tamanho);
             let digitos = cnpj.substring(tamanho);
             let soma = 0;
             let pos = tamanho - 7;
             
             for (let i = tamanho; i >= 1; i--) {
-                soma += numeros.charAt(tamanho - i) * pos--;
+                soma += números.charAt(tamanho - i) * pos--;
                 if (pos < 2) pos = 9;
             }
             
@@ -1958,12 +2035,12 @@
             if (resultado != digitos.charAt(0)) return false;
             
             tamanho = tamanho + 1;
-            numeros = cnpj.substring(0, tamanho);
+            números = cnpj.substring(0, tamanho);
             soma = 0;
             pos = tamanho - 7;
             
             for (let i = tamanho; i >= 1; i--) {
-                soma += numeros.charAt(tamanho - i) * pos--;
+                soma += números.charAt(tamanho - i) * pos--;
                 if (pos < 2) pos = 9;
             }
             
@@ -2119,7 +2196,7 @@
         
         function getStatusLabel(status) {
             const labels = {
-                'orcamento': 'Orçamento', 'analise': 'Análise', 'analise-credito': 'Análise Crédito',
+                'orcamento': 'Orçamento', 'análise': 'Análise', 'análise-crédito': 'Análise Crédito',
                 'aprovado': 'Aprovado', 'pedido-aprovado': 'Ped. Aprovado', 'faturar': 'Faturar',
                 'faturado': 'Faturado', 'entregue': 'Entregue', 'cancelado': 'Cancelado'
             };
@@ -2217,7 +2294,7 @@
                         </div>
                         <div class="resumo-card">
                             <div class="card-icon green"><i class="fas fa-file-invoice"></i></div>
-                            <div class="card-valor">${f.total_títulos}</div>
+                            <div class="card-valor">${f.total_titulos}</div>
                             <div class="card-label">Total de Títulos</div>
                         </div>
                     </div>
@@ -2317,7 +2394,7 @@
         }
 
         // === HISTÓRICO FINANCEIRO ===
-        async function abrirHistoricoFinanceiro() {
+        async function abrirHistóricoFinanceiro() {
             const id = document.getElementById('clienteId').value;
             if (!id) { mostrarToast('Salve o cliente antes de ver o histórico', 'error'); return; }
             
@@ -2355,7 +2432,7 @@
                         </div>
                         <div class="resumo-card">
                             <div class="card-icon blue"><i class="fas fa-file-invoice-dollar"></i></div>
-                            <div class="card-valor">${f.total_títulos || 0}</div>
+                            <div class="card-valor">${f.total_titulos || 0}</div>
                             <div class="card-label">Total Títulos</div>
                         </div>
                     </div>
@@ -2443,7 +2520,7 @@
         }
 
         // === HISTÓRICO DE ALTERAÇÕES ===
-        async function abrirHistoricoAlteracoes() {
+        async function abrirHistóricoAlterações() {
             const id = document.getElementById('clienteId').value;
             if (!id) { mostrarToast('Salve o cliente primeiro', 'error'); return; }
             
@@ -2456,16 +2533,16 @@
                 const response = await fetch(`/api/vendas/clientes/${id}/historico`, { credentials: 'include' });
                 if (!response.ok) throw new Error('Erro ao buscar histórico');
                 const data = await response.json();
-                const historico = data.historico || [];
+                const histórico = data.historico || [];
                 
-                if (historico.length === 0) {
+                if (histórico.length === 0) {
                     body.innerHTML = `<div class="sidebar-panel-empty"><i class="fas fa-clipboard-list"></i><h4>Nenhuma alteração registrada</h4><p>As alterações no cadastro deste cliente serão listadas aqui.</p></div>`;
                     return;
                 }
                 
-                body.innerHTML = `<div class="historico-timeline">${historico.map(h => `
-                    <div class="historico-item ${h.tipo || ''}">
-                        <div class="hist-data">${h.data_alteracao ? new Date(h.data_alteracao).toLocaleString('pt-BR') : '-'}</div>
+                body.innerHTML = `<div class="histórico-timeline">${histórico.map(h => `
+                    <div class="histórico-item ${h.tipo || ''}">
+                        <div class="hist-data">${h.data_alteração ? new Date(h.data_alteração).toLocaleString('pt-BR') : '-'}</div>
                         <div class="hist-desc">${h.descricao || 'Alteração registrada'}</div>
                         <div class="hist-user"><i class="fas fa-user" style="margin-right:4px"></i>${h.usuario || 'Sistema'}</div>
                     </div>
@@ -2679,10 +2756,10 @@
     <!-- Performance Utilities -->
     <script src="/js/performance-utils.js?v=20260213"></script>
 
-    <script src="/js/auth-unified.js?v=20260301"></script>
+    <script src="/js/auth-unified.js?v=20260527"></script>
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
     <!-- Chat Widget BOB AI - DESATIVADO -->
-    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <!-- <script src="/chat/widget.js?v=20260418" defer></script> -->
     <script src="/js/user-dropdown.js?v=20260223" defer></script>
 
     <!-- Sidebar Click Animation -->
@@ -2695,5 +2772,6 @@
     <script src="/chat-teams/chat-widget.js?v=20260319" defer></script>
 </body>
 </html>
+
 
 

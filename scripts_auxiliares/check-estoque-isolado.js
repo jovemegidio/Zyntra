@@ -5,7 +5,7 @@ async function verificar() {
     const pool = await mysql.createPool({
         host: 'interchange.proxy.rlwy.net',
         user: 'root',
-        password: 'iiilOZutDOnPCwxgiTKeMuEaIzSwplcu',
+        password: process.env.RAILWAY_DB_PASSWORD || process.env.DB_PASSWORD || '',
         database: 'railway',
         port: 19396
     });
@@ -13,8 +13,8 @@ async function verificar() {
     console.log('\n=== MOVIMENTAÇÕES DE ESTOQUE ===');
     try {
         const [movimentacoes] = await pool.query(`
-            SELECT tipo, COUNT(*) as qtd, SUM(quantidade) as total_qtd 
-            FROM movimentacoes_estoque 
+            SELECT tipo, COUNT(*) as qtd, SUM(quantidade) as total_qtd
+            FROM movimentacoes_estoque
             GROUP BY tipo
         `);
         console.log(movimentacoes.length === 0 ? 'Nenhuma movimentação' : movimentacoes);
@@ -31,7 +31,7 @@ async function verificar() {
     console.log('\n=== AMOSTRA DE PRODUTOS ===');
     const [amostra] = await pool.query(`
         SELECT id, codigo, nome, quantidade_estoque, estoque_minimo, unidade_medida, categoria
-        FROM produtos 
+        FROM produtos
         LIMIT 5
     `);
     console.table(amostra);

@@ -5,6 +5,7 @@
  * v2.1 - 2026-02-18 - Mapeamento completo de headers
  * v2.2 - 2026-03-26 - Aliases novos templates Zyntra (C. a Pagar, FATURAMENTO, Pagamentos)
  * v2.3 - 2026-03-26 - Normalização template Pagamentos: data_pagamento→data_vencimento, status auto-pago
+ * v2.4 - 2026-06-06 - Template "Recebimentos" (DT ENTRADA/CONTA FINANCEIRA/HISTORICO/ORIGEM/VALOR BRUTO/CONTA BANCÁRIA): mapeia e marca recebido
  */
 
 // ============================================================
@@ -164,6 +165,13 @@ const HEADER_MAP_CONTAS_RECEBER = {
     'DT CARTÓRIO': 'data_para_cartorio',
     'DT PROTESTO': 'data_protestado',
     'OBSERVAÇÃO': 'observacoes',
+    // Headers novos: Template Zyntra "Recebimentos" (Row 5)
+    'DT ENTRADA': 'data_recebimento',
+    'CONTA FINANCEIRA': 'categoria_nome',
+    'HISTORICO': 'descricao',
+    'ORIGEM': 'cliente_nome',
+    'VALOR BRUTO': 'valor',
+    'CONTA BANCÁRIA': 'conta_corrente_nome',
     // Headers internos simples (fallback)
     'Descrição': 'descricao',
     'Valor': 'valor',
@@ -214,26 +222,31 @@ const HEADER_MAP_FLUXO = {
 // Configurações de importação por tipo
 const IMPORT_CONFIG = {
     'contas-pagar': {
+        label: 'Contas a Pagar',
         endpoint: '/api/financeiro/importar/contas-pagar',
         template: '/Financeiro/templates/template_contas_pagar.xlsx',
         headerMap: HEADER_MAP_CONTAS_PAGAR
     },
     'contas-receber': {
+        label: 'Contas a Receber',
         endpoint: '/api/financeiro/importar/contas-receber',
         template: '/Financeiro/templates/template_contas_receber.xlsx',
         headerMap: HEADER_MAP_CONTAS_RECEBER
     },
     'bancos': {
+        label: 'Contas Correntes',
         endpoint: '/api/financeiro/importar/bancos',
         template: '/Financeiro/templates/template_bancos.xlsx',
         headerMap: HEADER_MAP_BANCOS
     },
     'movimentacoes': {
+        label: 'Movimentações',
         endpoint: '/api/financeiro/importar/movimentacoes',
         template: '/Financeiro/templates/template_movimentacoes.xlsx',
         headerMap: HEADER_MAP_MOVIMENTACOES
     },
     'fluxo-caixa': {
+        label: 'Fluxo de Caixa',
         endpoint: '/api/financeiro/importar/fluxo-caixa',
         template: '/Financeiro/templates/SGE_Fluxo_Caixa.xlsx',
         headerMap: HEADER_MAP_FLUXO
@@ -377,66 +390,90 @@ function abrirModalImportar(tipo) {
         modal.className = 'modal-overlay';
     }
     
+    const moduloLabel = config.label || 'Dados';
     modal.innerHTML = `
-        <div class="modal-container" style="max-width: 650px;">
+        <div class="modal-container" style="max-width: 720px;">
             <div class="modal-header">
-                <h2><i class="fas fa-file-excel"></i> Importar Dados via Excel</h2>
+                <h2><i class="fas fa-file-excel"></i> Importar Planilha de ${moduloLabel}</h2>
                 <button class="modal-close" onclick="fecharModalImportar()">&times;</button>
             </div>
-            <div class="modal-body" style="padding: 24px;">
-                <div style="text-align: center; padding: 20px;">
-                    <div style="margin-bottom: 20px;">
-                        <i class="fas fa-file-upload" style="font-size: 48px; color: #10b981;"></i>
+            <div class="modal-body" style="padding: 24px 28px;">
+                <p style="font-size: 14px; color: #475569; margin: 0 0 22px;">
+                    Preparamos um modelo de planilha para facilitar sua importação de
+                    <strong>${moduloLabel}</strong>. Siga os passos abaixo para completar o processo:
+                </p>
+
+                <div style="display:flex; gap:18px; align-items:flex-start;">
+                    <div style="flex-shrink:0; width:78px; text-align:center;">
+                        <i class="fas fa-file-excel" style="font-size:62px; color:#1d6f42;"></i>
                     </div>
-                    
-                    <h3 style="margin-bottom: 16px; color: #1f2937;">Importar via planilha Excel</h3>
-                    
-                    <p style="color: #6b7280; margin-bottom: 20px;">
-                        Selecione o mês de referência, baixe o template, preencha os dados e faça o upload.
-                    </p>
-                    
-                    <!-- Seletor de Mês de Referência -->
-                    <div style="margin-bottom: 20px; text-align: left; max-width: 350px; margin-left: auto; margin-right: auto;">
-                        <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px;">
-                            <i class="fas fa-calendar-alt" style="margin-right: 6px; color: #3b82f6;"></i> Mês de Referência
-                        </label>
-                        <select id="import-mes-referencia" style="width: 100%; padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 14px; color: #1e293b; background: white; cursor: pointer;">
-                            ${mesesOpts}
-                        </select>
-                        <p style="font-size: 11px; color: #9ca3af; margin-top: 4px;">
-                            Os dados importados serão organizados por este mês. Se não selecionar, será detectado pela data de vencimento.
-                        </p>
+                    <div style="flex:1;">
+                        <!-- PASSO 1 -->
+                        <div class="xlsx-step" style="background:#f0fdf4; border:1px solid #dcfce7; border-radius:12px; padding:14px 16px; margin-bottom:14px;">
+                            <div style="display:flex; gap:12px; align-items:flex-start;">
+                                <span style="flex-shrink:0; width:26px; height:26px; border-radius:50%; background:#22c55e; color:#fff; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center;">1</span>
+                                <div>
+                                    <div style="font-weight:700; color:#14532d; font-size:14px;">Baixe o Modelo</div>
+                                    <div style="font-size:13px; color:#3f6212; margin-top:2px;">
+                                        <a href="javascript:void(0)" onclick="baixarTemplate('${tipo}')" style="color:#16a34a; font-weight:600; text-decoration:underline;">Clique aqui</a>
+                                        para fazer o download da versão mais recente do nosso modelo de planilha.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PASSO 2 -->
+                        <div class="xlsx-step" style="padding:6px 16px 14px 16px; margin-bottom:6px;">
+                            <div style="display:flex; gap:12px; align-items:flex-start;">
+                                <span style="flex-shrink:0; width:26px; height:26px; border-radius:50%; background:#16a34a; color:#fff; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center;">2</span>
+                                <div>
+                                    <div style="font-weight:700; color:#1f2937; font-size:14px;">Preencha o Modelo</div>
+                                    <div style="font-size:13px; color:#6b7280; margin-top:2px;">
+                                        Insira as informações no modelo baixado, garantindo que todos os campos obrigatórios sejam preenchidos corretamente.
+                                    </div>
+                                    <div style="margin-top:10px; max-width:340px;">
+                                        <label style="display:block; font-size:12px; font-weight:600; color:#374151; margin-bottom:5px;">
+                                            <i class="fas fa-calendar-alt" style="margin-right:5px; color:#3b82f6;"></i> Mês de Referência
+                                        </label>
+                                        <select id="import-mes-referencia" style="width:100%; padding:9px 12px; border:2px solid #e2e8f0; border-radius:9px; font-size:13px; color:#1e293b; background:white; cursor:pointer;">
+                                            ${mesesOpts}
+                                        </select>
+                                        <p style="font-size:11px; color:#9ca3af; margin-top:4px;">Se não selecionar, será detectado pela data de vencimento.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PASSO 3 -->
+                        <div class="xlsx-step" style="border:2px dashed #16a34a; border-radius:12px; padding:14px 16px; cursor:pointer;"
+                             id="drop-zone-xlsx" onclick="document.getElementById('input-xlsx-file').click()">
+                            <div style="display:flex; gap:12px; align-items:flex-start;">
+                                <span style="flex-shrink:0; width:26px; height:26px; border-radius:50%; background:#16a34a; color:#fff; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center;">3</span>
+                                <div>
+                                    <div style="font-weight:700; color:#14532d; font-size:14px;">Envie a Planilha Preenchida</div>
+                                    <div style="font-size:13px; color:#3f6212; margin-top:2px;">
+                                        <span style="color:#16a34a; font-weight:600; text-decoration:underline;">Clique aqui</span>
+                                        para fazer o upload da sua planilha preenchida.
+                                    </div>
+                                    <div style="font-size:12px; color:#9ca3af; margin-top:8px;">
+                                        <i class="fas fa-cloud-upload-alt"></i> Você pode selecionar o arquivo ou arrastá-lo diretamente para esta área (.xlsx, .xls).
+                                    </div>
+                                    <input type="file" id="input-xlsx-file" accept=".xlsx,.xls" style="display:none;"
+                                           onchange="processarArquivoXLSX(this.files[0], '${tipo}')">
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    
-                    <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 24px;">
-                        <button class="btn-secondary" onclick="baixarTemplate('${tipo}')" style="display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-download"></i> Baixar Template
-                        </button>
-                    </div>
-                    
-                    <div style="border: 2px dashed #d1d5db; border-radius: 12px; padding: 40px 20px; background: #f9fafb; cursor: pointer;" 
-                         id="drop-zone-xlsx"
-                         onclick="document.getElementById('input-xlsx-file').click()">
-                        <input type="file" id="input-xlsx-file" accept=".xlsx,.xls" style="display: none;" 
-                               onchange="processarArquivoXLSX(this.files[0], '${tipo}')">
-                        <i class="fas fa-cloud-upload-alt" style="font-size: 36px; color: #9ca3af; margin-bottom: 12px;"></i>
-                        <p style="color: #6b7280; margin: 0;">
-                            <strong>Clique para selecionar</strong> ou arraste o arquivo aqui
-                        </p>
-                        <p style="color: #9ca3af; font-size: 12px; margin-top: 8px;">
-                            Arquivos aceitos: .xlsx, .xls
-                        </p>
-                    </div>
-                    
-                    <div id="import-preview" style="margin-top: 16px; display: none;"></div>
-                    
-                    <div id="import-status" style="margin-top: 20px; display: none;">
-                        <div class="loading-spinner" style="margin: 0 auto;"></div>
-                        <p style="color: #6b7280; margin-top: 12px;">Processando arquivo...</p>
-                    </div>
-                    
-                    <div id="import-result" style="margin-top: 20px; display: none;"></div>
                 </div>
+
+                <div id="import-preview" style="margin-top: 16px; display: none;"></div>
+
+                <div id="import-status" style="margin-top: 20px; display: none; text-align:center;">
+                    <div class="loading-spinner" style="margin: 0 auto;"></div>
+                    <p style="color: #6b7280; margin-top: 12px;">Processando arquivo...</p>
+                </div>
+
+                <div id="import-result" style="margin-top: 20px; display: none;"></div>
             </div>
         </div>
     `;
@@ -598,6 +635,16 @@ async function processarArquivoXLSX(file, tipo) {
                 // Propagar valor → valor_pagamento quando pago
                 if (obj.data_pagamento && !obj.valor_pagamento && obj.valor) {
                     obj.valor_pagamento = obj.valor;
+                }
+                // Template "Recebimentos" (DT ENTRADA): usa a entrada como vencimento e marca recebido
+                if (obj.data_recebimento && !obj.data_vencimento) {
+                    obj.data_vencimento = obj.data_recebimento;
+                }
+                if (!obj.status && obj.data_recebimento) {
+                    obj.status = 'recebido';
+                }
+                if (obj.data_recebimento && !obj.valor_recebido && obj.valor) {
+                    obj.valor_recebido = obj.valor;
                 }
                 dados.push(obj);
             }
@@ -788,4 +835,4 @@ importStyles.textContent = `
 `;
 document.head.appendChild(importStyles);
 
-console.log('✅ Módulo de Importação XLSX v2.2 carregado (compatível SGE/Omie + Zyntra)');
+console.log('✅ Módulo de Importação XLSX v2.4 carregado (compatível SGE/Omie + Zyntra: Pagamentos + Recebimentos)');

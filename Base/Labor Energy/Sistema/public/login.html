@@ -1,828 +1,830 @@
-﻿<!DOCTYPE html>
-<html lang="pt-BR">
-
+<!DOCTYPE html>
+<html lang="pt-BR" class="bg-bg">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#0d1117">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Labor Energy">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="application-name" content="Labor Energy">
-    <meta name="msapplication-TileColor" content="#0d1117">
-    <meta name="msapplication-TileImage" content="/icons/icon-144x144.png">
-    <meta name="format-detection" content="telephone=no">
-    
-    <title>Labor Energy: Login</title>
-    
-    <!-- Favicon e ícones -->
-    <link rel="icon" type="image/jpeg" href="/favicon-zyntra.jpg">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-    
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json">
-    
-    <!-- Fonte Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Acesso ao sistema — Portal interno</title>
+  <style>
+    /* ===================== Tokens de tema ===================== */
+    :root {
+      --bg: #f6f7f9;
+      --fg: #1f2433;
+      --card: #ffffff;
+      --primary: #2a3170;        /* azul-marinho da marca */
+      --primary-fg: #fafbff;
+      --secondary: #eef0f4;
+      --muted-fg: #6b7180;
+      --border: #e3e6ec;
+      --ring: #2a3170;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-full: 9999px;
+    }
 
-    <!-- CSS Principal do Login v2 -->
-    <link rel="stylesheet" href="/css/login.css?v=20260222b">
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    <!-- Preload dashboard resources for faster post-login transition -->
-    <link rel="prefetch" href="/css/skeleton-loader.css">
-    <link rel="prefetch" href="/js/performance-utils.js">
+    html, body { height: 100%; }
+
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #0d1117;
+      color: var(--fg);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    body::before {
+      z-index: -2;
+      background: url("/images/Papeldeparede-alu.webp") center / cover no-repeat;
+    }
+
+    body::after {
+      z-index: -1;
+      background:
+        radial-gradient(circle at 18% 24%, rgba(42, 49, 112, .42), transparent 34%),
+        radial-gradient(circle at 82% 76%, rgba(24, 182, 200, .24), transparent 30%),
+        linear-gradient(115deg, rgba(7, 13, 24, .72), rgba(7, 13, 24, .44) 48%, rgba(7, 13, 24, .68));
+    }
+
+    /* ===================== Layout 2 colunas ===================== */
+    .screen {
+      display: grid;
+      grid-template-columns: 1fr;
+      min-height: 100vh;
+      position: relative;
+    }
+    @media (min-width: 1024px) {
+      .screen { grid-template-columns: 1.05fr 1fr; }
+    }
+
+    /* ===================== Painel de marca ===================== */
+    .brand-panel {
+      position: relative;
+      display: none;
+      overflow: hidden;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 3rem;
+      background: linear-gradient(145deg, rgba(42,49,112,.82), rgba(13,17,23,.64));
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      color: var(--primary-fg);
+      animation: fadeIn .5s ease both;
+    }
+    @media (min-width: 1024px) { .brand-panel { display: flex; } }
+    @media (min-width: 1280px) { .brand-panel { padding: 4rem; } }
+
+    .brand-grid {
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      opacity: .07;
+      background-image:
+        linear-gradient(to right, currentColor 1px, transparent 1px),
+        linear-gradient(to bottom, currentColor 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    .brand-logos {
+      position: relative;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    .brand-logos .brand-item { display: flex; align-items: center; gap: 1.5rem; }
+    .brand-logos .divider { height: 2rem; width: 1px; background: rgba(255,255,255,.2); }
+    .brand-logos img { width: auto; height: 44px; }
+    /* A logo da Labor Eletric tem muito espaço transparente interno (~53%);
+       precisa de uma caixa mais alta para a marca visível ficar do mesmo
+       tamanho das demais (Aluforce/Energy). */
+    .brand-logos img.padded { height: 80px; }
+
+    .brand-head { position: relative; max-width: 28rem; }
+    .brand-head h1 {
+      font-size: 1.875rem;
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: -.02em;
+      text-wrap: balance;
+    }
+    @media (min-width: 1280px) { .brand-head h1 { font-size: 2.25rem; } }
+    .brand-head p { margin-top: 1rem; color: rgba(250,251,255,.7); text-wrap: pretty; }
+
+    .highlights { margin-top: 2.5rem; display: flex; flex-direction: column; gap: 1.5rem; list-style: none; }
+    .highlights li { display: flex; align-items: center; gap: 1rem; }
+    .highlights .ico {
+      flex-shrink: 0;
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: var(--radius-sm);
+      background: rgba(255,255,255,.1);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.15);
+    }
+    .highlights .ico svg { width: 18px; height: 18px; }
+    .highlights .title { font-weight: 500; }
+    .highlights .desc { font-size: .875rem; color: rgba(250,251,255,.65); }
+
+    .brand-footer {
+      position: relative;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: .875rem; color: rgba(250,251,255,.55);
+    }
+
+    /* ===================== Lado do formulário ===================== */
+    .form-side {
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem;
+    }
+    @media (min-width: 640px) { .form-side { padding: 2.5rem; } }
+    .form-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 26rem;
+      padding: 2rem;
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 18px;
+      background: rgba(255,255,255,.86);
+      box-shadow: 0 22px 70px rgba(0,0,0,.28);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    @media (max-width: 520px) {
+      .form-wrap { padding: 1.35rem; }
+    }
+
+    .mobile-logo { margin-bottom: 2.5rem; }
+    .mobile-logo img { height: 44px; width: auto; }
+    @media (min-width: 1024px) { .mobile-logo { display: none; } }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: .375rem;
+      margin-bottom: 1rem;
+      border: 1px solid var(--border);
+      background: var(--secondary);
+      border-radius: var(--radius-full);
+      padding: .25rem .75rem;
+      font-size: .75rem; font-weight: 500; color: var(--muted-fg);
+    }
+    .badge svg { width: 14px; height: 14px; color: var(--primary); }
+
+    h2 { font-size: 1.5rem; font-weight: 600; letter-spacing: -.02em; }
+    .subtitle { margin-top: .5rem; font-size: .875rem; color: var(--muted-fg); }
+    .subtitle strong { color: var(--fg); font-weight: 500; }
+
+    /* Abas de identificador */
+    .tabs {
+      margin-top: 2rem;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+      background: var(--secondary);
+      border-radius: var(--radius-sm);
+      padding: 4px;
+    }
+    .tab {
+      display: flex; align-items: center; justify-content: center; gap: .5rem;
+      border: 0; cursor: pointer; background: transparent;
+      border-radius: 6px; padding: .5rem .75rem;
+      font-size: .875rem; font-weight: 500; color: var(--muted-fg);
+      transition: color .15s, background .15s, box-shadow .15s;
+      font-family: inherit;
+    }
+    .tab svg { width: 16px; height: 16px; }
+    .tab[aria-selected="true"] {
+      background: var(--card); color: var(--fg);
+      box-shadow: 0 1px 2px rgba(0,0,0,.08);
+    }
+
+    form { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+    .field { display: flex; flex-direction: column; gap: .5rem; }
+    label { font-size: .875rem; font-weight: 500; }
+    .row { display: flex; align-items: center; justify-content: space-between; }
+    .link { font-size: .875rem; font-weight: 500; color: var(--primary); text-decoration: none; }
+    .link:hover { opacity: .8; }
+
+    .control { position: relative; }
+    .control .ico-left {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--muted-fg); display: flex; pointer-events: none;
+    }
+    .control .ico-left svg { width: 16px; height: 16px; }
+    .control input {
+      width: 100%; height: 44px;
+      padding: 0 2.25rem;
+      border: 1px solid var(--input, var(--border));
+      border-radius: var(--radius-sm);
+      background: var(--card); color: var(--fg);
+      font-size: .9rem; font-family: inherit;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .control input::placeholder { color: var(--muted-fg); }
+    .control input:focus {
+      outline: none;
+      border-color: var(--ring);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 18%, transparent);
+    }
+    .toggle-eye {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      border: 0; background: transparent; cursor: pointer;
+      padding: 6px; border-radius: 6px; color: var(--muted-fg); display: flex;
+    }
+    .toggle-eye:hover { color: var(--fg); }
+    .toggle-eye svg { width: 16px; height: 16px; }
+    .spinner-right {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--muted-fg); display: none;
+    }
+    .spinner-right.show { display: flex; }
+    .spinner-right svg { width: 16px; height: 16px; animation: spin 1s linear infinite; }
+
+    /* Cartão de saudação */
+    .greeting {
+      display: none;
+      align-items: center; gap: .75rem;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--secondary) 60%, transparent);
+      border-radius: var(--radius-sm);
+      padding: .75rem;
+      animation: fadeIn .25s ease both;
+    }
+    .greeting.show { display: flex; }
+    .greeting .avatar {
+      width: 48px; height: 48px; flex-shrink: 0;
+      border-radius: var(--radius-full); overflow: hidden;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
+      background: var(--secondary);
+    }
+    .greeting .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .greeting .meta { min-width: 0; }
+    .greeting .hi { font-size: .75rem; color: var(--muted-fg); }
+    .greeting .name { font-size: .875rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .greeting .role { font-size: .75rem; color: var(--muted-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .check { display: flex; align-items: center; gap: .5rem; }
+    .check input { width: 16px; height: 16px; accent-color: var(--primary); }
+    .check label { font-weight: 400; color: var(--muted-fg); }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+      height: 44px; width: 100%;
+      border: 0; cursor: pointer;
+      border-radius: var(--radius-sm);
+      background: var(--primary); color: var(--primary-fg);
+      font-size: .875rem; font-weight: 500; font-family: inherit;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .92; }
+    .btn:disabled { opacity: .7; cursor: default; }
+    .btn svg { width: 16px; height: 16px; }
+    .btn .spin { animation: spin 1s linear infinite; }
+
+    .support { margin-top: 2rem; text-align: center; font-size: .875rem; color: var(--muted-fg); }
+    .support a { font-weight: 500; color: var(--primary); text-decoration: none; }
+
+    /* Overlay de sucesso */
+    .success {
+      display: none;
+      position: absolute; inset: 0; z-index: 10;
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 1rem; text-align: center;
+      background: color-mix(in srgb, var(--card) 95%, transparent);
+      backdrop-filter: blur(4px);
+      border-radius: var(--radius);
+      animation: fadeIn .3s ease both;
+    }
+    .success.show { display: flex; }
+    .success .ring {
+      width: 64px; height: 64px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: var(--radius-full);
+      background: var(--primary); color: var(--primary-fg);
+      animation: pop .5s ease both;
+    }
+    .success .ring svg { width: 32px; height: 32px; }
+    .success h3 { font-size: 1.125rem; font-weight: 600; }
+    .success p { margin-top: .25rem; font-size: .875rem; color: var(--muted-fg); }
+    .success .spin { width: 20px; height: 20px; color: var(--primary); animation: spin 1s linear infinite; }
+    .error-message {
+      display: none;
+      align-items: flex-start;
+      gap: .625rem;
+      margin-bottom: 1rem;
+      padding: .875rem 1rem;
+      border: 1px solid rgba(220, 38, 38, .24);
+      border-radius: var(--radius-sm);
+      background: rgba(254, 242, 242, .92);
+      color: #991b1b;
+      font-size: .875rem;
+      box-shadow: 0 10px 30px rgba(127, 29, 29, .08);
+    }
+    .error-message.show { display: flex; }
+    .error-message svg {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      margin-top: 1px;
+    }
+
+    .hidden { display: none !important; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
+  </style>
 </head>
-
 <body>
-    <div class="login-page">
-        <!-- ===== BACKGROUND LAYERS ===== -->
-        <div class="bg-layer">
-            <!-- Background Image -->
-            <div class="bg-image"></div>
-            
-            <!-- Dark overlay for contrast -->
-            <div class="bg-dark-overlay"></div>
-            
-            <!-- Animated gradient overlay -->
-            <div class="bg-gradient-overlay theme-0" id="bg-gradient"></div>
-            
-            <!-- Animated Gradient Orbs -->
-            <div class="bg-orb bg-orb-1" id="bg-orb-1"></div>
-            <div class="bg-orb bg-orb-2" id="bg-orb-2"></div>
-            
-            <!-- Floating particles -->
-            <div class="particles-container" id="particles"></div>
+  <main class="screen">
+    <!-- ===================== Painel de marca ===================== -->
+    <aside class="brand-panel">
+      <div class="brand-grid" aria-hidden="true"></div>
 
-            <!-- Theme indicator dots -->
-            <div class="theme-dots" id="theme-dots">
-                <button class="theme-dot active" data-theme="0" aria-label="Tema 1"></button>
-                <button class="theme-dot" data-theme="1" aria-label="Tema 2"></button>
-                <button class="theme-dot" data-theme="2" aria-label="Tema 3"></button>
-                <button class="theme-dot" data-theme="3" aria-label="Tema 4"></button>
-            </div>
+      <div class="brand-logos" id="brandLogos"><!-- preenchido via JS --></div>
+
+      <div class="brand-head">
+        <h1 id="headline">Portal interno do grupo</h1>
+        <p id="description">Ambiente corporativo unificado. Informe seu e-mail corporativo para acessar o portal da sua empresa.</p>
+
+        <ul class="highlights">
+          <li>
+            <span class="ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"/><path d="m7 16.5-4.74-2.85"/><path d="m7 16.5 5-3"/><path d="M7 16.5v5.17"/><path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"/><path d="m17 16.5-5-3"/><path d="m17 16.5 4.74-2.85"/><path d="M17 16.5v5.17"/><path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"/><path d="M12 8 7.26 5.15"/><path d="m12 8 4.74-2.85"/><path d="M12 13.5V8"/></svg>
+            </span>
+            <div><p class="title">Todos os módulos internos</p><p class="desc">Vendas, estoque, financeiro e produção da empresa em um só lugar.</p></div>
+          </li>
+          <li>
+            <span class="ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+            </span>
+            <div><p class="title">Operação em tempo real</p><p class="desc">Indicadores e relatórios das equipes atualizados continuamente.</p></div>
+          </li>
+          <li>
+            <span class="ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z"/></svg>
+            </span>
+            <div><p class="title">Ambiente protegido</p><p class="desc">Acesso por perfil, auditoria de ações e registro de sessões.</p></div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="brand-footer">
+        <span id="footerName">© 2026 Grupo Corporativo</span>
+        <span>Sistema interno · Uso autorizado</span>
+      </div>
+    </aside>
+
+    <!-- ===================== Formulário ===================== -->
+    <section class="form-side">
+      <div class="form-wrap">
+        <!-- overlay de sucesso -->
+        <div class="success" id="success" role="status" aria-live="polite">
+          <div class="ring">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          </div>
+          <div>
+            <h3>Acesso liberado</h3>
+            <p id="successMsg">Bem-vindo(a). Redirecionando para o portal...</p>
+          </div>
+          <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
         </div>
 
-        <!-- ===== MAIN CONTENT ===== -->
-        <div class="login-content" id="login-content">
-            <!-- Login Card -->
-            <div class="glass-card">
-                <!-- Header with Avatar -->
-                <div class="login-header">
-                    <!-- Logo Zyntra -->
-                    <div class="logo-crossfade" id="logo-crossfade">
-                        <img src="/images/labor-energy-logo-branco.png" alt="Labor Energy" class="login-logo logo-zyntra active" onerror="this.style.display='none'">
-                    </div>
-                    
-                    <!-- Dynamic Avatar -->
-                    <div class="avatar-container" id="avatar-container">
-                        <div class="avatar-box" id="avatar-box">
-                            <!-- Default icon (lightning bolt) -->
-                            <div class="avatar-icon" id="avatar-icon">
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                </svg>
-                            </div>
-                        </div>
-                        <!-- Typing indicator ring -->
-                        <div class="avatar-ring"></div>
-                    </div>
+        <!-- logo mobile -->
+        <div class="mobile-logo"><img id="mobileLogo" src="/logos/aluforce-azul.png" alt="Logo" /></div>
 
-                    <!-- Dynamic Greeting -->
-                    <h1 class="login-greeting" id="login-greeting">Bem-vindo de volta</h1>
-                    <p class="login-subtitle" id="login-subtitle">Entre na sua conta para continuar</p>
-                </div>
+        <header>
+          <span class="badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z"/></svg>
+            Acesso restrito a colaboradores
+          </span>
+          <h2>Acesso ao sistema</h2>
+          <p class="subtitle">Use suas credenciais corporativas para acessar o portal interno — <strong id="companyInline">Grupo Corporativo</strong>.</p>
+        </header>
 
-                <!-- Login Form -->
-                <form id="login-form" class="login-form-content" autocomplete="on">
-
-                    <!-- Login Method Tabs -->
-                    <div class="login-method-tabs" id="login-method-tabs">
-                        <button type="button" class="login-tab active" id="tab-email" onclick="switchLoginTab('email')">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="2" y="4" width="20" height="16" rx="2"/>
-                                <path d="M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-                            </svg>
-                            E-mail
-                        </button>
-                        <button type="button" class="login-tab" id="tab-cpf" onclick="switchLoginTab('cpf')">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="5" y="2" width="14" height="20" rx="2"/>
-                                <line x1="9" y1="7" x2="15" y2="7"/>
-                                <line x1="9" y1="11" x2="15" y2="11"/>
-                                <line x1="9" y1="15" x2="13" y2="15"/>
-                            </svg>
-                            CPF
-                        </button>
-                    </div>
-
-                    <!-- Email Field -->
-                    <div id="email-group">
-                    <div class="form-group">
-                        <label for="email">Email</label>
-                        <div class="input-wrapper">
-                            <!-- Mail icon (SVG) -->
-                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="2" y="4" width="20" height="16" rx="2" />
-                                <path d="M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                            </svg>
-                            <input 
-                                type="email" 
-                                id="email" 
-                                name="email" 
-                                class="form-input" 
-                                placeholder="seu@email.com" 
-                                autocomplete="email" 
-                                required
-                            >
-                        </div>
-                        <div class="field-error" id="email-error" style="display:none;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                            </svg>
-                            <span></span>
-                        </div>
-                    </div>
-                    </div><!-- /email-group -->
-
-                    <!-- CPF Field (hidden by default) -->
-                    <div id="cpf-group" style="display:none;">
-                    <div class="form-group">
-                        <label for="cpf">CPF</label>
-                        <div class="input-wrapper">
-                            <!-- ID card icon -->
-                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="2" y="5" width="20" height="14" rx="2"/>
-                                <circle cx="8" cy="12" r="2"/>
-                                <path d="M13 11h4M13 14h3"/>
-                            </svg>
-                            <input
-                                type="text"
-                                id="cpf"
-                                name="cpf"
-                                class="form-input"
-                                placeholder="000.000.000-00"
-                                autocomplete="off"
-                                maxlength="14"
-                                inputmode="numeric"
-                            >
-                        </div>
-                        <div class="field-error" id="cpf-error" style="display:none;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                            </svg>
-                            <span></span>
-                        </div>
-                    </div>
-                    </div><!-- /cpf-group -->
-
-                    <!-- Password Field -->
-                    <div class="form-group">
-                        <div class="label-row">
-                            <label for="password">Senha</label>
-                            <button type="button" class="forgot-link" id="forgot-password">Esqueceu a senha?</button>
-                        </div>
-                        <div class="input-wrapper">
-                            <!-- Lock icon (SVG) -->
-                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                            </svg>
-                            <input 
-                                type="password" 
-                                id="password" 
-                                name="password" 
-                                class="form-input password-input" 
-                                placeholder="••••••••" 
-                                autocomplete="current-password" 
-                                required
-                            >
-                            <!-- Eye toggle -->
-                            <button type="button" class="password-toggle-btn" id="password-toggle" tabindex="-1" title="Mostrar/Ocultar senha">
-                                <!-- Eye open (default) -->
-                                <svg id="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                                </svg>
-                                <!-- Eye off (hidden by default) -->
-                                <svg id="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
-                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                                    <line x1="1" y1="1" x2="23" y2="23"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div class="field-error" id="password-error" style="display:none;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                            </svg>
-                            <span></span>
-                        </div>
-                    </div>
-
-                    <!-- Remember Me -->
-                    <div class="remember-row">
-                        <div class="custom-checkbox">
-                            <input type="checkbox" id="remember-me" name="remember">
-                            <div class="checkbox-visual">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                                    <polyline points="20 6 9 17 4 12"/>
-                                </svg>
-                            </div>
-                        </div>
-                        <label for="remember-me" class="remember-label">Lembrar de mim por 30 dias</label>
-                    </div>
-
-                    <!-- Error/Success Message -->
-                    <div id="error-message" class="login-message" role="alert"></div>
-
-                    <!-- Submit Button -->
-                    <button type="submit" id="login-submit-btn" class="login-submit-btn">
-                        <span class="btn-content">
-                            <!-- Default state -->
-                            <span class="btn-text-default">
-                                Entrar
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                                </svg>
-                            </span>
-                            <!-- Loading state -->
-                            <span class="btn-text-loading">
-                                <svg class="spinner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-                                </svg>
-                                Entrando...
-                            </span>
-                            <!-- Success state -->
-                            <span class="btn-text-success">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="20 6 9 17 4 12"/>
-                                </svg>
-                                Login realizado!
-                            </span>
-                        </span>
-                    </button>
-                </form>
-            </div>
-
-            <!-- Footer -->
-            <p class="login-footer">
-                &copy; 2026 Labor Energy &mdash; Plataforma ERP Completa | Desenvolvido por Ag&ecirc;ncia do Japa
-            </p>
+        <div class="error-message" id="errorMessage" role="alert" aria-live="assertive">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+          <span id="errorText">Nao foi possivel entrar.</span>
         </div>
-    </div>
 
-    <!-- ===== MODAL DE RECUPERAÇÃO DE SENHA ===== -->
-    <div id="forgot-password-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-recovery-title">
-        <div class="modal-content">
-            <button class="modal-close" id="modal-close">&times;</button>
-            
-            <div class="modal-header">
-                <h3 id="modal-recovery-title">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
-                    </svg>
-                    Recuperar Senha
-                </h3>
-                <p>Informe seu email para receber uma senha temporária e redefinir o acesso.</p>
-            </div>
-
-            <div class="step-indicator">
-                <div class="step-dot active" id="step-dot-1"></div>
-            </div>
-
-            <!-- Passo 1: Verificar Email -->
-            <div class="modal-step active" id="step-1">
-                <div class="modal-form-group">
-                    <label for="verify-email">Email</label>
-                    <input type="email" id="verify-email" class="modal-input" placeholder="seu@email.com" required>
-                </div>
-                <div class="modal-buttons">
-                    <button type="button" class="modal-btn modal-btn-secondary" id="cancel-step-1">Cancelar</button>
-                    <button type="button" class="modal-btn modal-btn-primary" id="next-step-1">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                        </svg>
-                        Enviar Senha Temporária
-                    </button>
-                </div>
-            </div>
+        <!-- abas -->
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab" id="tabEmail" role="tab" aria-selected="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            E-mail
+          </button>
+          <button type="button" class="tab" id="tabCpf" role="tab" aria-selected="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            CPF
+          </button>
         </div>
-    </div>
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- é MODAL - TROCA OBRIGATÓRIA DE SENHA TEMPORÁRIA -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <div id="modal-force-password" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:10000; justify-content:center; align-items:center; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
-        <div class="twofa-card" style="max-width:440px;">
-            <!-- Header -->
-            <div class="twofa-header">
-                <div class="twofa-icon-box" style="background:linear-gradient(135deg, hsl(38,92%,50%), hsl(25,95%,53%));">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
-                    </svg>
-                </div>
-                <h2 class="twofa-title">Alterar Senha Temporária</h2>
-                <p class="twofa-subtitle">Defina uma senha definitiva para continuar</p>
+        <form id="form">
+          <div class="field">
+            <label for="identifier" id="identifierLabel">E-mail corporativo</label>
+            <div class="control">
+              <span class="ico-left" id="identifierIcon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+              </span>
+              <input id="identifier" name="identifier" type="email" inputmode="email" autocomplete="email" placeholder="voce@empresa.com.br" required />
+              <span class="spinner-right" id="searchSpinner">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              </span>
             </div>
+          </div>
 
-            <!-- Body -->
-            <div class="twofa-body">
-                <p class="twofa-desc" style="margin-bottom:20px;">
-                    Você está usando uma senha temporária. Por segurança, defina uma nova senha antes de acessar o sistema.
-                </p>
-
-                <!-- Mensagens de erro/sucesso -->
-                <div id="force-pw-error" class="twofa-msg twofa-msg-error" style="display:none;"></div>
-                <div id="force-pw-success" class="twofa-msg twofa-msg-success" style="display:none;"></div>
-
-                <!-- Nova Senha -->
-                <div style="margin-bottom:16px;">
-                    <label style="display:block;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:hsl(210,40%,98%);margin-bottom:6px;">Nova Senha</label>
-                    <div style="position:relative;">
-                        <input type="password" id="force-new-password" placeholder="Digite sua nova senha" style="width:100%;height:48px;padding:0 44px 0 16px;background:hsl(222,47%,8%,0.6);backdrop-filter:blur(12px);border:2px solid hsl(210,40%,98%,0.12);border-radius:0.75rem;color:hsl(210,40%,98%);font-family:'Inter',sans-serif;font-size:15px;outline:none;transition:all 0.2s;box-sizing:border-box;">
-                        <button type="button" id="force-toggle-pw1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:hsl(215,20%,50%);padding:0;display:flex;">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                        </button>
-                    </div>
-                    <!-- Medidor de força -->
-                    <div id="force-pw-strength" style="margin-top:8px;">
-                        <div style="height:4px;background:hsl(222,30%,20%);border-radius:2px;overflow:hidden;">
-                            <div id="force-pw-strength-bar" style="height:100%;width:0%;border-radius:2px;transition:all 300ms ease;"></div>
-                        </div>
-                        <span id="force-pw-strength-text" style="font-family:'Inter',sans-serif;font-size:12px;color:hsl(215,20%,65%);margin-top:4px;display:block;">Digite uma senha forte</span>
-                    </div>
-                </div>
-
-                <!-- Confirmar Senha -->
-                <div style="margin-bottom:20px;">
-                    <label style="display:block;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:hsl(210,40%,98%);margin-bottom:6px;">Confirmar Nova Senha</label>
-                    <div style="position:relative;">
-                        <input type="password" id="force-confirm-password" placeholder="Digite novamente" style="width:100%;height:48px;padding:0 44px 0 16px;background:hsl(222,47%,8%,0.6);backdrop-filter:blur(12px);border:2px solid hsl(210,40%,98%,0.12);border-radius:0.75rem;color:hsl(210,40%,98%);font-family:'Inter',sans-serif;font-size:15px;outline:none;transition:all 0.2s;box-sizing:border-box;">
-                        <button type="button" id="force-toggle-pw2" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:hsl(215,20%,50%);padding:0;display:flex;">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Botão Alterar -->
-                <button type="button" id="force-change-btn" class="twofa-verify-btn" style="background:linear-gradient(135deg, hsl(38,92%,50%), hsl(25,95%,53%));box-shadow:0 4px 16px hsla(38,92%,50%,0.3);">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                    Definir Nova Senha
-                </button>
+          <!-- saudação -->
+          <div class="greeting" id="greeting">
+            <div class="avatar"><img id="greetingImg" src="/placeholder.svg" alt="" /></div>
+            <div class="meta">
+              <p class="hi">Olá, bem-vindo(a) de volta</p>
+              <p class="name" id="greetingName"></p>
+              <p class="role" id="greetingRole"></p>
             </div>
-        </div>
-    </div>
+          </div>
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- 🔐 MODAL 2FA - VERIFICAÇÁO DE CÓDIGO POR EMAIL -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <div id="modal-2fa" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:10000; justify-content:center; align-items:center; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
-        <div class="twofa-card">
-            <!-- Header -->
-            <div class="twofa-header">
-                <div class="twofa-icon-box">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                </div>
-                <h2 class="twofa-title">Verificação de Segurança</h2>
-                <p class="twofa-subtitle">Autenticação de dois fatores</p>
+          <div class="field">
+            <div class="row">
+              <label for="password">Senha</label>
+              <a href="#" class="link">Esqueceu a senha?</a>
             </div>
-
-            <!-- Body -->
-            <div class="twofa-body">
-                <p class="twofa-desc">
-                    Enviamos um código de 6 dígitos para
-                </p>
-                <p id="twofa-email-display" class="twofa-email">
-                    ***@energy.com.br
-                </p>
-
-                <!-- Code Input -->
-                <div class="twofa-code-container" id="twofa-code-container">
-                    <input type="text" maxlength="1" class="twofa-digit" data-index="0" inputmode="numeric" pattern="[0-9]" autocomplete="one-time-code">
-                    <input type="text" maxlength="1" class="twofa-digit" data-index="1" inputmode="numeric" pattern="[0-9]">
-                    <input type="text" maxlength="1" class="twofa-digit" data-index="2" inputmode="numeric" pattern="[0-9]">
-                    <span class="twofa-separator">—</span>
-                    <input type="text" maxlength="1" class="twofa-digit" data-index="3" inputmode="numeric" pattern="[0-9]">
-                    <input type="text" maxlength="1" class="twofa-digit" data-index="4" inputmode="numeric" pattern="[0-9]">
-                    <input type="text" maxlength="1" class="twofa-digit" data-index="5" inputmode="numeric" pattern="[0-9]">
-                </div>
-
-                <!-- Error message -->
-                <div id="twofa-error" class="twofa-msg twofa-msg-error" style="display:none;"></div>
-
-                <!-- Success message -->
-                <div id="twofa-success" class="twofa-msg twofa-msg-success" style="display:none;"></div>
-
-                <!-- Timer -->
-                <p id="twofa-timer" class="twofa-timer">
-                    ⏱️ Código expira em <strong id="twofa-countdown">5:00</strong>
-                </p>
-
-                <!-- Remember Device -->
-                <label class="twofa-remember-label" for="twofa-remember-device">
-                    <input type="checkbox" id="twofa-remember-device" class="twofa-remember-checkbox" checked>
-                    <span class="twofa-remember-check"></span>
-                    <span class="twofa-remember-text">Lembrar este dispositivo por 30 dias</span>
-                </label>
-
-                <!-- Verify Button -->
-                <button type="button" id="twofa-verify-btn" class="twofa-verify-btn" disabled>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <path d="M9 12l2 2 4-4"/>
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    Verificar Código
-                </button>
-
-                <!-- Resend / Cancel -->
-                <div class="twofa-actions">
-                    <button type="button" id="twofa-resend-btn" class="twofa-link-btn twofa-resend">
-                        Reenviar código
-                    </button>
-                    <button type="button" id="twofa-cancel-btn" class="twofa-link-btn twofa-cancel">
-                        Cancelar
-                    </button>
-                </div>
+            <div class="control">
+              <span class="ico-left">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </span>
+              <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Digite sua senha" required />
+              <button type="button" class="toggle-eye" id="togglePw" aria-label="Mostrar senha">
+                <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
             </div>
-        </div>
-    </div>
+          </div>
 
-    <style>
-        /* ═══════ LOGIN METHOD TABS ═══════ */
-        .login-method-tabs {
-            display: flex;
-            gap: 4px;
-            background: hsla(215, 25%, 15%, 0.5);
-            border-radius: 10px;
-            padding: 3px;
-            margin-bottom: 20px;
-        }
-        .login-tab {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 8px 12px;
-            border: none;
-            border-radius: 8px;
-            background: transparent;
-            color: hsla(215, 20%, 60%, 0.8);
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.25s ease;
-            font-family: inherit;
-        }
-        .login-tab:hover {
-            color: hsla(215, 20%, 80%, 1);
-            background: hsla(215, 25%, 20%, 0.4);
-        }
-        .login-tab.active {
-            background: hsla(145, 63%, 42%, 0.2);
-            color: hsl(145, 63%, 52%);
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-        }
-        .login-tab svg {
-            opacity: 0.7;
-        }
-        .login-tab.active svg {
-            opacity: 1;
-        }
+          <div class="check">
+            <input type="checkbox" id="remember" />
+            <label for="remember">Manter-me conectado neste dispositivo</label>
+          </div>
 
-        /* ═══════ 2FA MODAL - DARK GLASSMORPHISM THEME ═══════ */
-        @keyframes modal2faIn {
-            from { opacity: 0; transform: scale(0.95) translateY(10px); }
-            to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        @keyframes shake2fa {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-6px); }
-            75% { transform: translateX(6px); }
-        }
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        @keyframes twofa-glow {
-            0%, 100% { box-shadow: 0 0 20px hsla(145, 63%, 42%, 0.15); }
-            50% { box-shadow: 0 0 40px hsla(145, 63%, 42%, 0.25); }
-        }
+          <button type="submit" class="btn" id="submitBtn">
+            <span id="btnLabel">Entrar</span>
+            <svg id="btnArrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </button>
+        </form>
 
-        .twofa-card {
-            background: hsl(222, 47%, 10%, 0.85);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-            border: 1px solid hsl(210, 40%, 98%, 0.08);
-            border-radius: 1rem;
-            max-width: 420px;
-            width: 90%;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 hsla(210, 40%, 98%, 0.05);
-            overflow: hidden;
-            animation: modal2faIn 0.3s ease, twofa-glow 3s ease-in-out infinite;
-        }
+        <p class="support">Sem acesso ou esqueceu suas credenciais? <a href="#">Abra um chamado no suporte de TI</a></p>
+      </div>
+    </section>
+  </main>
 
-        .twofa-header {
-            padding: 32px 24px 24px;
-            text-align: center;
-            position: relative;
-        }
-        .twofa-header::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 24px;
-            right: 24px;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, hsl(210, 40%, 98%, 0.1), transparent);
-        }
+  <script>
+    // ===================== Dados das empresas (espelha lib/companies.ts) =====================
+    const companies = {
+      aluforce: {
+        id: "aluforce", name: "Aluforce", emailDomain: "aluforce.ind.br",
+        headline: "Portal interno da Aluforce",
+        description: "Ambiente corporativo de uso exclusivo dos colaboradores da Aluforce — Cabos de Alumínio.",
+        logoDark: "/logos/aluforce-azul.png",
+        brands: [{ name: "Aluforce", logo: "/logos/aluforce-branco.png" }],
+      },
+      laborGroup: {
+        id: "laborGroup", name: "Grupo Labor", emailDomains: ["labor.com.br"],
+        headline: "Portal interno do Grupo Labor",
+        description: "Ambiente corporativo das empresas Labor Eletric e Labor Energy. Após o acesso, selecione a empresa que deseja utilizar.",
+        logoDark: "/logos/labor-azul.png",
+        brands: [
+          { name: "Labor Eletric", logo: "/logos/labor-branco.png", padded: true },
+          { name: "Labor Energy", logo: "/logos/energy-branco.png" },
+        ],
+      },
+      laborEletric: {
+        id: "laborEletric", name: "Labor Eletric", emailDomains: ["laboreletric.com.br"],
+        headline: "Portal interno da Labor Eletric",
+        description: "Ambiente corporativo de uso exclusivo dos colaboradores da Labor Eletric.",
+        logoDark: "/logos/labor-azul.png",
+        brands: [{ name: "Labor Eletric", logo: "/logos/labor-branco.png", padded: true }],
+      },
+      laborEnergy: {
+        id: "laborEnergy", name: "Labor Energy", emailDomains: ["laborenergy.com.br", "energy.com.br"],
+        headline: "Portal interno da Labor Energy",
+        description: "Ambiente corporativo de uso exclusivo dos colaboradores da Labor Energy.",
+        logoDark: "/logos/energy-azul.png",
+        brands: [{ name: "Labor Energy", logo: "/logos/energy-branco.png" }],
+      },
+    };
 
-        .twofa-icon-box {
-            width: 64px;
-            height: 64px;
-            background: linear-gradient(135deg, hsl(145, 63%, 42%), hsl(160, 89%, 35%));
-            border-radius: 1rem;
-            margin: 0 auto 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            box-shadow: 0 0 30px -5px hsla(145, 63%, 42%, 0.4);
-        }
+    const neutral = {
+      id: "neutral", name: "Grupo Corporativo", emailDomain: "",
+      headline: "Portal interno do grupo",
+      description: "Ambiente corporativo unificado. Informe seu e-mail corporativo para acessar o portal da sua empresa.",
+      logoDark: "/logos/aluforce-azul.png",
+      brands: [
+        { name: "Aluforce", logo: "/logos/aluforce-branco.png" },
+        { name: "Labor Eletric", logo: "/logos/labor-branco.png", padded: true },
+        { name: "Energy", logo: "/logos/energy-branco.png" },
+      ],
+    };
 
-        .twofa-title {
-            color: hsl(210, 40%, 98%);
-            font-family: 'Inter', sans-serif;
-            font-size: 20px;
-            font-weight: 600;
-            margin: 0;
-        }
-
-        .twofa-subtitle {
-            color: hsl(215, 20%, 65%);
-            font-family: 'Inter', sans-serif;
-            font-size: 13px;
-            margin: 6px 0 0;
-        }
-
-        .twofa-body {
-            padding: 28px 24px;
-        }
-
-        .twofa-desc {
-            color: hsl(215, 20%, 65%);
-            font-family: 'Inter', sans-serif;
-            font-size: 14px;
-            text-align: center;
-            margin: 0 0 6px;
-            line-height: 1.5;
-        }
-
-        .twofa-email {
-            color: hsl(145, 63%, 42%);
-            font-family: 'Inter', sans-serif;
-            font-size: 15px;
-            font-weight: 600;
-            text-align: center;
-            margin: 0 0 24px;
-        }
-
-        .twofa-code-container {
-            display: flex;
-            gap: 8px;
-            justify-content: center;
-            margin: 0 0 20px;
-        }
-
-        .twofa-separator {
-            display: flex;
-            align-items: center;
-            color: hsl(215, 20%, 40%);
-            font-size: 20px;
-        }
-
-        .twofa-digit {
-            width: 48px;
-            height: 56px;
-            text-align: center;
-            font-size: 24px;
-            font-weight: 700;
-            border: 2px solid hsl(210, 40%, 98%, 0.12);
-            border-radius: 0.75rem;
-            outline: none;
-            transition: all 0.2s;
-            color: hsl(210, 40%, 98%);
-            background: hsl(222, 47%, 8%, 0.6);
-            backdrop-filter: blur(12px);
-            font-family: 'Courier New', monospace;
-        }
-        .twofa-digit::placeholder { color: hsl(215, 20%, 35%); }
-        .twofa-digit:focus {
-            border-color: hsl(145, 63%, 42%) !important;
-            box-shadow: 0 0 0 3px hsla(145, 63%, 42%, 0.2) !important;
-        }
-        .twofa-digit.has-value {
-            border-color: hsl(145, 63%, 42%) !important;
-            background: hsla(145, 63%, 42%, 0.1) !important;
-        }
-        .twofa-digit.error {
-            border-color: hsl(0, 84%, 60%) !important;
-            animation: shake2fa 0.4s ease;
-        }
-
-        .twofa-msg {
-            padding: 10px 14px;
-            border-radius: 0.75rem;
-            font-size: 13px;
-            text-align: center;
-            margin: 0 0 16px;
-            font-family: 'Inter', sans-serif;
-        }
-        .twofa-msg-error {
-            background: hsla(0, 84%, 60%, 0.15);
-            border: 1px solid hsla(0, 84%, 60%, 0.3);
-            color: #fca5a5;
-        }
-        .twofa-msg-success {
-            background: hsla(142, 76%, 45%, 0.15);
-            border: 1px solid hsla(142, 76%, 45%, 0.3);
-            color: #86efac;
-        }
-
-        .twofa-timer {
-            color: hsl(215, 20%, 50%);
-            font-family: 'Inter', sans-serif;
-            font-size: 12px;
-            text-align: center;
-            margin: 0 0 20px;
-        }
-        .twofa-timer strong {
-            color: hsl(210, 40%, 98%);
-        }
-
-        .twofa-verify-btn {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, hsl(145, 63%, 42%), hsl(145, 63%, 34%));
-            color: hsl(210, 40%, 98%);
-            border: none;
-            border-radius: 0.75rem;
-            font-family: 'Inter', sans-serif;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            box-shadow: 0 4px 16px hsla(145, 63%, 42%, 0.3);
-        }
-        .twofa-verify-btn:not(:disabled):hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px hsla(145, 63%, 42%, 0.45);
-        }
-        .twofa-verify-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        /* Remember Device Checkbox */
-        .twofa-remember-label {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-            margin: 0 0 18px;
-            padding: 10px 14px;
-            border-radius: 0.75rem;
-            background: hsla(145, 63%, 42%, 0.06);
-            border: 1px solid hsla(145, 63%, 42%, 0.12);
-            transition: all 0.2s;
-            user-select: none;
-        }
-        .twofa-remember-label:hover {
-            background: hsla(145, 63%, 42%, 0.1);
-            border-color: hsla(145, 63%, 42%, 0.25);
-        }
-        .twofa-remember-checkbox {
-            display: none;
-        }
-        .twofa-remember-check {
-            width: 20px;
-            height: 20px;
-            min-width: 20px;
-            border-radius: 6px;
-            border: 2px solid hsl(215, 20%, 35%);
-            background: hsl(222, 47%, 8%, 0.6);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-            position: relative;
-        }
-        .twofa-remember-checkbox:checked + .twofa-remember-check {
-            background: linear-gradient(135deg, hsl(145, 63%, 42%), hsl(145, 63%, 34%));
-            border-color: hsl(145, 63%, 42%);
-            box-shadow: 0 0 12px hsla(145, 63%, 42%, 0.3);
-        }
-        .twofa-remember-checkbox:checked + .twofa-remember-check::after {
-            content: '';
-            width: 6px;
-            height: 10px;
-            border: solid white;
-            border-width: 0 2.5px 2.5px 0;
-            transform: rotate(45deg) translateY(-1px);
-            display: block;
-        }
-        .twofa-remember-text {
-            color: hsl(215, 20%, 65%);
-            font-family: 'Inter', sans-serif;
-            font-size: 13px;
-            line-height: 1.3;
-        }
-
-        .twofa-actions {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 16px;
-        }
-
-        .twofa-link-btn {
-            background: none;
-            border: none;
-            font-family: 'Inter', sans-serif;
-            font-size: 13px;
-            cursor: pointer;
-            padding: 4px 0;
-            transition: color 0.2s;
-        }
-        .twofa-resend {
-            color: hsl(145, 63%, 42%);
-            text-decoration: underline;
-            text-underline-offset: 2px;
-        }
-        .twofa-resend:hover { color: hsl(145, 63%, 52%); }
-        .twofa-cancel { color: hsl(215, 20%, 50%); }
-        .twofa-cancel:hover { color: hsl(215, 20%, 65%); }
-    </style>
-
-    <!-- Scripts -->
-    <script src="/js/auth-unified.js?v=20260423a"></script>
-    <script src="/js/login.js?v=20260423a"></script>
-    <!-- Login Tab Switcher & CPF Mask -->
-    <script>
-    // Switch between Email and CPF login tabs
-    function switchLoginTab(mode) {
-        const emailGroup = document.getElementById('email-group');
-        const cpfGroup = document.getElementById('cpf-group');
-        const tabEmail = document.getElementById('tab-email');
-        const tabCpf = document.getElementById('tab-cpf');
-        const emailInput = document.getElementById('email');
-        const cpfInput = document.getElementById('cpf');
-        
-        if (mode === 'cpf') {
-            emailGroup.style.display = 'none';
-            cpfGroup.style.display = 'block';
-            tabEmail.classList.remove('active');
-            tabCpf.classList.add('active');
-            if (emailInput) emailInput.removeAttribute('required');
-            if (cpfInput) cpfInput.focus();
-        } else {
-            emailGroup.style.display = 'block';
-            cpfGroup.style.display = 'none';
-            tabEmail.classList.add('active');
-            tabCpf.classList.remove('active');
-            if (emailInput) { emailInput.setAttribute('required', ''); emailInput.focus(); }
-        }
-        // Clear errors
-        document.querySelectorAll('.field-error').forEach(el => el.style.display = 'none');
-        document.querySelectorAll('.form-input').forEach(el => el.classList.remove('has-error'));
+    function detectCompanyByEmail(email) {
+      const at = email.lastIndexOf("@");
+      if (at === -1) return null;
+      const domain = email.slice(at + 1).trim().toLowerCase();
+      if (!domain) return null;
+      return Object.values(companies).find((c) => {
+        const domains = c.emailDomains || [c.emailDomain];
+        return domains.includes(domain);
+      })?.id ?? null;
     }
-    // CPF mask: 000.000.000-00
-    document.addEventListener('DOMContentLoaded', function() {
-        const cpfEl = document.getElementById('cpf');
-        if (cpfEl) {
-            cpfEl.addEventListener('input', function(e) {
-                let v = e.target.value.replace(/\D/g, '').substring(0, 11);
-                if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
-                else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
-                else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
-                e.target.value = v;
-            });
+
+    // ===================== Estado e elementos =====================
+    let mode = "email";
+    let currentCompany = neutral;
+    const $ = (id) => document.getElementById(id);
+
+    function renderCompany(company) {
+      currentCompany = company;
+      // painel
+      $("headline").textContent = company.headline;
+      $("description").textContent = company.description;
+      $("footerName").textContent = "© 2026 " + company.name;
+      $("companyInline").textContent = company.name;
+      $("mobileLogo").src = company.logoDark;
+      $("mobileLogo").alt = company.name;
+      // logos
+      const wrap = $("brandLogos");
+      wrap.innerHTML = "";
+      company.brands.forEach((b, i) => {
+        const item = document.createElement("div");
+        item.className = "brand-item";
+        if (i > 0) {
+          const div = document.createElement("span");
+          div.className = "divider"; div.setAttribute("aria-hidden", "true");
+          item.appendChild(div);
         }
+        const img = document.createElement("img");
+        img.src = b.logo; img.alt = b.name; if (b.padded) img.classList.add("padded");
+        item.appendChild(img);
+        wrap.appendChild(item);
+      });
+    }
+
+    function formatCpf(value) {
+      const d = value.replace(/\D/g, "").slice(0, 11);
+      return d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+    }
+
+    function getCurrentBasePath() {
+      const path = window.location.pathname || "";
+      if (path.startsWith("/labor-eletric")) return "/labor-eletric";
+      if (path.startsWith("/labor-energy")) return "/labor-energy";
+      return "";
+    }
+
+    function getDefaultCompany() {
+      const basePath = getCurrentBasePath();
+      if (basePath === "/labor-eletric") return companies.laborEletric;
+      if (basePath === "/labor-energy") return companies.laborEnergy;
+      return companies.aluforce;
+    }
+
+    function getPreviewBasePath(value) {
+      if (mode === "email") return getCompanyBasePath(value) || getCurrentBasePath();
+      return getCurrentBasePath();
+    }
+
+    function setMode(next) {
+      mode = next;
+      $("tabEmail").setAttribute("aria-selected", String(next === "email"));
+      $("tabCpf").setAttribute("aria-selected", String(next === "cpf"));
+      const input = $("identifier");
+      input.value = "";
+      if (next === "email") {
+        $("identifierLabel").textContent = "E-mail corporativo";
+        input.type = "email"; input.inputMode = "email"; input.placeholder = "voce@empresa.com.br";
+        $("identifierIcon").innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>';
+      } else {
+        $("identifierLabel").textContent = "CPF";
+        input.type = "text"; input.inputMode = "numeric"; input.placeholder = "000.000.000-00";
+        $("identifierIcon").innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+      }
+      renderCompany(getDefaultCompany());
+      $("greeting").classList.remove("show");
+    }
+
+    function showGreeting(c) {
+      $("greetingImg").src = c.foto || "/placeholder-user.jpg";
+      $("greetingImg").onerror = () => { $("greetingImg").src = "/placeholder-user.jpg"; };
+      $("greetingName").textContent = c.nome || c.apelido || c.email || "Colaborador";
+      $("greetingRole").textContent = c.cargo || c.departamento || "Colaborador";
+      $("greeting").classList.add("show");
+    }
+
+    let searchTimer = null;
+    let previewRequestId = 0;
+
+    async function fetchLoginPreview(value) {
+      const params = new URLSearchParams();
+      if (mode === "cpf") params.set("cpf", value.replace(/\D/g, ""));
+      else params.set("email", value.toLowerCase());
+
+      const response = await fetch(getPreviewBasePath(value) + "/api/public/usuarios/preview?" + params.toString(), {
+        credentials: "include",
+        headers: { "Accept": "application/json" },
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data && data.success ? data : null;
+    }
+
+    function onIdentifierInput(raw) {
+      const input = $("identifier");
+      const value = mode === "cpf" ? formatCpf(raw) : raw.trim();
+      if (mode === "cpf") input.value = value;
+      $("greeting").classList.remove("show");
+
+      if (mode === "email") {
+        const id = detectCompanyByEmail(value);
+        if (id) renderCompany(companies[id]);
+        else renderCompany(getDefaultCompany());
+      }
+
+      const completo = mode === "email"
+        ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+        : value.replace(/\D/g, "").length === 11;
+
+      clearTimeout(searchTimer);
+      if (!completo) { $("searchSpinner").classList.remove("show"); return; }
+
+      $("searchSpinner").classList.add("show");
+      const requestId = ++previewRequestId;
+      searchTimer = setTimeout(async () => {
+        try {
+          const found = await fetchLoginPreview(value);
+          if (requestId !== previewRequestId) return;
+          $("searchSpinner").classList.remove("show");
+          if (!found) return;
+          const companyId = found.email ? detectCompanyByEmail(found.email) : (mode === "email" ? detectCompanyByEmail(value) : null);
+          if (companyId) renderCompany(companies[companyId]);
+          showGreeting(found);
+        } catch (error) {
+          if (requestId === previewRequestId) $("searchSpinner").classList.remove("show");
+        }
+      }, 450);
+    }
+
+    // ===================== Listeners =====================
+    $("tabEmail").addEventListener("click", () => setMode("email"));
+    $("tabCpf").addEventListener("click", () => setMode("cpf"));
+    $("identifier").addEventListener("input", (e) => onIdentifierInput(e.target.value));
+
+    $("togglePw").addEventListener("click", () => {
+      const pw = $("password");
+      const show = pw.type === "password";
+      pw.type = show ? "text" : "password";
+      $("togglePw").setAttribute("aria-label", show ? "Ocultar senha" : "Mostrar senha");
+      $("eyeIcon").innerHTML = show
+        ? '<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>'
+        : '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>';
     });
-    // PWA: Registrar Service Worker
-    if('serviceWorker' in navigator){
-        navigator.serviceWorker.register('/sw.js')
-            .then(function(reg){ console.log('[PWA] SW registrado na login'); })
-            .catch(function(err){ console.warn('[PWA] Falha:', err); });
-    }
-    </script>
-</body>
 
+    const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+
+    function getCompanyBasePath(email) {
+      const value = String(email || "").trim().toLowerCase();
+      if (value.endsWith("@labor.com.br") || value.endsWith("@laboreletric.com.br")) return "/labor-eletric";
+      if (value.endsWith("@laborenergy.com.br") || value.endsWith("@energy.com.br")) return "/labor-energy";
+      return "";
+    }
+
+    // O dominio de grupo @labor.com.br nao pertence a uma empresa especifica:
+    // autentica na instancia atual do portal e leva ao seletor de empresas.
+    function isLaborGroupEmail(email) {
+      return /@labor\.com\.br$/i.test(String(email || "").trim());
+    }
+
+    function setLoading(isLoading) {
+      const btn = $("submitBtn");
+      btn.disabled = isLoading;
+      $("btnArrow").classList.toggle("hidden", isLoading);
+      $("btnLabel").textContent = isLoading ? "Entrando..." : "Entrar";
+    }
+
+    function showError(message) {
+      $("errorText").textContent = message || "Nao foi possivel entrar. Verifique suas credenciais.";
+      $("errorMessage").classList.add("show");
+    }
+
+    function hideError() {
+      $("errorMessage").classList.remove("show");
+    }
+
+    function normalizeRedirect(path, companyPath) {
+      let redirectTo = path || "/dashboard";
+      try {
+        const parsed = new URL(redirectTo, window.location.origin);
+        redirectTo = parsed.pathname + parsed.search + parsed.hash;
+      } catch (error) {}
+      if (redirectTo === "/index.html" || redirectTo === "/index.html/") redirectTo = "/dashboard";
+      if (returnTo) {
+        const decoded = decodeURIComponent(returnTo);
+        if (decoded.startsWith("/") && !decoded.startsWith("//") && !decoded.startsWith("/Zyntra-SGE")) {
+          redirectTo = decoded;
+        }
+      }
+      if (companyPath && !redirectTo.startsWith(companyPath)) redirectTo = companyPath + redirectTo;
+      return redirectTo;
+    }
+
+    async function apiLogin(url, payload) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      let data = {};
+      try { data = await response.json(); } catch (error) {}
+      if (!response.ok) {
+        throw new Error(data.message || "Erro de autenticacao (" + response.status + ")");
+      }
+      return data;
+    }
+
+    async function refreshUserData(companyPath) {
+      const url = companyPath ? companyPath + "/api/me" : "/api/me";
+      const response = await fetch(url, { credentials: "include" });
+      if (!response.ok) return null;
+      const userData = await response.json();
+      const json = JSON.stringify(userData);
+      localStorage.setItem("userData", json);
+      sessionStorage.setItem("tabUserData", json);
+      return userData;
+    }
+
+    $("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError();
+      setLoading(true);
+
+      try {
+        const identifier = $("identifier").value.trim();
+        const password = $("password").value;
+        if (!identifier || !password) {
+          throw new Error("Informe usuario e senha para continuar.");
+        }
+
+        const laborGroup = mode === "email" && isLaborGroupEmail(identifier);
+        const companyPath = mode === "email"
+          ? (laborGroup ? (getCurrentBasePath() || "/labor-eletric") : getCompanyBasePath(identifier))
+          : "";
+        const loginUrl = companyPath ? companyPath + "/api/login" : "/api/login";
+        const payload = { password };
+        if (mode === "cpf") payload.cpf = identifier.replace(/\D/g, "");
+        else payload.email = identifier;
+
+        const trustedDeviceToken = localStorage.getItem("trusted_device_2fa");
+        if (trustedDeviceToken) payload.trustedDeviceToken = trustedDeviceToken;
+
+        const data = await apiLogin(loginUrl, payload);
+        if (data.requires2FA) {
+          throw new Error("Este usuario exige verificacao em duas etapas. Acesse pela tela completa de autenticacao.");
+        }
+        if (data.forcePasswordChange) {
+          throw new Error("E necessario trocar a senha antes de continuar. Use a recuperacao de senha ou contate o suporte.");
+        }
+
+        try {
+          ["token", "authToken", "user", "user_data", "userName", "currentUser", "loggedUser", "deviceId", "sessionId"].forEach((key) => localStorage.removeItem(key));
+          sessionStorage.clear();
+        } catch (error) {}
+
+        if (data.deviceId) sessionStorage.setItem("deviceId", data.deviceId);
+        if (data.user) {
+          const json = JSON.stringify(data.user);
+          localStorage.setItem("userData", json);
+          sessionStorage.setItem("tabUserData", json);
+        }
+        await refreshUserData(companyPath);
+
+        const primeiro = (data.user?.nome || $("greetingName").textContent || "").split(" ")[0];
+        $("successMsg").textContent = (primeiro ? "Bem-vindo(a), " + primeiro + ". " : "Bem-vindo(a). ")
+          + (laborGroup ? "Selecione a empresa que deseja acessar..." : "Redirecionando para o portal da " + currentCompany.name + "...");
+        $("success").classList.add("show");
+        window.location.href = laborGroup
+          ? companyPath + "/Zyntra-SGE/Empresas/dashboard.html"
+          : normalizeRedirect(data.redirectTo, companyPath);
+      } catch (error) {
+        showError(error.message);
+        setLoading(false);
+      }
+    });
+
+    // estado inicial
+    renderCompany(getDefaultCompany());
+  </script>
+</body>
 </html>

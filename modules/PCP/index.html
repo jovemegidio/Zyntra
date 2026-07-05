@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 
 <head>
@@ -34,7 +34,8 @@
     <!-- CSS PCP Padrão - Mesmo layout das outras páginas -->
     <link rel="stylesheet" href="/css/z-index-scale.css">
     <link rel="stylesheet" href="css/pcp-layout.css?v=20260418">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260628">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <link rel="stylesheet" href="css/pcp-components.css?v=20260418">
     <!-- Performance: Skeleton Loaders -->
     <link rel="stylesheet" href="/css/skeleton-loader.css">
@@ -186,7 +187,7 @@
             min-height: 100vh;
         }
 
-        /* Sidebar  estilos gerenciados por global-header-sidebar.css */
+        /* Sidebar  estilos gerenciados por global-header-sidebar.css?v=20260621 */
 
         /* ============================================
            HEADER - ESTILO INSTITUCIONAL COMPACTO
@@ -499,7 +500,7 @@
             margin: 0 auto;
         }
 
-        /* Mobile sidebar/overlay  gerenciado por global-header-sidebar.css */
+        /* Mobile sidebar/overlay  gerenciado por global-header-sidebar.css?v=20260621 */
 
         /* Mobile: até 768px */
         @media (max-width: 768px) {
@@ -791,7 +792,7 @@
         }
 
         .quick-action-btn>i.fa-chevron-right {
-            color: var(--gray-300);
+            color: var(--gray-500);
             font-size: 11px;
             transition: all 0.3s ease;
             position: relative;
@@ -2515,6 +2516,12 @@
             font-size: 32px;
             color: var(--gray-400);
             margin: 0 auto var(--space-6);
+        }
+
+        /* Estado de sucesso (ex.: "Tudo certo!") — verde em vez de cinza apagado */
+        .empty-state-icon:has(.fa-check-circle) {
+            background: rgba(34, 197, 94, 0.12);
+            color: #16a34a;
         }
 
         .empty-state-title {
@@ -4728,7 +4735,7 @@
     <link rel="stylesheet" href="/chat-teams/chat-widget.css?v=20260615">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260326">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 
 <body>
@@ -4849,7 +4856,14 @@
                 <div id="view-dashboard" class="view active">
                     <div class="page-content">
                         <div class="page-header">
-                            <div class="page-header-top" style="justify-content: flex-end;">
+                            <div class="page-header-top" style="justify-content: space-between;">
+                                <div class="page-title-wrapper" style="display:flex;align-items:center;gap:14px;">
+                                    <div class="page-icon" style="width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;background:linear-gradient(135deg,#3b82f6,#2563eb);flex-shrink:0;"><i class="fas fa-industry"></i></div>
+                                    <div>
+                                        <h1 class="page-title" style="margin:0;font-size:20px;font-weight:700;color:#1e293b;line-height:1.2;">PCP</h1>
+                                        <p class="page-subtitle" style="margin:2px 0 0;font-size:13px;color:#64748b;">Planejamento e controle da produção</p>
+                                    </div>
+                                </div>
                                 <div class="page-actions">
                                     <button class="btn btn-secondary" id="btn-atualizar-dashboard">
                                         <i class="fas fa-sync-alt"></i> Atualizar
@@ -4868,7 +4882,7 @@
                                     <div class="metric-icon blue"><i class="fa-solid fa-boxes-stacked"></i></div>
                                     <span class="metric-trend neutral">&mdash;</span>
                                 </div>
-                                <div class="metric-value" id="stat-produtos">0</div>
+                                <div class="metric-value" id="stat-produtos"><span class="alu-skeleton-inline" aria-label="Carregando"></span></div>
                                 <div class="metric-label">Total de Produtos</div>
                             </div>
 
@@ -4877,7 +4891,7 @@
                                     <div class="metric-icon green"><i class="fa-solid fa-industry"></i></div>
                                     <span class="metric-trend neutral">&mdash;</span>
                                 </div>
-                                <div class="metric-value" id="stat-ordens">0</div>
+                                <div class="metric-value" id="stat-ordens"><span class="alu-skeleton-inline" aria-label="Carregando"></span></div>
                                 <div class="metric-label">Ordens em Produção</div>
                             </div>
 
@@ -4886,7 +4900,7 @@
                                     <div class="metric-icon blue"><i class="fa-solid fa-boxes-stacked"></i></div>
                                     <span class="metric-trend neutral">&mdash;</span>
                                 </div>
-                                <div class="metric-value" id="stat-produtos-com-estoque">0</div>
+                                <div class="metric-value" id="stat-produtos-com-estoque"><span class="alu-skeleton-inline" aria-label="Carregando"></span></div>
                                 <div class="metric-label">Produtos com Estoque</div>
                             </div>
 
@@ -4895,7 +4909,7 @@
                                     <div class="metric-icon purple"><i class="fa-solid fa-cubes"></i></div>
                                     <span class="metric-trend neutral">&mdash;</span>
                                 </div>
-                                <div class="metric-value" id="stat-materiais">0</div>
+                                <div class="metric-value" id="stat-materiais"><span class="alu-skeleton-inline" aria-label="Carregando"></span></div>
                                 <div class="metric-label">Total de Materiais</div>
                             </div>
                         </div>
@@ -4977,13 +4991,55 @@
                             </div>
                         </div>
 
+                        <!-- PCP-PEDIDOS-RECENTES-PATCH: Pedidos aprovados em tempo real -->
+                        <style id="pcp-pedidos-recentes-style">
+                          #pcp-live-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#16a34a;background:rgba(34,197,94,.12);padding:2px 8px;border-radius:999px;margin-left:8px;vertical-align:middle;}
+                          #pcp-live-badge .pcp-live-dot{width:7px;height:7px;border-radius:50%;background:#16a34a;animation:pcpPulse 1.4s infinite;}
+                          @keyframes pcpPulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.6);}70%{box-shadow:0 0 0 6px rgba(34,197,94,0);}100%{box-shadow:0 0 0 0 rgba(34,197,94,0);}}
+                        </style>
+                        <div class="card" id="card-pedidos-recentes" style="margin-top: var(--space-6);">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-clipboard-check"></i> Pedidos Recentes
+                                    <span id="pcp-live-badge" title="Atualização em tempo real"><span class="pcp-live-dot"></span> ao vivo</span>
+                                </h3>
+                                <button class="btn btn-sm btn-secondary" onclick="abrirModalTodosPedidos()">
+                                    Ver Todos <i class="fas fa-arrow-right"></i>
+                                </button>
+                            </div>
+                            <div class="card-body" style="padding: 0;">
+                                <div class="table-container">
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Pedido</th>
+                                                <th>Cliente</th>
+                                                <th>Valor</th>
+                                                <th>Status</th>
+                                                <th>Data</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="pedidos-recentes-table">
+                                            <tr>
+                                                <td colspan="6" style="text-align: center; padding: 40px;">
+                                                    <div class="loading-spinner" style="margin: 0 auto;"></div>
+                                                    <p style="margin-top: 16px; color: var(--gray-500);">Carregando pedidos...</p>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Recent Orders -->
                         <div class="card" style="margin-top: var(--space-6);">
                             <div class="card-header">
                                 <h3 class="card-title">
                                     <i class="fas fa-clipboard-list"></i> Ordens Recentes
                                 </h3>
-                                <button class="btn btn-sm btn-secondary" onclick="abrirModalTodosPedidos()">
+                                <button class="btn btn-sm btn-secondary" onclick="window.location.href='ordens-producao.html'">
                                     Ver Todas <i class="fas fa-arrow-right"></i>
                                 </button>
                             </div>
@@ -5028,7 +5084,7 @@
 
     <!-- Modal: Ver Todos os Pedidos -->
     <div class="modal-overlay" id="modal-todos-pedidos" onclick="fecharModalTodosPedidos(event)">
-        <div class="modal-pedidos-container">
+        <div class="modal-pedidos-container" onclick="event.stopPropagation()">
             <div class="modal-pedidos-header">
                 <div class="modal-pedidos-title-area">
                     <div class="modal-pedidos-icon">
@@ -5036,7 +5092,7 @@
                     </div>
                     <div>
                         <h2 class="modal-pedidos-title">Todos os Pedidos</h2>
-                        <p class="modal-pedidos-subtitle">Visualize e gerencie todos os pedidos do sistema</p>
+                        <p class="modal-pedidos-subtitle">Visualização em tempo real dos pedidos do sistema</p>
                     </div>
                 </div>
                 <button class="modal-pedidos-close" onclick="fecharModalTodosPedidos()">
@@ -5404,9 +5460,8 @@
                                     </tbody>
                                     <tfoot>
                                         <tr style="background: #f1f5f9; font-weight: 600;">
-                                            <td colspan="8" style="text-align: right; padding: 12px 16px;">Total do
-                                                Pedido:</td>
-                                            <td id="op-produtos-total" style="padding: 12px 16px;">R$ 0,00</td>
+                                            <td colspan="7" style="text-align: right; padding: 12px 8px; white-space: nowrap;">Total do Pedido:</td>
+                                            <td id="op-produtos-total" colspan="2" style="padding: 12px 12px 12px 4px; text-align: right; white-space: nowrap; overflow: visible; text-overflow: clip;">R$ 0,00</td>
                                         </tr>
                                     </tfoot>
                                 </table>
@@ -5630,8 +5685,13 @@
                         <div class="modal-op-tab-pane" id="op-tab-obs">
                             <div class="modal-op-obs-field">
                                 <label>Observações Gerais da Ordem de Produção</label>
-                                <textarea id="op-observacoes" rows="8"
+                                <textarea id="op-observacoes" rows="6"
                                     placeholder="Informações adicionais, especificações técnicas, instruções especiais..."></textarea>
+                            </div>
+                            <div class="modal-op-obs-field" style="margin-top: 16px;">
+                                <label>Observações para Produção</label>
+                                <textarea id="op-observacoes-producao" rows="6"
+                                    placeholder="Observações para a produção definidas no pedido de venda (aba Observações)..."></textarea>
                             </div>
                         </div>
                     </div>
@@ -10299,7 +10359,7 @@
                 .summary-card .title { font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:6px; }
                 .print-float { position:fixed; top:12px; right:12px; z-index:999; background:#1e293b; color:white; border:none; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.2); }
             </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body>
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628"></head><body>
             <button class="print-float no-print" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
             <!-- HEADER -->
             <div class="header-bar">
@@ -10421,7 +10481,7 @@
 
             const pdfHTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Comparativo por Estado - ALUFORCE</title>
             <style>@page{size:A4 landscape;margin:12mm 10mm;}@media print{body{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}.no-print{display:none!important;}}body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;margin:0;padding:0;font-size:10px;}.header-bar{background:linear-gradient(135deg,#1e293b 0%,#334155 100%);color:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;}.footer{border-top:2px solid #1e293b;padding:8px 20px;display:flex;justify-content:space-between;font-size:8px;color:#64748b;position:fixed;bottom:0;left:0;right:0;background:white;}.print-float{position:fixed;top:12px;right:12px;z-index:999;background:#1e293b;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.2);}</style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body>
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628"></head><body>
             <button class="print-float no-print" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
             <div class="header-bar"><div style="display:flex;align-items:center;gap:12px;"><img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:32px;object-fit:contain;" onerror="this.style.display='none'"><div><h1 style="margin:0;font-size:16px;">ALUFORCE</h1><div style="font-size:10px;opacity:0.8;">Cabos de Alumínio e Condutores Elétricos</div></div></div><div style="text-align:right;"><div style="font-size:13px;font-weight:700;">COMPARATIVO POR ESTADO</div><div style="font-size:9px;opacity:0.7;">${estados.length} estados · Markup ${mk.toFixed(1)}% · ${_cpTipoCliente === 'revenda' ? 'Revenda' : 'Cons. Final'} · ${dataHora}</div></div></div>
             <div style="padding:12px 20px;">${tablesHTML}</div>
@@ -10493,7 +10553,7 @@
 
             const pdfHTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ficha por Produto - ALUFORCE</title>
             <style>@page{size:A4 portrait;margin:12mm;}@media print{body{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}.no-print{display:none!important;}}body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;margin:0;padding:0;font-size:11px;}.header-bar{background:linear-gradient(135deg,#1e293b 0%,#334155 100%);color:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;}.footer{border-top:2px solid #1e293b;padding:8px 20px;display:flex;justify-content:space-between;font-size:8px;color:#64748b;position:fixed;bottom:0;left:0;right:0;background:white;}.print-float{position:fixed;top:12px;right:12px;z-index:999;background:#1e293b;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.2);}</style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body>
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628"></head><body>
             <button class="print-float no-print" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
             <div class="header-bar"><div style="display:flex;align-items:center;gap:12px;"><img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:32px;object-fit:contain;" onerror="this.style.display='none'"><div><h1 style="margin:0;font-size:16px;">ALUFORCE</h1><div style="font-size:10px;opacity:0.8;">Cabos de Alumínio e Condutores Elétricos</div></div></div><div style="text-align:right;"><div style="font-size:13px;font-weight:700;">FICHA POR PRODUTO</div><div style="font-size:9px;opacity:0.7;">${products.length} produtos · Markup ${mk.toFixed(1)}% · ${_cpEstado} · ${dataHora}</div></div></div>
             <div style="padding:16px 20px;">${fichasHTML}</div>
@@ -10904,7 +10964,7 @@
                 produto: (dados.produtos || []).map(p => p.descricao || p.codigo).filter(Boolean).join(', ').substring(0, 200) || dados.cliente,
                 descrição: dados.observações || '',
                 código: dados.numero_orçamento || '',
-                dataConclusao: dados.data_previsao_entrega || dados.prazo_entrega || null,
+                dataConclusao: dados.data_previsao_entrega || dados.prazo_entrega || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 quantidade: (dados.produtos || []).reduce((acc, p) => acc + (parseFloat(p.quantidade) || 0), 0) || 1,
                 unidade: dados.produtos?.[0]?.unidade_medida || 'M'
             };
@@ -10991,6 +11051,7 @@
             const transpEmail = document.getElementById('op-transportadora-email')?.value || '';
             const transpEndereco = document.getElementById('op-transportadora-endereço')?.value || '';
             const observações = document.getElementById('op-observacoes')?.value || '';
+            const observaçõesProducao = document.getElementById('op-observacoes-producao')?.value || '';
 
             return {
                 // Dados da OP
@@ -11101,7 +11162,9 @@
 
                 // Observações
                 observacoes_pedido: observações,
-                observações: observações
+                observações: observações,
+                observacao_producao: observaçõesProducao,
+                observacoes_producao: observaçõesProducao
             };
         }
 
@@ -11233,8 +11296,8 @@
                     // Se não encontrou na API, buscar no catálogo local como fallback
                     const termoUpper = termo.toUpperCase();
                     const resultados = catalogoProdutos.filter(p =>
-                        p.codigo.toUpperCase().includes(termoUpper) ||
-                        p.descricao.toUpperCase().includes(termoUpper)
+                        (p.codigo && p.codigo.toUpperCase().includes(termoUpper)) ||
+                        (p.descricao && p.descricao.toUpperCase().includes(termoUpper))
                     ).slice(0, 10);
 
                     if (resultados.length === 0) {
@@ -11244,9 +11307,9 @@
                     }
 
                     dropdown.innerHTML = resultados.map(p => `
-                        <div class="autocomplete-item" onclick="selecionarProdutoCatalogo('${esc(p.codigo)}', '${esc(p.descricao.replace(/'/g, "\\'"))}')">
-                            <strong>${esc(p.codigo)}</strong>
-                            <span>${esc(p.descricao)}</span>
+                        <div class="autocomplete-item" onclick="selecionarProdutoCatalogo('${esc(p.codigo || '')}', '${esc((p.descricao || '').replace(/'/g, "\\'"))}')">
+                            <strong>${esc(p.codigo || '')}</strong>
+                            <span>${esc(p.descricao || '')}</span>
                         </div>
                     `).join('');
                     dropdown.style.display = 'block';
@@ -11256,15 +11319,15 @@
                     // Em caso de erro, buscar no catálogo local
                     const termoUpper = termo.toUpperCase();
                     const resultados = catalogoProdutos.filter(p =>
-                        p.codigo.toUpperCase().includes(termoUpper) ||
-                        p.descricao.toUpperCase().includes(termoUpper)
+                        (p.codigo && p.codigo.toUpperCase().includes(termoUpper)) ||
+                        (p.descricao && p.descricao.toUpperCase().includes(termoUpper))
                     ).slice(0, 10);
 
                     if (resultados.length > 0) {
                         dropdown.innerHTML = resultados.map(p => `
-                            <div class="autocomplete-item" onclick="selecionarProdutoCatalogo('${p.codigo}', '${p.descricao.replace(/'/g, "\\'")}')">
-                                <strong>${p.codigo}</strong>
-                                <span>${p.descricao}</span>
+                            <div class="autocomplete-item" onclick="selecionarProdutoCatalogo('${p.codigo || ''}', '${(p.descricao || '').replace(/'/g, "\\'")}')">
+                                <strong>${p.codigo || ''}</strong>
+                                <span>${p.descricao || ''}</span>
                             </div>
                         `).join('');
                         dropdown.style.display = 'block';
@@ -11340,8 +11403,9 @@
             const descriçãoFinal = produtoCatalogo ? produtoCatalogo.descricao : descrição;
 
             const produto = {
+                codigo: código,
                 código,
-                descrição: descriçãoFinal,
+                descricao: descriçãoFinal,
                 descrição: descriçãoFinal,
                 embalagem,
                 codigo_cores: códigoCores,
@@ -11779,19 +11843,40 @@
             const numOP = document.getElementById('op-numero')?.value || ('OP ' + new Date().getFullYear());
             const dataFormatada = new Date().toLocaleString('pt-BR');
 
-            const prodsRows = (dados.produtos || []).map(function(p, i) {
+            const _td = 'padding:6px 8px;font-size:10px;border-bottom:1px solid #f1f5f9;';
+            const _esc = function (v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+            // Folha 1 (comercial): Cód, Produto, Embalagem, Lance(s), Qtd, V.Un, V.Total
+            const _money = function (v) { return 'R$ ' + (parseFloat(v) || 0).toFixed(2).replace('.', ','); };
+            const _prodTotal = function (p) { return parseFloat(p.valor_total || p.total || ((parseFloat(p.quantidade) || 0) * (parseFloat(p.valor_unitario) || 0))) || 0; };
+            const totalPedido = (dados.produtos || []).reduce(function (acc, p) { return acc + _prodTotal(p); }, 0);
+            const rowsComercial = (dados.produtos || []).map(function (p, i) {
                 const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
-                const vlr = parseFloat(p.valor_total || 0).toFixed(2).replace('.', ',');
                 return '<tr style="background:' + bg + '">'
-                    + '<td style="padding:6px 8px;font-size:10px;font-weight:600;color:#1e40af;border-bottom:1px solid #f1f5f9;">' + (p.codigo || '-') + '</td>'
-                    + '<td style="padding:6px 8px;font-size:10px;border-bottom:1px solid #f1f5f9;">' + (p.descricao || p.descricao || '-') + '</td>'
-                    + '<td style="padding:6px 8px;font-size:10px;text-align:right;border-bottom:1px solid #f1f5f9;">' + (p.largura || '-') + '</td>'
-                    + '<td style="padding:6px 8px;font-size:10px;text-align:right;border-bottom:1px solid #f1f5f9;">' + (p.esp || p.espessura || '-') + '</td>'
-                    + '<td style="padding:6px 8px;font-size:10px;text-align:right;border-bottom:1px solid #f1f5f9;">' + (p.quantidade || '0') + ' ' + (p.unidade_medida || 'UN') + '</td>'
-                    + '<td style="padding:6px 8px;font-size:10px;text-align:right;border-bottom:1px solid #f1f5f9;">' + (p.peso_bruto || p.peso || '-') + '</td>'
-                    + '<td style="padding:6px 8px;font-size:10px;text-align:right;border-bottom:1px solid #f1f5f9;font-weight:700;color:#1e293b;">R$&nbsp;' + vlr + '</td>'
+                    + '<td style="' + _td + 'font-weight:600;color:#1e40af;">' + _esc(p.codigo || '-') + '</td>'
+                    + '<td style="' + _td + '">' + _esc(p.descricao || '-') + '</td>'
+                    + '<td style="' + _td + '">' + _esc(p.embalagem || p.tipo_embalagem || '-') + '</td>'
+                    + '<td style="' + _td + 'text-align:center;">' + _esc(p.lances || p.lance || '-') + '</td>'
+                    + '<td style="' + _td + 'text-align:right;">' + _esc((p.quantidade || '0') + ' ' + (p.unidade_medida || 'UN')) + '</td>'
+                    + '<td style="' + _td + 'text-align:right;">' + _money(p.valor_unitario || p.preco_unitario || 0) + '</td>'
+                    + '<td style="' + _td + 'text-align:right;font-weight:700;color:#1e293b;">' + _money(_prodTotal(p)) + '</td>'
                     + '</tr>';
             }).join('');
+            // Folha 2 (produção): Cód, Produto, Embalagem, Lances, Qtd, Cores, Peso Bruto, Peso Líq., Lote
+            const rowsProducao = (dados.produtos || []).map(function (p, i) {
+                const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
+                return '<tr style="background:' + bg + '">'
+                    + '<td style="' + _td + 'font-weight:600;color:#1e40af;">' + _esc(p.codigo || '-') + '</td>'
+                    + '<td style="' + _td + '">' + _esc(p.descricao || '-') + '</td>'
+                    + '<td style="' + _td + '">' + _esc(p.embalagem || p.tipo_embalagem || '-') + '</td>'
+                    + '<td style="' + _td + 'text-align:right;">' + _esc(p.lances || p.lance || '-') + '</td>'
+                    + '<td style="' + _td + 'text-align:right;">' + _esc((p.quantidade || '0') + ' ' + (p.unidade_medida || 'UN')) + '</td>'
+                    + '<td style="' + _td + '">' + _esc(p.cores || p.cor || '-') + '</td>'
+                    + '<td style="' + _td + 'text-align:right;">' + _esc(p.peso_bruto || p.peso || '-') + '</td>'
+                    + '<td style="' + _td + 'text-align:right;">' + _esc(p.peso_liquido || '-') + '</td>'
+                    + '<td style="' + _td + '">' + _esc(p.lote || '-') + '</td>'
+                    + '</tr>';
+            }).join('');
+            const prodsRows = rowsComercial;
 
             const pgtoRows = (dados.formas_pagamento || []).map(function(fp) {
                 const vlr = parseFloat(fp.valor || 0).toFixed(2).replace('.', ',');
@@ -11813,8 +11898,30 @@
             ) : '';
 
             const obsSection = dados.observações
-                ? '<div class="section-title">📝 Observações</div><div style="padding:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:10px;">' + dados.observações + '</div>'
+                ? '<div class="section-title">📝 Observações</div><div style="padding:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:10px;">' + _esc(dados.observações) + '</div>'
                 : '';
+
+            const temTransp = dados.transportadora_nome || dados.transportadora_cpf_cnpj || dados.transportadora_endereco;
+            const transpSection = temTransp ? (
+                '<div class="section-title">🚛 Transportadora</div>'
+                + '<div class="info-grid">'
+                + '<div class="info-item"><label>Nome</label><span>' + (dados.transportadora_nome || '-') + '</span></div>'
+                + '<div class="info-item"><label>CNPJ/CPF</label><span>' + (dados.transportadora_cpf_cnpj || '-') + '</span></div>'
+                + '<div class="info-item"><label>Telefone</label><span>' + (dados.transportadora_fone || '-') + '</span></div>'
+                + '<div class="info-item"><label>CEP</label><span>' + (dados.transportadora_cep || '-') + '</span></div>'
+                + '<div class="info-item"><label>E-mail NF-e</label><span>' + (dados.transportadora_email_nfe || '-') + '</span></div>'
+                + '<div class="info-item" style="grid-column:1/-1;"><label>Endereço</label><span>' + (dados.transportadora_endereco || '-') + '</span></div>'
+                + '</div>'
+            ) : '';
+
+            const entregaSection = '<div class="section-title">🚚 Entrega</div>'
+                + '<div class="info-grid">'
+                + '<div class="info-item"><label>Tipo de Entrega</label><span>' + (dados.status_entrega || dados.tipo_entrega || 'COMPLETO') + '</span></div>'
+                + '<div class="info-item"><label>Qtd. Volumes</label><span>' + (dados.qtd_volumes || dados.qtd_volume || '-') + '</span></div>'
+                + '<div class="info-item"><label>Embalagem</label><span>' + (dados.tipo_embalagem_entrega || '-') + '</span></div>'
+                + '<div class="info-item"><label>Previsão de Entrega</label><span>' + (dados.data_previsao_entrega || dados.prazo_entrega || '-') + '</span></div>'
+                + (dados.observacoes_entrega ? '<div class="info-item" style="grid-column:1/-1;"><label>Obs. Entrega</label><span>' + _esc(dados.observacoes_entrega) + '</span></div>' : '')
+                + '</div>';
 
             const pdfHTML = '<!DOCTYPE html><html><head><meta charset="utf-8">'
                 + '<title>' + numOP + ' - ' + nomeCliente + '</title>'
@@ -11831,12 +11938,12 @@
                 + 'table{width:100%;border-collapse:collapse;}'
                 + 'th{padding:5px 8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;color:#374151;background:#f1f5f9;border-bottom:2px solid #cbd5e1;}'
                 + '.footer{margin-top:16px;border-top:1px solid #e2e8f0;padding:6px 0;display:flex;justify-content:space-between;font-size:8px;color:#64748b;}'
-                + '</style><link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body>'
+                + '</style><link rel="stylesheet" href="/css/design-system.css?v=20260628"></head><body>'
                 + '<button class="print-btn no-print" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>'
                 + '<div class="header">'
                 + '<div style="display:flex;align-items:center;gap:12px;">'
                 + '<img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="" style="height:36px;object-fit:contain;" onerror="this.style.display=\'none\'">'
-                + '<div><div style="font-size:16px;font-weight:800;">ORDEM DE PRODUÇÁO</div><div style="font-size:9px;opacity:0.7;">Gerado em ' + dataFormatada + '</div></div>'
+                + '<div><div style="font-size:16px;font-weight:800;letter-spacing:.5px;">ORDEM DE PRODUÇÃO</div><div style="font-size:9px;opacity:0.7;">Gerado em ' + dataFormatada + '</div></div>'
                 + '</div>'
                 + '<div style="text-align:right;"><div style="font-size:20px;font-weight:800;">' + numOP + '</div><div style="font-size:10px;opacity:0.7;">Rev. ' + (dados.revisao || '01') + '</div></div>'
                 + '</div>'
@@ -11857,20 +11964,49 @@
                 + '<div class="info-item"><label>Contato</label><span>' + (dados.contato || '-') + '</span></div>'
                 + '<div class="info-item"><label>Telefone</label><span>' + (dados.telefone || '-') + '</span></div>'
                 + '<div class="info-item"><label>E-mail</label><span>' + (dados.email || '-') + '</span></div>'
-                + '<div class="info-item"><label>Endereço</label><span>' + (dados.endereco_cliente || '-') + '</span></div>'
+                + '<div class="info-item"><label>E-mail NF-e</label><span>' + (dados.email_nfe || '-') + '</span></div>'
+                + '<div class="info-item"><label>CEP</label><span>' + (dados.cep_cliente || '-') + '</span></div>'
+                + '<div class="info-item" style="grid-column:1/-1;"><label>Endereço</label><span>' + (dados.endereco_cliente || '-') + '</span></div>'
                 + '</div>'
+                + transpSection
                 + '<div class="section-title">📦 Produtos</div>'
                 + '<table><thead><tr>'
-                + '<th>Código</th><th>Descrição</th><th style="text-align:right">Largura</th><th style="text-align:right">Esp.</th><th style="text-align:right">Qtd</th><th style="text-align:right">Peso</th><th style="text-align:right">Valor Total</th>'
+                + '<th>Código</th><th>Descrição</th><th>Embalagem</th><th style="text-align:center">Lance(s)</th><th style="text-align:right">Qtd.</th><th style="text-align:right">V. Un. R$</th><th style="text-align:right">V. Total R$</th>'
                 + '</tr></thead><tbody>'
                 + (prodsRows || '<tr><td colspan="7" style="padding:12px;text-align:center;color:#9ca3af;">Nenhum produto informado</td></tr>')
-                + '</tbody></table>'
+                + '</tbody>'
+                + '<tfoot><tr><td colspan="6" style="padding:7px 8px;text-align:right;font-weight:700;font-size:10px;border-top:2px solid #cbd5e1;background:#f8fafc;text-transform:uppercase;letter-spacing:.3px;color:#374151;">Total do Pedido</td><td style="padding:7px 8px;text-align:right;font-weight:800;font-size:12px;border-top:2px solid #cbd5e1;background:#f8fafc;color:#1e40af;">' + _money(totalPedido) + '</td></tr></tfoot>'
+                + '</table>'
                 + '<div class="section-title">💰 Pagamento</div>'
                 + '<div style="padding:4px 0;">' + pgtoRows + '</div>'
-                + '<div style="font-size:10px;margin-top:4px;color:#6b7280;">Condições: ' + (dados.condições_pagamento || dados.condicoes_pagamento || '-') + '</div>'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:2px solid #e2e8f0;"><span style="font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:#374151;">Total do Pedido</span><span style="font-weight:800;font-size:13px;color:#1e40af;">' + _money(totalPedido) + '</span></div>'
+                + '<div style="font-size:10px;margin-top:6px;color:#6b7280;">Condições de Pagamento: <b style="color:#374151;">' + (dados.condições_pagamento || dados.condicoes_pagamento || '-') + '</b></div>'
+                + entregaSection
                 + obsSection
+                + '<div class="footer"><div>Folha 1 · Comercial · ' + nomeCliente + '</div><div>Gerado em ' + dataFormatada + ' · Zyntra ERP</div></div>'
+                + '</div>'
+                // ===================== FOLHA 2 — PRODUÇÃO =====================
+                + '<div style="padding:12px 20px;page-break-before:always;">'
+                + '<div class="header" style="margin:-12px -20px 0;"><div style="display:flex;align-items:center;gap:12px;">'
+                + '<img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="" style="height:30px;object-fit:contain;" onerror="this.style.display=\'none\'">'
+                + '<div><div style="font-size:14px;font-weight:800;letter-spacing:.5px;">FOLHA DE PRODUÇÃO</div><div style="font-size:9px;opacity:0.7;">' + numOP + ' · ' + nomeCliente + '</div></div></div>'
+                + '<div style="text-align:right;"><div style="font-size:16px;font-weight:800;">' + numOP + '</div><div style="font-size:10px;opacity:0.7;">Rev. ' + (dados.revisao || '01') + '</div></div></div>'
+                + '<div class="section-title" style="margin-top:14px;">🏭 Itens para Produção</div>'
+                + '<table><thead><tr>'
+                + '<th>Cód.</th><th>Produto</th><th>Embalagem</th><th style="text-align:right">Lances</th><th style="text-align:right">Qtd.</th><th>Cores</th><th style="text-align:right">Peso Bruto</th><th style="text-align:right">Peso Líq.</th><th>Lote</th>'
+                + '</tr></thead><tbody>'
+                + (rowsProducao || '<tr><td colspan="9" style="padding:12px;text-align:center;color:#9ca3af;">Nenhum produto informado</td></tr>')
+                + '</tbody></table>'
                 + prodSection
-                + '<div class="footer"><div>Ordem de Produção · ' + nomeCliente + '</div><div>Gerado em ' + dataFormatada + ' · Zyntra ERP</div></div>'
+                + (dados.observacoes_producao
+                    ? '<div class="section-title">📝 Observações de Produção</div><div style="padding:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:10px;">' + _esc(dados.observacoes_producao) + '</div>'
+                    : obsSection)
+                + '<div style="display:flex;gap:40px;margin-top:40px;font-size:9px;color:#475569;">'
+                + '<div style="flex:1;text-align:center;border-top:1px solid #94a3b8;padding-top:4px;">Conferente / Produção</div>'
+                + '<div style="flex:1;text-align:center;border-top:1px solid #94a3b8;padding-top:4px;">Expedição</div>'
+                + '<div style="flex:1;text-align:center;border-top:1px solid #94a3b8;padding-top:4px;">Responsável</div>'
+                + '</div>'
+                + '<div class="footer"><div>Folha 2 · Produção · ' + nomeCliente + '</div><div>Gerado em ' + dataFormatada + ' · Zyntra ERP</div></div>'
                 + '</div></body></html>';
 
             const pdfWin = window.open('', '_blank');
@@ -11896,7 +12032,7 @@
                 produto: primeirosProdutos || dados.cliente || 'Ordem de Produção',
                 descrição: dados.observações || '',
                 código: dados.numero_orçamento || dados.num_orcamento || '',
-                dataConclusao: dados.data_previsao_entrega || dados.prazo_entrega || null,
+                dataConclusao: dados.data_previsao_entrega || dados.prazo_entrega || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 quantidade: dados.produtos?.reduce((acc, p) => acc + (parseFloat(p.quantidade) || 0), 0) || 1,
                 unidade: dados.produtos?.[0]?.unidade_medida || dados.produtos?.[0]?.unidade || 'UN',
                 observações: dados.observações || '',
@@ -12642,7 +12778,7 @@
                             background: #2d4a7c;
                         }
                     </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
                 <body>
                     <button class="print-btn no-print" onclick="window.print()">
@@ -13081,7 +13217,9 @@
             try {
                 const response = await fetch('/api/pcp/materias-primas', { credentials: 'include' });
                 const data = await response.json();
-                const materiais = data.materiais || (Array.isArray(data) ? data : []);
+                let materiais = data.materiais || (Array.isArray(data) ? data : []);
+                // Filtrar materiais migrados (status técnico, não exibir para o usuário)
+                materiais = materiais.filter(m => String(m.status || '').toUpperCase() !== 'MIGRADO_PARA_PRODUTOS');
                 const total = materiais.length;
 
                 const materiaisTotal = document.getElementById('materiais-total');
@@ -13123,6 +13261,9 @@
                 const response = await fetch('/api/pcp/materias-primas', { credentials: 'include' });
                 const body = await response.json();
                 let materiais = body.materiais || (Array.isArray(body) ? body : []);
+
+                // Filtrar materiais migrados (status técnico)
+                materiais = materiais.filter(m => String(m.status || '').toUpperCase() !== 'MIGRADO_PARA_PRODUTOS');
 
                 // Filtrar por busca
                 if (query) {
@@ -15060,7 +15201,7 @@
                     .info{font-size:12px;color:#666;margin:2px 0;}
                     .preco{font-size:20px;font-weight:700;color:#16a34a;margin:8px 0;}
                     </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body>
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628"></head><body>
                     <div class="código">${código}</div>
                     <div class="nome">${nome}</div>
                     <div class="info">SKU: ${sku} | UN: ${unidade}</div>
@@ -18336,6 +18477,8 @@
                     configurarSidebarPorRole(user);
                     // === RESTRIÇÁO: Usuários somente leitura no PCP ===
                     aplicarModoPCPSomenteLeitura(user);
+                    // === RESTRIÇÁO: Card pedidos recentes apenas admins/vendedores ===
+                    configurarCardPedidosRecentes(user);
                 } else {
                     console.warn('Falha ao carregar usuário, status:', response.status);
                     carregarUsuarioLocalStorage();
@@ -18483,6 +18626,21 @@
             }
         }
 
+        // ============================================
+        // CARD PEDIDOS RECENTES — apenas admins/vendedores
+        // ============================================
+        function configurarCardPedidosRecentes(user) {
+            const card = document.getElementById('card-pedidos-recentes');
+            if (!card) return;
+            const role = (user.role || user.cargo || '').toLowerCase();
+            const roles = (user.roles || []).map(r => r.toLowerCase());
+            const rolesPermitidos = ['admin', 'administrador', 'supervisor', 'gerente', 'diretoria', 'ti', 'pcp', 'analista', 'vendedor'];
+            const permitido = user.is_admin === true || user.is_admin === 1 ||
+                              rolesPermitidos.some(r => role.includes(r)) ||
+                              roles.some(r => rolesPermitidos.some(a => r.includes(a)));
+            if (!permitido) card.style.setProperty('display', 'none', 'important');
+        }
+
         // Função para carregar usuário do localStorage como fallback
         function carregarUsuarioLocalStorage() {
             try {
@@ -18514,16 +18672,17 @@
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                     'Pragma': 'no-cache'
                 };
-                // BUG-009: Carregar Ordens de Produção reais do PCP (não pedidos de Vendas)
+                // USA A MESMA API DO KANBAN DE VENDAS para garantir dados idênticos
+                // Adiciona timestamp para evitar cache
                 const timestamp = new Date().getTime();
-                const response = await fetch(`/api/pcp/ordens?limit=10&_t=${timestamp}`, {
+                const response = await fetch(`/api/vendas/kanban/pedidos?_t=${timestamp}`, {
                     credentials: 'include',
                     cache: 'no-cache',
                     headers: headers
                 });
 
                 if (response.status === 401) {
-                    console.log('Não autenticado - redirecionando para login');
+                    console.log('? Não autenticado - redirecionando para login');
                     localStorage.removeItem('authToken');
                     localStorage.removeItem('token');
                     localStorage.removeItem('userData');
@@ -18531,35 +18690,37 @@
                     return;
                 }
 
-                if (!response.ok) throw new Error('Erro ao carregar ordens de produção');
+                if (!response.ok) throw new Error('Erro ao carregar pedidos do Kanban');
 
-                const resultado = await response.json();
-                const todasAsOrdens = resultado.data || resultado || [];
+                const todosOsPedidos = await response.json();
 
-                console.log('[ORDENS RECENTES] Ordens de produção:', todasAsOrdens.length);
+                // Validar se os dados são do banco real (não são mock)
+                console.log('[ORDENS RECENTES] Dados recebidos:', todosOsPedidos.length, 'pedidos');
 
-                const pedidos = todasAsOrdens.slice(0, 10);
+                // Pegar os 10 mais recentes
+                const pedidos = todosOsPedidos.slice(0, 10);
 
-                // Mapeamento de status de Ordens de Produção
+                // Mapeamento de status IGUAL ao Kanban de Vendas
                 const statusLabels = {
-                    'pendente':     { label: 'Pendente',     class: 'status-badge gray' },
-                    'planejada':    { label: 'Planejada',    class: 'status-badge teal' },
-                    'Planejada':    { label: 'Planejada',    class: 'status-badge teal' },
-                    'ativa':        { label: 'Ativa',        class: 'status-badge blue' },
-                    'em_producao':  { label: 'Em Produção',  class: 'status-badge yellow' },
-                    'Em Produção':  { label: 'Em Produção',  class: 'status-badge yellow' },
-                    'em_andamento': { label: 'Em Andamento', class: 'status-badge orange' },
-                    'A Fazer':      { label: 'A Fazer',      class: 'status-badge gray' },
-                    'concluida':    { label: 'Concluída',    class: 'status-badge green' },
-                    'cancelada':    { label: 'Cancelada',    class: 'status-badge red' }
+                    'orçamento': { label: 'Orçamento', class: 'status-badge gray' },
+                    'análise': { label: 'Análise de Crédito', class: 'status-badge yellow' },
+                    'analise_credito': { label: 'Análise de Crédito', class: 'status-badge yellow' },
+                    'análise-crédito': { label: 'Análise de Crédito', class: 'status-badge yellow' },
+                    'aprovado': { label: 'Pedido Aprovado', class: 'status-badge blue' },
+                    'pedido-aprovado': { label: 'Pedido Aprovado', class: 'status-badge blue' },
+                    'faturar': { label: 'Faturar', class: 'status-badge orange' },
+                    'faturado': { label: 'Faturado', class: 'status-badge green' },
+                    'entregue': { label: 'Entregue', class: 'status-badge purple' },
+                    'recibo': { label: 'Recibo', class: 'status-badge teal' },
+                    'cancelado': { label: 'Cancelado', class: 'status-badge red' }
                 };
 
                 if (pedidos.length === 0) {
                     tbody.innerHTML = `
                         <tr>
                             <td colspan="6" style="text-align: center; padding: 40px;">
-                                <div class="empty-state-icon"><i class="fas fa-industry"></i></div>
-                                <p style="margin-top: 16px; color: var(--gray-500);">Nenhuma ordem de produção encontrada</p>
+                                <div class="empty-state-icon"><i class="fas fa-clipboard-list"></i></div>
+                                <p style="margin-top: 16px; color: var(--gray-500);">Nenhuma ordem encontrada</p>
                             </td>
                         </tr>
                     `;
@@ -18567,24 +18728,47 @@
                 }
 
                 tbody.innerHTML = pedidos.map(pedido => {
-                    const statusInfo = statusLabels[pedido.status] || { label: pedido.status || '-', class: 'status-badge gray' };
-                    const data = pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('pt-BR') : '-';
-                    const previsao = pedido.data_prevista ? new Date(pedido.data_prevista).toLocaleDateString('pt-BR') : '-';
-                    const numero = pedido.numero_pedido || pedido.codigo || ('OP-' + pedido.id);
-                    const produto = pedido.produto_nome || pedido.observacoes || '-';
+                    const statusInfo = statusLabels[pedido.status] || { label: pedido.status, class: 'status-badge gray' };
+                    const data = pedido.created_at || pedido.data_pedido ? new Date(pedido.created_at || pedido.data_pedido).toLocaleDateString('pt-BR') : '-';
+                    const valor = pedido.valor || pedido.valor_total ? `R$ ${parseFloat(pedido.valor || pedido.valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-';
+
+                    // Pedidos aprovado, faturar, faturado ou entregue podem gerar OP
+                    const podeGerarOP = pedidoEstaAprovado(pedido.status);
+
+                    // Usar cliente do Kanban (campo 'cliente' ou 'cliente_nome')
+                    const clienteNome = pedido.cliente || pedido.cliente_nome || 'Cliente não informado';
+
+                    // Botões de ação - sempre mostrar calculadora + ação condicional
+                    let açãoHTML = `
+                        <button class="btn btn-sm btn-info" onclick="verMateriaisPedido(${pedido.id})" title="Calcular Materiais" style="margin-right: 4px;">
+                            <i class="fas fa-calculator"></i>
+                        </button>
+                    `;
+
+                    if (podeGerarOP) {
+                        açãoHTML += `
+                            <button class="btn btn-sm btn-success" onclick="abrirOrdemProduçãoDePedido(${pedido.id})" title="Gerar Ordem de Produção">
+                                <i class="fas fa-industry"></i>
+                            </button>
+                        `;
+                    } else {
+                        açãoHTML += `
+                            <button class="btn btn-sm btn-secondary" disabled title="Aguardando aprovação">
+                                <i class="fas fa-clock"></i>
+                            </button>
+                        `;
+                    }
 
                     return `
-                        <tr>
-                            <td><strong>${numero}</strong></td>
-                            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${produto}">${produto}</td>
-                            <td>${pedido.quantidade || '-'}</td>
+                        <tr data-pedido-id="${pedido.id}" style="${podeGerarOP ? 'background: linear-gradient(90deg, rgba(34, 197, 94, 0.05), transparent);' : ''}">
+                            <td><strong>#${pedido.id}</strong></td>
+                            <td>${clienteNome}</td>
+                            <td>${valor}</td>
                             <td><span class="${statusInfo.class}">${statusInfo.label}</span></td>
-                            <td>${previsao}</td>
+                            <td>${data}</td>
                             <td>
                                 <div class="table-actions" style="display: flex; gap: 4px;">
-                                    <button class="btn btn-sm btn-info" onclick="abrirOrdemProdução(${pedido.id})" title="Ver Detalhes">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
+                                    ${açãoHTML}
                                 </div>
                             </td>
                         </tr>
@@ -18616,6 +18800,21 @@
         let pedidosFiltrados = [];
         let paginaAtualPedidos = 1;
         const itensPorPaginaPedidos = 15;
+        let todosPedidosRealtimeTimer = null;
+
+        function normalizarStatusPedido(status) {
+            return String(status || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim()
+                .toLowerCase()
+                .replace(/[_\s]+/g, '-');
+        }
+
+        function pedidoEstaAprovado(status) {
+            const st = normalizarStatusPedido(status);
+            return st === 'aprovado' || st === 'pedido-aprovado';
+        }
 
         // Mapeamento de status para exibição - IDENTICO AO KANBAN DE VENDAS
         const statusLabelsModal = {
@@ -18632,44 +18831,71 @@
             'cancelado': { label: 'Cancelado', class: 'status-badge red' }
         };
 
+        // Flag to ignore first click on overlay after opening (prevents instant close)
+        var _todosPedidosOpenTS = 0;
+
         // Abrir modal
         function abrirModalTodosPedidos() {
             const modal = document.getElementById('modal-todos-pedidos');
             if (modal) {
+                _todosPedidosOpenTS = Date.now();
                 modal.classList.add('show');
                 document.body.style.overflow = 'hidden';
                 carregarTodosPedidosModal();
+                iniciarAtualizacaoPedidosModal();
             }
         }
 
         // Fechar modal
         function fecharModalTodosPedidos(event) {
-            if (event && event.target !== event.currentTarget) return;
+            if (event) {
+                const modalContainer = document.querySelector('#modal-todos-pedidos .modal-pedidos-container');
+                if (modalContainer && modalContainer.contains(event.target)) return;
+                if (event.target !== event.currentTarget) return;
+                // Ignore clicks that arrive within 300ms of opening (same click event that opened the modal)
+                if (Date.now() - _todosPedidosOpenTS < 300) return;
+            }
             const modal = document.getElementById('modal-todos-pedidos');
             if (modal) {
                 modal.classList.remove('show');
                 document.body.style.overflow = '';
+                pararAtualizacaoPedidosModal();
             }
         }
 
+        function iniciarAtualizacaoPedidosModal() {
+            pararAtualizacaoPedidosModal();
+            todosPedidosRealtimeTimer = setInterval(function () {
+                const modal = document.getElementById('modal-todos-pedidos');
+                if (modal && modal.classList.contains('show') && !document.hidden) carregarTodosPedidosModal({ silencioso: true });
+            }, 15000);
+        }
+
+        function pararAtualizacaoPedidosModal() {
+            if (todosPedidosRealtimeTimer) clearInterval(todosPedidosRealtimeTimer);
+            todosPedidosRealtimeTimer = null;
+        }
+
         // Carregar todos os pedidos
-        async function carregarTodosPedidosModal() {
+        async function carregarTodosPedidosModal(options = {}) {
             const tbody = document.getElementById('tabela-todos-pedidos');
             if (!tbody) return;
 
             // Mostrar loading
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="6" class="loading-cell">
-                        <div class="loading-spinner"></div>
-                        <p>Carregando pedidos...</p>
-                    </td>
-                </tr>
-            `;
+            if (!options.silencioso) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="loading-cell">
+                            <div class="loading-spinner"></div>
+                            <p>Carregando pedidos...</p>
+                        </td>
+                    </tr>
+                `;
+            }
 
             try {
                 // USA A MESMA API DO KANBAN DE VENDAS para garantir dados idênticos
-                const response = await fetch('/api/vendas/kanban/pedidos', { credentials: 'include' });
+                const response = await fetch('/api/vendas/kanban/pedidos?_t=' + Date.now(), { credentials: 'include', cache: 'no-store' });
                 if (!response.ok) throw new Error('Erro ao carregar pedidos do Kanban');
 
                 todosPedidosCache = await response.json();
@@ -18844,12 +19070,12 @@
             const pedidosPagina = pedidosFiltrados.slice(inicio, fim);
 
             tbody.innerHTML = pedidosPagina.map(pedido => {
-                const statusInfo = statusLabelsModal[pedido.status] || { label: pedido.status || 'Indefinido', class: 'status-badge gray' };
+                const statusInfo = statusLabelsModal[pedido.status] || statusLabelsModal[normalizarStatusPedido(pedido.status)] || { label: pedido.status || 'Indefinido', class: 'status-badge gray' };
                 const data = pedido.created_at || pedido.data_pedido ? new Date(pedido.created_at || pedido.data_pedido).toLocaleDateString('pt-BR') : '-';
                 const valor = pedido.valor || pedido.valor_total ? `R$ ${parseFloat(pedido.valor || pedido.valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-';
 
-                // Pedidos que podem gerar OP: faturar, faturado ou entregue
-                const podeGerarOP = ['faturar', 'faturado', 'entregue'].includes(pedido.status);
+                // OP só deve ser gerada a partir de pedido aprovado.
+                const podeGerarOP = pedidoEstaAprovado(pedido.status);
                 const classeRow = podeGerarOP ? 'pode-gerar-op' : '';
 
                 // Usar cliente do Kanban (campo 'cliente' ou 'cliente_nome')
@@ -19051,6 +19277,11 @@
                 const opOrcamento = document.getElementById('op-orçamento');
                 if (opOrcamento) opOrcamento.value = `P-${pedidoId}`;
 
+                // Nº Pedido = MESMO número do pedido de venda (coluna pedidos.numero_pedido),
+                // não o id interno nem o placeholder "PED-001".
+                const opNumPedido = document.getElementById('op-num-pedido');
+                if (opNumPedido) opNumPedido.value = pedido.numero_pedido || pedido.numero || pedidoId || '';
+
                 // Preencher data de liberação (data atual)
                 const opDataLiberação = document.getElementById('op-data-liberacao');
                 if (opDataLiberação) opDataLiberação.value = new Date().toISOString().split('T')[0];
@@ -19128,7 +19359,11 @@
                             }
                         }
                         return {
+                            // Grava as chaves SEM acento (lidas pela tabela do modal) E COM acento
+                            // (lidas pelo gerador de Excel/OP no backend) — evita "undef" / "Sem descrição".
+                            codigo: item.codigo || '',
                             código: item.codigo || '',
+                            descricao: desc,
                             descrição: desc,
                             embalagem: item.embalagem || 'Bobina',
                             codigo_cores: item.codigo_cores || '',
@@ -19152,8 +19387,7 @@
                                         const match = produtos.find(p => p.codigo && p.codigo.toUpperCase() === prod.codigo.toUpperCase());
                                         if (match && match.descricao) {
                                             prod.descricao = match.descricao;
-                                        } else if (match && match.descricao) {
-                                            prod.descricao = match.descricao;
+                                            prod.descrição = match.descricao;
                                         }
                                     }
                                 } catch (e) { console.warn('Erro ao resolver produto:', prod.codigo, e); }
@@ -19168,10 +19402,14 @@
                     calcularValoresPagamento();
                 }
 
-                // Preencher condições de pagamento (se houver no pedido)
-                if (pedido.condições_pagamento) {
+                // Condições de pagamento do pedido de venda → refletem na aba Pagamento da OP.
+                // Colunas reais do pedido: condicao_pagamento / condicoes_pagamento / parcelas
+                // (a chave acentuada "condições_pagamento" não existe → campo ficava vazio).
+                {
+                    const condPag = pedido.condicao_pagamento || pedido.condicoes_pagamento
+                        || pedido.condições_pagamento || pedido.parcelas || '';
                     const opCondicoesPagamento = document.getElementById('op-condicoes-pagamento');
-                    if (opCondicoesPagamento) opCondicoesPagamento.value = pedido.condições_pagamento;
+                    if (opCondicoesPagamento && condPag) opCondicoesPagamento.value = condPag;
                 }
 
                 // Preencher observações (descrição do pedido + observações internas)
@@ -19186,21 +19424,33 @@
                     }
                 }
 
+                // Observações para a Produção — vêm do pedido de venda (modal Novo Orçamento/Pedido
+                // → aba Observações → "Observações para a Produção", coluna pedidos.observacao_producao)
+                {
+                    const opObsProducao = document.getElementById('op-observacoes-producao');
+                    if (opObsProducao) opObsProducao.value = pedido.observacao_producao || '';
+                }
+
                 // Preencher tipo de frete do pedido
-                if (pedido.tipo_frete) {
+                if (pedido.tipo_frete !== undefined && pedido.tipo_frete !== null && String(pedido.tipo_frete).trim() !== '') {
                     const opTipoFrete = document.getElementById('op-tipo-frete');
                     if (opTipoFrete) {
-                        // Tentar selecionar opção correspondente (CIF, FOB, etc)
-                        const tipoFreteUpper = pedido.tipo_frete.toUpperCase();
+                        // O pedido de venda guarda a modalidade do frete da NF-e como CÓDIGO
+                        // (0=CIF, 1=FOB, 2=Terceiros, 3/4=Próprio, 9=Sem frete). O select da OP usa
+                        // rótulos CIF/FOB/Redespacho — mapeia o código p/ o rótulo antes de casar.
+                        const mapaFrete = { '0': 'CIF', '1': 'FOB', '2': 'Redespacho', '3': 'CIF', '4': 'FOB', '9': '' };
+                        let tf = String(pedido.tipo_frete).trim();
+                        if (Object.prototype.hasOwnProperty.call(mapaFrete, tf)) tf = mapaFrete[tf];
+                        const tipoFreteUpper = tf.toUpperCase();
                         let found = false;
                         for (let option of opTipoFrete.options) {
-                            if (option.value.toUpperCase() === tipoFreteUpper || option.text.toUpperCase() === tipoFreteUpper) {
+                            if (tf && (option.value.toUpperCase() === tipoFreteUpper || option.text.toUpperCase() === tipoFreteUpper)) {
                                 option.selected = true;
                                 found = true;
                                 break;
                             }
                         }
-                        if (!found) opTipoFrete.value = pedido.tipo_frete;
+                        if (!found && tf) opTipoFrete.value = tf;
                     }
                 }
 
@@ -19702,6 +19952,7 @@
                 prioridade: document.getElementById('op-prioridade')?.value,
                 responsavel: document.getElementById('op-responsavel')?.value,
                 observações: document.getElementById('op-observacoes')?.value,
+                observacao_producao: document.getElementById('op-observacoes-producao')?.value || '',
                 status: 'a_produzir'
             };
 
@@ -24928,7 +25179,7 @@
 
             // Atualizar uma linha específica na tabela de ordens
             function atualizarOrdemNaTabela(pedido) {
-                const tbody = document.getElementById('recent-orders-table');
+                const tbody = document.getElementById('pedidos-recentes-table');
                 if (!tbody || !pedido) return;
 
                 // Procurar linha existente
@@ -24948,11 +25199,11 @@
                     'cancelado': { label: 'Cancelado', class: 'status-badge red' }
                 };
 
-                const statusInfo = statusLabels[pedido.status] || { label: pedido.status, class: 'status-badge gray' };
+                const statusInfo = statusLabels[pedido.status] || statusLabels[normalizarStatusPedido(pedido.status)] || { label: pedido.status, class: 'status-badge gray' };
                 const data = pedido.created_at ? new Date(pedido.created_at).toLocaleDateString('pt-BR') : '-';
                 const valor = pedido.valor ? `R$ ${parseFloat(pedido.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-';
 
-                const podeGerarOP = ['faturado', 'faturar', 'entregue'].includes(pedido.status);
+                const podeGerarOP = pedidoEstaAprovado(pedido.status);
 
                 let açãoHTML = podeGerarOP
                     ? `<button class="btn btn-sm btn-success" onclick="abrirOrdemProduçãoDePedido(${pedido.id})" title="Gerar Ordem de Produção"><i class="fas fa-industry"></i></button>`
@@ -25027,6 +25278,124 @@
     <script src="/_shared/accessibility-widget.js?v=20260418"></script>
     <!-- Chat Corporativo (Teams) -->
     <script src="/chat-teams/chat-widget.js?v=20260418" defer></script>
+
+    <!-- PCP-PEDIDOS-RECENTES-PATCH -->
+    <script>
+    (function(){
+      'use strict';
+      var PIPELINE = ['aprovado','pedido-aprovado'];
+      var APROVADO = ['aprovado','pedido-aprovado'];
+      var BADGE = {
+        'análise':{label:'Análise de Crédito',cls:'status-badge yellow'},
+        'analise':{label:'Análise de Crédito',cls:'status-badge yellow'},
+        'analise_credito':{label:'Análise de Crédito',cls:'status-badge yellow'},
+        'análise-crédito':{label:'Análise de Crédito',cls:'status-badge yellow'},
+        'analise-credito':{label:'Análise de Crédito',cls:'status-badge yellow'},
+        'aprovado':{label:'Pedido Aprovado',cls:'status-badge blue'},
+        'pedido-aprovado':{label:'Pedido Aprovado',cls:'status-badge blue'},
+        'faturar':{label:'Faturar',cls:'status-badge orange'},
+        'faturado':{label:'Faturado',cls:'status-badge green'},
+        'parcial':{label:'Faturamento Parcial',cls:'status-badge teal'},
+        'faturamento-parcial':{label:'Faturamento Parcial',cls:'status-badge teal'},
+        'recibo':{label:'Recibo',cls:'status-badge teal'},
+        'entregue':{label:'Entregue',cls:'status-badge purple'},
+        'finalizado':{label:'Finalizado',cls:'status-badge green'},
+        'em-producao':{label:'Em Produção',cls:'status-badge blue'}
+      };
+      function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+      function fmtData(v){if(!v)return '-';try{var d=new Date(v);return isNaN(d)?'-':d.toLocaleDateString('pt-BR');}catch(e){return '-';}}
+      function fmtValor(v){var n=parseFloat(v);if(isNaN(n))return '-';return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2});}
+      function normStatus(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/[_\s]+/g,'-');}
+      function statusAprovado(s){var st=normStatus(s);return st==='aprovado'||st==='pedido-aprovado';}
+
+      // ----- Card "Pedidos Recentes" (tempo real) -----
+      window.carregarPedidosRecentes = async function(){
+        var tbody=document.getElementById('pedidos-recentes-table');
+        if(!tbody) return;
+        try{
+          // FIX 25/06/2026: usar endpoint do PCP (gated por área PCP/Compras) em vez de /api/vendas/kanban/pedidos
+          // (gated por área Vendas). O chefe do setor PCP tem área PCP mas não Vendas -> antes recebia 403
+          // e o card ficava "Nenhum pedido aprovado". Admin contornava o gate e via normal. Mesma fonte de dados.
+          var resp=await fetch('/api/pcp/pedidos-vendas?limit=1000&_t='+Date.now(),{credentials:'include',cache:'no-cache',headers:{'Content-Type':'application/json','Cache-Control':'no-cache, no-store, must-revalidate','Pragma':'no-cache'}});
+          if(resp.status===401) return;
+          if(!resp.ok) throw new Error('Erro ao carregar pedidos');
+          var dados=await resp.json();
+          var lista=Array.isArray(dados)?dados:(dados&&dados.data?dados.data:[]);
+          lista=lista.filter(function(p){return statusAprovado(p.status);});
+          lista=lista.filter(function(p){var s=((p.cliente||'')+' '+(p.cliente_nome||'')+' '+(p.empresa_nome||'')+' '+(p.observacoes||'')).toLowerCase();return !/\bteste\b|\bqa\b|\bdemo\b|cliente test/.test(s);});
+          lista=lista.slice(0,10);
+          if(lista.length===0){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:40px;"><div class="empty-state-icon"><i class="fas fa-clipboard-check"></i></div><p style="margin-top:16px;color:var(--gray-500);">Nenhum pedido aprovado</p></td></tr>';return;}
+          tbody.innerHTML=lista.map(function(p){
+            var st=normStatus(p.status);
+            var b=BADGE[st]||BADGE[String(p.status||'')]||{label:(p.status||'-'),cls:'status-badge gray'};
+            var ap=statusAprovado(st);
+            var cli=esc(p.cliente||p.cliente_nome||p.empresa_nome||'Cliente não informado');
+            var val=fmtValor(p.valor!=null?p.valor:p.valor_total);
+            var dt=fmtData(p.created_at||p.data_pedido);
+            var acao=ap
+              ? '<button class="btn btn-sm btn-success" onclick="abrirOrdemProduçãoDePedido('+p.id+')" title="Gerar Ordem de Produção (dados pré-preenchidos)"><i class="fas fa-industry"></i> Gerar OP</button>'
+              : '<button class="btn btn-sm btn-secondary" disabled title="Aguardando aprovação do crédito"><i class="fas fa-hourglass-half"></i></button>';
+            return '<tr data-pedido-id="'+p.id+'" style="'+(ap?'background:linear-gradient(90deg, rgba(34,197,94,0.06), transparent);':'')+'">'
+              +'<td><strong>#'+esc(p.id)+'</strong></td>'
+              +'<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+cli+'">'+cli+'</td>'
+              +'<td>'+val+'</td>'
+              +'<td><span class="'+b.cls+'">'+esc(b.label)+'</span></td>'
+              +'<td>'+dt+'</td>'
+              +'<td><div class="table-actions" style="display:flex;gap:4px;">'+acao+'</div></td>'
+              +'</tr>';
+          }).join('');
+        }catch(err){
+          console.error('[PEDIDOS RECENTES]',err);
+          tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:40px;"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle" style="color:var(--red-500);"></i></div><p style="margin-top:16px;color:var(--gray-500);">Erro ao carregar pedidos</p><button class="btn btn-sm btn-primary" onclick="carregarPedidosRecentes()" style="margin-top:12px;"><i class="fas fa-sync-alt"></i> Tentar Novamente</button></td></tr>';
+        }
+      };
+
+      // ----- Card "Ordens Recentes" = Ordens de Produção reais (override) -----
+      window.carregarOrdensRecentes = async function(){
+        var tbody=document.getElementById('recent-orders-table');
+        if(!tbody) return;
+        try{
+          var resp=await fetch('/api/pcp/ordens?limit=10&_t='+Date.now(),{credentials:'include',cache:'no-cache',headers:{'Content-Type':'application/json','Cache-Control':'no-cache, no-store, must-revalidate','Pragma':'no-cache'}});
+          if(resp.status===401) return;
+          if(!resp.ok) throw new Error('Erro ao carregar ordens de produção');
+          var dados=await resp.json();
+          var lista=Array.isArray(dados)?dados:(dados&&dados.data?dados.data:[]);
+          lista=lista.filter(function(o){var s=((o.cliente_nome||o.cliente||'')+' '+(o.produto_nome||'')+' '+(o.observacoes||'')+' '+(o.numero_pedido||'')).toLowerCase();return !/\bteste\b|\bqa\b|\bdemo\b|cliente test|cabo teste/.test(s);});
+          lista=lista.slice(0,10);
+          var STB={'pendente':{label:'Pendente',cls:'status-badge gray'},'planejada':{label:'Planejada',cls:'status-badge teal'},'Planejada':{label:'Planejada',cls:'status-badge teal'},'ativa':{label:'Ativa',cls:'status-badge blue'},'em_producao':{label:'Em Produção',cls:'status-badge yellow'},'Em Produção':{label:'Em Produção',cls:'status-badge yellow'},'em_andamento':{label:'Em Andamento',cls:'status-badge orange'},'A Fazer':{label:'A Fazer',cls:'status-badge gray'},'concluida':{label:'Concluída',cls:'status-badge green'},'cancelada':{label:'Cancelada',cls:'status-badge red'}};
+          if(lista.length===0){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:40px;"><div class="empty-state-icon"><i class="fas fa-industry"></i></div><p style="margin-top:16px;color:var(--gray-500);">Nenhuma ordem de produção encontrada</p></td></tr>';return;}
+          tbody.innerHTML=lista.map(function(o){
+            var b=STB[o.status]||{label:(o.status||'-'),cls:'status-badge gray'};
+            var prev=fmtData(o.data_previsao_entrega||o.data_prevista);
+            var raw=o.numero_pedido||o.codigo||o.id;
+            var numero=raw?(/^OP\s/i.test(String(raw))?raw:(/^\d+$/.test(String(raw))?('OP #'+raw):raw)):'-';
+            var produto=o.produto_nome||o.observacoes||'-';
+            return '<tr>'
+              +'<td><strong>'+esc(numero)+'</strong></td>'
+              +'<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(produto)+'">'+esc(produto)+'</td>'
+              +'<td>'+esc(o.quantidade!=null?o.quantidade:'-')+'</td>'
+              +'<td><span class="'+b.cls+'">'+esc(b.label)+'</span></td>'
+              +'<td>'+prev+'</td>'
+              +'<td><div class="table-actions" style="display:flex;gap:4px;"><button class="btn btn-sm btn-info" onclick="verOrdemProducaoPCP('+o.id+')" title="Ver Detalhes"><i class="fas fa-eye"></i></button></div></td>'
+              +'</tr>';
+          }).join('');
+        }catch(err){
+          console.error('[ORDENS RECENTES]',err);
+          tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:40px;"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle" style="color:var(--red-500);"></i></div><p style="margin-top:16px;color:var(--gray-500);">Erro ao carregar ordens</p><button class="btn btn-sm btn-primary" onclick="carregarOrdensRecentes()" style="margin-top:12px;"><i class="fas fa-sync-alt"></i> Tentar Novamente</button></td></tr>';
+        }
+      };
+
+      window.verOrdemProducaoPCP = function(id){ window.location.href='ordens-producao.html'; };
+
+      // Tempo real: polling (pausa quando aba oculta) + init
+      var tick=0;
+      function realtime(){ if(document.hidden) return; try{carregarPedidosRecentes();}catch(e){} if((tick%3)===0){try{carregarOrdensRecentes();}catch(e){}} tick++; }
+      function init(){ try{carregarPedidosRecentes();}catch(e){} try{carregarOrdensRecentes();}catch(e){} }
+      if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
+      setInterval(realtime, 20000);
+      document.addEventListener('visibilitychange', function(){ if(!document.hidden) realtime(); });
+    })();
+    </script>
 </body>
 
 </html>

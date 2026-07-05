@@ -12,6 +12,10 @@ const NotificationsManager = (function() {
     // Elementos DOM
     let panel, overlay, listContainer, badge, tabs;
 
+    function withBasePath(path) {
+        return window.__withBasePath ? window.__withBasePath(path) : path;
+    }
+
     /**
      * Inicializa o gerenciador de notificações
      */
@@ -313,7 +317,7 @@ const NotificationsManager = (function() {
                 // Se tiver link, navegar para ele
                 if (link) {
                     closePanel();
-                    window.location.href = link;
+                    window.location.href = withBasePath(link);
                 }
             });
         });
@@ -333,7 +337,7 @@ const NotificationsManager = (function() {
                 const link = btn.closest('.notification-item').getAttribute('data-link');
                 if (link) {
                     closePanel();
-                    window.location.href = link;
+                    window.location.href = withBasePath(link);
                 }
             });
         });

@@ -8,9 +8,10 @@ router.get('/', async (req, res) => {
         const db = getDatabase();
         const { search, categoria, status, limit = 100, offset = 0 } = req.query;
         
-        let sql = `SELECT m.* 
-                   FROM materiais m 
-                   WHERE 1=1`;
+        // AUDIT #019: nunca listar registros legados migrados (poluem o select de materiais)
+        let sql = `SELECT m.*
+                   FROM materiais m
+                   WHERE 1=1 AND (m.tipo IS NULL OR m.tipo <> 'MIGRADO_PARA_PRODUTOS')`;
         const params = [];
         
         if (search) {
@@ -34,7 +35,7 @@ router.get('/', async (req, res) => {
         
         const [materiais] = await db.query(sql, params);
         
-        const countSql = `SELECT COUNT(*) as total FROM materiais m WHERE 1=1` +
+        const countSql = `SELECT COUNT(*) as total FROM materiais m WHERE 1=1 AND (m.tipo IS NULL OR m.tipo <> 'MIGRADO_PARA_PRODUTOS')` +
             (search ? ' AND (m.codigo_material LIKE ? OR m.descricao LIKE ?)' : '') +
             (categoria ? ' AND m.tipo = ?' : '') +
             (status ? ' AND m.ativo = ?' : '');

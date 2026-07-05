@@ -30,7 +30,7 @@ const BRAND_CONFIG = {
         nameFull: 'Labor Eletric',
         nameLower: 'labor-eletric',
         logoFile: 'labor-eletric-logo.png',
-        email: '@laboreletric.com.br',
+        email: '@labor.com.br',
         primaryColor: '#F39C12',
         primaryHover: '#D68910',
         accent: '#F8C471',
@@ -41,7 +41,7 @@ const BRAND_CONFIG = {
         nameLower: 'labor-energy',
         logoFile: 'labor-energy-logo.png',
         logoFileWhite: 'labor-energy-logo-branco.png',
-        email: '@energy.com.br',
+        email: '@labor.com.br',
         primaryColor: '#27AE60',
         primaryHover: '#1E8449',
         accent: '#58D68D',
@@ -89,9 +89,6 @@ function buildBrandCSS(cfg) {
     --primary-hover: ${cfg.primaryHover} !important;
     --accent: ${cfg.accent} !important;
 }
-/* Vendas: cabeçalho da tabela lista usa background:#1e293b hardcoded — override pela marca */
-#list-table thead tr { background: ${cfg.primaryColor} !important; }
-#list-table thead th { color: #fff !important; }
 </style>
 `;
 }
@@ -107,16 +104,28 @@ const MOUNT_SCRIPT = MOUNT_PATH ? `<script id="zyntra-mount-intercept">
   var B="${MOUNT_PATH}";
   window.__MOUNT_PATH__=B;
   window.__BASE_PATH=window.__BASE_PATH||B;
-  function addBase(u){
-    return(typeof u==="string"&&u[0]==="/"&&u.slice(0,B.length)!==B)?B+u:u;
+  // Caminhos GLOBAIS — pertencem ao hub aluforce, nunca devem receber prefixo da marca.
+  var GLOBAL_PREFIXES=["/Zyntra-SGE/","/zyntra-sge/","/Zyntra-LandingPage/","/api/dashboard/hub-stats"];
+  function isGlobal(u){
+    for(var i=0;i<GLOBAL_PREFIXES.length;i++){
+      if(u.indexOf(GLOBAL_PREFIXES[i])===0)return true;
+    }
+    return false;
   }
+  function addBase(u){
+    if(typeof u!=="string"||u[0]!=="/")return u;
+    if(u.slice(0,B.length)===B)return u;
+    if(isGlobal(u))return u;
+    return B+u;
+  }
+  window.__withBasePath=addBase;
   // fetch
   var _f=window.fetch;
   window.fetch=function(u,o){return _f.call(this,addBase(u),o);};
   // XMLHttpRequest
   var _x=XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open=function(m,u){
-    if(typeof u==="string"&&u[0]==="/"&&u.slice(0,B.length)!==B)arguments[1]=B+u;
+    if(typeof u==="string"&&u[0]==="/"&&u.slice(0,B.length)!==B&&!isGlobal(u))arguments[1]=B+u;
     return _x.apply(this,arguments);
   };
   // history API
@@ -135,7 +144,7 @@ const MOUNT_SCRIPT = MOUNT_PATH ? `<script id="zyntra-mount-intercept">
   function fixLinks(r){
     (r||document).querySelectorAll('a[href^="/"]').forEach(function(a){
       var h=a.getAttribute("href");
-      if(h&&h.slice(0,B.length)!==B)a.setAttribute("href",B+h);
+      if(h&&h.slice(0,B.length)!==B&&!isGlobal(h))a.setAttribute("href",B+h);
     });
   }
   function attachObserver(){
@@ -179,13 +188,12 @@ function applyBrandReplacements(body, cfg) {
         .replace(/\bAluforce\b(?![A-Za-z_])/g, cfg.nameFull)
         // Nome minúsculas (evitando substituir caminhos internos de API e identificadores como _aluforceSocket)
         .replace(/\baluforce\b(?!\.api\.br|\.ind\.br|_vendas|_db|[A-Za-z_])/g, cfg.nameLower)
-        // Emails
+        // Emails — aluforce e domínios labor legados (laboreletric.com.br, energy.com.br)
+        // são reescritos para o domínio atual da marca (@labor.com.br para as duas Labor).
         .replace(/@aluforce\.ind\.br/g, cfg.email)
         .replace(/@aluforce\.com\.br/g, cfg.email)
-        // Dashboard Next.js — logo da empresa (src="/aluforce-logo.png" → logo da marca)
-        .replace(/src="\/aluforce-logo\.png"/gi, `src="/images/${logoColor}"`)
-        // Dashboard Next.js — título da aba e do painel
-        .replace(/Zyntra: Painel de Controle/g, `${cfg.nameFull}: Painel de Controle`);
+        .replace(/@laboreletric\.com\.br/g, cfg.email)
+        .replace(/@energy\.com\.br/g, cfg.email);
 }
 
 /**
@@ -201,6 +209,16 @@ function zyntraBrandingMiddleware(req, res, next) {
         const origRedirect = res.redirect.bind(res);
         res.redirect = function(status, url) {
             if (typeof status === 'string') { url = status; status = 302; }
+            if (typeof url === 'string' && url.startsWith('/login.html')) {
+                const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+                const host = req.get('x-forwarded-host') || req.get('host') || 'zyntraerp.com.br';
+                const loginUrl = new URL(url, `${proto}://${host}`);
+                const returnTo = loginUrl.searchParams.get('returnTo');
+                if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith(MOUNT_PATH)) {
+                    loginUrl.searchParams.set('returnTo', MOUNT_PATH + returnTo);
+                }
+                return origRedirect.call(res, status, loginUrl.toString());
+            }
             if (typeof url === 'string' && url.startsWith('/') && !url.startsWith(MOUNT_PATH)) {
                 url = MOUNT_PATH + url;
             }
@@ -258,6 +276,50 @@ function transformHtml(html) {
 }
 
 /**
+ * Intercepta arquivos .html servidos por express.static.
+ *
+ * express.static usa res.sendFile internamente, que pula res.send e portanto não
+ * passa pelo zyntraBrandingMiddleware. Este middleware DEVE ser montado ANTES de
+ * express.static(public) — ele lê o arquivo do disco para qualquer requisição
+ * .html (ou diretório sem extensão, resolvendo para index.html), aplica
+ * transformHtml e responde diretamente. Apenas opera quando IS_BRANDED=true.
+ */
+const fs = require('fs');
+const path = require('path');
+function staticHtmlBrandingFactory(publicDir) {
+    const rootDir = path.resolve(publicDir);
+    return function staticHtmlBrandingMiddleware(req, res, next) {
+        if (!IS_BRANDED) return next();
+        if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+
+        // Apenas paths terminando em .html (ou sem extensão, vamos tentar como dir/index.html)
+        let urlPath = req.path;
+        try { urlPath = decodeURIComponent(urlPath); } catch (_) {}
+        const lower = urlPath.toLowerCase();
+        const isHtml = lower.endsWith('.html') || lower.endsWith('.htm');
+        if (!isHtml) return next();
+
+        // Sanitização contra path traversal
+        const safe = path.normalize(urlPath).replace(/^([\\/]+)/, '');
+        const filePath = path.join(rootDir, safe);
+        if (!filePath.startsWith(rootDir)) return next();
+
+        fs.readFile(filePath, 'utf8', (err, content) => {
+            if (err) return next();
+            const transformed = transformHtml(content);
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            if (req.method === 'HEAD') {
+                res.setHeader('Content-Length', Buffer.byteLength(transformed));
+                return res.end();
+            }
+            return res.send(transformed);
+        });
+    };
+}
+
+/**
  * Adiciona info de branding ao request
  */
 function zyntraBrandInfo(req, res, next) {
@@ -279,6 +341,7 @@ function zyntraBrandInfo(req, res, next) {
 
 module.exports = {
     zyntraBrandingMiddleware,
+    staticHtmlBrandingFactory,
     zyntraBrandInfo,
     transformHtml,
     IS_ZYNTRA,

@@ -7,7 +7,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#1e1e1e">
     <meta name="format-detection" content="telephone=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -33,7 +33,7 @@
     <link rel="stylesheet" href="/modules/Faturamento/css/faturamento-layout.css?v=20260325">
 
     <!-- Global Header & Sidebar é Padrão Institucional -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260325">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260610">
 
     <!-- Performance: Skeleton Loaders -->
     <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260325">
@@ -55,7 +55,7 @@
     </style>
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260325">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260325">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260608g">
 </head>
 <body>
     <div class="app-container">
@@ -68,9 +68,12 @@
                 <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
                 <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-history"></i></a>
                 <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+                <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+                <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+                <a href="logistica.html" class="sidebar-btn" title="Logística & Expedição"><i class="fas fa-truck"></i></a>
             </nav>
             <div class="sidebar-bottom">
-                <button class="sidebar-btn" title="Configurações" onclick="abrirModalConfiguracoes()"><i class="fas fa-cog"></i></button>
+                <button class="sidebar-btn" title="Configurações" onclick="abrirModalConfigurações()"><i class="fas fa-cog"></i></button>
             </div>
         </aside>
         <main class="main-area">
@@ -78,22 +81,18 @@
                 <div class="header-left">
                     <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
                     <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">&#8212;</span>
                         <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Consultar NFe</span>
                     </div>
                 </div>
                 <div class="header-right">
                     <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
-                    <button class="header-btn" title="Notificações" onclick="toggleNotificacoes()"><i class="fas fa-bell"></i></button>
+                    
                     <div class="user-greeting">
                         <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
-                        <div class="user-avatar" id="user-avatar">
-                            <img alt="Foto" id="user-photo" style="display:none">
-                            <span id="user-initials">U</span>
-                        </div>
                     </div>
                 </div>
             </header>
@@ -248,7 +247,7 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Email do Destinatério *</label>
+                    <label>Email do Destinatário *</label>
                     <input type="email" class="form-control" id="emailDestinatario" placeholder="exemplo@email.com">
                 </div>
                 <div class="form-group">
@@ -283,7 +282,7 @@
             sidebar.classList.toggle('open');
             overlay.classList.toggle('active');
         }
-        function toggleNotificacoes() {}
+        function toggleNotificações() {}
 
         // == Avatar map ==
         const avatarNameMap = {
@@ -350,7 +349,7 @@
 
         // == Filter and display ==
         function filtrarEExibir() {
-            const numero = document.getElementById('filtroNumero').value.trim().toLowerCase();
+            const número = document.getElementById('filtroNumero').value.trim().toLowerCase();
             const serie = document.getElementById('filtroSerie').value.trim();
             const chave = document.getElementById('filtroChave').value.trim();
             const cliente = document.getElementById('filtroCliente').value.trim().toLowerCase();
@@ -359,7 +358,7 @@
             const status = document.getElementById('filtroStatus').value;
 
             let filtradas = nfesCarregadas.filter(nfe => {
-                if (numero && !(nfe.numero||'').toLowerCase().includes(numero)) return false;
+                if (número && !(nfe.numero||'').toLowerCase().includes(número)) return false;
                 if (serie && (nfe.serie||'') !== serie) return false;
                 if (chave && !(nfe.chave||'').includes(chave)) return false;
                 if (cliente && !(nfe.cliente||nfe.destinatario||'').toLowerCase().includes(cliente)) return false;
@@ -388,7 +387,7 @@
                 const chaveEsc = escapeHtml(nfe.chave||'');
                 const nfeIdentificador = chaveEsc || String(nfe.id || '');
                 return `<tr>
-                    <td><strong>${escapeHtml(nfe.número||'-')}</strong></td>
+                    <td><strong>${escapeHtml(nfe.numero||'-')}</strong></td>
                     <td>${escapeHtml(nfe.serie||'1')}</td>
                     <td>${escapeHtml(nfe.cliente||nfe.destinatario||'-')}</td>
                     <td>${escapeHtml(dt)}</td>
@@ -584,7 +583,7 @@
             if (nfesCarregadas.length === 0) { showAlert('Nenhum dado para exportar', 'warning'); return; }
             let csv = 'Número;Série;Cliente;Data;Valor;Status\n';
             nfesCarregadas.forEach(nfe => {
-                csv += `${nfe.número||''};${nfe.serie||''};${nfe.cliente||''};${nfe.dataEmissao||''};${nfe.valor||0};${nfe.status||''}\n`;
+                csv += `${nfe.numero||''};${nfe.serie||''};${nfe.cliente||''};${nfe.dataEmissao||''};${nfe.valor||0};${nfe.status||''}\n`;
             });
             const blob = new Blob(['\uFEFF' + csv], { type:'text/csv;charset=utf-8' });
             const a = document.createElement('a');
@@ -594,7 +593,7 @@
         }
 
         // == Modal placeholder ==
-        function abrirModalConfiguracoes() {
+        function abrirModalConfigurações() {
             showAlert('Configurações é Em desenvolvimento', 'info');
         }
 
@@ -607,7 +606,7 @@
 
     <!-- Sistema de Notificações Global -->
     <script src="/js/notification-manager.js?v=20260325"></script>
-    <script src="/_shared/connection-monitor.js?v=20260325"></script>
+    <script src="/_shared/connection-monitor.js?v=20260325" defer></script>
     <script src="/js/popup-confirmacao.js?v=20260325"></script>
 
     <!-- Utilitários Compartilhados -->
@@ -615,12 +614,15 @@
     <script src="/js/mobile-auto-enhance.js?v=20260325" defer></script>
 
     <!-- Chat Widget BOB AI -->
-    <script src="/chat/widget.js?v=20260325" defer></script>
+    <script src="/chat/widget.js?v=20260418" defer></script>
 
     <!-- Enterprise Shared -->
     <script src="/js/sidebar-click-animation.js?v=20260325"></script>
-    <script src="/_shared/accessibility-widget.js?v=20260325"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260325" defer></script>
     <script src="/js/user-dropdown.js?v=20260325" defer></script>
     <script src="/chat-teams/chat-widget.js?v=20260325" defer></script>
+
+    <script src="/js/global-sidebar-submenu.js?v=20260610b" defer></script>
 </body>
 </html>
+

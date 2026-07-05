@@ -56,7 +56,10 @@ async function abrirConfiguracao(tipo) {
         'sla': 'modal-sla',
         'nfse': 'modal-nfse',
         'custos-precificacao': 'modal-custos-precificacao',
-        'espelho-nf': 'modal-espelho-nf'
+        'espelho-nf': 'modal-espelho-nf',
+        'baixar-aplicativo': 'modal-baixar-aplicativo',
+        'bloco-k': 'modal-bloco-k',
+        'assistente-fiscal-ia': 'modal-fiscal-ai'
     };
 
     const modalId = modalMap[tipo];
@@ -150,7 +153,9 @@ async function abrirConfiguracao(tipo) {
         'contratos': 'Modelos de Contrato',
         'sla': 'SLA de Atendimento',
         'nfse': 'NFS-e',
-        'espelho-nf': 'Espelho de Nota Fiscal'
+        'espelho-nf': 'Espelho de Nota Fiscal',
+        'bloco-k': 'Bloco K — SPED Fiscal',
+        'assistente-fiscal-ia': 'Assistente Fiscal IA'
     };
     if (titleMap[tipo]) {
         document.title = 'Zyntra: Configurações — ' + titleMap[tipo];
@@ -271,6 +276,12 @@ async function abrirConfiguracao(tipo) {
             break;
         case 'espelho-nf':
             if (typeof carregarListaNFesEspelho === 'function') carregarListaNFesEspelho();
+            break;
+        case 'bloco-k':
+            if (typeof loadBlocoKData === 'function') loadBlocoKData();
+            break;
+        case 'assistente-fiscal-ia':
+            if (window.fiscalAI && typeof window.fiscalAI.init === 'function') window.fiscalAI.init();
             break;
     }
 }
@@ -472,15 +483,31 @@ async function saveEmpresaConfig() {
 function atualizarLogoSistema(logoUrl) {
     // Adicionar timestamp para evitar cache
     const urlComTimestamp = logoUrl + '?v=' + Date.now();
+    const usaLogoFixaDaMarca = typeof window !== 'undefined' && !!window.__BRAND_LOGO__;
     
     // Atualizar todos os elementos com classe logo ou id relacionados
     document.querySelectorAll('.logo-empresa, .company-logo, #logo-sidebar, #logo-header, img[src*="logo"]').forEach(img => {
+        if (usaLogoFixaDaMarca && (
+            img.getAttribute('data-brand-logo-locked') === 'true' ||
+            img.id === 'zc-empresa-logo' ||
+            img.id === 'alf-brand-logo'
+        )) {
+            return;
+        }
+
         if (img.tagName === 'IMG') {
             img.src = urlComTimestamp;
         } else if (img.style) {
             img.style.backgroundImage = `url('${urlComTimestamp}')`;
         }
     });
+
+    if (usaLogoFixaDaMarca) {
+        localStorage.removeItem('empresa_logo_url');
+        localStorage.removeItem('empresa_logo_timestamp');
+        console.log('[Logo] Upload salvo, header mantém a marca da instância:', window.__BRAND_NAME__ || window.__BRAND__);
+        return;
+    }
     
     // Salvar no localStorage para persistir entre recarregamentos
     localStorage.setItem('empresa_logo_url', logoUrl);
@@ -562,13 +589,12 @@ async function saveVendaProdutosConfig() {
             showNotification('Configurações de venda de produtos salvas!', 'success');
             fecharModal('modal-venda-produtos');
         } else {
-            showNotification('Configurações salvas localmente!', 'success');
-            fecharModal('modal-venda-produtos');
+            const err = await response.json().catch(() => ({}));
+            showNotification(err.error || 'Erro ao salvar configurações. Tente novamente.', 'error');
         }
     } catch (error) {
         console.error('Erro:', error);
-        showNotification('Configurações salvas localmente!', 'success');
-        fecharModal('modal-venda-produtos');
+        showNotification('Erro de conexão ao salvar configurações.', 'error');
     }
 }
 
@@ -878,13 +904,12 @@ async function salvarInfoFrete() {
             showNotification('Configurações de frete salvas!', 'success');
             fecharModal('modal-info-frete');
         } else {
-            showNotification('Configurações salvas localmente!', 'success');
-            fecharModal('modal-info-frete');
+            const err = await response.json().catch(() => ({}));
+            showNotification(err.error || 'Erro ao salvar configurações de frete. Tente novamente.', 'error');
         }
     } catch (error) {
         console.error('Erro ao salvar info frete:', error);
-        showNotification('Configurações salvas localmente!', 'success');
-        fecharModal('modal-info-frete');
+        showNotification('Erro de conexão ao salvar configurações de frete.', 'error');
     }
 }
 
@@ -1853,6 +1878,15 @@ async function saveCertificadoConfig() {
         });
 
         if (response.ok) {
+            const result = await response.json();
+            // Auto-fill the validity date from the extracted certificate info
+            if (result.info && result.info.validade) {
+                const validadeInput = form.querySelector('[name="certificado_validade"]');
+                if (validadeInput) {
+                    const dt = new Date(result.info.validade);
+                    validadeInput.value = dt.toISOString().split('T')[0];
+                }
+            }
             showNotification('Certificado salvo com sucesso!', 'success');
             closeConfigModal('modal-certificado');
             loadCertificadoData();
@@ -2156,6 +2190,47 @@ function maskTelefone(value) {
     }
 }
 
+// =========================
+// INSTALAÇÃO PWA (App Desktop/Mobile)
+// =========================
+
+let deferredPWAPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPWAPrompt = e;
+    console.log('[PWA] Prompt de instalação capturado');
+});
+
+window.addEventListener('appinstalled', () => {
+    deferredPWAPrompt = null;
+    console.log('[PWA] App instalado com sucesso');
+    const infoEl = document.getElementById('pwa-install-info');
+    if (infoEl) infoEl.style.display = 'block';
+    const btnEl = document.getElementById('btn-instalar-pwa');
+    if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.innerHTML = '<i class="fas fa-check"></i> Aplicativo Instalado';
+    }
+});
+
+async function instalarPWA() {
+    if (deferredPWAPrompt) {
+        deferredPWAPrompt.prompt();
+        const { outcome } = await deferredPWAPrompt.userChoice;
+        if (outcome === 'accepted') {
+            showNotification('Aplicativo instalado com sucesso!', 'success');
+        }
+        deferredPWAPrompt = null;
+    } else if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+        showNotification('O aplicativo já está instalado neste dispositivo.', 'info');
+        const infoEl = document.getElementById('pwa-install-info');
+        if (infoEl) infoEl.style.display = 'block';
+    } else {
+        showNotification('Para instalar, use o ícone na barra de endereço do navegador (Chrome/Edge).', 'info');
+    }
+}
+
 // Exportar funções globalmente
 window.abrirConfiguracao = abrirConfiguracao;
 window.closeConfigModal = closeConfigModal;
@@ -2181,6 +2256,7 @@ window.loadClientesFornecedoresConfig = loadClientesFornecedoresConfig;
 window.saveFinanceConfig = saveFinanceConfig;
 window.loadFinancasConfig = loadFinancasConfig;
 window.loadCustosPrecificacaoData = loadCustosPrecificacaoData;
+window.instalarPWA = instalarPWA;
 // Tipos de Entrega
 window.abrirModalTiposEntrega = abrirModalTiposEntrega;
 window.abrirFormTipoEntrega = abrirFormTipoEntrega;
@@ -8357,9 +8433,14 @@ function editarCondicao(id) {
                                 <input type="text" id="editar-condicao-nome" value="${cond.nome || ''}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
                             </div>
                             <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                                <div class="form-group" style="flex: 2;">
+                                    <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Dias (parcelas)</label>
+                                    <input type="text" id="editar-condicao-dias" value="${cond.dias || ''}" placeholder="Ex: 21,28,35" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                                    <small style="color:#9ca3af;font-size:11px;">Separe os vencimentos por vírgula. Ex: <strong>28,35,42</strong></small>
+                                </div>
                                 <div class="form-group" style="flex: 1;">
-                                    <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Prazo (dias)</label>
-                                    <input type="number" id="editar-condicao-dias" value="${cond.dias || 0}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                                    <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Acréscimo (%)</label>
+                                    <input type="number" step="0.01" id="editar-condicao-acrescimo" value="${cond.acrescimo || 0}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -8392,16 +8473,21 @@ function editarCondicao(id) {
 async function salvarEdicaoCondicao() {
     const id = document.getElementById('editar-condicao-id').value;
     const nome = document.getElementById('editar-condicao-nome').value.trim();
-    const dias = parseInt(document.getElementById('editar-condicao-dias').value) || 0;
+    // dias é um texto multi-valor (ex.: "21,28,35"); não fazer parseInt para não truncar.
+    const dias = (document.getElementById('editar-condicao-dias').value || '').trim();
+    const acrescimo = parseFloat(document.getElementById('editar-condicao-acrescimo')?.value) || 0;
     const descricao = document.getElementById('editar-condicao-descricao').value.trim();
-    
+    // Parcelas = quantidade de vencimentos informados.
+    const parcelas = dias ? dias.split(/[/,;]/).map(s => s.trim()).filter(Boolean).length || 1 : 1;
+
     if (!nome) return showNotification('Nome é obrigatório', 'error');
-    
+
     try {
         const response = await fetch(`/api/configuracoes/condicoes-pagamento/${id}`, {
             method: 'PUT',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nome, dias, descricao })
+            body: JSON.stringify({ nome, dias, parcelas, acrescimo, descricao })
         });
         if (response.ok) {
             showNotification('Condição atualizada com sucesso!', 'success');
@@ -8423,7 +8509,7 @@ async function excluirCondicao(id) {
     if (!confirm('Deseja realmente excluir esta condição de pagamento?')) return;
     
     try {
-        const response = await fetch(`/api/configuracoes/condicoes-pagamento/${id}`, { method: 'DELETE' });
+        const response = await fetch(`/api/configuracoes/condicoes-pagamento/${id}`, { method: 'DELETE', credentials: 'include' });
         if (response.ok) {
             showNotification('Condição excluída com sucesso!', 'success');
             loadCondicoesPagamentoData();
@@ -8440,6 +8526,133 @@ async function excluirCondicao(id) {
 window.editarRegiao = editarRegiao;
 window.excluirRegiao = excluirRegiao;
 window.salvarEdicaoRegiao = salvarEdicaoRegiao;
+
+// =========================
+// GRUPOS DE CLIENTES - CRUD
+// =========================
+
+async function novoGrupoCliente() {
+    const html = `
+        <div class="modal-overlay active" id="modal-novo-grupo-cliente" style="display: flex;">
+            <div class="modal-content" style="max-width: 450px; border-radius: 12px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                    <h2><i class="fas fa-layer-group"></i> Novo Grupo de Clientes</h2>
+                    <button class="modal-close" onclick="fecharModalConfig('modal-novo-grupo-cliente')"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="modal-body" style="padding: 24px;">
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Nome do Grupo *</label>
+                        <input type="text" id="gc-nome" placeholder="Ex: VIP, Revendedor" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Desconto (%)</label>
+                        <input type="number" id="gc-desconto" min="0" max="100" step="0.01" value="0" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Prazo Padrão (dias)</label>
+                        <input type="number" id="gc-prazo" min="0" value="0" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                    </div>
+                </div>
+                <div class="modal-footer" style="padding: 16px 24px; background: #f9fafb; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px;">
+                    <button type="button" onclick="fecharModalConfig('modal-novo-grupo-cliente')" style="padding: 10px 20px; border: 1px solid #d1d5db; background: white; border-radius: 8px; cursor: pointer;">Cancelar</button>
+                    <button type="button" style="background: #8b5cf6; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer;" onclick="salvarGrupoCliente()">
+                        <i class="fas fa-save"></i> Salvar
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function salvarGrupoCliente(id = null) {
+    const nome = document.getElementById('gc-nome')?.value?.trim();
+    const desconto = document.getElementById('gc-desconto')?.value || 0;
+    const prazo_padrao = document.getElementById('gc-prazo')?.value || 0;
+    if (!nome) { showNotification('Nome do grupo é obrigatório', 'error'); return; }
+    try {
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `/api/clientes/grupos/${id}` : '/api/clientes/grupos';
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome, desconto, prazo_padrao })
+        });
+        if (response.ok) {
+            showNotification(id ? 'Grupo atualizado!' : 'Grupo criado!', 'success');
+            fecharModalConfig(id ? 'modal-editar-grupo-cliente' : 'modal-novo-grupo-cliente');
+            loadGruposClientesData();
+        } else {
+            throw new Error('Erro ao salvar grupo');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showNotification('Erro ao salvar grupo de clientes', 'error');
+    }
+}
+
+async function editarGrupoCliente(id) {
+    try {
+        const response = await fetch(`/api/clientes/grupos/${id}`);
+        const grupo = response.ok ? await response.json() : {};
+        const g = grupo.data || grupo;
+        const html = `
+            <div class="modal-overlay active" id="modal-editar-grupo-cliente" style="display: flex;">
+                <div class="modal-content" style="max-width: 450px; border-radius: 12px;">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                        <h2><i class="fas fa-edit"></i> Editar Grupo</h2>
+                        <button class="modal-close" onclick="fecharModalConfig('modal-editar-grupo-cliente')"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="modal-body" style="padding: 24px;">
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Nome do Grupo *</label>
+                            <input type="text" id="gc-nome" value="${g.nome || ''}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Desconto (%)</label>
+                            <input type="number" id="gc-desconto" min="0" max="100" step="0.01" value="${g.desconto || 0}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Prazo Padrão (dias)</label>
+                            <input type="number" id="gc-prazo" min="0" value="${g.prazo_padrao || 0}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="padding: 16px 24px; background: #f9fafb; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px;">
+                        <button type="button" onclick="fecharModalConfig('modal-editar-grupo-cliente')" style="padding: 10px 20px; border: 1px solid #d1d5db; background: white; border-radius: 8px; cursor: pointer;">Cancelar</button>
+                        <button type="button" style="background: #8b5cf6; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer;" onclick="salvarGrupoCliente(${id})">
+                            <i class="fas fa-save"></i> Salvar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+    } catch (error) {
+        console.error('Erro ao carregar grupo:', error);
+        showNotification('Erro ao carregar grupo', 'error');
+    }
+}
+
+async function excluirGrupoCliente(id) {
+    if (!confirm('Deseja realmente excluir este grupo de clientes?')) return;
+    try {
+        const response = await fetch(`/api/clientes/grupos/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            showNotification('Grupo excluído com sucesso!', 'success');
+            loadGruposClientesData();
+        } else {
+            throw new Error('Erro ao excluir');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showNotification('Erro ao excluir grupo de clientes', 'error');
+    }
+}
+
+window.novoGrupoCliente = novoGrupoCliente;
+window.salvarGrupoCliente = salvarGrupoCliente;
+window.editarGrupoCliente = editarGrupoCliente;
+window.excluirGrupoCliente = excluirGrupoCliente;
 window.editarCondicao = editarCondicao;
 window.excluirCondicao = excluirCondicao;
 window.salvarEdicaoCondicao = salvarEdicaoCondicao;

@@ -5,7 +5,15 @@
 
 module.exports = {
     // Ambiente (1 = Produção, 2 = Homologação)
-    ambiente: process.env.NFE_AMBIENTE || 2,
+    // [FIX schema 215] Normaliza para 1/2 — aceita "1"/"2" ou textos "producao"/"homologacao".
+    // O <tpAmb> do XML SÓ aceita 1 ou 2; valor textual cru ("homologacao") falha no schema.
+    ambiente: (() => {
+        const a = process.env.NFE_AMBIENTE;
+        if (a === undefined || a === null || a === '') return 2;
+        const n = parseInt(a, 10);
+        if (n === 1 || n === 2) return n;
+        return String(a).toLowerCase().startsWith('prod') ? 1 : 2;
+    })(),
     
     // Versão do layout NFe
     versao: '4.00',
@@ -147,6 +155,10 @@ module.exports = {
                 statusServico: 'https://nfe-homologacao.svrs.rs.gov.br/ws/NfeStatusServico/NfeStatusServico4.asmx',
                 inutilizacao: 'https://nfe-homologacao.svrs.rs.gov.br/ws/NfeInutilizacao/NfeInutilizacao4.asmx',
                 eventos: 'https://nfe-homologacao.svrs.rs.gov.br/ws/RecepcaoEvento/RecepcaoEvento4.asmx'
+            },
+            'AN': { // Ambiente Nacional — Manifestação do Destinatário (MD-e) + Distribuição DFe
+                eventos: 'https://hom.nfe.fazenda.gov.br/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx',
+                distDFe: 'https://hom.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx'
             }
         },
         producao: {
@@ -253,6 +265,10 @@ module.exports = {
                 statusServico: 'https://nfe.svrs.rs.gov.br/ws/NfeStatusServico/NfeStatusServico4.asmx',
                 inutilizacao: 'https://nfe.svrs.rs.gov.br/ws/NfeInutilizacao/NfeInutilizacao4.asmx',
                 eventos: 'https://nfe.svrs.rs.gov.br/ws/RecepcaoEvento/RecepcaoEvento4.asmx'
+            },
+            'AN': { // Ambiente Nacional — Manifestação do Destinatário (MD-e) + Distribuição DFe
+                eventos: 'https://www.nfe.fazenda.gov.br/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx',
+                distDFe: 'https://www1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx'
             }
         }
     },

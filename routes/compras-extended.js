@@ -21,17 +21,6 @@ module.exports = function createComprasExtendedRoutes(deps) {
     const upload = multer({ dest: path.join(__dirname, '..', 'uploads'), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: safeFileFilter });
     const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-    // Escapa HTML para prevenir XSS ao salvar texto livre no banco
-    const sanitizeText = (str) => {
-        if (str == null) return null;
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    };
-
     // AUDIT-FIX R2: Middleware RBAC para operações de escrita em Compras
     const requireComprasWrite = (req, res, next) => {
         const rolesPermitidas = ['admin', 'administrador', 'gerente', 'gerente_compras', 'comprador', 'diretor'];
@@ -104,20 +93,6 @@ module.exports = function createComprasExtendedRoutes(deps) {
     });
 
     // Criar novo fornecedor
-    function validarCNPJ(cnpj) {
-        cnpj = String(cnpj).replace(/\D/g, '');
-        if (cnpj.length !== 14) return false;
-        if (/^(\d)\1+$/.test(cnpj)) return false;
-        let soma = 0, pos = 5;
-        for (let i = 0; i < 12; i++) { soma += parseInt(cnpj[i]) * pos--; if (pos < 2) pos = 9; }
-        let dig = soma % 11 < 2 ? 0 : 11 - (soma % 11);
-        if (dig !== parseInt(cnpj[12])) return false;
-        soma = 0; pos = 6;
-        for (let i = 0; i < 13; i++) { soma += parseInt(cnpj[i]) * pos--; if (pos < 2) pos = 9; }
-        dig = soma % 11 < 2 ? 0 : 11 - (soma % 11);
-        return dig === parseInt(cnpj[13]);
-    }
-
     router.post('/fornecedores', authenticateToken, requireComprasWrite, async (req, res) => {
         try {
             const {
@@ -128,10 +103,6 @@ module.exports = function createComprasExtendedRoutes(deps) {
 
             if (!razao_social || !cnpj) {
                 return res.status(400).json({ message: 'Razão social e CNPJ são obrigatórios' });
-            }
-
-            if (!validarCNPJ(cnpj)) {
-                return res.status(400).json({ message: 'CNPJ inválido' });
             }
 
             const [result] = await pool.query(
@@ -170,10 +141,6 @@ module.exports = function createComprasExtendedRoutes(deps) {
                 estado, cep, telefone, email, contato_principal,
                 condicoes_pagamento, prazo_entrega_padrao, observacoes, ativo
             } = req.body;
-
-            if (cnpj && !validarCNPJ(cnpj)) {
-                return res.status(400).json({ message: 'CNPJ inválido' });
-            }
 
             await pool.query(
                 `UPDATE fornecedores SET
@@ -1054,9 +1021,9 @@ module.exports = function createComprasExtendedRoutes(deps) {
                     });
                 }
 
-                // Validar preço unitário — não permite zero (BUG-005)
+                // Validar preço unitário
                 const preco = parseFloat(item.preco_unitario);
-                if (isNaN(preco) || preco <= 0 || preco > 999999999.99) {
+                if (isNaN(preco) || preco < 0 || preco > 999999999.99) {
                     await connection.rollback();
                     return res.status(400).json({
                         error: `Preço unitário inválido no item ${i + 1}`,
@@ -1082,9 +1049,6 @@ module.exports = function createComprasExtendedRoutes(deps) {
 
             console.log(`[COMPRAS-AUDIT] Novo pedido criado por usuário ${req.user.id} - Fornecedor: ${fornecedorCheck[0].razao_social} - Valor: R$ ${valor_total_sanitizado.toFixed(2)} - Itens: ${itens.length}`);
 
-            // Sanitizar campo de texto livre antes de persistir (BUG-006 — XSS)
-            const observacoesSanitizadas = sanitizeText(observacoes);
-
             // Inserir pedido
             const [result] = await connection.query(
                 `INSERT INTO pedidos_compra (
@@ -1092,7 +1056,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
                     valor_total, valor_final, observacoes, usuario_solicitante_id, status
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendente')`,
                 [numero_pedido, fornecedorIdParsed, data_pedido, data_entrega_prevista,
-                 valor_total_sanitizado, valor_total_sanitizado, observacoesSanitizadas, req.user.id]
+                 valor_total_sanitizado, valor_total_sanitizado, observacoes, req.user.id]
             );
 
             const pedido_id = result.insertId;
@@ -1105,11 +1069,9 @@ module.exports = function createComprasExtendedRoutes(deps) {
                         preco_unitario, preco_total, observacoes
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
-                        pedido_id, item.codigo_produto,
-                        sanitizeText(item.descricao),      // BUG-006: sanitiza descricao
-                        item.quantidade,
+                        pedido_id, item.codigo_produto, item.descricao, item.quantidade,
                         item.unidade || 'UN', item.preco_unitario, item.preco_total,
-                        sanitizeText(item.observacoes)     // BUG-006: sanitiza observacoes do item
+                        item.observacoes
                     ]
                 );
 
@@ -1907,8 +1869,13 @@ module.exports = function createComprasExtendedRoutes(deps) {
 
             // Pedidos pendentes
             const [pedidosPendentes] = await pool.query(
-                "SELECT COUNT(*) as total FROM pedidos_compra WHERE LOWER(status) IN ('pendente', 'aberto', 'em_andamento')"
+                'SELECT COUNT(*) as total FROM pedidos_compra WHERE status = \'pendente\''
             );
+
+            // Requisições de compra pendentes (o card "Requisições Pendentes" reflete esta tabela, não pedidos_compra)
+            const [requisicoesPendentes] = await pool.query(
+                'SELECT COUNT(*) as total FROM requisicoes_compra WHERE status = \'pendente\''
+            ).catch(() => [[{ total: 0 }]]);
 
             // Valor total de compras do mês
             const [comprasMes] = await pool.query(
@@ -1945,23 +1912,33 @@ module.exports = function createComprasExtendedRoutes(deps) {
                 LIMIT 10
             `);
 
-            // Requisições pendentes (pendente + rascunho)
-            const [reqPendentes] = await pool.query(
-                "SELECT COUNT(*) as total FROM requisicoes_compra WHERE status IN ('pendente', 'rascunho')"
-            ).catch(() => [[{ total: 0 }]]);
+            const pedidosAtrasados = pedidosRecentes.filter(p => {
+                if (!p.data_entrega_prevista || p.status === 'recebido') return false;
+                return new Date(p.data_entrega_prevista) < new Date();
+            });
 
-            res.json({
+            const dashboard = {
                 stats: {
                     total_pedidos: totalPedidos[0].total,
                     pedidos_pendentes: pedidosPendentes[0].total,
-                    requisicoes_pendentes: reqPendentes[0].total,
+                    requisicoes_pendentes: requisicoesPendentes[0].total,
                     compras_mes: comprasMes[0].total || 0,
                     fornecedores_ativos: fornecedoresAtivos[0].total
                 },
+                pedidosPorStatus,
                 pedidos_por_status: pedidosPorStatus,
+                topFornecedores: topFornecedores.map(f => ({
+                    ...f,
+                    total_compras: f.total_valor || 0
+                })),
                 top_fornecedores: topFornecedores,
-                pedidos_recentes: pedidosRecentes
-            });
+                pedidosRecentes,
+                pedidos_recentes: pedidosRecentes,
+                pedidosAtrasados,
+                pedidos_atrasados: pedidosAtrasados
+            };
+
+            res.json({ success: true, data: dashboard, ...dashboard });
         } catch (err) {
             console.error('[COMPRAS] Erro ao buscar dashboard:', err);
             res.status(500).json({ message: 'Erro ao buscar dados do dashboard' });
@@ -2000,62 +1977,6 @@ module.exports = function createComprasExtendedRoutes(deps) {
     });
 
     // ===== REQUISIÇÕES DE COMPRA =====
-
-    // COM001-FIX: Criar tabelas de pedidos de compra se não existirem
-    (async () => {
-        try {
-            await pool.query(`
-                CREATE TABLE IF NOT EXISTS pedidos_compra (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    numero_pedido VARCHAR(50),
-                    fornecedor_id INT,
-                    requisicao_id INT,
-                    data_pedido DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    data_entrega_prevista DATE,
-                    valor_total DECIMAL(15,2) DEFAULT 0,
-                    valor_final DECIMAL(15,2) DEFAULT 0,
-                    status VARCHAR(50) DEFAULT 'pendente',
-                    forma_pagamento VARCHAR(100),
-                    condicao_pagamento VARCHAR(100),
-                    observacoes TEXT,
-                    motivo_cancelamento TEXT,
-                    usuario_solicitante_id INT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-            `);
-            await pool.query(`
-                CREATE TABLE IF NOT EXISTS pedidos_compra_itens (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    pedido_id INT NOT NULL,
-                    material_id INT,
-                    descricao VARCHAR(255) NOT NULL DEFAULT '',
-                    quantidade DECIMAL(15,4) DEFAULT 0,
-                    preco_unitario DECIMAL(15,4) DEFAULT 0,
-                    subtotal DECIMAL(15,2) DEFAULT 0,
-                    FOREIGN KEY (pedido_id) REFERENCES pedidos_compra(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-            `);
-            await pool.query(`
-                CREATE TABLE IF NOT EXISTS itens_pedido (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    pedido_id INT NOT NULL,
-                    codigo_produto VARCHAR(50),
-                    descricao VARCHAR(255) NOT NULL DEFAULT '',
-                    quantidade DECIMAL(15,4) DEFAULT 0,
-                    unidade VARCHAR(20) DEFAULT 'UN',
-                    preco_unitario DECIMAL(15,4) DEFAULT 0,
-                    preco_total DECIMAL(15,2) DEFAULT 0,
-                    quantidade_recebida DECIMAL(15,4) DEFAULT 0,
-                    observacoes TEXT,
-                    FOREIGN KEY (pedido_id) REFERENCES pedidos_compra(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-            `);
-            console.log('✅ Tabelas pedidos_compra, pedidos_compra_itens e itens_pedido verificadas/criadas');
-        } catch (err) {
-            console.error('⚠️ Erro ao criar tabelas de pedidos compra:', err.message);
-        }
-    })();
 
     // Criar tabela de requisições se não existir (aguarda conclusão antes de aceitar requests)
     let tabelasRequisicoesProntas = false;
@@ -2164,8 +2085,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
             const { status, prioridade, solicitante, data_inicio, data_fim } = req.query;
             let query = `
                 SELECT r.*,
-                       (SELECT COUNT(*) FROM itens_requisicao WHERE requisicao_id = r.id) as total_itens,
-                       (SELECT ir.descricao FROM itens_requisicao ir WHERE ir.requisicao_id = r.id ORDER BY ir.id ASC LIMIT 1) as descricao
+                       (SELECT COUNT(*) FROM itens_requisicao WHERE requisicao_id = r.id) as total_itens
                 FROM requisicoes_compra r
                 WHERE 1=1
             `;
@@ -2276,6 +2196,16 @@ module.exports = function createComprasExtendedRoutes(deps) {
                 justificativa, observacoes, fornecedores_sugeridos, status, itens
             } = req.body;
 
+            if (!data_solicitacao || !String(data_solicitacao).trim()) {
+                await connection.rollback();
+                return res.status(400).json({ message: 'Data da requisicao e obrigatoria.' });
+            }
+
+            if (!justificativa || !String(justificativa).trim()) {
+                await connection.rollback();
+                return res.status(400).json({ message: 'Justificativa e obrigatoria.' });
+            }
+
             if (!numero || !solicitante) {
                 await connection.rollback();
                 return res.status(400).json({ message: 'Número e solicitante são obrigatórios' });
@@ -2294,9 +2224,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
             const valor_estimado = itens ? itens.reduce((sum, item) => sum + parseFloat(item.subtotal || 0), 0) : 0;
 
             // Garantir data_solicitacao válida
-            const dataSolicitacao = data_solicitacao && data_solicitacao.trim() !== ''
-                ? data_solicitacao
-                : new Date().toISOString().split('T')[0];
+            const dataSolicitacao = data_solicitacao.trim();
 
             // Sanitizar prioridade para ENUM válido
             const prioridadesValidas = ['baixa', 'normal', 'alta', 'urgente'];
@@ -2534,7 +2462,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
             const [stats] = await pool.query(`
                 SELECT
                     COUNT(*) as total,
-                    SUM(CASE WHEN status IN ('pendente', 'rascunho') THEN 1 ELSE 0 END) as pendentes,
+                    SUM(CASE WHEN status = 'pendente' THEN 1 ELSE 0 END) as pendentes,
                     SUM(CASE WHEN status = 'aprovado' THEN 1 ELSE 0 END) as aprovadas,
                     SUM(CASE WHEN status = 'cotacao' THEN 1 ELSE 0 END) as em_cotacao,
                     SUM(CASE WHEN prioridade = 'urgente' THEN 1 ELSE 0 END) as urgentes

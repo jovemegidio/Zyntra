@@ -15,6 +15,10 @@ var NotificationManager = {
     soundEnabled: false,
     notificationSound: null,
 
+    withBasePath: function(path) {
+        return window.__withBasePath ? window.__withBasePath(path) : path;
+    },
+
     // Habilitar/Desabilitar notificações
     setEnabled: function(enabled) {
         this.enabled = enabled;
@@ -675,9 +679,9 @@ var NotificationManager = {
 
         // Se tiver ação/link, executar
         if (notif.data && notif.data.url) {
-            window.location.href = notif.data.url;
+            window.location.href = this.withBasePath(notif.data.url);
         } else if (notif.data && notif.data.pedido_id) {
-            window.location.href = '/Vendas/?pedido=' + notif.data.pedido_id;
+            window.location.href = this.withBasePath('/Vendas/?pedido=' + notif.data.pedido_id);
         }
 
         this.closePanel();

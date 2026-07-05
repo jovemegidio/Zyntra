@@ -429,16 +429,16 @@ class SpedFiscalService {
         // Buscar NF-e emitidas (tabela depende do módulo de Faturamento)
         try {
             const [notas] = await pool.query(`
-                SELECT * FROM nfe_emitidas
+                SELECT *, base_calculo_icms AS bc_icms, numero AS numero_nfe FROM nfes
                 WHERE MONTH(data_emissao) = ? AND YEAR(data_emissao) = ?
-                    AND status IN ('autorizada', 'emitida')
+                    AND status IN ('autorizada', 'emitida', 'autorizado')
                 ORDER BY data_emissao
             `, [mes, ano]);
 
             for (const nf of notas) {
                 try {
                     const [itens] = await pool.query(
-                        'SELECT * FROM nfe_emitidas_itens WHERE nfe_emitida_id = ? ORDER BY numero_item',
+                        'SELECT *, base_calculo_icms AS bc_icms FROM nfe_itens WHERE nfe_id = ? ORDER BY numero_item',
                         [nf.id]
                     );
                     nf.itens = itens;
@@ -490,9 +490,9 @@ class SpedFiscalService {
         let totalDebitos = 0, totalCreditos = 0;
         try {
             const [debitos] = await pool.query(`
-                SELECT COALESCE(SUM(valor_icms), 0) as total FROM nfe_emitidas
+                SELECT COALESCE(SUM(valor_icms), 0) as total FROM nfes
                 WHERE MONTH(data_emissao) = ? AND YEAR(data_emissao) = ?
-                AND status IN ('autorizada', 'emitida')
+                AND status IN ('autorizada', 'emitida', 'autorizado')
             `, [mes, ano]);
             totalDebitos = parseFloat(debitos[0].total) || 0;
         } catch (e) { /* sem NFs de saída */ }
@@ -763,9 +763,9 @@ class SpedContribuicoesService {
         // Saídas - Débitos de PIS/COFINS
         try {
             const [nfs] = await pool.query(`
-                SELECT * FROM nfe_emitidas
+                SELECT *, numero AS numero_nfe FROM nfes
                 WHERE MONTH(data_emissao) = ? AND YEAR(data_emissao) = ?
-                AND status IN ('autorizada', 'emitida')
+                AND status IN ('autorizada', 'emitida', 'autorizado')
             `, [mes, ano]);
 
             for (const nf of nfs) {
@@ -869,8 +869,8 @@ class SpedContribuicoesService {
         try {
             const [debitos] = await pool.query(`
                 SELECT COALESCE(SUM(valor_pis), 0) as pis, COALESCE(SUM(valor_cofins), 0) as cofins
-                FROM nfe_emitidas WHERE MONTH(data_emissao) = ? AND YEAR(data_emissao) = ?
-                AND status IN ('autorizada', 'emitida')
+                FROM nfes WHERE MONTH(data_emissao) = ? AND YEAR(data_emissao) = ?
+                AND status IN ('autorizada', 'emitida', 'autorizado')
             `, [mes, ano]);
             pisDebito = parseFloat(debitos[0].pis) || 0;
             cofinsDebito = parseFloat(debitos[0].cofins) || 0;

@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <link rel="icon" type="image/jpeg" href="/favicon-zyntra.jpg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zyntra: Faturamento — Contratos</title>
+    <script src="/js/auth-unified.js?v=20260326" defer></script>
+    <script src="/js/inactivity-manager.js?v=20260324" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/Faturamento/css/faturamento-layout.css?v=20260413b">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
+    <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260320">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
+</head>
+
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="/Faturamento/dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+                <a href="/Faturamento/index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="/Faturamento/consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
+                <a href="/Faturamento/eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
+                <a href="/Faturamento/inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+                <a href="/Faturamento/contratos.html" class="sidebar-btn active" title="Contratos"><i class="fas fa-file-signature"></i></a>
+                <a href="/Faturamento/logistica.html" class="sidebar-btn" title="Logística CT-e/MDF-e"><i class="fas fa-truck"></i></a>
+                <a href="/Faturamento/cenario-fiscal.html" class="sidebar-btn" title="Cenário Fiscal"><i class="fas fa-gavel"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="/Faturamento/painel-contador.html" class="sidebar-btn" title="Painel do Contador"><i class="fas fa-calculator"></i></a>
+                <a href="/Faturamento/relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i
+                            class="fas fa-bars"></i></button>
+                    <a href="/dashboard" class="header-brand" style="display:flex;align-items:center;gap:10px;text-decoration:none;" title="Voltar ao painel">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE"
+                            style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                    </a>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i
+                            class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-content">
+                <div class="page-header">
+                    <div class="page-header-top">
+                        <div class="page-title-wrapper">
+                            <div class="page-icon"><i class="fas fa-file-signature"></i></div>
+                            <div>
+                                <h1 class="page-title">Contratos</h1>
+                                <p class="page-subtitle">Cadastro de contratos recorrentes — alimenta os relatórios gerenciais</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="abrirModalContrato()"><i class="fas fa-plus"></i> Novo Contrato</button>
+                    </div>
+                </div>
+
+                <!-- KPIs -->
+                <div class="form-row" style="margin-bottom:8px;">
+                    <div class="card" style="flex:1;"><div class="card-body" style="text-align:center;padding:14px;">
+                        <div style="font-size:24px;font-weight:700;color:#0369a1;" id="kpi-ativos">0</div>
+                        <div style="font-size:11px;color:#64748b;">Ativos</div></div></div>
+                    <div class="card" style="flex:1;"><div class="card-body" style="text-align:center;padding:14px;">
+                        <div style="font-size:24px;font-weight:700;color:#b45309;" id="kpi-vencer">0</div>
+                        <div style="font-size:11px;color:#64748b;">A vencer (30d)</div></div></div>
+                    <div class="card" style="flex:1;"><div class="card-body" style="text-align:center;padding:14px;">
+                        <div style="font-size:24px;font-weight:700;color:#dc2626;" id="kpi-vencidos">0</div>
+                        <div style="font-size:11px;color:#64748b;">Vencidos</div></div></div>
+                    <div class="card" style="flex:1;"><div class="card-body" style="text-align:center;padding:14px;">
+                        <div style="font-size:24px;font-weight:700;color:#15803d;" id="kpi-mrr">R$ 0,00</div>
+                        <div style="font-size:11px;color:#64748b;">Receita Mensal (MRR)</div></div></div>
+                </div>
+
+                <div class="card mb-6">
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Buscar</label>
+                                <input type="text" class="form-control" id="filtro-busca" placeholder="Nº, cliente ou descrição" oninput="renderizar()">
+                            </div>
+                            <div class="form-group">
+                                <label>Situação</label>
+                                <select class="form-control" id="filtro-situacao" onchange="renderizar()">
+                                    <option value="">Todas</option>
+                                    <option value="Ativo">Ativos</option>
+                                    <option value="A vencer">A vencer</option>
+                                    <option value="Vencido">Vencidos</option>
+                                    <option value="Encerrado">Encerrados</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-list"></i> Contratos cadastrados</h3>
+                    </div>
+                    <div class="card-body" style="padding:0;">
+                        <div style="overflow-x:auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Contrato</th>
+                                        <th>Cliente</th>
+                                        <th>Periodicidade</th>
+                                        <th>Início</th>
+                                        <th>Vencimento</th>
+                                        <th>Situação</th>
+                                        <th style="text-align:right;">Valor</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-contratos">
+                                    <tr><td colspan="8"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Carregando...</p></div></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Contrato -->
+    <div class="modal-overlay" id="modalContrato" onclick="if(event.target===this) fecharModalContrato()">
+        <div class="modal-content" style="max-width:600px;">
+            <div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;border-radius:12px 12px 0 0;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <i class="fas fa-file-signature" style="font-size:18px;"></i>
+                    <span style="font-size:16px;font-weight:700;" id="modal-titulo">Novo Contrato</span>
+                </div>
+                <button onclick="fecharModalContrato()" title="Fechar" style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:20px;cursor:pointer;border-radius:50px;width:32px;height:32px;line-height:1;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding:20px;">
+                <form id="form-contrato" onsubmit="event.preventDefault(); salvarContrato();">
+                    <input type="hidden" id="ct-id">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Nº do Contrato</label>
+                            <input type="text" class="form-control" id="ct-numero" placeholder="Ex.: CT-2026-001" maxlength="50">
+                        </div>
+                        <div class="form-group">
+                            <label>Cliente *</label>
+                            <input type="text" class="form-control" id="ct-cliente" list="lista-clientes" placeholder="Nome do cliente" maxlength="255" required>
+                            <datalist id="lista-clientes"></datalist>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Descrição</label>
+                        <input type="text" class="form-control" id="ct-descricao" placeholder="Objeto do contrato" maxlength="255">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Valor *</label>
+                            <input type="number" class="form-control" id="ct-valor" placeholder="0,00" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Periodicidade</label>
+                            <select class="form-control" id="ct-periodicidade">
+                                <option value="mensal">Mensal</option>
+                                <option value="bimestral">Bimestral</option>
+                                <option value="trimestral">Trimestral</option>
+                                <option value="semestral">Semestral</option>
+                                <option value="anual">Anual</option>
+                                <option value="unico">Pagamento único</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Início da Vigência</label>
+                            <input type="date" class="form-control" id="ct-data-inicio">
+                        </div>
+                        <div class="form-group">
+                            <label>Vencimento</label>
+                            <input type="date" class="form-control" id="ct-data-fim">
+                        </div>
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select class="form-control" id="ct-status">
+                                <option value="ativo">Ativo</option>
+                                <option value="suspenso">Suspenso</option>
+                                <option value="encerrado">Encerrado</option>
+                                <option value="cancelado">Cancelado</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Observações</label>
+                        <textarea class="form-control" id="ct-observacoes" rows="2" maxlength="1000" placeholder="Anotações internas"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div style="background:#f9f9f9;border-top:1px solid #f0f0f0;padding:14px 20px;display:flex;justify-content:space-between;border-radius:0 0 12px 12px;">
+                <button onclick="fecharModalContrato()" style="padding:9px 22px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:#e5e7eb;color:#374151;">Cancelar</button>
+                <button onclick="salvarContrato()" class="btn btn-primary"><i class="fas fa-save"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = '/api/faturamento/contratos';
+        let _contratos = [];
+
+        function _toast(msg, tipo) {
+            tipo = tipo || 'info';
+            const t = document.createElement('div');
+            const colors = { success: '#059669', error: '#dc2626', info: '#2563eb', warning: '#d97706' };
+            t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:' + (colors[tipo] || colors.info) + ';color:#fff;padding:12px 20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.2);z-index:99999;max-width:420px;font-family:Inter,sans-serif;font-size:13px;line-height:1.5;';
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, 5000);
+        }
+
+        function toggleMobileSidebar() {
+            document.getElementById('mobile-sidebar').classList.toggle('open');
+            document.getElementById('sidebar-overlay').classList.toggle('active');
+        }
+
+        function escapeHtml(v) {
+            return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function fmtMoeda(v) { return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+        function fmtData(d) { return d ? new Date(d).toLocaleDateString('pt-BR') : '—'; }
+
+        function ativoStatus(c) {
+            const s = String(c.status || '').toLowerCase();
+            return s !== 'cancelado' && s !== 'encerrado';
+        }
+        function fimDe(c) { return c.data_fim ? new Date(c.data_fim + 'T00:00:00') : null; }
+        function situacao(c) {
+            const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+            const em30 = new Date(hoje); em30.setDate(em30.getDate() + 30);
+            const f = fimDe(c);
+            if (!ativoStatus(c)) return 'Encerrado';
+            if (f && f < hoje) return 'Vencido';
+            if (f && f <= em30) return 'A vencer';
+            return 'Ativo';
+        }
+
+        async function carregar() {
+            try {
+                const r = await fetch(API, { credentials: 'include' });
+                const data = r.ok ? await r.json() : [];
+                _contratos = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+                atualizarKpis();
+                renderizar();
+            } catch (e) {
+                document.getElementById('tbody-contratos').innerHTML = '<tr><td colspan="8"><div class="empty-state"><i class="fas fa-exclamation-triangle"></i><h3>Erro ao carregar</h3><p>' + escapeHtml(e.message) + '</p></div></td></tr>';
+            }
+        }
+
+        function atualizarKpis() {
+            const fator = { mensal: 1, bimestral: 1 / 2, trimestral: 1 / 3, semestral: 1 / 6, anual: 1 / 12, unico: 0 };
+            let ativos = 0, vencer = 0, vencidos = 0, mrr = 0;
+            _contratos.forEach(c => {
+                const st = situacao(c);
+                if (st === 'Ativo' || st === 'A vencer') {
+                    ativos++;
+                    const per = String(c.periodicidade || 'mensal').toLowerCase();
+                    mrr += (Number(c.valor) || 0) * (fator[per] != null ? fator[per] : 1);
+                }
+                if (st === 'A vencer') vencer++;
+                if (st === 'Vencido') vencidos++;
+            });
+            document.getElementById('kpi-ativos').textContent = ativos;
+            document.getElementById('kpi-vencer').textContent = vencer;
+            document.getElementById('kpi-vencidos').textContent = vencidos;
+            document.getElementById('kpi-mrr').textContent = fmtMoeda(mrr);
+        }
+
+        function renderizar() {
+            const busca = (document.getElementById('filtro-busca').value || '').toLowerCase();
+            const situ = document.getElementById('filtro-situacao').value;
+            const corStatus = { 'Ativo': '#15803d', 'A vencer': '#b45309', 'Vencido': '#dc2626', 'Encerrado': '#64748b' };
+
+            let lista = _contratos.slice();
+            if (situ) lista = lista.filter(c => situacao(c) === situ);
+            if (busca) lista = lista.filter(c =>
+                (c.cliente_nome || '').toLowerCase().includes(busca) ||
+                (c.numero || '').toLowerCase().includes(busca) ||
+                (c.descricao || '').toLowerCase().includes(busca));
+
+            const tbody = document.getElementById('tbody-contratos');
+            if (!lista.length) {
+                tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><i class="fas fa-inbox"></i><h3>Nenhum contrato</h3><p>Clique em "Novo Contrato" para cadastrar</p></div></td></tr>';
+                return;
+            }
+            tbody.innerHTML = lista.map(c => {
+                const st = situacao(c);
+                return `<tr>
+                    <td><span class="code">${escapeHtml(c.numero || ('#' + c.id))}</span></td>
+                    <td>${escapeHtml(c.cliente_nome || '—')}</td>
+                    <td>${escapeHtml((c.periodicidade || 'mensal').replace(/^./, m => m.toUpperCase()))}</td>
+                    <td>${fmtData(c.data_inicio)}</td>
+                    <td>${fmtData(c.data_fim)}</td>
+                    <td><span style="font-weight:600;color:${corStatus[st] || '#475569'};">${st}</span></td>
+                    <td style="text-align:right;"><strong>${fmtMoeda(c.valor)}</strong></td>
+                    <td>
+                        <div style="display:flex;gap:4px;">
+                            <button class="action-btn view" onclick="editarContrato(${c.id})" title="Editar" aria-label="Editar contrato"><i class="fas fa-pen"></i></button>
+                            <button class="action-btn" onclick="excluirContrato(${c.id})" title="Excluir" aria-label="Excluir contrato" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function abrirModalContrato() {
+            document.getElementById('form-contrato').reset();
+            document.getElementById('ct-id').value = '';
+            document.getElementById('modal-titulo').textContent = 'Novo Contrato';
+            document.getElementById('ct-status').value = 'ativo';
+            document.getElementById('ct-periodicidade').value = 'mensal';
+            document.getElementById('modalContrato').classList.add('active');
+        }
+
+        function editarContrato(id) {
+            const c = _contratos.find(x => x.id === id);
+            if (!c) return;
+            document.getElementById('ct-id').value = c.id;
+            document.getElementById('ct-numero').value = c.numero || '';
+            document.getElementById('ct-cliente').value = c.cliente_nome || '';
+            document.getElementById('ct-descricao').value = c.descricao || '';
+            document.getElementById('ct-valor').value = c.valor != null ? c.valor : '';
+            document.getElementById('ct-periodicidade').value = (c.periodicidade || 'mensal').toLowerCase();
+            document.getElementById('ct-data-inicio').value = c.data_inicio ? String(c.data_inicio).slice(0, 10) : '';
+            document.getElementById('ct-data-fim').value = c.data_fim ? String(c.data_fim).slice(0, 10) : '';
+            document.getElementById('ct-status').value = (c.status || 'ativo').toLowerCase();
+            document.getElementById('ct-observacoes').value = c.observacoes || '';
+            document.getElementById('modal-titulo').textContent = 'Editar Contrato';
+            document.getElementById('modalContrato').classList.add('active');
+        }
+
+        function fecharModalContrato() {
+            document.getElementById('modalContrato').classList.remove('active');
+        }
+
+        async function salvarContrato() {
+            const cliente = document.getElementById('ct-cliente').value.trim();
+            const valor = document.getElementById('ct-valor').value;
+            if (!cliente) { _toast('Informe o cliente', 'warning'); return; }
+            if (valor === '' || isNaN(Number(valor))) { _toast('Informe um valor válido', 'warning'); return; }
+
+            const id = document.getElementById('ct-id').value;
+            const payload = {
+                numero: document.getElementById('ct-numero').value.trim() || null,
+                cliente_nome: cliente,
+                descricao: document.getElementById('ct-descricao').value.trim() || null,
+                valor: Number(valor),
+                periodicidade: document.getElementById('ct-periodicidade').value,
+                data_inicio: document.getElementById('ct-data-inicio').value || null,
+                data_fim: document.getElementById('ct-data-fim').value || null,
+                status: document.getElementById('ct-status').value,
+                observacoes: document.getElementById('ct-observacoes').value.trim() || null,
+                cliente_id: (_clientesMap[cliente.toLowerCase()] || null)
+            };
+
+            try {
+                const url = id ? `${API}/${id}` : API;
+                const method = id ? 'PUT' : 'POST';
+                const r = await fetch(url, {
+                    method,
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const resp = await r.json().catch(() => ({}));
+                if (!r.ok || resp.success === false) throw new Error(resp.message || ('HTTP ' + r.status));
+                _toast(id ? 'Contrato atualizado' : 'Contrato criado', 'success');
+                fecharModalContrato();
+                carregar();
+            } catch (e) {
+                _toast('Erro ao salvar: ' + e.message, 'error');
+            }
+        }
+
+        async function excluirContrato(id) {
+            const c = _contratos.find(x => x.id === id);
+            if (!confirm('Excluir o contrato ' + (c && c.numero ? c.numero : '#' + id) + '?')) return;
+            try {
+                const r = await fetch(`${API}/${id}`, { method: 'DELETE', credentials: 'include' });
+                const resp = await r.json().catch(() => ({}));
+                if (!r.ok || resp.success === false) throw new Error(resp.message || ('HTTP ' + r.status));
+                _toast('Contrato excluído', 'success');
+                carregar();
+            } catch (e) {
+                _toast('Erro ao excluir: ' + e.message, 'error');
+            }
+        }
+
+        // Datalist de clientes (best-effort)
+        let _clientesMap = {};
+        async function carregarClientes() {
+            try {
+                const r = await fetch('/api/vendas/clientes?limit=2000', { credentials: 'include' });
+                if (!r.ok) return;
+                const data = await r.json();
+                const lista = Array.isArray(data) ? data : (data.data || []);
+                const dl = document.getElementById('lista-clientes');
+                dl.innerHTML = lista.map(cl => {
+                    const nome = cl.nome || cl.razao_social || '';
+                    if (nome && cl.id) _clientesMap[nome.toLowerCase()] = cl.id;
+                    return `<option value="${escapeHtml(nome)}"></option>`;
+                }).join('');
+            } catch (e) { /* free-text continua funcionando */ }
+        }
+
+        function carregarUsuarioLogado() {
+            const h = new Date().getHours();
+            const _set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+            _set('greeting-text', h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite');
+            fetch('/api/me', { credentials: 'include' })
+                .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+                .then(u => {
+                    const nome = u.nome || u.name || 'Usuário';
+                    _set('user-name', nome.split(' ')[0]);
+                }).catch(() => { });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuarioLogado();
+            carregarClientes();
+            carregar();
+        });
+    </script>
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
+    <script src="/js/user-dropdown.js?v=20260319" defer></script>
+</body>
+
+</html>

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
@@ -189,7 +189,8 @@
     <script src="/js/tooltips-professional.js?v=20260209"></script>
 
     <!-- Global Header & Sidebar -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260224">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260621b" defer></script>
 
     <!-- PCP Header & Sidebar  Design Refinado (DEVE SER O ÚLTIMO) -->
     <link rel="stylesheet" href="../css/pcp-header-sidebar.css?v=20260224">
@@ -210,6 +211,7 @@
                 <a href="gestao-producao.html" class="sidebar-btn" title="Gestão de Produção"><i class="fas fa-industry"></i></a>
                 <a href="faturamento.html" class="sidebar-btn" title="Programação de Faturamento"><i class="fas fa-file-invoice-dollar"></i></a>
                 <a href="../apontamentos.html" class="sidebar-btn" title="Apontamentos"><i class="fas fa-stopwatch"></i></a>
+                <a href="qualidade.html" class="sidebar-btn" title="Qualidade"><i class="fas fa-award"></i></a>
                 <a href="relatorios.html" class="sidebar-btn active" title="Central de Relatórios"><i class="fas fa-chart-pie"></i></a>
             </nav>
             <div class="sidebar-bottom">
@@ -230,12 +232,11 @@
                     </div>
                 </div>
                 <div class="header-right">
-                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    
                     <div class="user-greeting">
                         <span id="saudacao">Bom dia,</span>
                         <strong id="userName">Usuário</strong>
                     </div>
-                    <div class="user-avatar"><span id="userInitial">U</span></div>
                 </div>
             </header>
             <main class="main-content">
@@ -255,25 +256,29 @@
 
                     <!-- Report Tabs -->
                     <div class="report-tabs">
-                        <button class="report-tab active" data-report="cabos" onclick="trocarRelatorio('cabos')">
+                        <button class="report-tab active" data-report="cabos" onclick="trocarRelatório('cabos')">
                             <span class="tab-icon"><i class="fas fa-bolt"></i></span>
                             <span class="tab-label">Cabos Mais Vendidos<small>Ranking por quantidade e valor</small></span>
                         </button>
-                        <button class="report-tab" data-report="vendas" onclick="trocarRelatorio('vendas')">
+                        <button class="report-tab" data-report="vendas" onclick="trocarRelatório('vendas')">
                             <span class="tab-icon"><i class="fas fa-ranking-star"></i></span>
                             <span class="tab-label">Ranking de Vendas<small>Por vendedor e cliente</small></span>
                         </button>
-                        <button class="report-tab" data-report="metros" onclick="trocarRelatorio('metros')">
+                        <button class="report-tab" data-report="metros" onclick="trocarRelatório('metros')">
                             <span class="tab-icon"><i class="fas fa-ruler-combined"></i></span>
                             <span class="tab-label">Metros Produzidos<small>Produção diária detalhada</small></span>
                         </button>
-                        <button class="report-tab" data-report="faturamento" onclick="trocarRelatorio('faturamento')">
+                        <button class="report-tab" data-report="faturamento" onclick="trocarRelatório('faturamento')">
                             <span class="tab-icon"><i class="fas fa-money-bill-trend-up"></i></span>
                             <span class="tab-label">Faturamento Mensal<small>Análise financeira anual</small></span>
                         </button>
-                        <button class="report-tab" data-report="apontamentos" onclick="trocarRelatorio('apontamentos')">
+                        <button class="report-tab" data-report="apontamentos" onclick="trocarRelatório('apontamentos')">
                             <span class="tab-icon"><i class="fas fa-stopwatch"></i></span>
                             <span class="tab-label">Apontamentos<small>Produção e eficiência</small></span>
+                        </button>
+                        <button class="report-tab" data-report="custo" onclick="trocarRelatório('custo')">
+                            <span class="tab-icon"><i class="fas fa-balance-scale"></i></span>
+                            <span class="tab-label">Custo de OP<small>Real vs Planejado</small></span>
                         </button>
                     </div>
 
@@ -432,7 +437,7 @@
                             </div>
                             <div class="kpi purple">
                                 <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-calendar-check"></i></span></div>
-                                <div class="kpi-val" id="metros-dias-produção"></div>
+                                <div class="kpi-val" id="metros-dias-producao"></div>
                                 <div class="kpi-lbl">Dias com Produção</div>
                             </div>
                         </div>
@@ -657,6 +662,73 @@
                         </div>
                     </div>
 
+
+                    <!-- =============== 6. CUSTO REAL vs PLANEJADO =============== -->
+                    <div class="report-section" id="section-custo">
+                        <div class="filters-card">
+                            <div class="filter-field"><label>Período Início</label><input type="date" id="custo-data-inicio"></div>
+                            <div class="filter-field"><label>Período Fim</label><input type="date" id="custo-data-fim"></div>
+                            <div class="filter-field"><label>Status OP</label>
+                                <select id="custo-status">
+                                    <option value="todos">Todos</option>
+                                    <option value="concluida" selected>Concluída</option>
+                                    <option value="em_producao">Em Produção</option>
+                                    <option value="pendente">Pendente</option>
+                                    <option value="cancelada">Cancelada</option>
+                                </select>
+                            </div>
+                            <button class="btn-gerar" onclick="carregarCustoOP()"><i class="fas fa-balance-scale"></i> Gerar Relatório</button>
+                            <button class="btn-export" onclick="exportarCustoCSV()" id="btn-export-custo" style="display:none"><i class="fas fa-file-csv"></i> CSV</button>
+                        </div>
+
+                        <div class="kpi-strip">
+                            <div class="kpi blue">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-industry"></i></span></div>
+                                <div class="kpi-val" id="custo-total-ops">—</div>
+                                <div class="kpi-lbl">OPs Analisadas</div>
+                            </div>
+                            <div class="kpi green">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-clipboard-list"></i></span></div>
+                                <div class="kpi-val" id="custo-total-planejado">—</div>
+                                <div class="kpi-lbl">Custo Planejado</div>
+                            </div>
+                            <div class="kpi amber">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-coins"></i></span></div>
+                                <div class="kpi-val" id="custo-total-real">—</div>
+                                <div class="kpi-lbl">Custo Real</div>
+                            </div>
+                            <div class="kpi purple">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-chart-line"></i></span></div>
+                                <div class="kpi-val" id="custo-variacao-pct">—</div>
+                                <div class="kpi-lbl">Desvio Total (%)</div>
+                            </div>
+                            <div class="kpi rose">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-exclamation-triangle"></i></span></div>
+                                <div class="kpi-val" id="custo-ops-desvio">—</div>
+                                <div class="kpi-lbl">OPs c/ Desvio &gt;5%</div>
+                            </div>
+                        </div>
+
+                        <div class="table-card">
+                            <div class="table-card-head">
+                                <h3><span class="ico" style="background:rgba(139,92,246,0.1);color:#8b5cf6"><i class="fas fa-balance-scale"></i></span> Comparativo Real vs Planejado</h3>
+                                <span class="table-count" id="custo-table-count">0 OPs</span>
+                            </div>
+                            <div style="overflow-x:auto">
+                                <table class="dtable">
+                                    <thead><tr>
+                                        <th>OP</th><th>Produto</th><th>Qtd</th><th>Status</th>
+                                        <th>Custo Planejado</th><th>Custo Real</th>
+                                        <th>Variação R$</th><th>Variação %</th><th>Itens</th>
+                                    </tr></thead>
+                                    <tbody id="tbody-custo">
+                                        <tr><td colspan="9"><div class="empty-state-pro"><div class="empty-icon"><i class="fas fa-balance-scale"></i></div><h4>Aguardando dados</h4><p>Selecione os filtros e gere o relatório</p></div></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </main>
         </main>
@@ -686,7 +758,7 @@
         return '<span class="rank-badge plain">' + n + '</span>';
     }
 
-    function trocarRelatorio(tipo) {
+    function trocarRelatório(tipo) {
         document.querySelectorAll('.report-tab').forEach(function(b) { b.classList.remove('active'); });
         document.querySelectorAll('.report-section').forEach(function(s) { s.classList.remove('active'); });
         document.querySelector('[data-report="' + tipo + '"]').classList.add('active');
@@ -801,13 +873,13 @@
         var lbls = top.map(function(i) {
             var d = firstNonEmpty(
                 i.descricao,
-                i.descrição,
+                i.descricao,
                 i.descricao_produto,
                 i.produto_descricao,
                 i.produto_nome,
                 i.nome,
                 i.codigo,
-                i.código,
+                i.codigo,
                 i.codigo_produto
             ) || 'N/A';
             return d.length > 35 ? d.substring(0,35) + '' : d;
@@ -832,12 +904,12 @@
         var html = '';
         items.forEach(function(item, idx) {
             var pct = maxVal > 0 ? ((parseFloat(item.total_quantidade) || 0) / maxVal * 100) : 0;
-            var codigo = firstNonEmpty(item.codigo, item.código, item.codigo_produto, item.produto_codigo) || '-';
-            var descricao = firstNonEmpty(item.descricao, item.descrição, item.descricao_produto, item.produto_descricao, item.produto_nome, item.nome) || '-';
+            var código = firstNonEmpty(item.codigo, item.codigo, item.codigo_produto, item.produto_codigo) || '-';
+            var descrição = firstNonEmpty(item.descricao, item.descricao, item.descricao_produto, item.produto_descricao, item.produto_nome, item.nome) || '-';
             html += '<tr>';
             html += '<td>' + rankBadge(idx) + '</td>';
-            html += '<td class="mono">' + codigo + '</td>';
-            html += '<td class="product-name">' + descricao + '</td>';
+            html += '<td class="mono">' + código + '</td>';
+            html += '<td class="product-name">' + descrição + '</td>';
             html += '<td style="text-align:right"><div class="progress-bar-cell"><span class="money">' + (parseFloat(item.total_quantidade) || 0).toLocaleString('pt-BR') + '</span><div class="progress-mini"><div class="fill" style="width:' + pct.toFixed(0) + '%;background:linear-gradient(90deg,#3b82f6,#60a5fa)"></div></div></div></td>';
             html += '<td>' + (firstNonEmpty(item.unidade, item.unid, item.unidade_medida) || '-') + '</td>';
             html += '<td style="text-align:right" class="money">' + formatarMoeda(item.total_valor || 0) + '</td>';
@@ -932,7 +1004,7 @@
         var p = new URLSearchParams();
         if (di) p.append('data_inicio', di);
         if (df) p.append('data_fim', df);
-        showLoading('Gerando relatório de produção...');
+        showLoading('Gerando relatório de metros produzidos...');
         try {
             var r = await fetch(API + '/api/pcp/relatorios/metros-produzidos?' + p.toString(), { credentials: 'include', headers: hdrs() });
             if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -950,7 +1022,7 @@
         document.getElementById('metros-total-produzido').textContent = (parseFloat(ra.total_produzido) || parseFloat(ro.total_quantidade) || 0).toLocaleString('pt-BR');
         document.getElementById('metros-media-diaria').textContent = (parseFloat(ra.media_diaria) || 0).toLocaleString('pt-BR', {maximumFractionDigits:1});
         document.getElementById('metros-max-dia').textContent = (parseFloat(ra.max_dia) || 0).toLocaleString('pt-BR');
-        document.getElementById('metros-dias-produção').textContent = ra.dias_com_producao || '0';
+        document.getElementById('metros-dias-producao').textContent = ra.dias_com_producao || '0';
 
         /* Apontamentos chart */
         destroyChart('metrosApt');
@@ -1022,14 +1094,14 @@
         var tPed = parseInt(res.total_pedidos_ano) || 0;
         document.getElementById('fat-ticket-medio').textContent = formatarMoeda(tPed > 0 ? tAno / tPed : 0);
 
-        var variacao = parseFloat(res.variacao_percentual) || 0;
+        var variação = parseFloat(res.variacao_percentual) || 0;
         document.getElementById('fat-variacao').textContent = formatarMoeda(res.valor_ano_anterior || 0);
         var badge = document.getElementById('fat-variacao-badge');
-        if (variacao !== 0) {
+        if (variação !== 0) {
             badge.style.display = 'inline-flex';
-            badge.className = 'kpi-badge ' + (variacao >= 0 ? 'up' : 'down');
-            badge.querySelector('i').className = 'fas fa-arrow-' + (variacao >= 0 ? 'up' : 'down');
-            badge.querySelector('span').textContent = (variacao >= 0 ? '+' : '') + variacao.toFixed(1) + '%';
+            badge.className = 'kpi-badge ' + (variação >= 0 ? 'up' : 'down');
+            badge.querySelector('i').className = 'fas fa-arrow-' + (variação >= 0 ? 'up' : 'down');
+            badge.querySelector('span').textContent = (variação >= 0 ? '+' : '') + variação.toFixed(1) + '%';
         } else { badge.style.display = 'none'; }
 
         /* Chart */
@@ -1116,7 +1188,7 @@
     var APT_MANUTENCAO = ['PM','ME','MM','PCM','MP','MC'];
     var APT_PARADA = ['PR','FM','TT','QE','TB','TM','QL'];
     var aptDados = [];
-    var aptFuncionarios = [];
+    var aptFuncionários = [];
 
     async function carregarApontamentos(silent) {
         var di = document.getElementById('apt-data-inicio').value;
@@ -1135,7 +1207,7 @@
             var data = await r.json();
             hideLoading();
             aptDados = data.apontamentos || [];
-            aptFuncionarios = data.funcionários || data.funcionarios || [];
+            aptFuncionários = data.funcionarios || data.funcionarios || [];
             lastData.apontamentos = data;
             renderApontamentos(data);
             if (!silent) showToast('Relatório de apontamentos gerado', 'success');
@@ -1144,12 +1216,12 @@
 
     function renderApontamentos(data) {
         /* KPIs */
-        var totalSeg = aptDados.reduce(function(a,b){return a+(b.duracao||0);},0);
-        var prodSeg = aptDados.filter(function(a){return APT_PRODUTIVOS.includes(a.tipo);}).reduce(function(a,b){return a+(b.duracao||0);},0);
-        var manutSeg = aptDados.filter(function(a){return APT_MANUTENCAO.includes(a.tipo);}).reduce(function(a,b){return a+(b.duracao||0);},0);
-        var paradaSeg = aptDados.filter(function(a){return APT_PARADA.includes(a.tipo);}).reduce(function(a,b){return a+(b.duracao||0);},0);
+        var totalSeg = aptDados.reduce(function(a,b){return a+(b.duração||0);},0);
+        var prodSeg = aptDados.filter(function(a){return APT_PRODUTIVOS.includes(a.tipo);}).reduce(function(a,b){return a+(b.duração||0);},0);
+        var manutSeg = aptDados.filter(function(a){return APT_MANUTENCAO.includes(a.tipo);}).reduce(function(a,b){return a+(b.duração||0);},0);
+        var paradaSeg = aptDados.filter(function(a){return APT_PARADA.includes(a.tipo);}).reduce(function(a,b){return a+(b.duração||0);},0);
 
-        document.getElementById('apt-total-funcionarios').textContent = data.totalFuncionarios || aptFuncionarios.length || '0';
+        document.getElementById('apt-total-funcionarios').textContent = data.totalFuncionários || aptFuncionários.length || '0';
         document.getElementById('apt-total-horas').textContent = Math.round(totalSeg/3600*10)/10 + 'h';
         document.getElementById('apt-horas-producao').textContent = Math.round(prodSeg/3600*10)/10 + 'h';
         document.getElementById('apt-total-apontamentos').textContent = data.totalApontamentos || aptDados.length;
@@ -1163,11 +1235,11 @@
         var diasUn = new Set(aptDados.map(function(a){return a.data;}).filter(Boolean));
         document.getElementById('apt-ef-media-dia').textContent = (diasUn.size > 0 ? Math.round(totalSeg/3600/diasUn.size*10)/10 : 0) + 'h';
 
-        /* Populate funcionario select */
+        /* Populate funcionário select */
         var sel = document.getElementById('apt-funcionario');
         var curVal = sel.value;
         sel.innerHTML = '<option value="">Todos</option>';
-        aptFuncionarios.forEach(function(f) {
+        aptFuncionários.forEach(function(f) {
             var o = document.createElement('option');
             o.value = f.id; o.textContent = f.nome;
             sel.appendChild(o);
@@ -1187,15 +1259,15 @@
                 var pn = nome.split(' ')[0];
                 var ini = pn[0] ? pn[0].toUpperCase() : '?';
                 var op = a.op_codigo ? '<span class="apt-op-badge"><i class="fas fa-clipboard-list"></i> '+a.op_codigo+'</span>' : '';
-                var ped = a.pedido_número || a.pedido_numero ? '<span class="apt-pedido-badge"><i class="fas fa-file-alt"></i> #'+(a.pedido_número||a.pedido_numero)+'</span>' : '';
-                var obs = a.observacoes ? '<span class="apt-obs" title="'+a.observacoes.replace(/"/g,'&quot;')+'">'+a.observacoes+'</span>' : '';
+                var ped = a.pedido_numero || a.pedido_numero ? '<span class="apt-pedido-badge"><i class="fas fa-file-alt"></i> #'+(a.pedido_numero||a.pedido_numero)+'</span>' : '';
+                var obs = a.observações ? '<span class="apt-obs" title="'+a.observações.replace(/"/g,'&quot;')+'">'+a.observações+'</span>' : '';
                 h += '<tr>';
                 h += '<td><div class="apt-user-cell"><div class="apt-user-avatar">'+ini+'</div><span style="font-weight:600;font-size:13px">'+pn+'</span></div></td>';
                 h += '<td><span class="apt-atividade-badge" style="background:'+c.bg+';color:'+c.color+'"><i class="fas '+c.icon+'"></i> '+c.nome+'</span></td>';
                 h += '<td>'+formatarData(a.data)+'</td>';
                 h += '<td>'+(a.hora_inicio||'-')+'</td>';
                 h += '<td>'+(a.hora_fim||'-')+'</td>';
-                h += '<td style="font-family:monospace;font-weight:600">'+aptFormatDuracao(a.duracao)+'</td>';
+                h += '<td style="font-family:monospace;font-weight:600">'+aptFormatDuração(a.duração)+'</td>';
                 h += '<td>'+op+'</td>';
                 h += '<td>'+ped+'</td>';
                 h += '<td>'+obs+'</td>';
@@ -1209,9 +1281,9 @@
         aptDados.forEach(function(a) {
             var key = a.usuário_id || a.usuario_id || a.usuário_nome || a.usuario_nome;
             if (!resumoF[key]) resumoF[key] = {nome: a.usuário_nome||a.usuario_nome||'', totalSeg:0, prodSeg:0, count:0};
-            resumoF[key].totalSeg += a.duracao||0;
+            resumoF[key].totalSeg += a.duração||0;
             resumoF[key].count++;
-            if (APT_PRODUTIVOS.includes(a.tipo)) resumoF[key].prodSeg += a.duracao||0;
+            if (APT_PRODUTIVOS.includes(a.tipo)) resumoF[key].prodSeg += a.duração||0;
         });
         var contF = document.getElementById('apt-resumo-funcionarios');
         var funcs = Object.values(resumoF);
@@ -1232,8 +1304,8 @@
         aptDados.forEach(function(a) {
             var tipo = a.tipo || 'outros';
             if (!resumoA[tipo]) resumoA[tipo] = 0;
-            resumoA[tipo] += a.duracao||0;
-            totalA += a.duracao||0;
+            resumoA[tipo] += a.duração||0;
+            totalA += a.duração||0;
         });
         var barEl = document.getElementById('apt-atividades-bar');
         var legEl = document.getElementById('apt-legenda');
@@ -1264,7 +1336,7 @@
         }
     }
 
-    function aptFormatDuracao(s) {
+    function aptFormatDuração(s) {
         if (!s) return '00:00:00';
         var h = Math.floor(s/3600), m = Math.floor((s%3600)/60), ss = s%60;
         return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0');
@@ -1301,6 +1373,110 @@
         /* Auto-load first report (silent = no toast) */
         carregarCabos(true);
     });
+
+    /* ============================= CUSTO OP ============================= */
+    var _custoData = [];
+
+    function carregarCustoOP() {
+        var di = document.getElementById('custo-data-inicio').value;
+        var df = document.getElementById('custo-data-fim').value;
+        var st = document.getElementById('custo-status').value;
+        var url = API + '/relatórios/custo-op?status=' + encodeURIComponent(st);
+        if (di) url += '&data_inicio=' + di;
+        if (df) url += '&data_fim=' + df;
+
+        var tbody = document.getElementById('tbody-custo');
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px"><i class="fas fa-spinner fa-spin"></i> Carregando...</td></tr>';
+
+        fetch(url, { credentials: 'include', headers: { Authorization: 'Bearer ' + t } })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (!d.success) throw new Error(d.message || 'Erro');
+                _custoData = d.ops || [];
+                var tot = d.totais || {};
+
+                document.getElementById('custo-total-ops').textContent = tot.count || 0;
+                document.getElementById('custo-total-planejado').textContent = fmtMoeda(tot.custo_planejado || 0);
+                document.getElementById('custo-total-real').textContent = fmtMoeda(tot.custo_real || 0);
+                var vp = tot.variacao_pct || 0;
+                var vpEl = document.getElementById('custo-variacao-pct');
+                vpEl.textContent = (vp >= 0 ? '+' : '') + vp.toFixed(1) + '%';
+                vpEl.style.color = vp > 5 ? '#ef4444' : vp < -5 ? '#f59e0b' : '#10b981';
+                document.getElementById('custo-ops-desvio').textContent = tot.ops_com_desvio || 0;
+                document.getElementById('custo-table-count').textContent = _custoData.length + ' OPs';
+
+                if (_custoData.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state-pro"><div class="empty-icon"><i class="fas fa-balance-scale"></i></div><h4>Sem dados</h4><p>Nenhuma OP encontrada com os filtros informados</p></div></td></tr>';
+                    document.getElementById('btn-export-custo').style.display = 'none';
+                    return;
+                }
+
+                var html = '';
+                _custoData.forEach(function(op) {
+                    var vAbs = op.variacao_abs || 0;
+                    var vPct = op.variacao_pct || 0;
+                    var cor = Math.abs(vPct) <= 5 ? '#10b981' : vPct > 5 ? '#ef4444' : '#f59e0b';
+                    var badge = vPct > 5
+                        ? '<span style="background:#fef2f2;color:#ef4444;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">+' + vPct.toFixed(1) + '%</span>'
+                        : vPct < -5
+                        ? '<span style="background:#fffbeb;color:#d97706;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">' + vPct.toFixed(1) + '%</span>'
+                        : '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">' + (vPct >= 0 ? '+' : '') + vPct.toFixed(1) + '%</span>';
+                    var stBadge = fmtStatusBadge(op.status);
+                    html += '<tr>'
+                        + '<td><strong>#' + op.id + '</strong>' + (op.codigo ? '<br><small style="color:#94a3b8">' + op.codigo + '</small>' : '') + '</td>'
+                        + '<td>' + (op.produto_nome || '—') + '</td>'
+                        + '<td style="text-align:right">' + fmtNum(op.quantidade) + '</td>'
+                        + '<td>' + stBadge + '</td>'
+                        + '<td style="text-align:right">' + fmtMoeda(op.custo_planejado) + '</td>'
+                        + '<td style="text-align:right">' + fmtMoeda(op.custo_real) + '</td>'
+                        + '<td style="text-align:right;color:' + cor + '">' + (vAbs >= 0 ? '+' : '') + fmtMoeda(vAbs) + '</td>'
+                        + '<td style="text-align:center">' + badge + '</td>'
+                        + '<td style="text-align:center">' + (op.total_itens || 0) + '</td>'
+                        + '</tr>';
+                });
+                tbody.innerHTML = html;
+                document.getElementById('btn-export-custo').style.display = '';
+            })
+            .catch(function(e) {
+                tbody.innerHTML = '<tr><td colspan="9" style="color:#ef4444;text-align:center;padding:24px"><i class="fas fa-exclamation-triangle"></i> ' + e.message + '</td></tr>';
+            });
+    }
+
+    function fmtMoeda(v) {
+        return 'R$ ' + (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function fmtNum(v) {
+        return (parseFloat(v) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+    }
+
+    function fmtStatusBadge(st) {
+        var map = {
+            concluida: ['#dcfce7', '#16a34a', 'Concluída'],
+            em_producao: ['#dbeafe', '#2563eb', 'Em Produção'],
+            pendente: ['#fef9c3', '#ca8a04', 'Pendente'],
+            cancelada: ['#fee2e2', '#dc2626', 'Cancelada'],
+            ativa: ['#f3e8ff', '#7c3aed', 'Ativa']
+        };
+        var m = map[st] || ['#f1f5f9', '#64748b', st || '—'];
+        return '<span style="background:' + m[0] + ';color:' + m[1] + ';padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">' + m[2] + '</span>';
+    }
+
+    function exportarCustoCSV() {
+        if (!_custoData.length) return;
+        var rows = [['OP','Código','Produto','Qtd','Status','Custo Planejado','Custo Real','Variação R$','Variação %','Itens']];
+        _custoData.forEach(function(op) {
+            rows.push([op.id, op.codigo || '', op.produto_nome || '', op.quantidade,
+                op.status, op.custo_planejado, op.custo_real,
+                op.variacao_abs, op.variacao_pct + '%', op.total_itens]);
+        });
+        var csv = rows.map(function(r) { return r.map(function(c) { return '"' + String(c).replace(/"/g,'""') + '"'; }).join(','); }).join('\n');
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'custo-op-' + new Date().toISOString().slice(0,10) + '.csv';
+        a.click();
+    }
+
     </script>
     <script src="/modules/_shared/connection-monitor.js?v=20260205c"></script>
     <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
@@ -1316,3 +1492,4 @@
     <script src="/js/user-dropdown.js?v=20260319" defer></script>
 </body>
 </html>
+

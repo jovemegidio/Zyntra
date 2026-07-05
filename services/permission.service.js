@@ -352,24 +352,59 @@ function clearAllCache() {
 // Helpers de Fallback (hardcoded → transição)
 // ============================================================
 
-function _extractFirstName(user) {
-    if (!user) return null;
-    if (user.nome) return user.nome.split(' ')[0].toLowerCase();
-    if (user.email) return user.email.split('@')[0].split('.')[0].toLowerCase();
-    return null;
+function _addUserKey(keys, value) {
+    const key = String(value || '').toLowerCase().trim();
+    if (key && !keys.includes(key)) keys.push(key);
+}
+
+function _extractUserKeys(user) {
+    const keys = [];
+    if (!user) return keys;
+
+    const addEmailKeys = (value) => {
+        const email = String(value || '').toLowerCase().trim();
+        if (!email) return;
+        _addUserKey(keys, email);
+        const localPart = email.split('@')[0];
+        _addUserKey(keys, localPart);
+        _addUserKey(keys, localPart.split('.')[0]);
+    };
+
+    addEmailKeys(user.email || user.username);
+    _addUserKey(keys, user.login);
+
+    if (user.nome) {
+        _addUserKey(keys, user.nome);
+        _addUserKey(keys, user.nome.split(' ')[0]);
+    }
+
+    return keys;
+}
+
+function _resolveHardcodedUserKey(user) {
+    const permissions = getHardcodedPermissions();
+    const keys = _extractUserKeys(user);
+    if (!keys.length) return null;
+
+    if (typeof permissions.getUserData === 'function') {
+        const knownKey = keys.find(key => permissions.getUserData(key));
+        if (knownKey) return knownKey;
+    }
+
+    return keys[0];
 }
 
 function _hardcodedFallbackAccess(user, module) {
-    const firstName = _extractFirstName(user);
-    if (!firstName) return false;
-    return getHardcodedPermissions().hasAccess(firstName, module);
+    const key = _resolveHardcodedUserKey(user);
+    if (!key) return false;
+    return getHardcodedPermissions().hasAccess(key, module, user?.role);
 }
 
 function _hardcodedFallbackModules(user) {
-    const firstName = _extractFirstName(user);
-    if (!firstName) return new Set();
+    const key = _resolveHardcodedUserKey(user);
+    if (!key) return new Set();
     try {
-        const areas = getHardcodedPermissions().getUserAreas(firstName);
+        const areas = getHardcodedPermissions().getUserAreas(key);
         return new Set((areas || []).map(a => a.toLowerCase()));
     } catch (e) {
         return new Set();
@@ -377,9 +412,9 @@ function _hardcodedFallbackModules(user) {
 }
 
 function _hardcodedFallbackAction(user, module, action) {
-    const firstName = _extractFirstName(user);
-    if (!firstName) return false;
-    return getHardcodedPermissions().hasPermission(firstName, module, action);
+    const key = _resolveHardcodedUserKey(user);
+    if (!key) return false;
+    return getHardcodedPermissions().hasPermission(key, module, action, user?.role);
 }
 
 module.exports = {

@@ -37,7 +37,7 @@ function setupApiRoutes(app, dependencies) {
  * CUIDADO: Remover rotas duplicadas do server.js antes de ativar
  */
 function activateModularRoutes(app, dependencies) {
-    const { pool, authenticateToken, registrarAuditLog, io } = dependencies;
+    const { pool, authenticateToken, authorizeAdmin, registrarAuditLog, io } = dependencies;
     
     // Clientes API
     const clientesRouter = createClientesRouter(pool, authenticateToken, registrarAuditLog);
@@ -50,7 +50,10 @@ function activateModularRoutes(app, dependencies) {
     console.log('✅ Rotas /api/produtos ativadas (módulo)');
 
     // Fiscal Config API
-    const fiscalRouter = createFiscalConfigRouter(pool, authenticateToken, registrarAuditLog || ((req, res, next) => next()));
+    if (typeof authorizeAdmin !== 'function') {
+        throw new Error('authorizeAdmin e obrigatorio para ativar as rotas fiscais');
+    }
+    const fiscalRouter = createFiscalConfigRouter(pool, authenticateToken, authorizeAdmin);
     app.use('/api/fiscal', fiscalRouter);
     console.log('✅ Rotas /api/fiscal ativadas (regime tributário, regras NCM)');
 

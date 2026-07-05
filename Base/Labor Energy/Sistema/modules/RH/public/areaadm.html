@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
@@ -11,7 +11,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="/css/modern-saas.css?v=20260210">
     <link rel="stylesheet" href="/modules/RH/public/css/rh-pages.css?v=20260210">
     <style>
         /* === RH ADMINISTRATIVO - CSS ESPECÍFICO === */
@@ -495,6 +494,207 @@
         @media (max-width: 768px) { .metrics-grid { grid-template-columns: 1fr; } }
         /* === End Metric Card Standard === */
 
+        /* === MODAIS CALCULADORAS RH === */
+        .rh-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            z-index: 2000;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 24px 16px;
+            overflow-y: auto;
+        }
+
+        .rh-modal {
+            background: #fff;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 640px;
+            margin: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+            animation: rhModalIn .22s cubic-bezier(.34,1.56,.64,1);
+            flex-shrink: 0;
+        }
+        @keyframes rhModalIn {
+            from { opacity:0; transform: scale(.94) translateY(12px); }
+            to   { opacity:1; transform: scale(1)  translateY(0); }
+        }
+
+        .rh-modal-header {
+            padding: 20px 26px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-radius: 20px 20px 0 0;
+        }
+        .rh-modal-header > span {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .rh-modal-close {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 6px 8px;
+            border-radius: 8px;
+            transition: all .15s;
+            line-height: 1;
+        }
+        .rh-modal-close:hover { background: #f1f5f9; color: #475569; }
+
+        .rh-modal-body { padding: 22px 26px 26px; }
+
+        .rh-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+        .rh-form-grid .full { grid-column: 1 / -1; }
+
+        .rh-field label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            margin-bottom: 6px;
+        }
+        .rh-field input,
+        .rh-field select {
+            width: 100%;
+            padding: 9px 13px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            color: #1e293b;
+            background: #f8fafc;
+            transition: border-color .15s;
+            box-sizing: border-box;
+        }
+        .rh-field input:focus,
+        .rh-field select:focus {
+            outline: none;
+            border-color: var(--primary-pink);
+            background: #fff;
+        }
+        .rh-field input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+            accent-color: var(--primary-pink);
+        }
+        .rh-checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.875rem;
+            color: #475569;
+            cursor: pointer;
+            padding: 10px 13px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+            margin-top: 20px;
+        }
+
+        .rh-btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .rh-calc-btn {
+            flex: 1;
+            padding: 12px;
+            background: linear-gradient(135deg, var(--primary-pink), #8b5cf6);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity .15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .rh-calc-btn:hover { opacity: .88; }
+        .rh-pdf-btn {
+            padding: 12px 18px;
+            background: #0f172a;
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity .15s;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        .rh-pdf-btn.visible { display: flex; }
+        .rh-pdf-btn:hover { opacity: .82; }
+
+        .rh-resultado {
+            display: none;
+            margin-top: 20px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1.5px solid #e2e8f0;
+        }
+
+        .rh-resultado-header {
+            background: linear-gradient(135deg, #1e293b, #334155);
+            color: #fff;
+            padding: 13px 18px;
+            font-weight: 600;
+            font-size: 0.88rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .rh-resultado-linha {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 18px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.875rem;
+        }
+        .rh-resultado-linha:last-child { border-bottom: none; }
+        .rh-resultado-linha span:first-child { color: #475569; }
+        .rh-resultado-linha span:last-child { font-weight: 600; color: #1e293b; }
+        .rh-resultado-linha.deducao span:last-child { color: #ef4444; }
+        .rh-resultado-linha.total { background: #f0fdf4; font-weight: 700; }
+        .rh-resultado-linha.total span { color: #16a34a !important; font-size: 0.95rem; }
+        .rh-resultado-linha.section-title {
+            background: #f8fafc;
+            font-weight: 600;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        .rh-resultado-linha.section-title span { color: #64748b !important; font-weight: 600; }
+
+        @media (max-width: 600px) {
+            .rh-form-grid { grid-template-columns: 1fr; }
+            .rh-modal-body { padding: 16px 16px 20px; }
+            .rh-modal-header { padding: 16px; }
+            .rh-modal-overlay { padding: 12px 8px; }
+        }
     </style>
     <script src="/js/anti-copy-protection.js" defer></script>
     <link rel="stylesheet" href="/css/popup-confirmacao.css">
@@ -503,7 +703,8 @@
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <script src="/js/tooltips-professional.js?v=20260209" defer></script>
     <script src="/js/modal-title.js?v=20260210" defer></script>
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260621b" defer></script>
 
     <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
     <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
@@ -519,18 +720,15 @@
             <nav class="sidebar-nav">
                 <a href="areaadm.html" class="sidebar-btn active" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
                 <a href="pages/funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
-                <a href="gestão-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
                 <a href="pages/folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-check-alt"></i></a>
-                <a href="pages/gestão-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="pages/gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
                 <a href="pages/importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
-                <a href="pages/ferias.html" class="sidebar-btn" title="Gestão de Férias"><i class="fas fa-umbrella-beach"></i></a>
-                <a href="pages/gestão-solicitacoes.html" class="sidebar-btn" title="Gestão de Solicitações"><i class="fas fa-tasks"></i></a>
+                <a href="pages/gestao-solicitacoes.html" class="sidebar-btn" title="Gestão de Solicitações"><i class="fas fa-tasks"></i></a>
                 <a href="pages/requisicoes-compra.html" class="sidebar-btn" title="Requisições de Compra"><i class="fas fa-shopping-cart"></i></a>
                 <a href="pages/calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
             </nav>
             <div class="sidebar-bottom">
-                <a href="pages/avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
-                <a href="pages/aplicar-avaliacoes.html" class="sidebar-btn" title="Aplicar Avaliações"><i class="fas fa-clipboard-check"></i></a>
                 <a href="funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
             </div>
         </aside>
@@ -555,16 +753,27 @@
                     <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
                     <div class="user-greeting">
                         <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
-                        <div class="user-avatar" id="user-avatar">
-                            <img src="" alt="Foto do usuário" id="user-photo">
-                            <span id="user-initials">U</span>
-                        </div>
                     </div>
                 </div>
             </header>
 
             <!-- Content Area -->
             <div class="content-area">
+                <!-- Page Header (título + ações) -->
+                <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                    <div style="display:flex;align-items:center;gap:14px;">
+                        <div style="width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;background:linear-gradient(135deg,#8b5cf6,#7c3aed);flex-shrink:0;"><i class="fas fa-users"></i></div>
+                        <div>
+                            <h1 style="margin:0;font-size:20px;font-weight:700;color:#1e293b;line-height:1.2;">Recursos Humanos</h1>
+                            <p style="margin:2px 0 0;font-size:13px;color:#64748b;">Funcionários, ponto, férias e benefícios</p>
+                        </div>
+                    </div>
+                    <div class="page-actions" style="display:flex;gap:10px;flex-wrap:wrap;">
+                        <a href="pages/gestao-ponto.html" style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:8px;font-weight:500;font-size:13px;text-decoration:none;"><i class="fas fa-clock"></i> Gestão do Ponto</a>
+                        <a href="pages/funcionarios.html?action=new" style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;border:none;border-radius:8px;font-weight:600;font-size:13px;text-decoration:none;box-shadow:0 2px 6px rgba(139,92,246,0.25);"><i class="fas fa-user-plus"></i> Novo Funcionário</a>
+                    </div>
+                </div>
+
                 <!-- Stats Grid -->
                 <div class="metrics-grid">
                     <div class="metric-card purple">
@@ -572,6 +781,7 @@
                             <div class="metric-icon purple">
                             <i class="fas fa-users"></i>
                         </div>
+                            <span class="metric-trend neutral">&mdash;</span>
                         </div>
                         <div class="metric-value" id="stat-funcionarios"><i class="fas fa-spinner fa-spin" style="font-size: 20px;"></i></div>
                         <div class="metric-label">Funcionários Ativos</div>
@@ -582,6 +792,7 @@
                             <div class="metric-icon blue">
                             <i class="fas fa-umbrella-beach"></i>
                         </div>
+                            <span class="metric-trend neutral">&mdash;</span>
                         </div>
                         <div class="metric-value" id="stat-ferias"><i class="fas fa-spinner fa-spin" style="font-size: 20px;"></i></div>
                         <div class="metric-label">Em Férias</div>
@@ -592,6 +803,7 @@
                             <div class="metric-icon green">
                             <i class="fas fa-user-plus"></i>
                         </div>
+                            <span class="metric-trend neutral">&mdash;</span>
                         </div>
                         <div class="metric-value" id="stat-admissoes"><i class="fas fa-spinner fa-spin" style="font-size: 20px;"></i></div>
                         <div class="metric-label">Novas Admissões (mês)</div>
@@ -608,7 +820,7 @@
                                 <h3 class="card-title"><i class="fas fa-clock" style="color: var(--primary-pink); margin-right: 8px;"></i>Marcações em Tempo Real</h3>
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <span id="marcacoes-sync-status" style="font-size: 0.75rem; color: #10b981;"><i class="fas fa-circle" style="font-size: 8px; margin-right: 4px;"></i>Atualizado</span>
-                                    <a href="pages/gestão-ponto.html" class="btn-link">Ver Gestão <i class="fas fa-arrow-right"></i></a>
+                                    <a href="pages/gestao-ponto.html" class="btn-link">Ver Gestão <i class="fas fa-arrow-right"></i></a>
                                 </div>
                             </div>
                             <div class="card-body">
@@ -656,15 +868,15 @@
                                         <i class="fas fa-user-plus"></i>
                                         <span>Novo Funcionário</span>
                                     </a>
-                                    <a href="pages/ferias.html" class="quick-action-btn">
+                                    <a href="pages/gestao-solicitacoes.html" class="quick-action-btn">
                                         <i class="fas fa-calendar-check"></i>
-                                        <span>Gestão Férias</span>
+                                        <span>Gestão de Férias</span>
                                     </a>
                                     <a href="pages/importar-ponto.html" class="quick-action-btn">
                                         <i class="fas fa-upload"></i>
                                         <span>Importar Ponto</span>
                                     </a>
-                                    <a href="pages/gestão-ponto.html" class="quick-action-btn">
+                                    <a href="pages/gestao-ponto.html" class="quick-action-btn">
                                         <i class="fas fa-clock"></i>
                                         <span>Gestão do Ponto</span>
                                     </a>
@@ -676,10 +888,18 @@
                                         <i class="fas fa-calendar-alt"></i>
                                         <span>Calendário RH</span>
                                     </a>
-                                    <a href="gestão-holerites.html" class="quick-action-btn">
+                                    <a href="gestao-holerites.html" class="quick-action-btn">
                                         <i class="fas fa-money-bill-wave"></i>
                                         <span>Holerites</span>
                                     </a>
+                                    <button onclick="abrirModalFerias()" class="quick-action-btn" style="border:none;background:none;cursor:pointer;text-align:center;">
+                                        <i class="fas fa-umbrella-beach"></i>
+                                        <span>Calcular Férias</span>
+                                    </button>
+                                    <button onclick="abrirModalRescisao()" class="quick-action-btn" style="border:none;background:none;cursor:pointer;text-align:center;">
+                                        <i class="fas fa-file-contract"></i>
+                                        <span>Calcular Rescisão</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -703,6 +923,121 @@
         </main>
     </div>
 
+    <!-- ===== MODAL: CÁLCULO DE FÉRIAS ===== -->
+    <div class="rh-modal-overlay" id="modal-ferias" onclick="fecharModalFerias(event)">
+        <div class="rh-modal" onclick="event.stopPropagation()">
+            <div class="rh-modal-header">
+                <span><i class="fas fa-umbrella-beach" style="margin-right:8px;color:#6366f1;"></i>Cálculo de Férias</span>
+                <button class="rh-modal-close" onclick="fecharModalFerias()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="rh-modal-body">
+                <div class="rh-form-grid">
+                    <div class="rh-field">
+                        <label>Nome do Funcionário</label>
+                        <input type="text" id="fer-nome" placeholder="Ex: João Silva">
+                    </div>
+                    <div class="rh-field">
+                        <label>Salário Bruto (R$)</label>
+                        <input type="number" id="fer-salario" placeholder="0,00" min="0" step="0.01">
+                    </div>
+                    <div class="rh-field">
+                        <label>Data de Admissão</label>
+                        <input type="date" id="fer-admissao">
+                    </div>
+                    <div class="rh-field">
+                        <label>Início das Férias</label>
+                        <input type="date" id="fer-inicio">
+                    </div>
+                    <div class="rh-field">
+                        <label>Nº de Dias de Férias</label>
+                        <input type="number" id="fer-dias" value="30" min="5" max="30">
+                    </div>
+                    <div class="rh-field" style="display:flex;align-items:flex-end;">
+                        <label class="rh-checkbox-label">
+                            <input type="checkbox" id="fer-abono"> Converter 10 dias em abono pecuniário
+                        </label>
+                    </div>
+                </div>
+                <div class="rh-btn-row">
+                    <button class="rh-calc-btn" onclick="calcularFerias()"><i class="fas fa-calculator"></i> Calcular</button>
+                    <button class="rh-pdf-btn" id="fer-pdf-btn" onclick="exportarPdfFerias()"><i class="fas fa-file-pdf"></i> PDF</button>
+                </div>
+                <div class="rh-resultado" id="fer-resultado" style="display:none;">
+                    <div class="rh-resultado-header">Resultado do Cálculo de Férias</div>
+                    <div class="rh-resultado-linha section-title"><span>PROVENTOS</span><span></span></div>
+                    <div class="rh-resultado-linha" id="fer-res-remuneracao"><span>Remuneração de Férias</span><span>-</span></div>
+                    <div class="rh-resultado-linha" id="fer-res-terco"><span>1/3 Constitucional</span><span>-</span></div>
+                    <div class="rh-resultado-linha" id="fer-res-abono"><span>Abono Pecuniário</span><span>-</span></div>
+                    <div class="rh-resultado-linha" id="fer-res-terco-abono"><span>1/3 s/ Abono</span><span>-</span></div>
+                    <div class="rh-resultado-linha section-title"><span>DEDUÇÕES</span><span></span></div>
+                    <div class="rh-resultado-linha deducao" id="fer-res-inss"><span>INSS</span><span>-</span></div>
+                    <div class="rh-resultado-linha deducao" id="fer-res-irrf"><span>IRRF</span><span>-</span></div>
+                    <div class="rh-resultado-linha total" id="fer-res-total"><span>Total Líquido</span><span>-</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL: CÁLCULO DE RESCISÃO ===== -->
+    <div class="rh-modal-overlay" id="modal-rescisao" onclick="fecharModalRescisao(event)">
+        <div class="rh-modal" onclick="event.stopPropagation()">
+            <div class="rh-modal-header">
+                <span><i class="fas fa-file-contract" style="margin-right:8px;color:#6366f1;"></i>Cálculo de Rescisão</span>
+                <button class="rh-modal-close" onclick="fecharModalRescisao()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="rh-modal-body">
+                <div class="rh-form-grid">
+                    <div class="rh-field">
+                        <label>Nome do Funcionário</label>
+                        <input type="text" id="res-nome" placeholder="Ex: Maria Souza">
+                    </div>
+                    <div class="rh-field">
+                        <label>Salário Bruto (R$)</label>
+                        <input type="number" id="res-salario" placeholder="0,00" min="0" step="0.01">
+                    </div>
+                    <div class="rh-field">
+                        <label>Data de Admissão</label>
+                        <input type="date" id="res-admissao">
+                    </div>
+                    <div class="rh-field">
+                        <label>Data de Demissão</label>
+                        <input type="date" id="res-demissao">
+                    </div>
+                    <div class="rh-field" style="grid-column:1/-1;">
+                        <label>Tipo de Rescisão</label>
+                        <select id="res-tipo">
+                            <option value="sem_justa_causa">Sem Justa Causa (empresa demite)</option>
+                            <option value="justa_causa">Por Justa Causa</option>
+                            <option value="pedido_demissao">Pedido de Demissão</option>
+                            <option value="acordo_mutuo">Acordo Mútuo (art. 484-A CLT)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="rh-btn-row">
+                    <button class="rh-calc-btn" onclick="calcularRescisao()"><i class="fas fa-calculator"></i> Calcular</button>
+                    <button class="rh-pdf-btn" id="res-pdf-btn" onclick="exportarPdfRescisao()"><i class="fas fa-file-pdf"></i> PDF</button>
+                </div>
+                <div class="rh-resultado" id="res-resultado" style="display:none;">
+                    <div class="rh-resultado-header">Resultado do Cálculo de Rescisão</div>
+                    <div class="rh-resultado-linha section-title"><span>PROVENTOS</span><span></span></div>
+                    <div class="rh-resultado-linha" id="res-res-saldo"><span>Saldo de Salário</span><span>-</span></div>
+                    <div class="rh-resultado-linha" id="res-res-aviso"><span>Aviso Prévio</span><span>-</span></div>
+                    <div class="rh-resultado-linha" id="res-res-decimo"><span>13º Proporcional</span><span>-</span></div>
+                    <div class="rh-resultado-linha" id="res-res-ferias-prop"><span>Férias Proporcionais</span><span>-</span></div>
+                    <div class="rh-resultado-linha" id="res-res-terco-ferias"><span>1/3 s/ Férias Prop.</span><span>-</span></div>
+                    <div class="rh-resultado-linha section-title"><span>FGTS</span><span></span></div>
+                    <div class="rh-resultado-linha" id="res-res-fgts-ref"><span>Saldo FGTS (referência 8%)</span><span>-</span></div>
+                    <div class="rh-resultado-linha" id="res-res-multa"><span>Multa FGTS 40%</span><span>-</span></div>
+                    <div class="rh-resultado-linha section-title"><span>DEDUÇÕES</span><span></span></div>
+                    <div class="rh-resultado-linha deducao" id="res-res-inss"><span>INSS</span><span>-</span></div>
+                    <div class="rh-resultado-linha deducao" id="res-res-irrf"><span>IRRF</span><span>-</span></div>
+                    <div class="rh-resultado-linha total" id="res-res-total"><span>Total Líquido</span><span>-</span></div>
+                    <div style="font-size:0.7rem;color:#94a3b8;margin-top:8px;text-align:center;">* Cálculo estimado. Saldo FGTS real depende de extrato FGTS + correções.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ========================================
         // HELPER: Normalizar nome para Title Case
@@ -717,13 +1052,13 @@
         }
 
         // Helper: Resolve foto do funcionário
-        function resolverFoto(marcacao) {
+        function resolverFoto(marcação) {
             // 1. Foto vinda da API (avatar do funcionário)
-            if (marcacao.foto_url && marcacao.foto_url !== '/avatars/default.webp') {
-                return marcacao.foto_url;
+            if (marcação.foto_url && marcação.foto_url !== '/avatars/default.webp') {
+                return marcação.foto_url;
             }
             // 2. Tentar pelo nome no mapa de avatares
-            const nome = marcacao.funcionário_nome || '';
+            const nome = marcação.funcionario_nome || '';
             const primeiroNome = nome.split(' ')[0].toLowerCase()
                 .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
             if (avatarNameMap[primeiroNome]) return avatarNameMap[primeiroNome];
@@ -878,13 +1213,13 @@
                 // Buscar total de funcionários com autenticação
                 const token = getAuthToken();
                 const headers = { 'Content-Type': 'application/json' };
-                const respfuncionarios = await fetch('/api/rh/funcionarios', {
+                const respfuncionários = await fetch('/api/rh/funcionarios', {
                     credentials: 'include',
                     headers
                 });
 
-                if (respfuncionarios.ok) {
-                    const data = await respfuncionarios.json();
+                if (respfuncionários.ok) {
+                    const data = await respfuncionários.json();
                     // A API retorna { funcionários: [], stats, departamentos, cargos }
                     const funcionários = Array.isArray(data) ? data : (data.funcionarios || []);
                     const stats = data.stats || {};
@@ -901,7 +1236,7 @@
                     document.getElementById('stat-admissoes').textContent = admissoes;
                 } else {
                     // Se a API falhar, mostrar erro amigável
-                    console.error('Erro na API:', respfuncionarios.status);
+                    console.error('Erro na API:', respfuncionários.status);
                     mostrarErroEstatisticas('Erro ao carregar dados. Faça login novamente.');
                 }
             } catch (error) {
@@ -919,9 +1254,12 @@
         // ========================================
         // CARREGAR MARCAÇÕES EM TEMPO REAL
         // ========================================
-        async function carregarMarcacoesTempoReal() {
+        async function carregarMarcaçõesTempoReal() {
             const tbody = document.getElementById('tbody-marcacoes');
             if (!tbody) return;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
 
             try {
                 const token = getAuthToken();
@@ -929,16 +1267,18 @@
                 const hoje = new Date().toISOString().split('T')[0];
                 const resp = await fetch(`/api/rh/ponto/marcacoes?data_inicio=${hoje}&data_fim=${hoje}`, {
                     credentials: 'include',
-                    headers
+                    headers,
+                    signal: controller.signal
                 });
+                clearTimeout(timeoutId);
 
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const data = await resp.json();
-                const marcacoes = data.marcacoes || [];
+                const marcações = data.marcacoes || data.marcações || [];
 
                 // Atualizar contadores
-                document.getElementById('marcacoes-count').textContent = marcacoes.length;
-                const uniqueFuncs = new Set(marcacoes.filter(m => m.funcionário_id).map(m => m.funcionário_id));
+                document.getElementById('marcacoes-count').textContent = marcações.length;
+                const uniqueFuncs = new Set(marcações.filter(m => m.funcionario_id).map(m => m.funcionario_id));
                 document.getElementById('marcacoes-presentes').textContent = uniqueFuncs.size;
 
                 const agora = new Date();
@@ -946,7 +1286,7 @@
                 document.getElementById('marcacoes-data-label').textContent = 
                     `Hoje, ${String(agora.getDate()).padStart(2,'0')}/${String(agora.getMonth()+1).padStart(2,'0')}`;
 
-                if (marcacoes.length === 0) {
+                if (marcações.length === 0) {
                     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:40px;color:#94a3b8;">
                         <i class="fas fa-clock" style="font-size:32px;margin-bottom:12px;display:block;opacity:0.5;"></i>
                         Nenhuma marcação registrada hoje
@@ -955,17 +1295,17 @@
                 }
 
                 // Ordenar por hora DESC (mais recente primeiro)
-                marcacoes.sort((a, b) => {
+                marcações.sort((a, b) => {
                     if (a.hora > b.hora) return -1;
                     if (a.hora < b.hora) return 1;
                     return 0;
                 });
 
-                tbody.innerHTML = marcacoes.slice(0, 20).map(m => {
-                    let nome = m.funcionário_nome || 'Não identificado';
+                tbody.innerHTML = marcações.slice(0, 20).map(m => {
+                    let nome = m.funcionario_nome || 'Não identificado';
                     // Tentar extrair nome da observação se não tem nome
-                    if (nome === 'Não identificado' && m.observacao) {
-                        const match = m.observacao.match(/^RHi?D:\s*(.+)/i);
+                    if (nome === 'Não identificado' && m.observação) {
+                        const match = m.observação.match(/^RHi?D:\s*(.+)/i);
                         if (match) nome = match[1].trim();
                     }
                     // Normalizar formatação do nome (ALL CAPS → Title Case)
@@ -973,7 +1313,8 @@
                     const dept = toTitleCase(m.departamento || m.cargo || '');
                     const initial = nome.charAt(0).toUpperCase();
                     const hora = m.hora ? m.hora.substring(0, 5) : '--:--';
-                    const tipoLabel = m.tipo === 'marcacao' ? 'Marcação' : m.tipo === 'entrada' ? 'Entrada' : m.tipo === 'saida' ? 'Saída' : (m.tipo || 'Marcação');
+                    const _tipoMap = { 'marcacao': 'Marcação', 'marcação': 'Marcação', 'entrada': 'Entrada', 'saida': 'Saída', 'saída': 'Saída' };
+                    const tipoLabel = _tipoMap[String(m.tipo || '').toLowerCase()] || (m.tipo || 'Marcação');
                     const origemLabel = m.origem === 'rhid_cloud' ? 'RHID Cloud' : m.origem === 'control_id' ? 'Control iD' : m.origem === 'manual' ? 'Manual' : (m.origem || '-');
                     const origemClass = m.origem === 'rhid_cloud' ? 'color:#6366f1' : m.origem === 'manual' ? 'color:#f59e0b' : 'color:#10b981';
 
@@ -1006,10 +1347,17 @@
                     `<i class="fas fa-circle" style="font-size:8px;margin-right:4px;color:#10b981;"></i> Atualizado às ${String(agora.getHours()).padStart(2,'0')}:${String(agora.getMinutes()).padStart(2,'0')}`;
 
             } catch (error) {
+                clearTimeout(timeoutId);
                 console.error('Erro ao carregar marcações:', error);
-                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:#ef4444;">
-                    <i class="fas fa-exclamation-triangle" style="margin-right:8px;"></i>Erro ao carregar marcações
-                </td></tr>`;
+                if (error.name === 'AbortError') {
+                    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:#94a3b8;">
+                        <i class="fas fa-clock" style="margin-right:8px;"></i>API indisponível no momento
+                    </td></tr>`;
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:#ef4444;">
+                        <i class="fas fa-exclamation-triangle" style="margin-right:8px;"></i>Erro ao carregar marcações
+                    </td></tr>`;
+                }
             }
         }
 
@@ -1050,7 +1398,7 @@
 
                     activityList.innerHTML = atividades.slice(0, 5).map(a => {
                         const tempo = calcularTempoRelativo(a.created_at);
-                        const titulo = escapeHtml(a.titulo);
+                        const título = escapeHtml(a.titulo);
                         const icone = a.icone || 'fa-bell';
                         const cor = a.cor || '#6b7280';
 
@@ -1060,7 +1408,7 @@
                                     <i class="fas ${icone}"></i>
                                 </div>
                                 <div class="activity-content">
-                                    <div class="activity-title">${titulo}</div>
+                                    <div class="activity-title">${título}</div>
                                     <div class="activity-time">${tempo}</div>
                                 </div>
                             </li>
@@ -1078,7 +1426,7 @@
 
         function gerarAtividadesLocal(activityList) {
             // Tentar buscar funcionários da tabela para gerar atividades reais
-            const rows = document.querySelectorAll('#tbody-funcionários tr');
+            const rows = document.querySelectorAll('#tbody-funcionarios tr');
             const atividades = [];
 
             rows.forEach(row => {
@@ -1089,7 +1437,7 @@
                     const dataAdm = cells[3]?.textContent?.trim() || '';
                     if (nome && nome !== 'Nenhum' && dataAdm !== '-') {
                         atividades.push({
-                            titulo: `Admissão: ${nome} (${cargo})`,
+                            título: `Admissão: ${nome} (${cargo})`,
                             icone: 'fa-user-plus',
                             cor: '#10b981',
                             tempo: dataAdm
@@ -1158,22 +1506,361 @@
             carregarUsuarioLogado();
             carregarEstatisticas();
             carregarAtividadesRecentes();
-            carregarMarcacoesTempoReal();
+            carregarMarcaçõesTempoReal();
 
             // Auto-refresh marcações a cada 60 segundos
-            window._marcacoesIntervalRH = setInterval(() => {
-                carregarMarcacoesTempoReal();
+            window._marcaçõesIntervalRH = setInterval(() => {
+                carregarMarcaçõesTempoReal();
             }, 60000);
             // Cleanup: pausar quando tab oculta
             document.addEventListener('visibilitychange', function() {
                 if (document.hidden) {
-                    clearInterval(window._marcacoesIntervalRH);
+                    clearInterval(window._marcaçõesIntervalRH);
                 } else {
-                    carregarMarcacoesTempoReal();
-                    window._marcacoesIntervalRH = setInterval(() => { carregarMarcacoesTempoReal(); }, 60000);
+                    carregarMarcaçõesTempoReal();
+                    window._marcaçõesIntervalRH = setInterval(() => { carregarMarcaçõesTempoReal(); }, 60000);
                 }
             });
         });
+
+        // ===================================================
+        // CALCULADORA DE FÉRIAS
+        // ===================================================
+        function abrirModalFerias() {
+            document.getElementById('modal-ferias').style.display = 'flex';
+            document.getElementById('fer-resultado').style.display = 'none';
+            const btn = document.getElementById('fer-pdf-btn');
+            if (btn) btn.classList.remove('visible');
+        }
+        function fecharModalFerias(e) {
+            if (!e || e.target === document.getElementById('modal-ferias')) {
+                document.getElementById('modal-ferias').style.display = 'none';
+            }
+        }
+
+        function calcInss(base) {
+            // Tabela INSS 2026 progressiva
+            const faixas = [
+                { ate: 1518.00, aliq: 0.075 },
+                { ate: 2793.88, aliq: 0.09 },
+                { ate: 4190.83, aliq: 0.12 },
+                { ate: 8157.41, aliq: 0.14 },
+            ];
+            let inss = 0, ant = 0;
+            for (const f of faixas) {
+                if (base <= ant) break;
+                inss += (Math.min(base, f.ate) - ant) * f.aliq;
+                ant = f.ate;
+            }
+            if (base > 8157.41) inss += (base - 8157.41) * 0.14; // teto apenas — tabela cobre até 8157.41
+            return Math.round(inss * 100) / 100;
+        }
+
+        function calcIrrf(base, inss) {
+            // Base IRRF = base tributável - INSS
+            const baseTrib = Math.max(0, base - inss);
+            // Tabela IRRF 2026
+            const faixas = [
+                { ate: 2259.20, aliq: 0,    ded: 0 },
+                { ate: 2826.65, aliq: 0.075, ded: 169.44 },
+                { ate: 3751.05, aliq: 0.15,  ded: 381.44 },
+                { ate: 4664.68, aliq: 0.225, ded: 662.77 },
+                { ate: Infinity,aliq: 0.275, ded: 896.00 },
+            ];
+            for (const f of faixas) {
+                if (baseTrib <= f.ate) {
+                    return Math.max(0, Math.round((baseTrib * f.aliq - f.ded) * 100) / 100);
+                }
+            }
+            return 0;
+        }
+
+        function fmt(v) {
+            return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function setLinha(id, valor, show) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.querySelector('span:last-child').textContent = show === false ? '-' : fmt(valor);
+            el.style.display = show === false ? 'none' : '';
+        }
+
+        // Armazena o último resultado para PDF
+        let _ferDados = null, _resDados = null;
+
+        function calcularFerias() {
+            const salario = parseFloat(document.getElementById('fer-salario').value) || 0;
+            const dias    = parseInt(document.getElementById('fer-dias').value) || 30;
+            const abono   = document.getElementById('fer-abono').checked;
+            const nome    = document.getElementById('fer-nome').value.trim() || 'Funcionário';
+            const inicio  = document.getElementById('fer-inicio').value;
+            const admissao = document.getElementById('fer-admissao').value;
+
+            if (salario <= 0) { alert('Informe o salário bruto.'); return; }
+
+            const diasFerias = abono ? 20 : dias;
+            const diasAbono  = abono ? 10 : 0;
+
+            const remuneracao  = (salario / 30) * diasFerias;
+            const terco        = remuneracao / 3;
+            const valorAbono   = abono ? (salario / 30) * diasAbono : 0;
+            const tercoAbono   = abono ? valorAbono / 3 : 0;
+            const bruto        = remuneracao + terco + valorAbono + tercoAbono;
+            const inss         = calcInss(bruto);
+            const irrf         = calcIrrf(bruto, inss);
+            const liquido      = bruto - inss - irrf;
+
+            setLinha('fer-res-remuneracao', remuneracao);
+            setLinha('fer-res-terco', terco);
+            setLinha('fer-res-abono', valorAbono, abono);
+            setLinha('fer-res-terco-abono', tercoAbono, abono);
+            setLinha('fer-res-inss', inss);
+            setLinha('fer-res-irrf', irrf);
+            setLinha('fer-res-total', liquido);
+
+            document.getElementById('fer-resultado').style.display = 'block';
+            const btn = document.getElementById('fer-pdf-btn');
+            btn.classList.add('visible');
+
+            _ferDados = { nome, salario, dias, abono, admissao, inicio,
+                diasFerias, diasAbono, remuneracao, terco, valorAbono, tercoAbono,
+                bruto, inss, irrf, liquido };
+        }
+
+        // ===================================================
+        // CALCULADORA DE RESCISÃO
+        // ===================================================
+        function abrirModalRescisao() {
+            document.getElementById('modal-rescisao').style.display = 'flex';
+            document.getElementById('res-resultado').style.display = 'none';
+            const btn = document.getElementById('res-pdf-btn');
+            if (btn) btn.classList.remove('visible');
+        }
+        function fecharModalRescisao(e) {
+            if (!e || e.target === document.getElementById('modal-rescisao')) {
+                document.getElementById('modal-rescisao').style.display = 'none';
+            }
+        }
+
+        function calcularRescisao() {
+            const salario = parseFloat(document.getElementById('res-salario').value) || 0;
+            const admStr  = document.getElementById('res-admissao').value;
+            const demStr  = document.getElementById('res-demissao').value;
+            const tipo    = document.getElementById('res-tipo').value;
+            const nome    = document.getElementById('res-nome').value.trim() || 'Funcionário';
+
+            if (salario <= 0) { alert('Informe o salário bruto.'); return; }
+            if (!admStr || !demStr) { alert('Informe as datas de admissão e demissão.'); return; }
+
+            const adm = new Date(admStr + 'T00:00:00');
+            const dem = new Date(demStr + 'T00:00:00');
+            if (dem <= adm) { alert('A data de demissão deve ser após a admissão.'); return; }
+
+            const diasMes    = dem.getDate();
+            const mesesTotal = (dem.getFullYear() - adm.getFullYear()) * 12 + (dem.getMonth() - adm.getMonth());
+            const mesesProp  = Math.min(12, mesesTotal + (dem.getDate() >= 15 ? 1 : 0));
+
+            const saldoSalario = (salario / 30) * diasMes;
+            const decimoProp   = (salario / 12) * Math.min(mesesProp, 12);
+            const feriasProp   = (salario / 12) * Math.min(mesesProp, 12);
+            const tercoFerias  = feriasProp / 3;
+
+            let avisoPrevio = 0, multa40 = 0;
+            if (tipo === 'sem_justa_causa') {
+                avisoPrevio = salario;
+                multa40     = (salario * 8 / 100) * mesesTotal * 0.40;
+            } else if (tipo === 'acordo_mutuo') {
+                avisoPrevio = salario * 0.5;
+                multa40     = (salario * 8 / 100) * mesesTotal * 0.20;
+            }
+            const fgtsRef  = (salario * 8 / 100) * mesesTotal;
+            const bruto    = saldoSalario + avisoPrevio + decimoProp + feriasProp + tercoFerias;
+            const baseInss = saldoSalario + avisoPrevio;
+            const inss     = calcInss(baseInss);
+            const irrf     = calcIrrf(bruto, inss);
+            const liquido  = bruto - inss - irrf + multa40;
+
+            const temAviso = tipo === 'sem_justa_causa' || tipo === 'acordo_mutuo';
+            setLinha('res-res-saldo', saldoSalario);
+            setLinha('res-res-aviso', avisoPrevio, temAviso);
+            setLinha('res-res-decimo', decimoProp);
+            setLinha('res-res-ferias-prop', feriasProp);
+            setLinha('res-res-terco-ferias', tercoFerias);
+            setLinha('res-res-fgts-ref', fgtsRef);
+            setLinha('res-res-multa', multa40, temAviso);
+            setLinha('res-res-inss', inss);
+            setLinha('res-res-irrf', irrf);
+            setLinha('res-res-total', liquido);
+
+            document.getElementById('res-resultado').style.display = 'block';
+            const btn = document.getElementById('res-pdf-btn');
+            btn.classList.add('visible');
+
+            const tiposLabel = {
+                sem_justa_causa: 'Sem Justa Causa (empresa demite)',
+                justa_causa: 'Por Justa Causa',
+                pedido_demissao: 'Pedido de Demissão',
+                acordo_mutuo: 'Acordo Mútuo (art. 484-A CLT)'
+            };
+            _resDados = { nome, salario, admStr, demStr, tipo, tipoLabel: tiposLabel[tipo] || tipo,
+                mesesTotal, mesesProp, diasMes, saldoSalario, avisoPrevio, decimoProp,
+                feriasProp, tercoFerias, fgtsRef, multa40, bruto, inss, irrf, liquido, temAviso };
+        }
+
+        // ===================================================
+        // PDF EXPORT — Template padrão do sistema
+        // ===================================================
+        function _getPdfTemplate(titulo, icone, linhas, dadosInfo, nota) {
+            const empresa = (document.querySelector('.header-logo img') || {}).alt
+                || document.title.replace('| Zyntra','').trim()
+                || 'Aluforce';
+            const agora = new Date().toLocaleString('pt-BR');
+            const linhsHtml = linhas.map(l => {
+                if (l.tipo === 'titulo') return `
+                    <tr class="sec">
+                        <td colspan="2">${l.label}</td>
+                    </tr>`;
+                if (l.tipo === 'total') return `
+                    <tr class="total-row">
+                        <td>${l.label}</td>
+                        <td>${l.valor}</td>
+                    </tr>`;
+                const cls = l.deducao ? ' class="ded"' : '';
+                return `<tr${cls}><td>${l.label}</td><td>${l.valor}</td></tr>`;
+            }).join('');
+
+            const infoHtml = dadosInfo.map(r =>
+                `<tr><td class="info-lbl">${r[0]}</td><td>${r[1]}</td></tr>`
+            ).join('');
+
+            return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>${titulo} — Zyntra ERP</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;background:#fff;font-size:13px;}
+  .page{width:100%;max-width:780px;margin:0 auto;padding:32px 36px;}
+  .header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #6366f1;padding-bottom:16px;margin-bottom:22px;}
+  .header-left{display:flex;align-items:center;gap:14px;}
+  .header-logo{font-size:22px;font-weight:800;color:#6366f1;letter-spacing:-0.5px;}
+  .header-sub{font-size:11px;color:#64748b;margin-top:2px;}
+  .header-right{text-align:right;}
+  .doc-title{font-size:17px;font-weight:700;color:#1e293b;margin-bottom:2px;}
+  .doc-date{font-size:11px;color:#94a3b8;}
+  .badge{display:inline-block;background:#f0f0ff;color:#6366f1;border:1px solid #c7d2fe;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-bottom:18px;}
+  .info-table{width:100%;border-collapse:collapse;margin-bottom:20px;background:#f8fafc;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;}
+  .info-table td{padding:7px 14px;font-size:12px;}
+  .info-lbl{color:#64748b;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.04em;width:40%;}
+  .result-table{width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;}
+  .result-table th{background:#1e293b;color:#fff;padding:10px 16px;font-size:11px;font-weight:600;text-align:left;text-transform:uppercase;letter-spacing:.04em;}
+  .result-table td{padding:9px 16px;border-bottom:1px solid #f1f5f9;}
+  .result-table td:last-child{text-align:right;font-weight:600;}
+  .result-table tr.sec td{background:#f8fafc;color:#64748b;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:7px 16px;}
+  .result-table tr.ded td:last-child{color:#ef4444;}
+  .result-table tr.total-row td{background:#f0fdf4;font-weight:700;font-size:14px;color:#16a34a;border-top:2px solid #bbf7d0;}
+  .nota{margin-top:14px;font-size:10.5px;color:#94a3b8;border-top:1px dashed #e2e8f0;padding-top:10px;}
+  .footer{margin-top:28px;border-top:1px solid #f1f5f9;padding-top:12px;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;}
+  @media print{body{background:#fff;}.page{padding:20px 24px;}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="header-left">
+      <div>
+        <div class="header-logo">&#9670; Zyntra ERP</div>
+        <div class="header-sub">Sistema de Gestão Empresarial</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="doc-title">${titulo}</div>
+      <div class="doc-date">Emitido em ${agora}</div>
+    </div>
+  </div>
+  <div class="badge">${icone} Recursos Humanos — Cálculos Trabalhistas</div>
+  <table class="info-table">${infoHtml}</table>
+  <table class="result-table">
+    <thead><tr><th>Verba</th><th style="text-align:right">Valor</th></tr></thead>
+    <tbody>${linhsHtml}</tbody>
+  </table>
+  ${nota ? `<div class="nota">* ${nota}</div>` : ''}
+  <div class="footer">
+    <span>Tabelas: INSS 2026 | IRRF 2026</span>
+    <span>Zyntra ERP — Departamento de RH</span>
+  </div>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+        }
+
+        function exportarPdfFerias() {
+            if (!_ferDados) return;
+            const d = _ferDados;
+            const linhas = [
+                { tipo:'titulo', label:'PROVENTOS' },
+                { label:'Remuneração de Férias', valor: fmt(d.remuneracao) },
+                { label:'1/3 Constitucional', valor: fmt(d.terco) },
+            ];
+            if (d.abono) {
+                linhas.push({ label:'Abono Pecuniário (10 dias)', valor: fmt(d.valorAbono) });
+                linhas.push({ label:'1/3 s/ Abono', valor: fmt(d.tercoAbono) });
+            }
+            linhas.push(
+                { tipo:'titulo', label:'DEDUÇÕES' },
+                { label:'INSS (tabela progressiva 2026)', valor: fmt(d.inss), deducao: true },
+                { label:'IRRF (tabela 2026)', valor: fmt(d.irrf), deducao: true },
+                { tipo:'total', label:'Total Líquido a Receber', valor: fmt(d.liquido) }
+            );
+            const info = [
+                ['Funcionário', d.nome],
+                ['Salário Bruto', fmt(d.salario)],
+                ['Data de Admissão', d.admissao ? new Date(d.admissao+'T00:00:00').toLocaleDateString('pt-BR') : '-'],
+                ['Início das Férias', d.inicio   ? new Date(d.inicio+'T00:00:00').toLocaleDateString('pt-BR') : '-'],
+                ['Dias de Férias', d.diasFerias + (d.abono ? ' + 10 (abono)' : '')],
+            ];
+            const w = window.open('', '_blank');
+            w.document.write(_getPdfTemplate('Cálculo de Férias', '🏖️', linhas, info, null));
+            w.document.close();
+        }
+
+        function exportarPdfRescisao() {
+            if (!_resDados) return;
+            const d = _resDados;
+            const linhas = [
+                { tipo:'titulo', label:'PROVENTOS' },
+                { label:'Saldo de Salário (' + d.diasMes + ' dias)', valor: fmt(d.saldoSalario) },
+            ];
+            if (d.temAviso) linhas.push({ label:'Aviso Prévio', valor: fmt(d.avisoPrevio) });
+            linhas.push(
+                { label:'13º Proporcional (' + d.mesesProp + '/12)', valor: fmt(d.decimoProp) },
+                { label:'Férias Proporcionais (' + d.mesesProp + '/12)', valor: fmt(d.feriasProp) },
+                { label:'1/3 s/ Férias Proporcionais', valor: fmt(d.tercoFerias) },
+                { tipo:'titulo', label:'FGTS' },
+                { label:'Saldo FGTS — referência 8% × ' + d.mesesTotal + ' meses', valor: fmt(d.fgtsRef) },
+            );
+            if (d.temAviso) linhas.push({ label:'Multa FGTS 40%', valor: fmt(d.multa40) });
+            linhas.push(
+                { tipo:'titulo', label:'DEDUÇÕES' },
+                { label:'INSS (tabela progressiva 2026)', valor: fmt(d.inss), deducao: true },
+                { label:'IRRF (tabela 2026)', valor: fmt(d.irrf), deducao: true },
+                { tipo:'total', label:'Total Líquido a Receber', valor: fmt(d.liquido) }
+            );
+            const info = [
+                ['Funcionário', d.nome],
+                ['Salário Bruto', fmt(d.salario)],
+                ['Data de Admissão', new Date(d.admStr+'T00:00:00').toLocaleDateString('pt-BR')],
+                ['Data de Demissão', new Date(d.demStr+'T00:00:00').toLocaleDateString('pt-BR')],
+                ['Tipo de Rescisão', d.tipoLabel],
+                ['Tempo de Empresa', d.mesesTotal + ' meses'],
+            ];
+            const w = window.open('', '_blank');
+            w.document.write(_getPdfTemplate('Cálculo de Rescisão', '📄', linhas, info,
+                'Saldo FGTS é estimativa (8% × meses). O valor real depende do extrato FGTS com correções TR.'));
+            w.document.close();
+        }
     </script>
 
     <!-- Sistema de Chat e Suporte -->
@@ -1200,5 +1887,6 @@
     <script src="/js/user-dropdown.js?v=20260319" defer></script>
 </body>
 </html>
+
 
 

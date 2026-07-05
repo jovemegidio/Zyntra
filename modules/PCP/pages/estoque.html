@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
@@ -150,13 +150,14 @@
     <script src="/js/tooltips-professional.js?v=20260209"></script>
 
     <!-- Global Header & Sidebar -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
 
     <!-- PCP Header & Sidebar  Design Refinado (DEVE SER O ÚLTIMO) -->
     <link rel="stylesheet" href="../css/pcp-header-sidebar.css?v=20260224">
     <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
     <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 <body>
     <div class="app-container">
@@ -1671,8 +1672,32 @@
             document.getElementById('produtos-total').textContent = total;
             document.getElementById('produtos-normal').textContent = normal;
             document.getElementById('produtos-baixo').textContent = baixo;
-            const elMateriais = document.getElementById('materiais-total');
-            if (elMateriais) elMateriais.textContent = total;
+
+            // Carregar total de materiais (mesma fonte da página de Materiais)
+            carregarTotalMateriais();
+        }
+
+        async function carregarTotalMateriais() {
+            const el = document.getElementById('materiais-total');
+            if (!el) return;
+            try {
+                const base = (window.getAPIBase && window.getAPIBase()) || '';
+                const r = await fetch(`${base}/api/pcp/materiais?com_recebimento=true&limit=1000`, {
+                    credentials: 'include'
+                });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const data = await r.json();
+                const arr = Array.isArray(data) ? data : (data.rows || data.materiais || []);
+                // Filtrar materiais migrados (mesmo critério da tela de Materiais)
+                const visiveis = arr.filter(m => {
+                    const status = String(m.status || '').toUpperCase();
+                    return status !== 'MIGRADO_PARA_PRODUTOS';
+                });
+                el.textContent = visiveis.length;
+            } catch (e) {
+                console.warn('[ESTOQUE] Total de materiais indisponível:', e.message);
+                el.textContent = '—';
+            }
         }
 
         function renderizarProdutos() {
@@ -2348,7 +2373,7 @@
         .no-print { display: none !important; }
     }
 </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 <body>
 

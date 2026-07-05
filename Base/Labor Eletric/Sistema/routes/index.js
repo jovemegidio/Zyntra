@@ -45,6 +45,8 @@ module.exports = function registerAllRoutes(app, deps) {
         authorizeAdminOrComercial,
         authorizeACL,
         writeAuditLog,
+        sendEmail,
+        enviarEmail,
         cacheMiddleware,
         CACHE_CONFIG,
         VENDAS_DB_CONFIG,
@@ -56,7 +58,7 @@ module.exports = function registerAllRoutes(app, deps) {
         pool, jwt, JWT_SECRET,
         authenticateToken, authenticatePage, authorizeArea, authorizeAdmin, authorizeAction,
         authorizeAdminOrComercial, authorizeACL,
-        writeAuditLog, cacheMiddleware, CACHE_CONFIG, VENDAS_DB_CONFIG,
+        writeAuditLog, sendEmail, enviarEmail, cacheMiddleware, CACHE_CONFIG, VENDAS_DB_CONFIG,
         checkFinanceiroPermission
     };
 
@@ -94,6 +96,24 @@ module.exports = function registerAllRoutes(app, deps) {
         console.log('[ROUTES] ✅ Logística routes mounted at /api/logistica');
     } catch (err) {
         console.error('[ROUTES] ❌ Failed to load logistica-routes:', err.message);
+    }
+
+    // Frete — integrações de transportadoras (Correios, Loggi, Datafrete, Intelipost, Mandaê)
+    try {
+        const createFreteRoutes = require('./frete-routes');
+        app.use('/api/frete', createFreteRoutes(sharedDeps));
+        console.log('[ROUTES] ✅ Frete routes mounted at /api/frete');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load frete-routes:', err.message);
+    }
+
+    // NF de Entrada + sincronização SEFAZ (DistDFe) — faturado pelo fornecedor
+    try {
+        const createNFEntradaRouter = require('./api-nf-entrada');
+        app.use('/api/nf-entrada', createNFEntradaRouter(sharedDeps.pool, sharedDeps.authenticateToken));
+        console.log('[ROUTES] ✅ NF-entrada routes mounted at /api/nf-entrada');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load api-nf-entrada:', err.message);
     }
 
     // ============================================================
@@ -139,10 +159,11 @@ module.exports = function registerAllRoutes(app, deps) {
             app.use('/api/financeiro', require(path.join(__dirname, '..', 'api', 'conciliacao-bancaria'))({ pool, authenticateToken }));
         } catch (_) {}
 
-        // Integração Bancária (API, Boletos, CNAB)
+        // Integração Bancária (API, Boletos, CNAB) — add-on contratável (gate por entitlement)
         try {
             const createIntegracaoBancaria = require('./integracao-bancaria');
-            app.use('/api/financeiro/integracoes-bancarias', createIntegracaoBancaria({ pool, authenticateToken }));
+            const gateBancaria = require('./store-routes').requireEntitlement(pool, 'integracao-bancaria');
+            app.use('/api/financeiro/integracoes-bancarias', authenticateToken, gateBancaria, createIntegracaoBancaria({ pool, authenticateToken }));
             // Webhook público (sem auth) - montado separadamente
             app.post('/api/financeiro/webhook/banco/:bancoId', (req, res) => {
                 const router = createIntegracaoBancaria({ pool, authenticateToken });
@@ -155,6 +176,47 @@ module.exports = function registerAllRoutes(app, deps) {
         console.log('[ROUTES] ✅ Financeiro routes mounted at /api/financeiro (consolidated)');
     } catch (err) {
         console.error('[ROUTES] ❌ Failed to load financeiro routes:', err.message);
+    }
+
+    // Lista simplificada de contas correntes para dropdowns (ex.: modal de Vendas).
+    // Apenas autenticada — NÃO exige permissão do módulo Financeiro (evita 403 no Vendas).
+    try {
+        app.get('/api/bancos/lista', authenticateToken, async (req, res) => {
+            try {
+                const [rows] = await pool.query(
+                    `SELECT id, nome, banco, banco_nome, agencia, conta, tipo, saldo_atual
+                     FROM contas_bancarias WHERE ativo = 1 ORDER BY nome, banco`
+                );
+                res.json({ success: true, data: rows });
+            } catch (e) {
+                res.json({ success: true, data: [] });
+            }
+        });
+        console.log('[ROUTES] ✅ /api/bancos/lista (contas correntes simplificado) mounted');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to mount /api/bancos/lista:', err.message);
+    }
+
+    // ============================================================
+    // 4b. Reforma Tributária — regras CBS/IBS/IS por vigência — /api/reforma-tributaria
+    // ============================================================
+    try {
+        const createReformaTributariaRoutes = require('./reforma-tributaria-routes');
+        app.use('/api/reforma-tributaria', createReformaTributariaRoutes(sharedDeps));
+        console.log('[ROUTES] ✅ Reforma Tributária (regras por vigência) mounted at /api/reforma-tributaria');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load reforma-tributaria routes:', err.message);
+    }
+
+    // ============================================================
+    // 4c. CRM — funil de oportunidades (pré-venda) — /api/crm
+    // ============================================================
+    try {
+        const createCrmRoutes = require('./crm-routes');
+        app.use('/api/crm', createCrmRoutes(sharedDeps));
+        console.log('[ROUTES] ✅ CRM (funil de oportunidades) mounted at /api/crm');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load CRM routes:', err.message);
     }
 
     // ============================================================
@@ -191,14 +253,25 @@ module.exports = function registerAllRoutes(app, deps) {
                 res.status(500).json({ error: 'Erro ao buscar configurações' });
             }
         });
-        app.get('/api/configuracoes/impostos', authenticateToken, async (req, res) => {
+        // PERF: garantir colunas extras UMA ÚNICA VEZ por processo (não a cada request).
+        // Antes, 5x ALTER TABLE rodavam em TODO GET — com lock_wait_timeout alto, qualquer
+        // transação aberta na tabela fazia o ALTER (e a request) travar, segurando a tela de
+        // Vendas no "Carregando pedidos...". As colunas já existem; o ALTER só serve p/ DB nova.
+        let _impostosColsEnsured = false;
+        async function ensureImpostosCols() {
+            if (_impostosColsEnsured) return;
+            _impostosColsEnsured = true; // marca antes p/ não reentrar em concorrência
             try {
-                // Garantir que as colunas extras existam
                 await pool.query(`ALTER TABLE configuracoes_impostos ADD COLUMN regime_tributario VARCHAR(50) DEFAULT 'simples'`).catch(() => {});
                 await pool.query(`ALTER TABLE configuracoes_impostos ADD COLUMN cfop_venda_interna VARCHAR(10) DEFAULT '5102'`).catch(() => {});
                 await pool.query(`ALTER TABLE configuracoes_impostos ADD COLUMN cfop_venda_externa VARCHAR(10) DEFAULT '6102'`).catch(() => {});
                 await pool.query(`ALTER TABLE configuracoes_impostos ADD COLUMN cfop_devolucao_interna VARCHAR(10) DEFAULT '5202'`).catch(() => {});
                 await pool.query(`ALTER TABLE configuracoes_impostos ADD COLUMN cfop_devolucao_externa VARCHAR(10) DEFAULT '6202'`).catch(() => {});
+            } catch (e) { /* colunas já existem — ok */ }
+        }
+        app.get('/api/configuracoes/impostos', authenticateToken, async (req, res) => {
+            try {
+                await ensureImpostosCols();
 
                 const [rows] = await pool.query('SELECT * FROM configuracoes_impostos LIMIT 1');
                 if (rows && rows.length > 0) {
@@ -263,6 +336,30 @@ module.exports = function registerAllRoutes(app, deps) {
     }
 
     // ============================================================
+    // 5b. PCP / Produção — Planilha digitalizada — /api/pcp-planilha
+    // (14 abas do PCP_Aluforce_Sistema_Completo_v1.xlsx como CRUD real)
+    // ============================================================
+    try {
+        const createPcpPlanilhaRoutes = require('./pcp-planilha-routes');
+        app.use('/api/pcp-planilha', createPcpPlanilhaRoutes(sharedDeps));
+        console.log('[ROUTES] ✅ PCP/Produção (planilha) montado em /api/pcp-planilha');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load pcp-planilha-routes:', err.message);
+    }
+
+    // ============================================================
+    // 5c. Qualidade — /api/qualidade
+    // (Controle de Qualidade: laudos, certificados, RNC, calibração, rastreabilidade)
+    // ============================================================
+    try {
+        const createQualidadeRoutes = require('./qualidade-routes');
+        app.use('/api/qualidade', createQualidadeRoutes(sharedDeps));
+        console.log('[ROUTES] ✅ Qualidade routes mounted at /api/qualidade');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load qualidade-routes:', err.message);
+    }
+
+    // ============================================================
     // 6. RH — /api/rh
     // ============================================================
     try {
@@ -298,17 +395,58 @@ module.exports = function registerAllRoutes(app, deps) {
     // 7. Vendas — /api/vendas (CONSOLIDATED from 2 sections)
     // ============================================================
     let vendasRouter = null;
+    // Cada sub-router de Vendas é montado isoladamente: uma dependência ausente
+    // em um deles NÃO pode derrubar os demais (regressão de 404 total — 13/jun/2026).
     try {
         const createVendasRoutes = require('./vendas-routes');
         vendasRouter = createVendasRoutes(sharedDeps);
         app.use('/api/vendas', vendasRouter);
+        console.log('[ROUTES] ✅ Vendas base mounted at /api/vendas');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load vendas-routes (base):', err.message);
+    }
 
+    try {
         const createVendasExtended = require('./vendas-extended');
         app.use('/api/vendas', createVendasExtended(sharedDeps));
-
-        console.log('[ROUTES] ✅ Vendas routes mounted at /api/vendas (consolidated)');
+        console.log('[ROUTES] ✅ Vendas extended mounted at /api/vendas');
     } catch (err) {
-        console.error('[ROUTES] ❌ Failed to load vendas routes:', err.message);
+        console.error('[ROUTES] ❌ Failed to load vendas-extended:', err.message);
+    }
+
+    try {
+        // Complementos (anexos, e-mails, recibo, cenários fiscais, tipos de frete)
+        // detectados como ausentes na auditoria E2E 2026-06-07.
+        const createVendasComplementos = require('./vendas-complementos-routes');
+        app.use('/api/vendas', createVendasComplementos(sharedDeps));
+        console.log('[ROUTES] ✅ Vendas complementos mounted at /api/vendas');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load vendas-complementos-routes:', err.message);
+    }
+
+    // Backward-compatible alias for older cached Vendas clients.
+    if (vendasRouter) {
+        app.get('/api/dashboard-stats', (req, res, next) => {
+            const originalUrl = req.url;
+            const queryStart = originalUrl.indexOf('?');
+            req.url = '/dashboard-stats' + (queryStart >= 0 ? originalUrl.slice(queryStart) : '');
+            vendasRouter.handle(req, res, (err) => {
+                req.url = originalUrl;
+                next(err);
+            });
+        });
+    }
+
+    // ============================================================
+    // 7b. Busca Global — /api/busca-global (qualquer usuário autenticado)
+    // Fora de financeiro-routes (gated por authorizeArea). Fix auditoria 13/jun/2026.
+    // ============================================================
+    try {
+        const createBuscaGlobal = require('./busca-global');
+        app.use('/api/busca-global', createBuscaGlobal(sharedDeps));
+        console.log('[ROUTES] ✅ Busca global mounted at /api/busca-global');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load busca-global:', err.message);
     }
 
     // ============================================================
@@ -323,6 +461,78 @@ module.exports = function registerAllRoutes(app, deps) {
     }
 
     // ============================================================
+    // 8.1 Assistente Fiscal IA — /api/settings/fiscal-ai
+    // ============================================================
+    try {
+        const createSettingsFiscalAIRouter = require('./settings-fiscal-ai-routes');
+        app.use('/api/settings/fiscal-ai', createSettingsFiscalAIRouter(sharedDeps));
+        console.log('[ROUTES] ✅ Assistente Fiscal IA mounted at /api/settings/fiscal-ai');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load settings-fiscal-ai-routes:', err.message);
+    }
+
+    // ============================================================
+    // 8.2 Zyntra Store — /api/store (módulos & complementos contratáveis)
+    // ============================================================
+    try {
+        const createStoreRoutes = require('./store-routes');
+        app.use('/api/store', createStoreRoutes(sharedDeps));
+        // expõe o middleware de gating para rotas que dependem de add-on
+        sharedDeps.requireEntitlement = (key, opts) => createStoreRoutes.requireEntitlement(pool, key, opts);
+        console.log('[ROUTES] ✅ Zyntra Store mounted at /api/store');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load store-routes:', err.message);
+    }
+
+    // ============================================================
+    // 8.3 CT-e — /api/cte (add-on contratável "cte")
+    // ============================================================
+    try {
+        const createCTeRouter = require('./api-cte');
+        const gateCte = require('./store-routes').requireEntitlement(pool, 'cte');
+        app.use('/api/cte', authenticateToken, gateCte, createCTeRouter(pool, authenticateToken));
+        console.log('[ROUTES] ✅ CT-e mounted at /api/cte (gated por add-on)');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load api-cte:', err.message);
+    }
+
+    // ============================================================
+    // 8.4 BI Avançado — /api/bi (reusa dashboard-executivo, add-on "bi")
+    // ============================================================
+    try {
+        const biRouter = require(path.join(__dirname, '..', 'api', 'dashboard-executivo'))({ pool, authenticateToken });
+        const gateBi = require('./store-routes').requireEntitlement(pool, 'bi');
+        app.use('/api/bi', authenticateToken, gateBi, biRouter);
+        console.log('[ROUTES] ✅ BI mounted at /api/bi (gated por add-on)');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load BI (dashboard-executivo):', err.message);
+    }
+
+    // ============================================================
+    // 8.5 eSocial — /api/esocial (add-on "rh-esocial")
+    // ============================================================
+    try {
+        const esocialRouter = require(path.join(__dirname, '..', 'api', 'esocial'))({ pool, authenticateToken });
+        const gateEsocial = require('./store-routes').requireEntitlement(pool, 'rh-esocial');
+        app.use('/api/esocial', authenticateToken, gateEsocial, esocialRouter);
+        console.log('[ROUTES] ✅ eSocial mounted at /api/esocial (gated por add-on)');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load eSocial:', err.message);
+    }
+
+    // ============================================================
+    // 8.6 Integração E-commerce — /api/ecommerce (add-on "ecommerce")
+    // ============================================================
+    try {
+        const createEcommerce = require('./integracao-ecommerce');
+        const gateEcom = require('./store-routes').requireEntitlement(pool, 'ecommerce');
+        app.use('/api/ecommerce', authenticateToken, gateEcom, createEcommerce({ pool, authenticateToken }));
+        console.log('[ROUTES] ✅ E-commerce mounted at /api/ecommerce (gated por add-on)');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load integracao-ecommerce:', err.message);
+    }
+
+    // ============================================================
     // 9. External API modules (from api/ directory)
     // ============================================================
     const externalApis = [
@@ -330,7 +540,8 @@ module.exports = function registerAllRoutes(app, deps) {
         { path: '/api/notificacoes', file: '../api/notificacoes', name: 'Notificações' },
         { path: '/api', file: '../api/workflow-aprovacoes', name: 'Workflow Aprovações' },
         { path: '/api', file: '../api/relatorios-gerenciais', name: 'Relatórios Gerenciais' },
-        { path: '/api', file: '../api/esocial', name: 'eSocial' },
+        // eSocial agora é montado de forma GATED em /api/esocial (8.5) — add-on "rh-esocial".
+        // Removido o mount aberto em '/api' para não burlar o gating.
         { path: '/api', file: '../api/auditoria', name: 'Auditoria' },
         { path: '/api', file: '../api/backup', name: 'Backup' },
         { path: '/api', file: '../api/permissoes', name: 'Permissões' },
@@ -525,12 +736,24 @@ module.exports = function registerAllRoutes(app, deps) {
         activateModularRoutes(app, {
             pool,
             authenticateToken,
+            authorizeAdmin,
             registrarAuditLog: writeAuditLog,
             io: null
         });
         console.log('[ROUTES] ✅ Faturamento v2.0 modular routes activated (Fiscal, NF Entrada, Contábil, CT-e)');
     } catch (err) {
         console.error('[ROUTES] ❌ Failed to load Faturamento v2.0 routes:', err.message);
+    }
+
+    // ============================================================
+    // 14.1 MDF-e — /api/mdfe (mod 58, transmissão homologação por padrão)
+    // ============================================================
+    try {
+        const createMDFeRouter = require('./api-mdfe');
+        app.use('/api/mdfe', createMDFeRouter(pool, authenticateToken));
+        console.log('[ROUTES] ✅ MDF-e routes mounted at /api/mdfe');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load api-mdfe:', err.message);
     }
 
     // ============================================================

@@ -132,7 +132,7 @@ class DashboardExecutivo {
                                 <span class="mini-valor" id="vendas-conversao">0%</span>
                             </div>
                         </div>
-                        <a href="/modules/Vendas/public/index.html" class="modulo-link">Ver detalhes →</a>
+                        <a href="/modules/Vendas/index.html" class="modulo-link">Ver detalhes →</a>
                     </div>
 
                     <!-- Compras -->
@@ -267,7 +267,7 @@ class DashboardExecutivo {
                                 <span class="mini-valor" id="nfe-canceladas">0</span>
                             </div>
                         </div>
-                        <a href="/modules/Faturamento/index.html" class="modulo-link">Ver detalhes →</a>
+                        <a href="/modules/NFe/index.html" class="modulo-link">Ver detalhes →</a>
                     </div>
                 </div>
 
@@ -549,9 +549,21 @@ class DashboardExecutivo {
                         legend: { position: 'bottom' }
                     },
                     scales: {
+                        // [FIX A8] Sem dados, Chart.js escala em 0-1 (decimais). Forçar suggestedMax para R$ legível.
                         y: {
+                            beginAtZero: true,
+                            suggestedMax: (function(){
+                                const vals = [].concat(
+                                    dados.map(d => Number(d.entradas) || 0),
+                                    dados.map(d => Number(d.saidas) || 0),
+                                    dados.map(d => Math.abs(Number(d.saldo) || 0))
+                                );
+                                const max = vals.length ? Math.max.apply(null, vals) : 0;
+                                return max > 0 ? max * 1.1 : 1000;
+                            })(),
                             ticks: {
-                                callback: (value) => 'R$ ' + (value / 1000).toFixed(0) + 'k'
+                                precision: 0,
+                                callback: (value) => 'R$ ' + (Math.abs(value) >= 1000 ? (value / 1000).toFixed(0) + 'k' : Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 0 }))
                             }
                         }
                     }

@@ -219,14 +219,232 @@
     <script src="/js/tooltips-professional.js?v=20260209"></script>
 
     <!-- Header & Sidebar refinado -->
-    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260215">
-    <!-- Global Header & Sidebar - override final unificado -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+<!-- Global Header & Sidebar - override final unificado -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260616n">
     <!-- Chat Widget BOB AI -->
     <link rel="stylesheet" href="/chat/widget.css?v=20260218">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260414">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260614">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
+<link rel="stylesheet" href="css/modal-visual-2026.css">
+
+    <!-- Kanban Pagamentos + Modal Pré-Pagamento CSS -->
+    <style id="kanban-css">
+        /* ══ Modal Pré-Pagamento ══════════════════════════════════════════ */
+        .mpag-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(15,23,42,0.55); backdrop-filter: blur(4px);
+            z-index: 9500; align-items: center; justify-content: center;
+        }
+        .mpag-overlay.active { display: flex; }
+        .mpag-box {
+            background: #fff; border-radius: 12px; width: 560px; max-width: 96vw;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+            animation: mpagIn 0.25s ease-out;
+        }
+        @keyframes mpagIn {
+            from { opacity: 0; transform: translateY(-16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .mpag-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 20px; border-bottom: 1px solid #e2e8f0;
+        }
+        .mpag-title { font-size: 15px; font-weight: 700; color: #16a34a; }
+        .mpag-title i { margin-right: 6px; }
+        .mpag-fechar {
+            background: none; border: 1px solid #e2e8f0; border-radius: 7px;
+            padding: 5px 12px; font-size: 12px; color: #64748b; cursor: pointer;
+            display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+        }
+        .mpag-fechar:hover { background: #f1f5f9; color: #1e293b; }
+        .mpag-body { padding: 28px 28px 24px; }
+        .mpag-body h2 { font-size: 17px; font-weight: 700; color: #1e293b; margin: 0 0 12px; }
+        .mpag-body p { font-size: 13px; color: #64748b; line-height: 1.55; margin: 0 0 24px; }
+        .mpag-links { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+        .mpag-link {
+            font-size: 13px; font-weight: 600; color: #16a34a;
+            text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 0; transition: color 0.2s;
+        }
+        .mpag-link:hover { color: #15803d; text-decoration: underline; }
+        .mpag-checkbox { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; cursor: pointer; }
+        .mpag-checkbox input { cursor: pointer; }
+
+        /* ══ Toggle Kanban Button ════════════════════════════════════════ */
+        #btn-toggle-kanban {
+            background: #f8fafc; border: 1.5px solid #e2e8f0;
+            color: #475569; border-radius: 8px; padding: 8px 14px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s;
+        }
+        #btn-toggle-kanban:hover, #btn-toggle-kanban.active {
+            background: #1e293b; color: #fff; border-color: #1e293b;
+        }
+
+        /* ══ Kanban Board ════════════════════════════════════════════════ */
+        #kanban-view { display: none; flex-direction: column; gap: 0; }
+        #kanban-view.active { display: flex; }
+
+        .kanban-search-bar {
+            background: #fff; border-radius: 12px; padding: 12px 16px;
+            margin-bottom: 16px; border: 1px solid #e2e8f0;
+            display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .kanban-search-input {
+            flex: 1; min-width: 200px; padding: 9px 14px 9px 36px;
+            border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px;
+            background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%2394a3b8' viewBox='0 0 24 24'%3E%3Cpath d='M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z' stroke='%2394a3b8' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat 12px center;
+            outline: none; transition: border-color 0.2s;
+        }
+        .kanban-search-input:focus { border-color: #22c55e; }
+        .kanban-periodo-label { font-size: 12px; color: #64748b; white-space: nowrap; }
+
+        .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr) 220px;
+            gap: 12px;
+            align-items: start;
+            min-height: 480px;
+        }
+
+        /* Visual alinhado ao kanban de Vendas: coluna branca com header claro (não mais
+           escuro) + bolinha indicadora de cor, card sem sombra por padrão (só no hover),
+           botões sem gradiente. Estrutura de grid (4 colunas + painel de contas) mantida,
+           pois não existe equivalente no kanban de Vendas para esse painel. */
+        .kanban-column {
+            background: #fff; border-radius: 12px;
+            display: flex; flex-direction: column; overflow: hidden;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .kanban-column-header {
+            padding: 16px; border-bottom: 1px solid #e2e8f0;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .kanban-column-header > div > span:first-child {
+            font-size: 14px; font-weight: 600; color: #1e293b;
+        }
+        .kanban-column-header > div > span:last-child {
+            display: block; font-size: 12px; font-weight: 400; color: #64748b; margin-top: 2px;
+        }
+        .kanban-column-content {
+            padding: 12px; display: flex; flex-direction: column; gap: 10px;
+            min-height: 200px; flex: 1; overflow-y: auto; max-height: 520px;
+        }
+        .kanban-column.drag-over .kanban-column-content {
+            background: #e0f2fe; border: 2px dashed #0ea5e9;
+            border-radius: 8px;
+        }
+        .column-indicator {
+            width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+        }
+        .column-indicator.pendentes { background: #f59e0b; }
+        .column-indicator.simular { background: #3b82f6; }
+        .column-indicator.aprovacao { background: #8b5cf6; }
+        .column-indicator.confirmados { background: #16a34a; }
+        .column-indicator.contas { background: #64748b; }
+
+        /* Drop hint no Simular */
+        .kanban-drop-hint {
+            text-align: center; padding: 24px 16px; color: #94a3b8;
+        }
+        .kanban-drop-hint i { font-size: 32px; margin-bottom: 8px; display: block; color: #cbd5e1; }
+        .kanban-drop-hint p { font-size: 12px; line-height: 1.5; margin: 0 0 12px; }
+        .kanban-hint-p { font-size: 11px; color: #b0bec5; }
+
+        /* Botão Confirmar no Simular */
+        .kanban-confirmar-btn {
+            background: #22c55e;
+            color: #fff; border: none; border-radius: 8px;
+            padding: 10px 20px; font-size: 13px; font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s; margin-bottom: 8px;
+        }
+        .kanban-confirmar-btn:hover { background: #16a34a; }
+
+        /* Cards de pagamento */
+        .kanban-card {
+            background: #fff; border-radius: 10px; padding: 14px;
+            border: 1px solid #e2e8f0; cursor: grab;
+            transition: all 0.2s; position: relative;
+        }
+        .kanban-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-2px); }
+        .kanban-card.dragging { opacity: 0.5; transform: rotate(2deg); cursor: grabbing; }
+        .kanban-card-cat {
+            font-size: 11px; font-weight: 700; color: #475569;
+            text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px;
+        }
+        .kanban-card-vendor {
+            font-size: 13px; font-weight: 600; color: #1e293b; margin-bottom: 6px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .kanban-card-row { display: flex; justify-content: space-between; font-size: 11.5px; color: #64748b; margin-bottom: 2px; }
+        .kanban-card-row span:last-child { font-weight: 600; }
+        .kanban-card-due {
+            font-size: 11px; margin-top: 6px; display: flex; align-items: center; gap: 4px;
+            color: #ef4444;
+        }
+        .kanban-card-due.ok { color: #16a34a; }
+        .kanban-card-value {
+            font-size: 16px; font-weight: 700; color: #ef4444; margin-top: 8px;
+            text-align: right;
+        }
+        .kanban-card-value.pago { color: #16a34a; }
+        .kanban-card-menu {
+            position: absolute; top: 8px; right: 8px;
+            background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 16px;
+        }
+        .kanban-card-menu:hover { color: #1e293b; }
+
+        /* Coluna Contas Correntes — mesmo header claro das demais colunas (sem fundo escuro) */
+        .kanban-conta-card {
+            background: #fff; border-radius: 8px; padding: 10px 12px;
+            margin-bottom: 6px; border: 1px solid #e2e8f0;
+        }
+        .kanban-conta-name { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 2px; word-break: break-word; }
+        .kanban-conta-saldo { font-size: 12px; font-weight: 600; }
+        .kanban-conta-saldo.positivo { color: #16a34a; }
+        .kanban-conta-saldo.negativo { color: #ef4444; }
+        .kanban-nova-conta-btn {
+            margin: 8px 10px 10px;
+            background: #22c55e;
+            color: #fff; border: none; border-radius: 8px;
+            padding: 10px; font-size: 12px; font-weight: 600;
+            cursor: pointer; width: calc(100% - 20px); display: flex;
+            align-items: center; justify-content: center; gap: 6px;
+        }
+        .kanban-nova-conta-btn:hover { background: #16a34a; }
+
+        /* Footer do kanban */
+        .kanban-footer {
+            display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;
+        }
+        .kanban-footer-btn {
+            flex: 1; min-width: 160px; padding: 12px 16px;
+            background: #22c55e; color: #fff; border: none; border-radius: 10px;
+            font-size: 13px; font-weight: 700; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: all 0.2s;
+        }
+        .kanban-footer-btn:hover { background: #16a34a; }
+        .kanban-footer-btn.confirmar { background: #22c55e; }
+        .kanban-footer-btn.confirmar:hover { background: #16a34a; }
+        .kanban-footer-btn.aprovar { background: #3b82f6; }
+        .kanban-footer-btn.aprovar:hover { background: #1d4ed8; }
+        .kanban-footer-btn.conta { background: #8b5cf6; }
+        .kanban-footer-btn.conta:hover { background: #6d28d9; }
+
+        /* Responsividade */
+        @media (max-width: 1200px) {
+            .kanban-board { grid-template-columns: repeat(2, 1fr) 200px; }
+        }
+        @media (max-width: 768px) {
+            .kanban-board { grid-template-columns: 1fr; }
+        }
+    </style>
+    <link rel="stylesheet" href="/css/kanban-vendas-parity.css?v=20260702">
 </head>
 <body>
     <div class="app-container">
@@ -321,6 +539,7 @@
         <button class="btn btn-success" onclick="abrirModalImportar('contas-pagar')"><i class="fas fa-file-excel"></i> Importar XLSX</button>
                         <button class="btn btn-secondary" onclick="exportarCSV()"><i class="fas fa-download"></i> Exportar</button>
                         <button class="btn btn-primary" onclick="abrirModalNovaConta()"><i class="fas fa-plus"></i> Nova Despesa</button>
+                        <button id="btn-toggle-kanban" onclick="toggleKanbanView()" title="Alternar visualização Kanban"><i class="fas fa-columns"></i> Kanban</button>
                     </div>
                 </div>
 
@@ -455,8 +674,100 @@
 </main>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════════════
+         KANBAN DE PAGAMENTOS
+         ═══════════════════════════════════════════════════════════════════ -->
+    <div id="kanban-view">
+        <!-- Barra de busca -->
+        <div class="kanban-search-bar">
+            <input class="kanban-search-input" id="kanban-busca" type="text"
+                placeholder="Digite aqui o que deseja procurar" oninput="kanbanFiltrar()">
+            <span class="kanban-periodo-label">Exibindo pagamentos pendentes até Hoje</span>
+        </div>
+
+        <!-- Colunas -->
+        <div class="kanban-board">
+            <!-- Col 1: Pendentes -->
+            <div class="kanban-column" id="kc-pendentes" ondragover="kanbanDragOver(event)" ondrop="kanbanDrop(event,'pendentes')" ondragleave="kanbanDragLeave(event)">
+                <div class="kanban-column-header">
+                    <div><span>Pagamentos Pendentes</span><span id="kc-pendentes-count">0 contas a pagar</span></div>
+                    <div class="column-indicator pendentes"></div>
+                </div>
+                <div class="kanban-column-content" id="kcb-pendentes"></div>
+            </div>
+
+            <!-- Col 2: Simular -->
+            <div class="kanban-column" id="kc-simular" ondragover="kanbanDragOver(event)" ondrop="kanbanDrop(event,'simular')" ondragleave="kanbanDragLeave(event)">
+                <div class="kanban-column-header">
+                    <div><span>Simular Pagamentos</span><span id="kc-simular-count">Nenhuma conta a pagar</span></div>
+                    <div class="column-indicator simular"></div>
+                </div>
+                <div class="kanban-column-content" id="kcb-simular">
+                    <div class="kanban-drop-hint" id="kanban-simular-hint">
+                        <i class="fas fa-hand-pointer"></i>
+                        <p>Arraste um card para esta lista para simular os pagamentos</p>
+                        <button class="kanban-confirmar-btn" id="kanban-btn-confirmar" onclick="kanbanConfirmarSimulacao()" style="display:none;">
+                            <i class="fas fa-bolt"></i> Confirmar
+                        </button>
+                        <p class="kanban-hint-p">Para efetuar o pagamento clique no botão confirmar</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Col 3: Aprovação -->
+            <div class="kanban-column" id="kc-aprovacao" ondragover="kanbanDragOver(event)" ondrop="kanbanDrop(event,'aprovacao')" ondragleave="kanbanDragLeave(event)">
+                <div class="kanban-column-header">
+                    <div><span>Aprovação</span><span id="kc-aprovacao-count">Nenhuma conta a pagar</span></div>
+                    <div class="column-indicator aprovacao"></div>
+                </div>
+                <div class="kanban-column-content" id="kcb-aprovacao"></div>
+            </div>
+
+            <!-- Col 4: Confirmados -->
+            <div class="kanban-column" id="kc-confirmados" ondragover="kanbanDragOver(event)" ondrop="kanbanDrop(event,'confirmados')" ondragleave="kanbanDragLeave(event)">
+                <div class="kanban-column-header">
+                    <div><span>Pagamentos Confirmados</span><span id="kc-confirmados-count">Nenhuma conta a pagar</span></div>
+                    <div class="column-indicator confirmados"></div>
+                </div>
+                <div class="kanban-column-content" id="kcb-confirmados"></div>
+            </div>
+
+            <!-- Col 5: Contas Correntes -->
+            <div class="kanban-column kanban-column-contas">
+                <div class="kanban-column-header">
+                    <div><span>Contas Correntes</span><span id="kc-contas-count">0 contas cadastradas</span></div>
+                    <div class="column-indicator contas"></div>
+                </div>
+                <div class="kanban-column-content" id="kcb-contas">
+                    <div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px;">
+                        <i class="fas fa-spinner fa-spin"></i><br>Carregando...
+                    </div>
+                </div>
+                <button class="kanban-nova-conta-btn" onclick="window.location.href='/Financeiro/bancos.html'">
+                    <i class="fas fa-plus"></i> Nova Conta Corrente
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="kanban-footer">
+            <button class="kanban-footer-btn" onclick="abrirModalNovaConta()">
+                <i class="fas fa-plus"></i> Nova Conta a Pagar
+            </button>
+            <button class="kanban-footer-btn confirmar" onclick="kanbanConfirmarSimulacao()">
+                <i class="fas fa-check"></i> Confirmar Simulação
+            </button>
+            <button class="kanban-footer-btn aprovar" onclick="kanbanAprovarTodos()">
+                <i class="fas fa-thumbs-up"></i> Aprovar os Pagamentos Agora
+            </button>
+            <button class="kanban-footer-btn conta" onclick="window.location.href='/Financeiro/bancos.html'">
+                <i class="fas fa-plus"></i> Nova Conta Corrente
+            </button>
+        </div>
+    </div>
+
     <!-- ================================================================================
-         MODAL INICIAL - INCLUIR CONTA A PAGAR (ESCOLHA DO MÉTODO)
+         MODAL INICIAL - INCLUIR CONTA A PAGAR (ESCOLHA DO MÃ‰TODO)
          ================================================================================ -->
     <div class="modal-overlay-omie" id="modalEscolhaMetodo" onclick="if(event.target === this) fecharModalEscolha()">
         <div class="modal-omie modal-escolha">
@@ -578,7 +889,7 @@
     </div>
 
     <!-- ================================================================================
-         MODAL NOVA CONTA A PAGAR - INSERÇÁƒO MANUAL (ESTILO OMIE COM ABAS)
+         MODAL NOVA CONTA A PAGAR - INSERÃ‡ÁÆ’O MANUAL (ESTILO OMIE COM ABAS)
          ================================================================================ -->
     <div class="modal-overlay-omie" id="modalConta" onclick="if(event.target === this) fecharModal()">
         <div class="modal-omie modal-conta-pagar">
@@ -683,7 +994,7 @@
                         <button type="button" class="tab-conta" data-tab="diversos">Diversos</button>
                     </div>
 
-                    <!-- CONTEÚDO DAS ABAS -->
+                    <!-- CONTEÃšDO DAS ABAS -->
                     <div class="tab-content-conta">
                         <!-- ABA: DETALHES -->
                         <div class="tab-pane-conta active" id="tab-detalhes">
@@ -881,7 +1192,7 @@
                                         <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Manter dia do vencimento</label>
                                         <select id="rep-dia-fixo" onchange="atualizarPreviewRepeticao()" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;color:#374151;">
                                             <option value="original">Mesmo dia do vencimento original</option>
-                                            <option value="Último">último dia do mês</option>
+                                            <option value="Ãšltimo">último dia do mês</option>
                                             <option value="5">Dia 5</option>
                                             <option value="10">Dia 10</option>
                                             <option value="15">Dia 15</option>
@@ -972,7 +1283,7 @@
                             </div>
                         </div>
 
-                        <!-- ABA: INTEGRAÇÁƒO BANCÁRIA E CNAB -->
+                        <!-- ABA: INTEGRAÃ‡ÁÆ’O BANCÁRIA E CNAB -->
                         <div class="tab-pane-conta" id="tab-integracao">
                             <div class="empty-state-conta">
                                 <span>ðŸ¦</span>
@@ -1156,7 +1467,7 @@
 
     <!-- CSS PARA MODAIS ESTILO OMIE - VERSO 2 -->
     <style>
-        /* ========== OVERLAY PADRÁƒO ========== */
+        /* ========== OVERLAY PADRÁÆ’O ========== */
         .modal-overlay-omie {
             display: none;
             position: fixed;
@@ -1188,7 +1499,7 @@
             to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
-        /* ========== HEADER PADRÁƒO ========== */
+        /* ========== HEADER PADRÁÆ’O ========== */
         .modal-header-omie {
             display: flex;
             justify-content: space-between;
@@ -1247,7 +1558,7 @@
             background: #fafafa;
         }
 
-        /* ========== MODAL ESCOLHA MÉTODO ========== */
+        /* ========== MODAL ESCOLHA MÃ‰TODO ========== */
         .modal-escolha {
             width: 640px;
             max-width: 96vw;
@@ -2398,7 +2709,7 @@
         // Carregar contas bancárias
         async function carregarContasBancarias() {
             try {
-                const response = await fetch('/api/financeiro/contas-bancárias', { credentials: 'include' });
+                const response = await fetch('/api/financeiro/contas-bancarias', { credentials: 'include' });
                 const data = await response.json();
                 const raw = data.data || data || [];
                 contasBancarias = Array.isArray(raw) ? raw : [];
@@ -2471,7 +2782,7 @@
             // Separador
             const sep = document.createElement('option');
             sep.disabled = true;
-            sep.textContent = 'â”€â”€ Meses â”€â”€';
+            sep.textContent = 'ââ€â‚¬ââ€â‚¬ Meses ââ€â‚¬ââ€â‚¬';
             select.appendChild(sep);
 
             mesesOrdenados.forEach(mes => {
@@ -2735,7 +3046,7 @@
                 if (isMonthBased) {
                     nd = new Date(d);
                     nd.setMonth(nd.getMonth() + freqMap[freq] * i);
-                    if (diaFixo === 'Último') {
+                    if (diaFixo === 'Ãšltimo') {
                         nd = new Date(nd.getFullYear(), nd.getMonth() + 1, 0);
                     } else if (diaFixo !== 'original') {
                         const dia = parseInt(diaFixo);
@@ -2794,7 +3105,7 @@
                 if (isMonthBased) {
                     nd = new Date(d);
                     nd.setMonth(nd.getMonth() + freqMap[freq] * i);
-                    if (diaFixo === 'Último') {
+                    if (diaFixo === 'Ãšltimo') {
                         nd = new Date(nd.getFullYear(), nd.getMonth() + 1, 0);
                     } else if (diaFixo !== 'original') {
                         const dia = parseInt(diaFixo);
@@ -2876,15 +3187,15 @@
                 codigo_barras: document.getElementById('conta-codigo-barras').value,
                 valor_total: parseMoeda(document.getElementById('conta-valor').value),
                 data_emissao: document.getElementById('conta-emissao').value || null,
-                data_vencimento_original: document.getElementById('conta-vencimento-original').value || null,
-                data_vencimento: document.getElementById('conta-vencimento').value || document.getElementById('conta-vencimento-original').value || null,
+                data_vencimento_original: document.getElementById('conta-vencimento-original').value,
+                data_vencimento: document.getElementById('conta-vencimento').value || document.getElementById('conta-vencimento-original').value,
                 conta_bancaria_id: document.getElementById('conta-banco').value || null,
                 forma_pagamento: document.getElementById('conta-forma-pagamento').value || null,
                 descrição: document.getElementById('conta-documento').value || document.getElementById('conta-fornecedor').value,
                 observações: document.getElementById('conta-observacoes').value
             };
 
-            if (!dados.fornecedor || !dados.valor_total || !(dados.data_vencimento || dados.data_vencimento_original)) {
+            if (!dados.fornecedor || !dados.valor_total || !dados.data_vencimento_original) {
                 mostrarNotificação('Preencha os campos obrigatórios', 'warning');
                 return;
             }
@@ -3257,7 +3568,7 @@
 
     <!-- Sistema de Importação XLSX -->
     <script src="public/js/importar-xlsx.js?v=20260131"></script>
-    <script src="public/js/financeiro-shared.js?v=20260217"></script>
+    <script src="public/js/financeiro-shared.js?v=20260611"></script>
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
 
 <!-- Zyntra: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
@@ -3269,7 +3580,305 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
     <script src="/js/user-dropdown.js?v=20260319" defer></script>
+
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         MODAL PRÉ-PAGAMENTO
+         ═══════════════════════════════════════════════════════════════════ -->
+    <div class="mpag-overlay" id="modal-pre-pag">
+        <div class="mpag-box">
+            <div class="mpag-header">
+                <span class="mpag-title"><i class="fas fa-dollar-sign"></i> Pagamentos</span>
+                <button class="mpag-fechar" onclick="fecharPrePag()">Fechar <i class="fas fa-times"></i></button>
+            </div>
+            <div class="mpag-body">
+                <h2>Você já conferiu os saldos de suas Contas Correntes?</h2>
+                <p>Antes de realizar seus pagamentos tenha certeza de quanto dinheiro você tem.<br>
+                É recomendável atualizar a conciliação das suas Contas Correntes.</p>
+                <div class="mpag-links">
+                    <a href="/Financeiro/bancos.html" class="mpag-link">
+                        <i class="fas fa-university"></i> Leve-me para o Extrato de Conta Corrente
+                    </a>
+                    <a href="#" class="mpag-link" onclick="prePagContinuar(); return false;">
+                        <i class="fas fa-arrow-right"></i> Quero continuar com o processo de Pagamentos
+                    </a>
+                </div>
+                <label class="mpag-checkbox">
+                    <input type="checkbox" id="pre-pag-nao-mostrar" onchange="prePagSalvarPreferencia()">
+                    Não apresentar esta mensagem novamente
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ── Modal Pré-Pagamento ───────────────────────────────────────────────────
+    (function() {
+        var LS_KEY = 'fin_pre_pag_skip';
+        var _prePagAck = false;
+        var _prePagPending = null;
+        var _origAbrirModalPagamento = window.abrirModalPagamento;
+        function _prePagDeveMostrar() {
+            return localStorage.getItem(LS_KEY) !== '1' && !_prePagAck;
+        }
+        // Intercepta "Registrar Pagamento": mostra o aviso de saldos antes de pagar
+        window.abrirModalPagamento = function() {
+            if (_prePagDeveMostrar()) {
+                _prePagPending = { fn: _origAbrirModalPagamento, args: arguments };
+                var el = document.getElementById('modal-pre-pag');
+                if (el) el.classList.add('active');
+                return;
+            }
+            if (typeof _origAbrirModalPagamento === 'function') return _origAbrirModalPagamento.apply(window, arguments);
+        };
+        window.prePagContinuar = function() {
+            _prePagAck = true;
+            var el = document.getElementById('modal-pre-pag');
+            if (el) el.classList.remove('active');
+            if (_prePagPending && typeof _prePagPending.fn === 'function') {
+                var p = _prePagPending; _prePagPending = null;
+                p.fn.apply(window, p.args);
+            }
+        };
+        window.fecharPrePag = function() {
+            var el = document.getElementById('modal-pre-pag');
+            if (el) el.classList.remove('active');
+            _prePagPending = null;
+        };
+        window.prePagSalvarPreferencia = function() {
+            var cb = document.getElementById('pre-pag-nao-mostrar');
+            if (cb && cb.checked) localStorage.setItem(LS_KEY, '1');
+            else localStorage.removeItem(LS_KEY);
+        };
+    })();
+
+    // ── Kanban Pagamentos ─────────────────────────────────────────────────────
+    var kanbanEstado = {
+        visivel: false,
+        drag: null,
+        colunas: { pendentes: [], simular: [], aprovacao: [], confirmados: [] },
+        busca: ''
+    };
+
+    function toggleKanbanView() {
+        var btn = document.getElementById('btn-toggle-kanban');
+        var kv  = document.getElementById('kanban-view');
+        // Elementos da view padrão
+        var tableCard = document.querySelector('.card');
+        var filters   = document.querySelector('.filters-bar, .filters-section');
+        var metrics   = document.querySelector('.metrics-grid');
+
+        kanbanEstado.visivel = !kanbanEstado.visivel;
+        if (kanbanEstado.visivel) {
+            btn.classList.add('active');
+            kv.classList.add('active');
+            if (tableCard) tableCard.style.display = 'none';
+            if (filters)   filters.style.display   = 'none';
+            kanbanPopularColunas();
+            kanbanCarregarContasBancarias();
+        } else {
+            btn.classList.remove('active');
+            kv.classList.remove('active');
+            if (tableCard) tableCard.style.display = '';
+            if (filters)   filters.style.display   = '';
+        }
+    }
+
+    function kanbanFmt(v) {
+        return 'R$ ' + (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function kanbanDiasVenc(dataStr) {
+        if (!dataStr) return null;
+        var d = new Date(String(dataStr).slice(0,10) + 'T12:00:00');
+        var hoje = new Date(); hoje.setHours(12,0,0,0);
+        return Math.round((d - hoje) / 86400000);
+    }
+
+    function kanbanCriarCard(c) {
+        var venc = c.data_vencimento || c.vencimento || '';
+        var dias = kanbanDiasVenc(venc);
+        var saldo = (parseFloat(c.valor_total || c.valor || 0) - parseFloat(c.valor_pago || c.pago || 0)).toFixed(2);
+        var isPago = c.status === 'pago';
+        var vencLabel = '';
+        var vencTexto = '';
+        var vencStatusClass = 'em-dia';
+        if (dias !== null) {
+            if (isPago) {
+                vencTexto = 'Pago';
+                vencStatusClass = 'faturado';
+            } else if (dias < 0) {
+                vencTexto = 'Atrasado ' + Math.abs(dias) + 'd';
+                vencStatusClass = 'atrasado';
+            } else if (dias === 0) {
+                vencTexto = 'Vence hoje';
+                vencStatusClass = 'aguardando-faturamento';
+            } else {
+                vencTexto = venc.slice(0,10);
+            }
+            vencLabel = '<span class="card-status '+vencStatusClass+'">'+vencTexto+'</span>';
+        }
+        var catLabels = {'fornecedores':'Fornecedores','despesas-fixas':'Despesas Fixas','impostos':'Impostos','folha':'Folha','servicos':'Serviços','materiais':'Materiais','outros':'Outros'};
+        var cat = catLabels[c.categoria] || c.descricao || c.documento || '';
+        var vendor = c.fornecedor || c.fornecedor_nome || c.minha_empresa_nome_fantasia || '—';
+        var div = document.createElement('div');
+        div.className = 'kanban-card';
+        div.draggable = true;
+        div.dataset.id = c.id;
+        div.innerHTML =
+            '<div class="card-header">'+
+                '<span class="card-number">'+cat.substring(0,40)+'</span>'+
+                '<button class="card-menu" onclick="abrirModal('+c.id+')" title="Ver conta"><i class="fas fa-ellipsis-v"></i></button>'+
+            '</div>'+
+            '<div class="card-title" title="'+vendor+'">'+vendor+'</div>'+
+            vencLabel+
+            '<div class="card-value-row">'+
+                '<span class="card-value">'+kanbanFmt(saldo)+'</span>'+
+                '<span class="card-payment"><i class="far fa-credit-card"></i> Valor: '+kanbanFmt(c.valor_total||c.valor||0)+'</span>'+
+            '</div>'+
+            (venc ? '<div class="card-origin"><i class="far fa-calendar"></i> Vencimento: '+venc.slice(0,10)+'</div>' : '');
+        div.addEventListener('dragstart', function(e) {
+            kanbanEstado.drag = { id: c.id, conta: c };
+            div.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        div.addEventListener('dragend', function() { div.classList.remove('dragging'); });
+        return div;
+    }
+
+    function kanbanPopularColunas() {
+        var fonte = (window.todasContas && todasContas.length > 0) ? todasContas : (window.contasPagar || []);
+        var hoje = new Date().toISOString().slice(0,10);
+        var busca = kanbanEstado.busca.toLowerCase();
+
+        var filtrado = busca ? fonte.filter(function(c) {
+            return (c.fornecedor||c.descricao||c.documento||'').toLowerCase().includes(busca);
+        }) : fonte;
+
+        var pendentes    = filtrado.filter(function(c) { return c.status !== 'pago' && (c.data_vencimento||c.vencimento||'') <= hoje; });
+        var confirmados  = filtrado.filter(function(c) { return c.status === 'pago'; });
+
+        // Respeita os que foram arrastados para simular/aprovacao
+        var simIds       = kanbanEstado.colunas.simular.map(function(x) { return x.id; });
+        var aprovIds     = kanbanEstado.colunas.aprovacao.map(function(x) { return x.id; });
+        var pendFiltr    = pendentes.filter(function(c) { return !simIds.includes(c.id) && !aprovIds.includes(c.id); });
+
+        kanbanEstado.colunas.pendentes   = pendFiltr;
+        kanbanEstado.colunas.confirmados = confirmados;
+
+        kanbanRenderColuna('pendentes',  pendFiltr,                            'kc-pendentes-count',  ' contas a pagar');
+        kanbanRenderColuna('simular',    kanbanEstado.colunas.simular,         'kc-simular-count',    ' conta(s) para simular');
+        kanbanRenderColuna('aprovacao',  kanbanEstado.colunas.aprovacao,       'kc-aprovacao-count',  ' aguardando aprovação');
+        kanbanRenderColuna('confirmados',confirmados,                           'kc-confirmados-count',' pagamentos confirmados');
+    }
+
+    function kanbanRenderColuna(colName, lista, countId, suffix) {
+        var body = document.getElementById('kcb-' + colName);
+        if (!body) return;
+        body.innerHTML = '';
+
+        if (colName === 'simular') {
+            var hint = document.getElementById('kanban-simular-hint');
+            var btnConf = document.getElementById('kanban-btn-confirmar');
+            if (hint)   hint.style.display   = lista.length === 0 ? '' : 'none';
+            if (btnConf) btnConf.style.display = lista.length > 0 ? '' : 'none';
+            if (lista.length > 0) {
+                lista.forEach(function(c) { body.appendChild(kanbanCriarCard(c)); });
+            }
+        } else {
+            lista.forEach(function(c) { body.appendChild(kanbanCriarCard(c)); });
+        }
+
+        var countEl = document.getElementById(countId);
+        if (countEl) {
+            if (lista.length === 0) countEl.textContent = 'Nenhuma conta a pagar';
+            else countEl.textContent = lista.length + suffix;
+        }
+    }
+
+    function kanbanDragOver(e) {
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        var col = e.currentTarget;
+        col.classList.add('drag-over');
+    }
+    function kanbanDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+    function kanbanDrop(e, colName) {
+        e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+        if (!kanbanEstado.drag) return;
+        var conta = kanbanEstado.drag.conta;
+        kanbanEstado.drag = null;
+
+        // Remove da coluna de origem
+        ['pendentes','simular','aprovacao','confirmados'].forEach(function(c) {
+            kanbanEstado.colunas[c] = kanbanEstado.colunas[c].filter(function(x) { return x.id !== conta.id; });
+        });
+
+        // Adiciona na coluna de destino (exceto confirmados, pois exige API)
+        if (colName !== 'confirmados') {
+            kanbanEstado.colunas[colName].push(conta);
+        }
+        kanbanPopularColunas();
+    }
+
+    function kanbanFiltrar() {
+        kanbanEstado.busca = document.getElementById('kanban-busca').value;
+        kanbanPopularColunas();
+    }
+
+    function kanbanConfirmarSimulacao() {
+        var lista = kanbanEstado.colunas.simular;
+        if (lista.length === 0) { alert('Adicione contas à coluna "Simular Pagamentos" antes de confirmar.'); return; }
+        var total = lista.reduce(function(s,c) { return s + (parseFloat(c.valor_total||c.valor||0) - parseFloat(c.valor_pago||0)); }, 0);
+        var nomes = lista.map(function(c) { return c.fornecedor||c.descricao||'—'; }).join(', ');
+        if (!confirm('Confirmar pagamento de ' + lista.length + ' conta(s) - Total: ' + kanbanFmt(total) + '?\n\n' + nomes)) return;
+
+        // Abre modal de pagamento para a primeira conta da lista
+        if (typeof abrirModalPagamentoInterno === 'function') {
+            abrirModalPagamentoInterno(lista[0]);
+        } else if (typeof abrirModal === 'function' && lista[0]) {
+            abrirModal(lista[0].id);
+        }
+    }
+
+    function kanbanAprovarTodos() {
+        var lista = kanbanEstado.colunas.aprovacao;
+        if (lista.length === 0) { alert('Nenhuma conta na fila de Aprovação.'); return; }
+        lista.forEach(function(c) { kanbanEstado.colunas.confirmados.push(c); });
+        kanbanEstado.colunas.aprovacao = [];
+        kanbanPopularColunas();
+    }
+
+    async function kanbanCarregarContasBancarias() {
+        var body = document.getElementById('kcb-contas');
+        if (!body) return;
+        try {
+            var r = await fetch('/api/financeiro/contas-bancarias', { credentials: 'include' });
+            var data = await r.json();
+            var contas = Array.isArray(data) ? data : (data.data || []);
+            body.innerHTML = '';
+            if (contas.length === 0) {
+                body.innerHTML = '<div style="text-align:center;padding:20px;font-size:12px;color:#94a3b8;">Nenhuma conta cadastrada</div>';
+                return;
+            }
+            var countEl = document.getElementById('kc-contas-count');
+            if (countEl) countEl.textContent = contas.length + ' conta(s) cadastrada(s)';
+            contas.forEach(function(c) {
+                var saldo = parseFloat(c.saldo_atual || c.saldo_inicial || 0);
+                var isPos = saldo >= 0;
+                var div = document.createElement('div');
+                div.className = 'kanban-conta-card';
+                div.innerHTML =
+                    '<div class="kanban-conta-name">'+(c.nome||c.descricao||c.banco||'Conta')+'</div>'+
+                    '<div class="kanban-conta-saldo '+(isPos?'positivo':'negativo')+'">$ Saldo Atual: '+kanbanFmt(saldo)+'</div>';
+                body.appendChild(div);
+            });
+        } catch(err) {
+            if (body) body.innerHTML = '<div style="text-align:center;padding:20px;font-size:12px;color:#ef4444;">Erro ao carregar contas</div>';
+        }
+    }
+    </script>
+
 </body>
 </html>
-
 

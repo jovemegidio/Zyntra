@@ -33,9 +33,11 @@ const RATE_LIMITS = {
     },
 
     // Rotas financeiras - permissivo (múltiplas chamadas simultâneas no carregamento)
+    // [NF-e VOLUME] elevado de 200 p/ 1000/min: /api/faturamento cai nesta categoria
+    // e emissão em lote (300+ notas) estourava o limite antigo com 429.
     financial: {
         windowMs: 1 * 60 * 1000, // 1 minuto
-        max: 200, // 200 requisições por minuto (páginas fazem 6-10 chamadas simultâneas)
+        max: 1000, // 1000 requisições por minuto (emissão de NF-e em lote + telas com 6-10 chamadas)
         message: {
             error: 'Too many requests to financial API',
             message: 'Limite de requisições financeiras excedido. Aguarde 1 minuto.'

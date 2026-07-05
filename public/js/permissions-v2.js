@@ -169,12 +169,12 @@ function isAdmin(user) {
 // ═══════════════════════════════════════════════════════════════
 
 const areaURLs = {
-    'pcp': '/modules/PCP/index.html',
-    'vendas': '/modules/Vendas/public/index.html',
-    'financeiro': '/modules/Financeiro/index.html',
-    'nfe': '/modules/Faturamento/index.html',
-    'compras': '/modules/Compras/index.html',
-    'rh': '/modules/RH/index.html'
+    'pcp': '/PCP/index.html',
+    'vendas': '/Vendas/vendas.html',
+    'financeiro': '/Financeiro/financeiro.html',
+    'nfe': '/NFe/nfe.html',
+    'compras': '/Compras/compras.html',
+    'rh': '/RH/area.html'
 };
 
 /**

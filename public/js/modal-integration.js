@@ -810,10 +810,186 @@
         _notificationListenersSetup = false;
     });
 
-    // Solicitar permissão para notificações
-    if ('Notification' in window && Notification.permission === 'default') {
-        setTimeout(() => {
-            Notification.requestPermission();
-        }, 5000);
+    // ========================================
+    // SOFT-ASK DE NOTIFICAÇÕES (pré-permissão)
+    // Em vez de disparar o popup nativo do navegador sem contexto,
+    // mostramos um card profissional explicando o benefício. O prompt
+    // nativo só é chamado quando o usuário clica em "Ativar".
+    // ========================================
+    const NOTIF_SNOOZE_KEY = 'notifPermissionSnoozeUntil';
+    const NOTIF_SNOOZE_DAYS = 7;
+
+    function isNotifSnoozed() {
+        try {
+            const until = parseInt(localStorage.getItem(NOTIF_SNOOZE_KEY) || '0', 10);
+            return until && Date.now() < until;
+        } catch (e) { return false; }
     }
+
+    function snoozeNotifAsk() {
+        try {
+            localStorage.setItem(NOTIF_SNOOZE_KEY, String(Date.now() + NOTIF_SNOOZE_DAYS * 86400000));
+        } catch (e) { /* ignore */ }
+    }
+
+    function injectSoftAskStyles() {
+        if (document.getElementById('notif-softask-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'notif-softask-styles';
+        style.textContent = `
+            .notif-softask {
+                position: fixed;
+                bottom: 24px;
+                right: 24px;
+                width: 380px;
+                max-width: calc(100vw - 32px);
+                background: #ffffff;
+                border-radius: 16px;
+                box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18), 0 4px 12px rgba(15, 23, 42, 0.08);
+                border: 1px solid rgba(15, 23, 42, 0.06);
+                padding: 20px;
+                z-index: 999999;
+                overflow: hidden;
+                animation: notifSoftAskIn 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+            .notif-softask::before {
+                content: '';
+                position: absolute;
+                top: 0; left: 0; right: 0;
+                height: 4px;
+                background: linear-gradient(90deg, var(--primary-brand, #6C5CE7), var(--accent-purple, #8b5cf6));
+            }
+            .notif-softask.closing { animation: notifSoftAskOut 0.3s ease forwards; }
+            @keyframes notifSoftAskIn {
+                from { transform: translateY(24px) scale(0.96); opacity: 0; }
+                to   { transform: translateY(0) scale(1); opacity: 1; }
+            }
+            @keyframes notifSoftAskOut {
+                from { transform: translateY(0); opacity: 1; }
+                to   { transform: translateY(24px); opacity: 0; }
+            }
+            .notif-softask-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+            .notif-softask-ico {
+                width: 48px; height: 48px; flex-shrink: 0;
+                border-radius: 14px;
+                display: flex; align-items: center; justify-content: center;
+                background: linear-gradient(135deg, var(--primary-brand, #6C5CE7), var(--accent-purple, #8b5cf6));
+                color: #fff; font-size: 20px;
+                box-shadow: 0 6px 16px rgba(108, 92, 231, 0.35);
+                position: relative;
+            }
+            .notif-softask-ico::after {
+                content: '';
+                position: absolute; top: 9px; right: 9px;
+                width: 9px; height: 9px; border-radius: 50%;
+                background: #ef4444; border: 2px solid #fff;
+            }
+            .notif-softask-title { font-size: 16px; font-weight: 700; color: #0f172a; line-height: 1.25; }
+            .notif-softask-sub { font-size: 12.5px; color: #64748b; margin-top: 2px; }
+            .notif-softask-body { font-size: 13.5px; color: #475569; line-height: 1.5; margin: 0 0 18px; }
+            .notif-softask-actions { display: flex; gap: 10px; }
+            .notif-softask-btn {
+                flex: 1; border: none; cursor: pointer;
+                padding: 11px 16px; border-radius: 10px;
+                font-size: 13.5px; font-weight: 600;
+                transition: transform 0.12s ease, box-shadow 0.2s ease, background 0.2s ease;
+                font-family: inherit;
+            }
+            .notif-softask-btn:active { transform: translateY(1px); }
+            .notif-softask-btn.primary {
+                color: #fff;
+                background: linear-gradient(135deg, var(--primary-brand, #6C5CE7), var(--accent-purple, #8b5cf6));
+                box-shadow: 0 6px 16px rgba(108, 92, 231, 0.32);
+            }
+            .notif-softask-btn.primary:hover { box-shadow: 0 8px 22px rgba(108, 92, 231, 0.42); }
+            .notif-softask-btn.ghost {
+                color: #64748b; background: #f1f5f9;
+            }
+            .notif-softask-btn.ghost:hover { background: #e2e8f0; color: #475569; }
+            .notif-softask-close {
+                position: absolute; top: 14px; right: 14px;
+                width: 26px; height: 26px; border: none; border-radius: 8px;
+                background: transparent; color: #94a3b8; cursor: pointer;
+                font-size: 15px; line-height: 1;
+                display: flex; align-items: center; justify-content: center;
+                transition: background 0.2s ease, color 0.2s ease;
+            }
+            .notif-softask-close:hover { background: #f1f5f9; color: #475569; }
+            @media (max-width: 480px) {
+                .notif-softask { left: 16px; right: 16px; bottom: 16px; width: auto; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function showNotificationSoftAsk() {
+        if (document.getElementById('notif-softask')) return;
+        injectSoftAskStyles();
+
+        const card = document.createElement('div');
+        card.className = 'notif-softask';
+        card.id = 'notif-softask';
+        card.setAttribute('role', 'dialog');
+        card.setAttribute('aria-label', 'Ativar notificações');
+        card.innerHTML = `
+            <button class="notif-softask-close" aria-label="Fechar"><i class="fas fa-times"></i></button>
+            <div class="notif-softask-head">
+                <div class="notif-softask-ico"><i class="fas fa-bell"></i></div>
+                <div>
+                    <div class="notif-softask-title">Ative as notificações</div>
+                    <div class="notif-softask-sub">Fique por dentro em tempo real</div>
+                </div>
+            </div>
+            <p class="notif-softask-body">
+                Receba avisos instantâneos sobre pedidos, aprovações, prazos e
+                alertas importantes — mesmo com o sistema em segundo plano.
+            </p>
+            <div class="notif-softask-actions">
+                <button class="notif-softask-btn ghost" data-action="later">Agora não</button>
+                <button class="notif-softask-btn primary" data-action="enable">
+                    <i class="fas fa-bell" style="margin-right:6px;"></i>Ativar
+                </button>
+            </div>
+        `;
+        document.body.appendChild(card);
+
+        function dismiss(snooze) {
+            if (snooze) snoozeNotifAsk();
+            card.classList.add('closing');
+            setTimeout(() => card.remove(), 300);
+        }
+
+        card.querySelector('[data-action="later"]').addEventListener('click', () => dismiss(true));
+        card.querySelector('.notif-softask-close').addEventListener('click', () => dismiss(true));
+
+        card.querySelector('[data-action="enable"]').addEventListener('click', () => {
+            dismiss(false);
+            Promise.resolve(Notification.requestPermission()).then(permission => {
+                if (permission === 'granted') {
+                    snoozeNotifAsk(); // não perguntar novamente
+                    showRealtimeNotification({
+                        type: 'success',
+                        title: 'Notificações ativadas',
+                        message: 'Você será avisado sobre atualizações importantes.',
+                        icon: 'fa-check'
+                    });
+                } else if (permission === 'denied') {
+                    snoozeNotifAsk();
+                }
+            }).catch(() => {});
+        });
+    }
+
+    function maybeAskNotificationPermission() {
+        if (!('Notification' in window)) return;
+        if (Notification.permission !== 'default') return;
+        if (isNotifSnoozed()) return;
+        // Não exibir na tela de login
+        if (/login|signin|entrar/i.test(window.location.pathname)) return;
+        // Aguardar a página assentar antes de pedir
+        setTimeout(showNotificationSoftAsk, 6000);
+    }
+
+    maybeAskNotificationPermission();
 })();

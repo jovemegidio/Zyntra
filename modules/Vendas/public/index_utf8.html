@@ -1,6 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <!-- Meta Tags -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
@@ -51,8 +54,7 @@
     </script>
     
     <!-- CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- CSP Fix -->
     <script src="/js/csp-fix.js"></script>
@@ -5387,12 +5389,15 @@
         function abrirModalEtapas() { console.log('Carregando...'); }
         function marcarTodasLidas() { console.log('Carregando...'); }
     </script>
-    <script src="/js/anti-copy-protection.js"></script>
+    <script src="/js/anti-copy-protection.js" defer></script>
     <script src="js/vendas-admin-check.js"></script>
     <link rel="stylesheet" href="/css/popup-confirmacao.css">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260320">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
+
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260625a">
 </head>
 <body>
     <div class="app-container">
@@ -5445,8 +5450,10 @@
             <header class="header">
                 <div class="header-left">
                     <div class="header-brand">
-Zyntra:                         <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE">
                         <span>|</span>
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra">
+                        <span>&mdash;</span>
                         <span>Vendas</span>
                     </div>
                 </div>
@@ -6433,7 +6440,7 @@ PRAZO DE PRODUÇÁO DE 30 DIAS ÚTEIS APÓS RECEPÇÁO FÍSICA..." style="min-he
                             <i class="fas fa-file-pdf" style="font-size: 26px; color: #fff;"></i>
                         </div>
                         <div style="flex: 1; min-width: 0;">
-                            <p style="font-size: 16px; color: #0f172a; margin: 0 0 4px 0; font-weight: 600;" id="pdf-numero-orcamento">Orçamento Nº 000000</p>
+                            <p style="font-size: 16px; color: #0f172a; margin: 0 0 4px 0; font-weight: 600;" id="pdf-numero-orcamento">Orçamento Nº --</p>
                             <p style="font-size: 13px; color: #64748b; margin: 0 0 8px 0;" id="pdf-cliente-nome">Cliente não identificado</p>
                             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                                 <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #0369a1; background: #e0f2fe; padding: 4px 10px; border-radius: 6px; font-weight: 500;">
@@ -7699,7 +7706,7 @@ PRAZO DE PRODUÇÁO DE 30 DIAS ÚTEIS APÓS RECEPÇÁO FÍSICA..."></textarea>
                         </div>
                         <div class="field-group" style="flex: 0 0 150px;">
                             <label>% do Desconto <i class="fas fa-exchange-alt" style="font-size: 10px; color: #999;"></i></label>
-                            <input type="text" id="item-pedido-desconto-pct" value="0,0000000000" class="input-number">
+                            <input type="text" id="item-pedido-desconto-pct" value="0,0000000000" class="input-number" oninput="validarDescontoItem(this); atualizarCalculosItem()">
                         </div>
                         <div class="field-group checkbox-field">
                             <label class="toggle-label">
@@ -10493,7 +10500,7 @@ PRAZO DE PRODUÇÁO DE 30 DIAS ÚTEIS APÓS RECEPÇÁO FÍSICA..."></textarea>
                     ${lockBadge}
                     ${nfBadge}
                     <div class="card-header">
-                        <span class="card-number">${prefixo} Nº ${item.id}</span>
+                        <span class="card-number">${prefixo} Nº ${formatarNumeroDocumentoPedido(item)}</span>
                         <button class="card-menu" onclick="event.stopPropagation(); abrirModalEditar(${item.id})" title="Editar pedido">
                             <i class="fas fa-ellipsis-v"></i>
                         </button>
@@ -10933,6 +10940,46 @@ PRAZO DE PRODUÇÁO DE 30 DIAS ÚTEIS APÓS RECEPÇÁO FÍSICA..."></textarea>
         // MODAL EDITAR PEDIDO
         // ========================================
         let pedidoAtual = null;
+
+        function obterNumeroDocumentoPedido(pedido) {
+            if (!pedido) return null;
+            const candidatos = [
+                pedido.numero_pedido,
+                pedido.numero_orcamento,
+                pedido.numeroPedido,
+                pedido.omie_numero_pedido,
+                pedido.numero_documento,
+                pedido.id
+            ];
+            const valor = candidatos.find(v => v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '000000');
+            return valor === undefined ? null : String(valor).trim();
+        }
+
+        function formatarNumeroDocumentoPedido(pedido) {
+            const numero = obterNumeroDocumentoPedido(pedido);
+            if (!numero) return '--';
+            const somenteDigitos = numero.replace(/\D/g, '');
+            if (somenteDigitos && somenteDigitos === numero) {
+                return somenteDigitos.padStart(6, '0');
+            }
+            return numero;
+        }
+
+        async function carregarPedidoAtualCompletoParaImpressao() {
+            if (!pedidoAtual?.id) return pedidoAtual;
+            try {
+                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}`, { credentials: 'include' });
+                if (!response.ok) return pedidoAtual;
+                const dados = await response.json();
+                const pedidoCompleto = dados?.pedido || dados?.data || dados;
+                if (pedidoCompleto && typeof pedidoCompleto === 'object') {
+                    pedidoAtual = { ...pedidoAtual, ...pedidoCompleto };
+                }
+            } catch (error) {
+                console.warn('Não foi possível carregar dados completos do pedido para impressão:', error);
+            }
+            return pedidoAtual;
+        }
         
         // Função para carregar contas correntes/bancos para dropdown
         async function carregarContasCorrentes() {
@@ -11032,7 +11079,7 @@ PRAZO DE PRODUÇÁO DE 30 DIAS ÚTEIS APÓS RECEPÇÁO FÍSICA..."></textarea>
             await carregarContasCorrentes();
             
             // Atualizar título do modal
-            document.getElementById('modal-titulo-pedido').textContent = `Orçamento Nº ${pedido.id}`;
+            document.getElementById('modal-titulo-pedido').textContent = `Orçamento Nº ${formatarNumeroDocumentoPedido(pedido)}`;
             
             // Atualizar avatar do cliente (primeiras 2 letras)
             const clienteNome = pedido.cliente || 'Cliente';
@@ -11529,17 +11576,18 @@ PRAZO DE PRODUÇÁO DE 30 DIAS ÚTEIS APÓS RECEPÇÁO FÍSICA..."></textarea>
             showNotification(`Pedido duplicado! Novo Orçamento Nº ${novoPedido.id}`, 'success');
         }
         
-        function imprimirPedido() {
+        async function imprimirPedido() {
             if (!pedidoAtual) return;
+            await carregarPedidoAtualCompletoParaImpressao();
             // Atualizar número do orçamento no modal
             const numOrc = document.getElementById('pdf-numero-orcamento');
             if (numOrc) {
-                numOrc.textContent = `Orçamento Nº ${String(pedidoAtual.id).padStart(6, '0')}`;
+                numOrc.textContent = `Orçamento Nº ${formatarNumeroDocumentoPedido(pedidoAtual)}`;
             }
             // Atualizar nome do cliente no modal
             const clienteNome = document.getElementById('pdf-cliente-nome');
             if (clienteNome) {
-                clienteNome.textContent = pedidoAtual.cliente || 'Cliente não identificado';
+                clienteNome.textContent = pedidoAtual.cliente_nome || pedidoAtual.cliente || 'Cliente não identificado';
             }
             // Abrir modal de opções de impressão
             document.getElementById('modal-imprimir').classList.add('active');
@@ -11594,7 +11642,7 @@ PRAZO DE PRODUÇÁO DE 30 DIAS ÚTEIS APÓS RECEPÇÁO FÍSICA..."></textarea>
                 if (!pdfWindow) {
                     const link = document.createElement('a');
                     link.href = blobUrl;
-                    link.download = `orcamento_${pedidoAtual.id}.pdf`;
+                    link.download = `orcamento_${formatarNumeroDocumentoPedido(pedidoAtual)}.pdf`;
                     link.click();
                 }
                 showNotification('PDF gerado com sucesso!', 'success');
@@ -11790,7 +11838,7 @@ Zyntra:                 // Para nome de arquivo: ORCAMENTO - 00009
                         }
                     </style>
                     <scr` + `ipt src="/js/anti-copy-protection.js"></scr` + `ipt>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
                 </head>
                 <body>
                     <div class="container">
@@ -12059,7 +12107,7 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
                             body::before, body::after { display: none !important; }
                         }
                     </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
                 </head>
                 <body>
                     <div class="container">
@@ -14537,6 +14585,7 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
             if (precoInput) {
                 precoInput.value = formatarDecimal(produto.preco_venda || 0);
             }
+            aplicarPermissaoPrecoItem();
             
             // Atualizar cálculos
             atualizarCalculosItem();
@@ -14747,8 +14796,10 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
         }
         
         function selecionarProdutoPesquisa(produto) {
+            produtoSelecionadoAutoComplete = produto;
             document.getElementById('item-pedido-produto').value = produto.descricao || produto.nome;
             document.getElementById('item-pedido-preco').value = (produto.preco_venda || produto.preco || 0).toFixed(2);
+            aplicarPermissaoPrecoItem();
             fecharPesquisaProduto();
             atualizarCalculosItem();
         }
@@ -14765,6 +14816,7 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
                     el.addEventListener('change', atualizarCalculosItem);
                 }
             });
+            aplicarPermissaoPrecoItem();
         });
         
         // ========================================
@@ -14859,6 +14911,7 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
             modoEdicaoItem = false;
             itemSelecionado = null;
             produtoSelecionadoAutoComplete = null;
+            window._descontoItemAutorizado = false;
             
             // Limpar campos do novo modal
             document.getElementById('item-pedido-id').value = '';
@@ -14900,6 +14953,7 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
             
             document.getElementById('modal-item-titulo').textContent = 'Novo Item de Pedido de Venda';
             document.getElementById('modal-item-pedido').classList.add('active');
+            aplicarPermissaoPrecoItem();
             
             // Focar no campo produto
             setTimeout(() => {
@@ -14923,6 +14977,7 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
             
             modoEdicaoItem = true;
             itemSelecionado = item;
+            window._descontoItemAutorizado = false;
             produtoSelecionadoAutoComplete = {
                 id: item.produto_id,
                 código: item.codigo,
@@ -14950,6 +15005,7 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
             
             document.getElementById('modal-item-titulo').textContent = 'Editar Item de Pedido de Venda';
             document.getElementById('modal-item-pedido').classList.add('active');
+            aplicarPermissaoPrecoItem();
         }
 
         function formatarDecimal(valor) {
@@ -14961,6 +15017,155 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
             return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
         }
 
+        function usuarioPodeEditarPrecoItem() {
+            return !!(usuarioLogado && (usuarioLogado.isAdmin || (typeof verificarSeAdmin === 'function' && verificarSeAdmin(usuarioLogado))));
+        }
+
+        function aplicarPermissaoPrecoItem() {
+            const podeEditar = usuarioPodeEditarPrecoItem();
+            ['item-pedido-preco', 'item-pedido-tabela-preco'].forEach(id => {
+                const campo = document.getElementById(id);
+                if (!campo) return;
+                campo.readOnly = !podeEditar;
+                campo.title = podeEditar ? '' : 'Somente administradores podem editar este campo';
+                campo.style.background = podeEditar ? '' : '#f3f4f6';
+                campo.style.cursor = podeEditar ? '' : 'not-allowed';
+            });
+
+            const tabelaPreco = document.getElementById('item-pedido-tabela-preco');
+            const botaoPesquisaTabela = tabelaPreco?.parentElement?.querySelector('button');
+            if (botaoPesquisaTabela) {
+                botaoPesquisaTabela.disabled = !podeEditar;
+                botaoPesquisaTabela.style.opacity = podeEditar ? '' : '0.5';
+                botaoPesquisaTabela.style.cursor = podeEditar ? '' : 'not-allowed';
+                botaoPesquisaTabela.title = podeEditar ? '' : 'Somente administradores podem editar tabela de preço';
+            }
+        }
+
+        function obterPercentualDescontoItem() {
+            const input = document.getElementById('item-pedido-desconto-pct');
+            return parseFloat(input?.value?.replace(',', '.')) || 0;
+        }
+
+        function garantirDescontoItemAutorizado() {
+            const input = document.getElementById('item-pedido-desconto-pct');
+            if (!input) return true;
+            const LIMITE_DESCONTO = 33.88;
+            const descontoPct = obterPercentualDescontoItem();
+            if (typeof validarDescontoItem === 'function') validarDescontoItem(input);
+            if (descontoPct > LIMITE_DESCONTO && !window._descontoItemAutorizado) {
+                showNotification('Desconto acima de 33,88% requer autorização de supervisor.', 'warning');
+                return false;
+            }
+            return true;
+        }
+
+        const _SENHAS_SUPERVISORES_ITEM = { andreia: 'Pegasus1910', guilherme: 'Pegasus1910' };
+
+        function validarDescontoItem(input) {
+            let valor = input.value.replace(/[^0-9.,]/g, '');
+            let numero = parseFloat(valor.replace(',', '.')) || 0;
+            if (numero < 0) { numero = 0; input.value = '0'; }
+            if (numero > 100) { numero = 100; input.value = '100'; }
+
+            const LIMITE_DESCONTO = 33.88;
+            if (numero > LIMITE_DESCONTO && !window._descontoItemAutorizado) {
+                input.style.border = '2px solid #ef4444';
+                input.style.background = '#fef2f2';
+                input.style.color = '#dc2626';
+                input.style.fontWeight = '700';
+
+                let modal = document.getElementById('modal-senha-desconto-item');
+                if (!modal) {
+                    modal = document.createElement('div');
+                    modal.id = 'modal-senha-desconto-item';
+                    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:99999;';
+                    modal.innerHTML = `
+                        <div style="background:white;border-radius:16px;padding:30px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                            <div style="text-align:center;margin-bottom:20px;">
+                                <div style="width:60px;height:60px;background:#fef2f2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+                                    <i class="fas fa-lock" style="font-size:24px;color:#dc2626;"></i>
+                                </div>
+                                <h3 style="color:#1e293b;margin:0 0 6px;">Autorização Necessária</h3>
+                                <p style="color:#64748b;font-size:13px;margin:0;">Desconto acima de ${LIMITE_DESCONTO.toFixed(2).replace('.', ',')}% requer senha de supervisor</p>
+                            </div>
+                            <div style="margin-bottom:16px;">
+                                <input type="password" id="input-senha-desconto-item" placeholder="Senha do supervisor"
+                                    style="width:100%;padding:12px 16px;border:2px solid #e2e8f0;border-radius:10px;font-size:14px;box-sizing:border-box;"
+                                    onkeydown="if(event.key==='Enter') confirmarDescontoItemAutorizado()">
+                                <p id="erro-senha-desconto-item" style="color:#dc2626;font-size:12px;margin:6px 0 0;display:none;">Senha incorreta</p>
+                            </div>
+                            <div style="display:flex;gap:10px;">
+                                <button onclick="cancelarDescontoItem()" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:white;color:#64748b;font-weight:600;cursor:pointer;">Cancelar</button>
+                                <button onclick="confirmarDescontoItemAutorizado()" style="flex:1;padding:10px;border:none;border-radius:8px;background:#3b82f6;color:white;font-weight:600;cursor:pointer;">Autorizar</button>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
+                } else {
+                    modal.style.display = 'flex';
+                    document.getElementById('input-senha-desconto-item').value = '';
+                    document.getElementById('erro-senha-desconto-item').style.display = 'none';
+                }
+                setTimeout(() => document.getElementById('input-senha-desconto-item')?.focus(), 100);
+                return;
+            }
+
+            input.style.border = '';
+            input.style.background = '';
+            input.style.color = '';
+            input.style.fontWeight = '';
+        }
+        window.validarDescontoItem = validarDescontoItem;
+
+        function confirmarDescontoItemAutorizado() {
+            const senha = document.getElementById('input-senha-desconto-item')?.value || '';
+            const erroMsg = document.getElementById('erro-senha-desconto-item');
+            let autorizado = false;
+
+            for (const senhaCorreta of Object.values(_SENHAS_SUPERVISORES_ITEM)) {
+                if (senha === senhaCorreta) {
+                    autorizado = true;
+                    break;
+                }
+            }
+
+            if (autorizado) {
+                window._descontoItemAutorizado = true;
+                const modal = document.getElementById('modal-senha-desconto-item');
+                if (modal) modal.style.display = 'none';
+                const input = document.getElementById('item-pedido-desconto-pct');
+                if (input) {
+                    input.style.border = '2px solid #22c55e';
+                    input.style.background = '#f0fdf4';
+                    input.style.color = '#15803d';
+                    input.style.fontWeight = '700';
+                }
+                if (typeof showNotification === 'function') showNotification('Desconto autorizado pelo supervisor!', 'success');
+                if (typeof atualizarCalculosItem === 'function') atualizarCalculosItem();
+            } else if (erroMsg) {
+                erroMsg.style.display = 'block';
+                erroMsg.textContent = 'Senha incorreta. Tente novamente.';
+            }
+        }
+        window.confirmarDescontoItemAutorizado = confirmarDescontoItemAutorizado;
+
+        function cancelarDescontoItem() {
+            const modal = document.getElementById('modal-senha-desconto-item');
+            if (modal) modal.style.display = 'none';
+            const input = document.getElementById('item-pedido-desconto-pct');
+            if (input) {
+                input.value = '0';
+                input.style.border = '';
+                input.style.background = '';
+                input.style.color = '';
+                input.style.fontWeight = '';
+            }
+            window._descontoItemAutorizado = false;
+            if (typeof atualizarCalculosItem === 'function') atualizarCalculosItem();
+        }
+        window.cancelarDescontoItem = cancelarDescontoItem;
+
         // Fechar modal de item
         function fecharModalItemPedido() {
             document.getElementById('modal-item-pedido').classList.remove('active');
@@ -14969,6 +15174,8 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
 
         // Salvar item (criar ou atualizar)
         async function salvarItemPedido() {
+            if (!garantirDescontoItemAutorizado()) return;
+
             // Obter dados do produto selecionado
             const produtoInput = document.getElementById('item-pedido-produto').value.trim();
             
@@ -18850,6 +19057,7 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
                     
                     // Atualizar visibilidade do botão Novo Pedido baseado em permissões
                     atualizarBotaoNovoPedido();
+                    if (typeof aplicarPermissaoPrecoItem === 'function') aplicarPermissaoPrecoItem();
                     
                     // Usar apelido se disponível, senão primeiro nome
                     const userName = user.apelido || user.nome || 'Usuário';
@@ -20034,6 +20242,7 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
         function atualizarContador(count) {
             const naoLidas = count !== undefined ? count : notificações.filter(n => !n.lida).length;
             const badge = document.getElementById('notification-count');
+            if (!badge) return;
             
             if (naoLidas > 0) {
                 badge.textContent = naoLidas > 99 ? '99+' : naoLidas;
@@ -20605,8 +20814,10 @@ Zyntra:                                 <div class="razao">I. M. DOS REIS INDÚS
             
             // Efeito visual no badge
             const badge = document.getElementById('notification-count');
-            badge.style.animation = 'none';
-            setTimeout(() => badge.style.animation = '', 10);
+            if (badge) {
+                badge.style.animation = 'none';
+                setTimeout(() => badge.style.animation = '', 10);
+            }
         }
         
         function getIconePorTipo(tipo) {
@@ -20924,7 +21135,7 @@ Zyntra:                         <div class="razao">I. M. DOS REIS INDÚSTRIA E C
                 <head>
 Zyntra:                     <title>Relatório de Pedidos</title>
                     <style>${gerarEstilosRelatório()}</style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
                 </head>
                 <body>
                     <div class="container">
@@ -21047,7 +21258,7 @@ Zyntra:                     <title>Relatório de Pedidos</title>
                 <head>
 Zyntra:                     <title>Relatório de Clientes</title>
                     <style>${gerarEstilosRelatório()}</style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
                 </head>
                 <body>
                     <div class="container">
@@ -21154,7 +21365,7 @@ Zyntra:                     <title>Relatório de Clientes</title>
                 <head>
 Zyntra:                     <title>Catálogo de Produtos</title>
                     <style>${gerarEstilosRelatório()}</style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
                 </head>
                 <body>
                     <div class="container">
@@ -21730,7 +21941,7 @@ Zyntra:                     <title>Relatório de Vendas</title>
                     </style>
                     <scr` + `ipt src="/js/anti-copy-protection.js"></scr` + `ipt>
                     <link rel="stylesheet" href="/css/popup-confirmacao.css">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
                 </head>
                 <body>
                     <h1>ALUFORCE - Vendas</h1>
@@ -21787,12 +21998,10 @@ Zyntra:                     <title>Relatório de Vendas</title>
     </script>
     
     <!-- Font Awesome para ícones do chat/suporte -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
-    
-    <!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
+<!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
     
     <!-- Sistema de Monitoramento de Conexão -->
-    <script src="../../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="../../_shared/connection-monitor.js?v=20251223" defer></script>
     
     <!-- Sistema de Confirmação Profissional -->
     <script src="../../_shared/confirm-dialog.js?v=20260119"></script>
@@ -21803,6 +22012,8 @@ Zyntra:                     <title>Relatório de Vendas</title>
     <script src="/js/popup-confirmacao.js"></script>
     <script src="/js/unsaved-changes.js?v=20260108"></script>
     <script src="/js/modal-integration.js?v=20260108"></script>
+
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
 </body>
 </html>
 

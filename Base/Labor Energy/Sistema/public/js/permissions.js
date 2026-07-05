@@ -290,9 +290,9 @@ function getFinanceiroPermissoes(userName) {
 // Mapeamento de áreas para URLs
 const areaURLs = {
     'pcp': '/modules/PCP/index.html',
-    'vendas': '/modules/Vendas/public/index.html',
-    'financeiro': '/modules/Financeiro/index.html',
-    'nfe': '/modules/Faturamento/index.html',
+    'vendas': '/modules/Vendas/index.html',
+    'financeiro': '/modules/Financeiro/financeiro.html',
+    'nfe': '/modules/NFe/nfe.html',
     'compras': '/modules/Compras/compras.html',
     'rh': '/modules/RH/area.html',
     'ti': '/TI/ti.html'

@@ -1,6 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
@@ -30,8 +33,8 @@
         .empty-state-desc { font-size: 14px; color: var(--gray-500); }
 
         /* Modal Styles - PCP Gray Theme */
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-start; justify-content: center; z-index: 9999; padding: 20px; overflow-y: auto; }
-        .modal-overlay.active { display: flex; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: none; align-items: flex-start; justify-content: center; z-index: 9999; padding: 20px; overflow-y: auto; }
+        .modal-overlay.active { display: flex !important; }
         .modal-pedido-compra { background: white; border-radius: 12px; width: 100%; max-width: 900px; margin: 20px auto; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: slideUp 0.3s ease; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -229,13 +232,12 @@
     <script src="/js/tooltips-professional.js?v=20260209"></script>
 
     <!-- Global Header & Sidebar -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260224">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260610">
 
     <!-- PCP Header & Sidebar  Design Refinado (DEVE SER O ÚLTIMO) -->
-    <link rel="stylesheet" href="../css/pcp-header-sidebar.css?v=20260224">
-    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+<!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
     <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260608g">
 </head>
 <body>
     <div class="app-container">
@@ -252,6 +254,7 @@
                 <a href="gestao-producao.html" class="sidebar-btn" title="Gestão de Produção"><i class="fas fa-industry"></i></a>
                 <a href="faturamento.html" class="sidebar-btn" title="Faturamento"><i class="fas fa-file-invoice-dollar"></i></a>
                 <a href="../apontamentos.html" class="sidebar-btn" title="Apontamentos"><i class="fas fa-stopwatch"></i></a>
+                <a href="qualidade.html" class="sidebar-btn" title="Qualidade"><i class="fas fa-award"></i></a>
                 <a href="relatorios.html" class="sidebar-btn" title="Central de Relatórios"><i class="fas fa-chart-pie"></i></a>
             </nav>
             <div class="sidebar-bottom">
@@ -269,20 +272,19 @@
                 <div class="header-left">
                     <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
                     <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
                         <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Ordens de Compra</span>
                     </div>
                 </div>
                 <div class="header-right">
-                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    
                     <div class="user-greeting">
                         <span id="saudacao">Bom dia,</span>
                         <strong id="userName">Usuário</strong>
                     </div>
-                    <div class="user-avatar"><span id="userInitial">U</span></div>
                 </div>
             </header>
 
@@ -357,24 +359,28 @@
                             <div class="metric-header">
                                 <div class="metric-icon blue"><i class="fas fa-file-alt"></i></div>
                             </div>
+                            <div class="metric-value" id="oc-abertas">0</div>
                             <div class="metric-label">OCs Abertas</div>
                         </div>
                         <div class="metric-card green">
                             <div class="metric-header">
                                 <div class="metric-icon green"><i class="fas fa-check-double"></i></div>
                             </div>
+                            <div class="metric-value" id="oc-aprovadas">0</div>
                             <div class="metric-label">Aprovadas</div>
                         </div>
                         <div class="metric-card orange">
                             <div class="metric-header">
                                 <div class="metric-icon orange"><i class="fas fa-hourglass-half"></i></div>
                             </div>
+                            <div class="metric-value" id="oc-aguardando">0</div>
                             <div class="metric-label">Aguardando</div>
                         </div>
                         <div class="metric-card blue">
                             <div class="metric-header">
                                 <div class="metric-icon blue"><i class="fas fa-dollar-sign"></i></div>
                             </div>
+                            <div class="metric-value" id="oc-valor">R$ 0,00</div>
                             <div class="metric-label">Valor Total</div>
                         </div>
                     </div>
@@ -416,7 +422,6 @@
                 </div>
             </main>
         </div>
-    </div>
 
     <!-- Modal Novo Pedido de Compra - Design Profissional Institucional -->
     <div class="modal-overlay" id="modalNovoPedidoCompra">
@@ -680,16 +685,16 @@
                     const arrayPedidos = Array.isArray(data) ? data : (Array.isArray(data.pedidos) ? data.pedidos : []);
                     pedidosCompras = arrayPedidos.map(p => ({
                         id: p.id,
-                        numero: p.numero_pedido,
+                        número: p.numero_pedido,
                         fornecedor: p.fornecedor_nome || p.fornecedor_razao,
                         fornecedor_id: p.fornecedor_id,
                         data_emissao: p.data_pedido,
                         previsao_entrega: p.data_entrega_prevista,
                         valor_total: p.valor_total,
                         status: p.status,
-                        observacoes: p.observacoes,
+                        observações: p.observações,
                         origem: 'compras',
-                        integracao: true
+                        integração: true
                     }));
                 }
 
@@ -704,7 +709,7 @@
                         const pedidosPCP = (pcpData || []).map(p => ({
                             ...p,
                             origem: 'pcp',
-                            integracao: false
+                            integração: false
                         }));
                         ordensCompraData = [...pedidosCompras, ...pedidosPCP];
                     } else {
@@ -752,8 +757,8 @@
             tbody.innerHTML = ordensCompraData.map(oc => `
                 <tr>
                     <td>
-                        <strong>#${oc.número || oc.id || '-'}</strong>
-                        ${oc.integração ? '<i class="fas fa-link" style="color:#059669;margin-left:4px;" title="Integrado com Compras"></i>' : ''}
+                        <strong>#${oc.numero || oc.id || '-'}</strong>
+                        ${oc.integracao ? '<i class="fas fa-link" style="color:#059669;margin-left:4px;" title="Integrado com Compras"></i>' : ''}
                     </td>
                     <td>${oc.fornecedor || oc.fornecedor_nome || '-'}</td>
                     <td>${formatarData(oc.data || oc.data_emissao || oc.created_at)}</td>
@@ -831,15 +836,26 @@
         let itensOC = [];
 
         function adicionarItemOC() {
-            const codigo = prompt('Código do produto:');
-            if (!codigo) return;
+            const modal = document.getElementById('modal-add-item-oc');
+            modal.querySelector('#add-item-codigo').value = '';
+            modal.querySelector('#add-item-descricao').value = '';
+            modal.querySelector('#add-item-quantidade').value = '1';
+            modal.querySelector('#add-item-preco').value = '0';
+            modal.classList.add('active');
+            setTimeout(() => modal.querySelector('#add-item-codigo').focus(), 100);
+        }
 
-            const descricao = prompt('Descrição do produto:');
-            if (!descricao) return;
+        function fecharModalAddItem() {
+            document.getElementById('modal-add-item-oc').classList.remove('active');
+        }
 
-            const quantidade = parseFloat(prompt('Quantidade:', '1')) || 1;
-            const precoUnit = parseFloat(prompt('Preço unitário:', '0')) || 0;
-
+        function confirmarAddItem() {
+            const codigo = document.getElementById('add-item-codigo').value.trim();
+            const descricao = document.getElementById('add-item-descricao').value.trim();
+            const quantidade = parseFloat(document.getElementById('add-item-quantidade').value) || 1;
+            const precoUnit = parseFloat(document.getElementById('add-item-preco').value) || 0;
+            if (!codigo) { showToast('Informe o código do produto', 'warning'); return; }
+            if (!descricao) { showToast('Informe a descrição do produto', 'warning'); return; }
             itensOC.push({
                 id: itensOC.length + 1,
                 codigo,
@@ -848,9 +864,10 @@
                 precoUnit,
                 total: quantidade * precoUnit
             });
-
+            fecharModalAddItem();
             renderizarItensOC();
             calcularTotaisOC();
+            showToast('Item adicionado', 'success');
         }
 
         function editarItemOC() {
@@ -858,19 +875,38 @@
                 showToast('Nenhum item para editar', 'warning');
                 return;
             }
-            const id = parseInt(prompt('Digite o número do item a editar:'));
+            const sel = document.getElementById('edit-item-select');
+            sel.innerHTML = itensOC.map(i =>
+                `<option value="${i.id}">#${i.id} - ${i.codigo} - ${i.descricao}</option>`
+            ).join('');
+            const first = itensOC[0];
+            document.getElementById('edit-item-quantidade').value = first.quantidade;
+            document.getElementById('edit-item-preco').value = first.precoUnit;
+            sel.onchange = function() {
+                const item = itensOC.find(i => i.id === parseInt(this.value));
+                if (item) {
+                    document.getElementById('edit-item-quantidade').value = item.quantidade;
+                    document.getElementById('edit-item-preco').value = item.precoUnit;
+                }
+            };
+            document.getElementById('modal-edit-item-oc').classList.add('active');
+        }
+
+        function fecharModalEditItem() {
+            document.getElementById('modal-edit-item-oc').classList.remove('active');
+        }
+
+        function confirmarEditItem() {
+            const id = parseInt(document.getElementById('edit-item-select').value);
             const item = itensOC.find(i => i.id === id);
-            if (!item) {
-                showToast('Item não encontrado', 'error');
-                return;
-            }
-
-            item.quantidade = parseFloat(prompt('Nova quantidade:', item.quantidade)) || item.quantidade;
-            item.precoUnit = parseFloat(prompt('Novo preço unitário:', item.precoUnit)) || item.precoUnit;
+            if (!item) { showToast('Item não encontrado', 'error'); return; }
+            item.quantidade = parseFloat(document.getElementById('edit-item-quantidade').value) || item.quantidade;
+            item.precoUnit = parseFloat(document.getElementById('edit-item-preco').value) || item.precoUnit;
             item.total = item.quantidade * item.precoUnit;
-
+            fecharModalEditItem();
             renderizarItensOC();
             calcularTotaisOC();
+            showToast('Item atualizado', 'success');
         }
 
         function excluirItemOC() {
@@ -878,14 +914,23 @@
                 showToast('Nenhum item para excluir', 'warning');
                 return;
             }
-            const id = parseInt(prompt('Digite o número do item a excluir:'));
-            const idx = itensOC.findIndex(i => i.id === id);
-            if (idx === -1) {
-                showToast('Item não encontrado', 'error');
-                return;
-            }
+            const sel = document.getElementById('del-item-select');
+            sel.innerHTML = itensOC.map(i =>
+                `<option value="${i.id}">#${i.id} - ${i.codigo} - ${i.descricao}</option>`
+            ).join('');
+            document.getElementById('modal-del-item-oc').classList.add('active');
+        }
 
+        function fecharModalDelItem() {
+            document.getElementById('modal-del-item-oc').classList.remove('active');
+        }
+
+        function confirmarDelItem() {
+            const id = parseInt(document.getElementById('del-item-select').value);
+            const idx = itensOC.findIndex(i => i.id === id);
+            if (idx === -1) { showToast('Item não encontrado', 'error'); return; }
             itensOC.splice(idx, 1);
+            fecharModalDelItem();
             renderizarItensOC();
             calcularTotaisOC();
             showToast('Item excluído', 'success');
@@ -901,8 +946,8 @@
             tbody.innerHTML = itensOC.map(item => `
                 <tr>
                     <td>${item.id}</td>
-                    <td>${item.código}</td>
-                    <td>${item.descrição}</td>
+                    <td>${item.codigo}</td>
+                    <td>${item.descricao}</td>
                     <td style="text-align: center;">${item.quantidade}</td>
                     <td style="text-align: right;">${formatarMoeda(item.precoUnit)}</td>
                     <td style="text-align: right; font-weight: 600;">${formatarMoeda(item.total)}</td>
@@ -929,8 +974,8 @@
                     credentials: 'include'
                 });
 
-                // Se a rota não existir (404), tentar rota alternativa
-                if (response.status === 404) {
+                // Se a rota não existir (404) ou erro (500), tentar rota alternativa
+                if (response.status === 404 || !response.ok) {
                     response = await fetch(`${API_BASE}/api/usuarios`, {
                         credentials: 'include'
                     });
@@ -939,13 +984,7 @@
                 if (response.ok) {
                     let usuarios = await response.json();
                     // Se retornar todos os usuários, filtrar por compradores
-                    if (Array.isArray(usuarios)) {
-                        usuarios = usuarios.filter(u =>
-                            u.role === 'comprador' ||
-                            u.cargo?.toLowerCase().includes('compra') ||
-                            u.departamento?.toLowerCase().includes('compra')
-                        );
-                    }
+                    // Mostrar todos os usuarios como possiveis compradores
                     const select = document.getElementById('oc-comprador');
                     if (select) {
                         select.innerHTML = '<option value="">Selecione...</option>' +
@@ -967,7 +1006,7 @@
             }
 
             buscarFornecedores(termo).then(fornecedores => {
-                if (fornecedores.length === 0) {
+                if (!Array.isArray(fornecedores) || fornecedores.length === 0) {
                     fecharListaFornecedores();
                     return;
                 }
@@ -1044,25 +1083,25 @@
             const hoje = new Date();
             const dataStr = hoje.toISOString().slice(0,10).replace(/-/g,'');
             const random = Math.floor(1000 + Math.random() * 9000);
-            const numeroPedido = `OC-PCP-${dataStr}-${random}`;
+            const númeroPedido = `OC-PCP-${dataStr}-${random}`;
 
             // Formatar itens para API de Compras
             const itensFormatados = itensOC.map(item => ({
                 codigo_produto: item.codigo || item.id?.toString() || 'MAT-PCP',
-                descricao: item.nome || item.descricao,
+                descrição: item.nome || item.descricao,
                 quantidade: parseFloat(item.quantidade) || 1,
                 unidade: item.unidade || 'UN',
                 preco_unitario: parseFloat(item.preco) || parseFloat(item.preco_unitario) || 0,
                 preco_total: parseFloat(item.total) || (parseFloat(item.quantidade) * parseFloat(item.preco_unitario)) || 0,
-                observacoes: item.observacoes || `Solicitado pelo PCP`
+                observações: item.observações || `Solicitado pelo PCP`
             }));
 
             const dados = {
-                numero_pedido: numeroPedido,
+                numero_pedido: númeroPedido,
                 fornecedor_id: parseInt(fornecedorId),
                 data_pedido: document.getElementById('oc-data-emissão')?.value || hoje.toISOString().slice(0,10),
                 data_entrega_prevista: document.getElementById('oc-previsao-entrega').value || null,
-                observacoes: `[PCP] ${document.getElementById('oc-observacoes')?.value || 'Pedido originado do módulo PCP'}`,
+                observações: `[PCP] ${document.getElementById('oc-observacoes')?.value || 'Pedido originado do módulo PCP'}`,
                 itens: itensFormatados,
                 // Campos extras do PCP
                 origem: 'PCP',
@@ -1085,7 +1124,7 @@
 
                 if (response.ok) {
                     const result = await response.json();
-                    showToast(`Pedido ${numeroPedido} criado com sucesso! Integrado ao módulo Compras.`, 'success');
+                    showToast(`Pedido ${númeroPedido} criado com sucesso! Integrado ao módulo Compras.`, 'success');
                     fecharModalNovoPedido();
                     itensOC = [];
                     carregarOrdensCompra();
@@ -1115,7 +1154,8 @@
                 });
 
                 if (response.ok) {
-                    return await response.json();
+                    const data = await response.json();
+                    return Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
                 }
             } catch (e) {
                 console.error('[PCP] Erro ao buscar fornecedores:', e);
@@ -1131,7 +1171,7 @@
                 <div class="modal-overlay" id="modal-ver-oc" onclick="if(event.target===this)this.remove()">
                     <div class="modal" style="max-width:600px;">
                         <div class="modal-header">
-                            <h3><i class="fas fa-shopping-cart"></i> Ordem de Compra #${oc.número || oc.id}</h3>
+                            <h3><i class="fas fa-shopping-cart"></i> Ordem de Compra #${oc.numero || oc.id}</h3>
                             <button class="modal-close" onclick="document.getElementById('modal-ver-oc').remove()">&times;</button>
                         </div>
                         <div class="modal-body">
@@ -1142,7 +1182,7 @@
                                 <div><label style="font-size:12px;color:#6b7280;">Previsão Entrega</label><p>${formatarData(oc.previsao_entrega || oc.data_previsao)}</p></div>
                                 <div><label style="font-size:12px;color:#6b7280;">Valor Total</label><p style="font-size:20px;font-weight:700;color:#059669;">${formatarMoeda(oc.valor_total || oc.total || 0)}</p></div>
                             </div>
-                            ${oc.observacoes ? `<div style="margin-top:16px;"><label style="font-size:12px;color:#6b7280;">Observações</label><p>${oc.observacoes}</p></div>` : ''}
+                            ${oc.observações ? `<div style="margin-top:16px;"><label style="font-size:12px;color:#6b7280;">Observações</label><p>${oc.observações}</p></div>` : ''}
                         </div>
                         <div class="modal-footer">
                             <button class="btn btn-secondary" onclick="document.getElementById('modal-ver-oc').remove()">Fechar</button>
@@ -1161,7 +1201,7 @@
                 <div class="modal-overlay" id="modal-editar-oc" onclick="if(event.target===this)this.remove()">
                     <div class="modal" style="max-width:600px;">
                         <div class="modal-header">
-                            <h3><i class="fas fa-edit"></i> Editar OC #${oc.número || oc.id}</h3>
+                            <h3><i class="fas fa-edit"></i> Editar OC #${oc.numero || oc.id}</h3>
                             <button class="modal-close" onclick="document.getElementById('modal-editar-oc').remove()">&times;</button>
                         </div>
                         <div class="modal-body">
@@ -1187,7 +1227,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label>Observações</label>
-                                    <textarea class="form-control" id="edit-obs" rows="3">${oc.observacoes || ''}</textarea>
+                                    <textarea class="form-control" id="edit-obs" rows="3">${oc.observações || ''}</textarea>
                                 </div>
                             </form>
                         </div>
@@ -1205,7 +1245,7 @@
                 fornecedor: document.getElementById('edit-fornecedor').value,
                 status: document.getElementById('edit-status').value,
                 previsao_entrega: document.getElementById('edit-previsao').value,
-                observacoes: document.getElementById('edit-obs').value
+                observações: document.getElementById('edit-obs').value
             };
             try {
                 const API_BASE = getAPIBase();
@@ -1253,17 +1293,105 @@
             window.carregarOrdensCompra = newCarregarOC;
         }
     </script>
-    <script src="/modules/_shared/connection-monitor.js?v=20260205c"></script>
+    <script src="/modules/_shared/connection-monitor.js?v=20260205c" defer></script>
     <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
     <script src="/chat/widget.js?v=20260218" defer></script> -->
 
     <!-- Sidebar Click Animation -->
     <script src="/js/sidebar-click-animation.js?v=20260224"></script>
-    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226" defer></script>
 
     <!-- Chat Corporativo (Teams) -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
     <script src="/js/user-dropdown.js?v=20260319" defer></script>
+
+    <!-- Modal: Adicionar Item OC -->
+    <div class="modal-overlay" id="modal-add-item-oc" style="display:none" onclick="if(event.target===this)fecharModalAddItem()">
+        <div style="background:white;border-radius:12px;width:100%;max-width:480px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);animation:slideUp .3s ease;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:linear-gradient(135deg,#334155 0%,#475569 100%);color:white;border-bottom:3px solid #0f766e;">
+                <h2 style="margin:0;font-size:16px;font-weight:600;display:flex;align-items:center;gap:10px;"><i class="fas fa-plus-circle" style="color:#5eead4;"></i> Adicionar Item</h2>
+                <button onclick="fecharModalAddItem()" style="background:rgba(255,255,255,.15);border:none;color:white;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">&times;</button>
+            </div>
+            <div style="padding:24px;">
+                <div class="form-group-oc">
+                    <label><i class="fas fa-barcode"></i> Código <span class="required">*</span></label>
+                    <input type="text" class="form-control-oc" id="add-item-codigo" placeholder="Ex: MAT-001" onkeydown="if(event.key==='Enter')document.getElementById('add-item-descricao').focus()">
+                </div>
+                <div class="form-group-oc">
+                    <label><i class="fas fa-tag"></i> Descrição <span class="required">*</span></label>
+                    <input type="text" class="form-control-oc" id="add-item-descricao" placeholder="Descrição do produto/material">
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div class="form-group-oc">
+                        <label><i class="fas fa-hashtag"></i> Quantidade <span class="required">*</span></label>
+                        <input type="number" class="form-control-oc" id="add-item-quantidade" value="1" min="0.001" step="0.001">
+                    </div>
+                    <div class="form-group-oc">
+                        <label><i class="fas fa-dollar-sign"></i> Preço Unitário</label>
+                        <input type="number" class="form-control-oc" id="add-item-preco" value="0" min="0" step="0.01">
+                    </div>
+                </div>
+            </div>
+            <div style="padding:16px 24px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:12px;background:#f8fafc;">
+                <button onclick="fecharModalAddItem()" style="padding:10px 20px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Cancelar</button>
+                <button onclick="confirmarAddItem()" style="padding:10px 20px;background:linear-gradient(135deg,#0f766e,#0d9488);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-plus"></i> Adicionar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Editar Item OC -->
+    <div class="modal-overlay" id="modal-edit-item-oc" style="display:none" onclick="if(event.target===this)fecharModalEditItem()">
+        <div style="background:white;border-radius:12px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);animation:slideUp .3s ease;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:linear-gradient(135deg,#334155 0%,#475569 100%);color:white;border-bottom:3px solid #0f766e;">
+                <h2 style="margin:0;font-size:16px;font-weight:600;display:flex;align-items:center;gap:10px;"><i class="fas fa-edit" style="color:#5eead4;"></i> Editar Item</h2>
+                <button onclick="fecharModalEditItem()" style="background:rgba(255,255,255,.15);border:none;color:white;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">&times;</button>
+            </div>
+            <div style="padding:24px;">
+                <div class="form-group-oc">
+                    <label><i class="fas fa-list"></i> Selecionar Item <span class="required">*</span></label>
+                    <select class="form-control-oc" id="edit-item-select"></select>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div class="form-group-oc">
+                        <label><i class="fas fa-hashtag"></i> Nova Quantidade</label>
+                        <input type="number" class="form-control-oc" id="edit-item-quantidade" min="0.001" step="0.001">
+                    </div>
+                    <div class="form-group-oc">
+                        <label><i class="fas fa-dollar-sign"></i> Novo Preço Unit.</label>
+                        <input type="number" class="form-control-oc" id="edit-item-preco" min="0" step="0.01">
+                    </div>
+                </div>
+            </div>
+            <div style="padding:16px 24px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:12px;background:#f8fafc;">
+                <button onclick="fecharModalEditItem()" style="padding:10px 20px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Cancelar</button>
+                <button onclick="confirmarEditItem()" style="padding:10px 20px;background:linear-gradient(135deg,#334155,#475569);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-save"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Excluir Item OC -->
+    <div class="modal-overlay" id="modal-del-item-oc" style="display:none" onclick="if(event.target===this)fecharModalDelItem()">
+        <div style="background:white;border-radius:12px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);animation:slideUp .3s ease;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:linear-gradient(135deg,#7f1d1d,#991b1b);color:white;border-bottom:3px solid #ef4444;">
+                <h2 style="margin:0;font-size:16px;font-weight:600;display:flex;align-items:center;gap:10px;"><i class="fas fa-trash" style="color:#fca5a5;"></i> Excluir Item</h2>
+                <button onclick="fecharModalDelItem()" style="background:rgba(255,255,255,.15);border:none;color:white;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">&times;</button>
+            </div>
+            <div style="padding:24px;">
+                <div class="form-group-oc">
+                    <label><i class="fas fa-list"></i> Selecionar Item a Excluir</label>
+                    <select class="form-control-oc" id="del-item-select"></select>
+                </div>
+                <p style="margin:16px 0 0;font-size:13px;color:#6b7280;display:flex;align-items:center;gap:6px;"><i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i> Esta ação não pode ser desfeita.</p>
+            </div>
+            <div style="padding:16px 24px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:12px;background:#f8fafc;">
+                <button onclick="fecharModalDelItem()" style="padding:10px 20px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Cancelar</button>
+                <button onclick="confirmarDelItem()" style="padding:10px 20px;background:linear-gradient(135deg,#dc2626,#b91c1c);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-trash"></i> Excluir</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/global-sidebar-submenu.js?v=20260610b" defer></script>
 </body>
 </html>
+

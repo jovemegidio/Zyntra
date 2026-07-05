@@ -192,19 +192,29 @@
             // Verificar se é usuário restrito
             const isRestrito = EMAILS_RESTRITOS.includes(email);
 
-            // Verificar permissões de vendas do banco
-            let permVendas = user.permissoes_vendas;
+            // Verificar permissões de vendas do banco.
+            // FIX: /api/vendas/me retorna o campo como `permissoes` (não `permissoes_vendas`).
+            let permVendas = user.permissoes_vendas || user.permissoes;
             if (typeof permVendas === 'string') {
                 try { permVendas = JSON.parse(permVendas); } catch(e) { permVendas = null; }
             }
 
-            // Se é restrito ou tem permissões específicas de apenas kanban
-            if (isRestrito || (permVendas && permVendas.kanban === true && !permVendas.pedidos)) {
-                console.log('🔒 [VENDAS] Usuário com acesso restrito detectado:', email);
+            // "kanban-only" = tem kanban mas não é vendedor (sem pedidos/clientes/gestão)
+            const kanbanOnly = !!(permVendas && permVendas.kanban === true &&
+                permVendas.pedidos !== true && permVendas.clientes !== true && permVendas.gestao !== true);
+
+            if (isRestrito || kanbanOnly) {
+                console.log('🔒 [VENDAS] Usuário kanban-only detectado:', email);
 
                 // Aplicar restrições visuais na sidebar (esconder itens não permitidos)
-                // NÃO redirecionar - apenas ocultar itens da sidebar
                 aplicarRestricoesSidebar();
+
+                // Defesa em profundidade: o servidor já redireciona, mas se por cache
+                // a página não-Kanban abrir, volta para o Kanban.
+                const pg = (window.location.pathname.split('/').pop() || 'index.html').toLowerCase();
+                if (pg && pg !== 'index.html' && pg !== 'index') {
+                    window.location.replace('/Vendas/index.html');
+                }
             }
 
             // Salvar dados do usuário e funções para outras funções usarem

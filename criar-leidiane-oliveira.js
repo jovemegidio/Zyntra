@@ -1,5 +1,5 @@
 // criar-leidiane-oliveira.js
-// Cadastra a funcionária Leidiane Oliveira com acesso a Vendas (funcionário) e RH (funcionário)
+// Cadastra a usuaria Melissa com acesso a Vendas (funcionario) e RH (funcionario)
 // Executar na VPS: node criar-leidiane-oliveira.js
 
 const bcrypt = require('bcryptjs');
@@ -15,7 +15,7 @@ const mysql = require('mysql2/promise');
 
   try {
     const email = 'representantes@aluforce.ind.br';
-    const nome = 'Leidiane Oliveira';
+    const nome = 'Melissa';
     const senha = 'alu0103';
 
     // 1. Verificar se já existe

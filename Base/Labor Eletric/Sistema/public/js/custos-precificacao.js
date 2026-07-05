@@ -310,6 +310,15 @@
         </div>`;
     }
 
+    // === AUTO-SAVE DEBOUNCE ===
+    let _cpAutoSaveTimer = null;
+    function cpAutoSave() {
+        if (_cpAutoSaveTimer) clearTimeout(_cpAutoSaveTimer);
+        _cpAutoSaveTimer = setTimeout(function() {
+            if (typeof window.cpSalvarParâmetros === 'function') window.cpSalvarParâmetros();
+        }, 1500);
+    }
+
     window.cpUpdatePrecoKg = function(input) {
         const mat = input.dataset.mat;
         const val = parseFloat(input.value);
@@ -317,6 +326,7 @@
             _cpParâmetros.precos_kg[mat] = val;
             cpRecalcularTodos();
             cpRenderParâmetros();
+            cpAutoSave();
         }
     };
     window.cpUpdateMarkup = function(input) {
@@ -325,6 +335,7 @@
             _cpParâmetros.markup_pct = val;
             cpRecalcularTodos();
             cpRenderParâmetros();
+            cpAutoSave();
         }
     };
     window.cpUpdateDespesa = function(input) {
@@ -334,6 +345,7 @@
             _cpParâmetros.despesas[d] = val;
             cpRecalcularTodos();
             cpRenderParâmetros();
+            cpAutoSave();
         }
     };
 
@@ -349,6 +361,7 @@
         }
         cpRecalcularTodos();
         cpRenderParâmetros();
+        cpAutoSave();
     };
 
     window.cpUpdateTipoCliente = function(tipo) {
@@ -363,6 +376,7 @@
         }
         cpRecalcularTodos();
         cpRenderParâmetros();
+        cpAutoSave();
     };
 
     window.cpUpdateRepresentante = function(isRepr) {
@@ -373,6 +387,7 @@
         _cpParâmetros.despesas.comissao = isRepr ? comRepr : comNormal;
         cpRecalcularTodos();
         cpRenderParâmetros();
+        cpAutoSave();
     };
 
     window.cpUpdateFreteOpcao = function(opcao) {
@@ -384,6 +399,7 @@
         }
         cpRecalcularTodos();
         cpRenderParâmetros();
+        cpAutoSave();
     };
 
     // === TAB 2: PRÉVIA DE PREÇOS ===
@@ -699,7 +715,7 @@
             const precos = _cpCache.map(p => ({ codigo: p.codigo, preco_venda: parseFloat(p._preco.toFixed(4)) }));
             const resp = await fetch('/api/pcp/arvore-produto/aplicar-precos', {
                 credentials: 'include', method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: cpGetHeaders(),
                 body: JSON.stringify({ precos })
             });
             if (!resp.ok) throw new Error('Erro ' + resp.status);
@@ -713,16 +729,29 @@
         }
     };
 
+    // === HELPER: headers com auth + CSRF ===
+    function cpGetHeaders() {
+        const h = { 'Content-Type': 'application/json' };
+        const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+        if (token) h['Authorization'] = 'Bearer ' + token;
+        const csrfMatch = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+        if (csrfMatch) h['X-CSRF-Token'] = decodeURIComponent(csrfMatch[1]);
+        return h;
+    }
+
     // === SALVAR PARÂMETROS ===
     window.cpSalvarParâmetros = async function() {
         if (!_cpParâmetros) return;
         try {
             const resp = await fetch('/api/pcp/arvore-produto/parametros', {
                 credentials: 'include', method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: cpGetHeaders(),
                 body: JSON.stringify(_cpParâmetros)
             });
-            if (!resp.ok) throw new Error('Erro ' + resp.status);
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.message || errData.error || 'Erro ' + resp.status);
+            }
             const data = await resp.json();
             if (!data.success) throw new Error(data.message || 'Erro');
             cpShowNotif('Parâmetros salvos com sucesso!');

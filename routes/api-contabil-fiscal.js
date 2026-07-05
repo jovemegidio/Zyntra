@@ -345,8 +345,8 @@ function createContabilFiscalRouter(pool, authenticateToken) {
             try {
                 const [rows] = await pool.query(`
                     SELECT COUNT(*) as total, COALESCE(SUM(valor_total), 0) as valor
-                    FROM nfe_emitidas WHERE MONTH(data_emissao) = ? AND YEAR(data_emissao) = ?
-                    AND status IN ('autorizada', 'emitida')
+                    FROM nfes WHERE MONTH(data_emissao) = ? AND YEAR(data_emissao) = ?
+                    AND status IN ('autorizada', 'emitida', 'autorizado')
                 `, [mes, ano]);
                 nfSaidas = rows[0];
             } catch (e) { /* tabela pode não existir */ }

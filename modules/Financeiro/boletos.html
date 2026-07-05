@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -129,11 +129,16 @@
 
         @media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 768px) { .kpi-grid { grid-template-columns: 1fr; } .form-grid { grid-template-columns: 1fr; } }
+        /* Responsividade — respiro do conteúdo e largura fluida */
+        .main-content { overflow-x: hidden; }
+        .page-content { padding: 20px 24px; box-sizing: border-box; width: 100%; max-width: 1500px; margin: 0 auto; }
+        @media (max-width: 768px) { .page-content { padding: 14px; } }
     </style>
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260414">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260614">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 <body>
     <div class="app-container">
@@ -304,6 +309,7 @@
             <div class="modal-body" id="detalhe-body"></div>
             <div class="modal-footer">
                 <button class="btn-ghost" onclick="fecharModal('modal-detalhe')">Fechar</button>
+                <button class="btn-action" onclick="verBoletoPdf()"><i class="fas fa-file-pdf"></i> 2ª via (PDF)</button>
             </div>
         </div>
     </div>
@@ -423,7 +429,19 @@
                     ${b.valor_pago ? `<div class="info-row"><span class="label">Valor Pago</span><span class="value">${formatarMoeda(b.valor_pago)}</span></div>` : ''}
                 </div>
             `;
+            window._boletoAtual = id;
             document.getElementById('modal-detalhe').classList.add('active');
+        }
+
+        async function verBoletoPdf() {
+            const id = window._boletoAtual;
+            if (!id) return;
+            try {
+                const r = await fetch(`${API}/boletos/${id}/pdf`, { headers: { 'Authorization': `Bearer ${getToken()}` } });
+                if (!r.ok) { mostrarToast('Não foi possível gerar o PDF', 'error'); return; }
+                const blob = await r.blob();
+                window.open(URL.createObjectURL(blob), '_blank');
+            } catch (e) { mostrarToast('Erro de conexão', 'error'); }
         }
 
         async function emitirBoleto() {

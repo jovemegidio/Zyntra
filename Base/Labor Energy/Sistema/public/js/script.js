@@ -36,7 +36,7 @@ async function handleLogin() {
             const data = await response.json();
             localStorage.setItem('authToken', data.token);
             localStorage.setItem('userData', JSON.stringify(data.user));
-            window.location.href = '/dashboard';
+            window.location.href = window.__withBasePath ? window.__withBasePath('/dashboard') : '/dashboard';
         } catch (error) {
             alert('Erro ao fazer login.');
         }
@@ -105,7 +105,7 @@ function hideUnauthorizedModules(role) {
 function logout() {
     localStorage.removeItem('jwt');
     localStorage.removeItem('userRole');
-    window.location.href = '/login.html';
+    window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -125,23 +125,17 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (userData.role) {
         hideUnauthorizedModules(userData.role);
     }
-    // Saudação personalizada na sidebar (prefere apelido, senão nome completo)
+    // Saudação personalizada na sidebar (apenas apelido OU primeiro nome)
     const sidebar = document.querySelector('.sidebar');
     if (sidebar && userData) {
         let nomeSaudacao = '';
-        
-        // Prioridade: 1. Apelido, 2. Nome completo (reduzido se necessário)
+
+        // Prioridade: 1. Apelido, 2. Primeiro nome
         if (userData.apelido && userData.apelido.trim() !== '') {
             nomeSaudacao = userData.apelido.trim();
         } else {
-            nomeSaudacao = (userData.nome_completo && userData.nome_completo.trim()) ? userData.nome_completo.trim() : (userData.nome || '').trim();
-            // Se ainda for longo, reduz para primeiro + último
-            if (nomeSaudacao && typeof nomeSaudacao === 'string') {
-                const partes = nomeSaudacao.split(/\s+/).filter(Boolean);
-                if (partes.length > 2) {
-                    nomeSaudacao = `${partes[0]} ${partes[partes.length - 1]}`;
-                }
-            }
+            const base = (userData.nome_completo && userData.nome_completo.trim()) ? userData.nome_completo.trim() : (userData.nome || '').trim();
+            nomeSaudacao = base ? base.split(/\s+/).filter(Boolean)[0] : '';
         }
         
         const greetingBtn = document.createElement('div');
@@ -214,7 +208,7 @@ function initPCPPage() {
                 localStorage.removeItem('userData');
                 localStorage.removeItem('authToken');
                 alert('Sessão inválida ou expirada. Por favor, faça login novamente.');
-                window.location.href = '/login.html';
+                window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
                 return Promise.reject(new Error('Não autorizado'));
             }
             return response;
@@ -618,12 +612,8 @@ function initDashboardPage() {
             currentUser.rawUser = user;
             const rawName = (user.nome_completo && user.nome_completo.trim()) ? user.nome_completo.trim() : (user.nome && user.nome.trim() ? user.nome.trim() : (user.email || 'Usuário'));
             const parts = rawName.split(/\s+/).filter(Boolean);
-            let displayName = rawName;
-            if (parts.length >= 2) {
-                displayName = `${parts[0]} ${parts[parts.length - 1]}`;
-            } else if (parts.length === 1) {
-                displayName = parts[0];
-            }
+            // Saudação: apenas apelido OU primeiro nome
+            const displayName = (user.apelido && user.apelido.trim()) ? user.apelido.trim() : (parts[0] || rawName);
             currentUser = { name: displayName, permissions: user.permissions || ['admin_all'], role: user.role || null, rawUser: user };
 
             // ===== MAPEAMENTO: áreas do backend → módulos do dashboard =====
@@ -850,7 +840,7 @@ function initDashboardPage() {
             }
             localStorage.removeItem('authToken');
             localStorage.removeItem('userData');
-            window.location.href = '/login.html';
+            window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
         });
     }
 }

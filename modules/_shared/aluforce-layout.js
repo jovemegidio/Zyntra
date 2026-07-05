@@ -11,6 +11,10 @@
 (function() {
     'use strict';
 
+    function withBasePath(path) {
+        return window.__withBasePath ? window.__withBasePath(path) : path;
+    }
+
     // Configuração do módulo atual
     const AluforceLayout = {
         // Dados do usuário
@@ -276,7 +280,7 @@
                 document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
             });
             
-            window.location.href = '/login.html';
+            window.location.href = withBasePath('/login.html');
         },
 
         /**

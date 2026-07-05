@@ -42,7 +42,7 @@ function initScheduler(deps) {
     cron.schedule('0 7 * * *', async () => {
         if (!isDbAvailable()) return;
         try {
-            const [rows] = await pool.query('SELECT COUNT(*) AS total, SUM(valor) AS faturado FROM vendas WHERE DATE(data) = CURDATE()');
+            const [rows] = await pool.query('SELECT COUNT(*) AS total, COALESCE(SUM(valor), 0) AS faturado FROM pedidos WHERE DATE(created_at) = CURDATE()');
             const texto = `Relatório diário:\nTotal de vendas: ${rows[0].total}\nFaturamento: R$ ${rows[0].faturado}`;
             const destinatario = process.env.EMAIL_RELATORIO_DIARIO || process.env.EMAIL_ADMIN;
             if (destinatario && enviarEmail) {
@@ -64,11 +64,11 @@ function initScheduler(deps) {
             const backupDir = path.join(__dirname, '..', 'backups', 'db');
             if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
             const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-            const backupFile = path.join(backupDir, `aluforce_vendas_${ts}.sql.gz`);
             const dbHost = process.env.DB_HOST || 'localhost';
             const dbUser = process.env.DB_USER || 'aluforce';
             const dbPass = process.env.DB_PASSWORD || '';
             const dbName = process.env.DB_NAME || 'aluforce_vendas';
+            const backupFile = path.join(backupDir, `${dbName}_${ts}.sql.gz`);
             const dumpEnv = { ...process.env };
             if (dbPass) {
                 dumpEnv.MYSQL_PWD = dbPass;

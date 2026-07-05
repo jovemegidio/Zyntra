@@ -13,6 +13,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const fs = require('fs');
 const twoFactorService = require('../services/two-factor.service');
+const userPermissions = require('../src/permissions-server');
 
 // Helper de log. File logging is opt-in because this middleware can run on every request.
 const AUTH_RBAC_DEBUG = process.env.AUTH_RBAC_DEBUG === '1' || process.env.AUTH_RBAC_DEBUG === 'true';
@@ -364,7 +365,7 @@ router.post('/login', async (req, res) => {
             : [];
 
         // Se for admin, liberar todas as áreas
-        const todasAreas = ['pcp', 'vendas', 'compras', 'financeiro', 'nfe', 'rh', 'faturamento', 'logistica', 'ti', 'admin'];
+        const todasAreas = ['pcp', 'vendas', 'compras', 'financeiro', 'nfe', 'rh', 'faturamento', 'admin'];
         const areasPermitidas = user.is_admin ? todasAreas : areas;
 
         // Definir cookie HttpOnly
@@ -389,16 +390,12 @@ router.post('/login', async (req, res) => {
             setor: user.setor
         };
 
-        const _emailLow = (user.email || '').toLowerCase();
-        const _isLaborPortal = _emailLow.endsWith('@labor.com.br') && user.role;
-        const redirectTo = _isLaborPortal ? '/Zyntra-SGE/Empresas/dashboard.html' : '/dashboard';
-
         res.json({
             success: true,
             message: 'Login realizado com sucesso',
             token,
             user: userResponse,
-            redirectTo
+            redirectTo: '/index.html'
         });
 
     } catch (error) {
@@ -477,7 +474,7 @@ router.get('/me', authMiddleware, async (req, res) => {
         }
         
         // Se for admin, dar acesso a tudo
-        const todasAreas = ['dashboard', 'pcp', 'vendas', 'compras', 'financeiro', 'nfe', 'rh', 'faturamento', 'logistica', 'ti', 'admin'];
+        const todasAreas = ['dashboard', 'pcp', 'vendas', 'compras', 'financeiro', 'nfe', 'rh', 'faturamento', 'admin'];
         if (user.is_admin) {
             areas = todasAreas;
         }
@@ -568,12 +565,68 @@ router.get('/permissions', authMiddleware, async (req, res) => {
             ORDER BY m.ordem
         `, [req.user.id]);
 
+        // Fallback: usuário sem papéis RBAC -> deriva módulos de req.user.areas (JWT) ou permissions-server.js
+        let modulosList = permissoes;
+        if (!modulosList.length) {
+            let derivedAreas = Array.isArray(req.user.areas) && req.user.areas.length ? req.user.areas : [];
+            if (!derivedAreas.length) {
+                try {
+                    const fn = (req.user.nome || req.user.email || '').split(/[\s@.]/)[0].toLowerCase();
+                    derivedAreas = userPermissions.getUserAreas(fn) || [];
+                } catch (e) { /* silent */ }
+            }
+            if (derivedAreas.length) {
+                try {
+                    const _areas = derivedAreas.filter(Boolean);
+                    const [mods] = await pool.query(
+                        `SELECT codigo, nome, url, icone, cor, ordem FROM modulos WHERE ativo = TRUE AND codigo IN (${_areas.map(() => '?').join(',')}) ORDER BY ordem`,
+                        _areas
+                    );
+                    modulosList = mods.map(m => ({ ...m, pode_visualizar: 1, pode_criar: 0, pode_editar: 0, pode_excluir: 0, pode_aprovar: 0 }));
+                } catch (e) { console.warn('[permissions] fallback areas falhou:', e.message); }
+            }
+        }
+
+        // MERGE: além do RBAC, inclui módulos das colunas usuarios.areas e
+        // permissoes_modulos (visualizar=1). O RBAC sozinho ignorava a coluna `areas`
+        // — que é a fonte usada pelo dashboard — e limitava usuários como pcp@
+        // (Clemerson) a apenas 1 ícone no menu lateral. Só ADICIONA módulos para os
+        // quais o usuário já está autorizado; não remove nada do RBAC.
+        try {
+            const codigosSet = new Set(modulosList.map(m => m.codigo));
+            const extras = new Set();
+            const [[urow]] = await pool.query('SELECT areas FROM usuarios WHERE id = ?', [req.user.id]);
+            if (urow && urow.areas) {
+                let arr = urow.areas;
+                if (typeof arr === 'string') { try { arr = JSON.parse(arr); } catch (_) { arr = []; } }
+                (Array.isArray(arr) ? arr : []).forEach(a => extras.add(String(a).toLowerCase()));
+            }
+            try {
+                const [pm] = await pool.query('SELECT modulo FROM permissoes_modulos WHERE usuario_id = ? AND visualizar = 1', [req.user.id]);
+                pm.forEach(r => extras.add(String(r.modulo).toLowerCase()));
+            } catch (_) { /* tabela pode não existir em alguma base */ }
+            const faltantes = [...extras].filter(c => c && !codigosSet.has(c));
+            if (faltantes.length) {
+                const [mods] = await pool.query(
+                    `SELECT codigo, nome, url, icone, cor, ordem FROM modulos WHERE ativo = TRUE AND codigo IN (${faltantes.map(() => '?').join(',')}) ORDER BY ordem`,
+                    faltantes
+                );
+                mods.forEach(m => {
+                    if (!codigosSet.has(m.codigo)) {
+                        modulosList.push({ ...m, pode_visualizar: 1, pode_criar: 0, pode_editar: 0, pode_excluir: 0, pode_aprovar: 0 });
+                        codigosSet.add(m.codigo);
+                    }
+                });
+            }
+        } catch (eMerge) { console.warn('[permissions] merge areas/permissoes_modulos falhou:', eMerge.message); }
+
         res.json({
             success: true,
             is_admin: false,
+            areas: modulosList.map(m => m.codigo),
             permissions: {
                 useRBAC: true,
-                modules: permissoes.reduce((acc, p) => {
+                modules: modulosList.reduce((acc, p) => {
                     acc[p.codigo] = {
                         pode_visualizar: Boolean(p.pode_visualizar),
                         pode_criar: Boolean(p.pode_criar),
@@ -584,7 +637,7 @@ router.get('/permissions', authMiddleware, async (req, res) => {
                     return acc;
                 }, {})
             },
-            modulos: permissoes.map(p => ({
+            modulos: modulosList.map(p => ({
                 ...p,
                 pode_visualizar: Boolean(p.pode_visualizar),
                 pode_criar: Boolean(p.pode_criar),

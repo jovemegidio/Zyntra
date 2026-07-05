@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <!-- Favicon -->
@@ -14,7 +14,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Aluforce: Fornecedores</title>
+    <title>Zyntra: Fornecedores</title>
 
     <!-- Sistema de Autenticação Unificado -->
     <script src="/js/auth-unified.js?v=20260301" defer></script>
@@ -30,7 +30,8 @@
 
     <!-- CSS Padrão Global -->
     <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260301">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260628">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260301">
     <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
 
@@ -60,9 +61,10 @@
     <script src="/js/anti-copy-protection.js" defer></script>
     <!-- Chat Widget BOB AI -->
     <link rel="stylesheet" href="/chat/widget.css?v=20260301">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
+    <link rel="stylesheet" href="/css/zyntra-light-override.css?v=20260601">
 </head>
-<body>
+<body data-modulo-ativo="compras">
     <div class="app-container">
         <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
@@ -89,9 +91,9 @@
                 <div class="header-left">
                     <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
                     <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
                         <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Fornecedores</span>
                     </div>
@@ -172,7 +174,7 @@
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th style="width:50px">#</th>
+                                <th style="width:50px"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()" title="Selecionar todos"></th>
                                 <th>Razão Social</th>
                                 <th>CNPJ</th>
                                 <th>Categoria</th>
@@ -220,6 +222,7 @@
                                 <label>Categoria</label>
                                 <select id="categoria">
                                     <option value="">Selecione</option>
+                                    <option value="Geral">Geral</option>
                                     <option value="materia-prima">Matéria-prima</option>
                                     <option value="embalagem">Embalagem</option>
                                     <option value="servico">Serviço</option>
@@ -366,20 +369,69 @@
         if (overlay) overlay.classList.toggle('active');
     }
 
+    // FIX modal auth-unified: o auth-unified.js (global) trata qualquer '.modal-overlay, .modal,
+    // [role="dialog"]' como modal próprio e registra NELE um handler de backdrop
+    // (fecha quando event.target === o elemento) + marca inert/aria-hidden nos "fechados".
+    // Como o container interno tem class="modal", clicar numa área vazia do corpo do modal
+    // satisfazia event.target===.modal e FECHAVA; e o inert reaplicado deixava-o não-clicável.
+    // Blindamos cada modal uma vez: (1) removemos inert/aria-hidden ao abrir; (2) em fase de
+    // captura, um clique cujo alvo é o próprio overlay/.modal (área vazia, não um filho
+    // interativo) tem a propagação interrompida ANTES do handler do auth-unified — então só o
+    // nosso botão "×"/Cancelar fecha, nunca um clique interno acidental.
+    function blindarModal(el) {
+        if (!el || el._comprasBlindado) return;
+        el._comprasBlindado = true;
+        const innerModal = el.querySelector('.modal');
+        [el, innerModal].forEach(node => {
+            if (!node) return;
+            node.addEventListener('click', function (event) {
+                // clique na "casca" (overlay ou moldura do .modal), não num controle interno
+                if (event.target === node) {
+                    event.stopImmediatePropagation();
+                }
+            }, true); // captura: roda antes dos listeners de bubbling do auth-unified
+        });
+    }
+
+    function abrirOverlayModal(el) {
+        if (!el) return;
+        blindarModal(el);
+        el.classList.add('active');
+        const destravar = () => {
+            // auth-unified aplica inert/aria-hidden em CADA elemento que casa
+            // '.modal-overlay, .modal, [role="dialog"]' — inclusive o .modal interno que
+            // contém os campos. Destravar o overlay E todos os descendentes-modal, senão
+            // o conteúdo fica visível porém inerte (sem clique/foco/teclado).
+            const alvos = [el].concat(Array.from(el.querySelectorAll('.modal, [role="dialog"], [inert], [aria-hidden="true"]')));
+            alvos.forEach(node => {
+                node.removeAttribute('inert');
+                node.removeAttribute('aria-hidden');
+                if ('inert' in node) node.inert = false;
+            });
+        };
+        destravar();
+        requestAnimationFrame(destravar);
+    }
+
+    function fecharOverlayModal(el) {
+        if (!el) return;
+        el.classList.remove('active');
+    }
+
     function abrirModalNovoFornecedor() {
         document.getElementById('fornecedorId').value = '';
         document.getElementById('formFornecedor').reset();
         document.getElementById('modalFornecedorTitle').innerHTML = '<i class="fas fa-plus"></i> Novo Fornecedor';
         trocarAbaFornecedor('dados', document.querySelector('.modal-tabs button'));
-        document.getElementById('modalFornecedor').classList.add('active');
+        abrirOverlayModal(document.getElementById('modalFornecedor'));
     }
 
     function fecharModalFornecedor() {
-        document.getElementById('modalFornecedor').classList.remove('active');
+        fecharOverlayModal(document.getElementById('modalFornecedor'));
     }
 
     function fecharModalVisualizarFornecedor() {
-        document.getElementById('modalVisualizarFornecedor').classList.remove('active');
+        fecharOverlayModal(document.getElementById('modalVisualizarFornecedor'));
     }
 
     function trocarAbaFornecedor(tab, btnEl) {
@@ -397,6 +449,12 @@
         v = v.replace(/\.(\d{3})(\d)/, '.$1/$2');
         v = v.replace(/\/(\d{4})(\d)/, '/$1-$2');
         input.value = v;
+    }
+
+    // A tabela fornecedores guarda atividade em `ativo` (0/1), não em `status`
+    function fornecedorEstaAtivo(f) {
+        if (f.ativo !== undefined && f.ativo !== null) return f.ativo == 1 || f.ativo === true || f.ativo === 'true';
+        return (f.status || 'ativo') === 'ativo';
     }
 
     function formatarCNPJ(cnpj) {
@@ -435,6 +493,7 @@
             inscricao_estadual: document.getElementById('inscricaoEstadual').value,
             categoria: document.getElementById('categoria').value,
             status: document.getElementById('statusForn').value,
+            ativo: document.getElementById('statusForn').value === 'ativo' ? 1 : 0,
             cep: document.getElementById('cep').value,
             endereco: document.getElementById('endereco').value,
             bairro: document.getElementById('bairro').value,
@@ -490,9 +549,16 @@
             document.getElementById('razaoSocial').value = f.razao_social || '';
             document.getElementById('nomeFantasia').value = f.nome_fantasia || '';
             document.getElementById('cnpj').value = formatarCNPJ(f.cnpj || '');
-            document.getElementById('inscricaoEstadual').value = f.inscricao_estadual || '';
-            document.getElementById('categoria').value = f.categoria || '';
-            document.getElementById('statusForn').value = f.status || 'ativo';
+            document.getElementById('inscricaoEstadual').value = f.inscricao_estadual || f.ie || '';
+            // Categorias legadas do banco ("Matéria Prima", "Componentes"…) não existem nas
+            // options fixas — injeta a option para não abrir o combo vazio nem perder o valor
+            const catSel = document.getElementById('categoria');
+            const catVal = f.categoria || '';
+            if (catVal && !Array.from(catSel.options).some(o => o.value === catVal)) {
+                catSel.add(new Option(catVal, catVal));
+            }
+            catSel.value = catVal;
+            document.getElementById('statusForn').value = fornecedorEstaAtivo(f) ? 'ativo' : 'inativo';
             document.getElementById('cep').value = f.cep || '';
             document.getElementById('endereco').value = f.endereco || '';
             document.getElementById('bairro').value = f.bairro || '';
@@ -507,7 +573,7 @@
             document.getElementById('whatsapp').value = f.whatsapp || '';
             document.getElementById('website').value = f.website || '';
             document.getElementById('condicoesPagamento').value = f.condicoes_pagamento || '';
-            document.getElementById('prazoEntrega').value = f.prazo_entrega || '';
+            document.getElementById('prazoEntrega').value = f.prazo_entrega || f.prazo_entrega_padrao || '';
             document.getElementById('banco').value = f.banco || '';
             document.getElementById('agencia').value = f.agencia || '';
             document.getElementById('conta').value = f.conta || '';
@@ -519,7 +585,7 @@
             document.getElementById('observacoes').value = f.observacoes || '';
             document.getElementById('modalFornecedorTitle').innerHTML = '<i class="fas fa-edit"></i> Editar Fornecedor';
             trocarAbaFornecedor('dados', document.querySelector('.modal-tabs button'));
-            document.getElementById('modalFornecedor').classList.add('active');
+            abrirOverlayModal(document.getElementById('modalFornecedor'));
         } catch (e) { _toast('Erro ao carregar fornecedor', 'error'); }
     }
 
@@ -537,9 +603,9 @@
                     '<div class="view-item"><label>Razão Social</label><p>' + (f.razao_social || '-') + '</p></div>' +
                     '<div class="view-item"><label>Nome Fantasia</label><p>' + (f.nome_fantasia || '-') + '</p></div>' +
                     '<div class="view-item"><label>CNPJ</label><p>' + formatarCNPJ(f.cnpj) + '</p></div>' +
-                    '<div class="view-item"><label>IE</label><p>' + (f.inscricao_estadual || '-') + '</p></div>' +
+                    '<div class="view-item"><label>IE</label><p>' + (f.inscricao_estadual || f.ie || '-') + '</p></div>' +
                     '<div class="view-item"><label>Categoria</label><p>' + (f.categoria || '-') + '</p></div>' +
-                    '<div class="view-item"><label>Status</label><p><span class="badge badge-' + (f.status === 'ativo' ? 'approved' : f.status === 'inativo' ? 'cancelled' : 'pending') + '">' + (f.status || '-') + '</span></p></div>' +
+                    '<div class="view-item"><label>Status</label><p><span class="badge badge-' + (fornecedorEstaAtivo(f) ? 'approved' : 'cancelled') + '">' + (fornecedorEstaAtivo(f) ? 'Ativo' : 'Inativo') + '</span></p></div>' +
                 '</div></div>' +
                 '<div class="view-section"><h4><i class="fas fa-map-marker-alt"></i> Endereço</h4><div class="view-grid">' +
                     '<div class="view-item"><label>CEP</label><p>' + (f.cep || '-') + '</p></div>' +
@@ -568,7 +634,7 @@
                     (f.certificacoes ? '<div class="view-item" style="margin-bottom:var(--space-2);"><label>Certificações</label><p>' + f.certificacoes + '</p></div>' : '') +
                     (f.observacoes ? '<div class="view-item"><label>Observações</label><p>' + f.observacoes + '</p></div>' : '') +
                     '</div>' : '');
-            document.getElementById('modalVisualizarFornecedor').classList.add('active');
+            abrirOverlayModal(document.getElementById('modalVisualizarFornecedor'));
         } catch (e) { _toast('Erro ao carregar detalhes', 'error'); }
     }
 
@@ -621,6 +687,23 @@
     <!-- Enterprise Shared -->
     <script src="/js/sidebar-click-animation.js?v=20260301"></script>
     <script src="/_shared/accessibility-widget.js?v=20260418"></script>
+
+    <!-- Deep-link: abre o cadastro ao chegar com #novo (item "Incluir" do menu lateral) -->
+    <script>
+    (function () {
+        function abrirSeNovo() {
+            var h = (location.hash || '').toLowerCase();
+            if ((h === '#novo' || h === '#nova') && typeof abrirModalNovoFornecedor === 'function') {
+                abrirModalNovoFornecedor();
+            }
+        }
+        window.addEventListener('hashchange', abrirSeNovo);
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function () { setTimeout(abrirSeNovo, 400); });
+        } else {
+            setTimeout(abrirSeNovo, 400);
+        }
+    })();
+    </script>
 </body>
 </html>
-

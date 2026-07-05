@@ -154,7 +154,7 @@ async function carregarPedidos() {
                 fornecedor_nome: p.fornecedor_nome || p.fornecedor,
                 data_pedido: p.data_pedido || p.dataPedido || p.created_at,
                 data_entrega_prevista: p.data_entrega_prevista || p.dataEntrega,
-                status: p.status || 'Pendente',
+                status: (p.status || 'pendente').toLowerCase(),
                 origem: p.origem || 'COMPRAS',
                 itens: p.itens || []
             }));
@@ -656,10 +656,13 @@ function renderizarTabelaPedidos() {
     tbody.innerHTML = pedidosFiltrados.map(pedido => {
         // Calcular valor exibido em tempo real
         const valorExibir = parseFloat(pedido.valor_final) || parseFloat(pedido.valor_total) || 0;
+        // [FIX A11] Pedidos cancelados: linha esmaecida + texto tachado para distinção visual
+        const isCancelado = pedido.status === 'cancelado';
+        const rowStyle = isCancelado ? 'opacity:0.55;text-decoration:line-through;color:#94a3b8;' : '';
 
         return `
-        <tr data-id="${pedido.id}">
-            <td><input type="checkbox" class="pedido-checkbox" data-id="${pedido.id}" onchange="atualizarSelecao()"></td>
+        <tr data-id="${pedido.id}" style="${rowStyle}">
+            <td><input type="checkbox" class="pedido-checkbox" data-id="${pedido.id}" onchange="atualizarSelecao()" ${isCancelado ? 'disabled' : ''}></td>
             <td>
                 <strong>${escapeHtml(pedido.numero_pedido) || '-'}</strong>
                 ${pedido.origem === 'PCP' ? '<span style="background: #8b5cf6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 6px; font-weight: 600;">PCP</span>' : ''}
@@ -714,23 +717,47 @@ function atualizarCards() {
 
 // ============ AÇÕES ============
 
+// [FIX C4] Guarda do último pedidoId solicitado para invalidar respostas obsoletas
+let _visualizarPedidoSeq = 0;
+
 async function visualizarPedido(pedidoId) {
-    let pedido = pedidos.find(p => p.id == pedidoId);
+    // [FIX C4] Limpa o modal antes de carregar para não exibir dados do pedido anterior
+    const content = document.getElementById('detalhesContent');
+    if (content) content.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;"><i class="fas fa-spinner fa-spin" style="font-size:24px;"></i><p style="margin-top:8px;">Carregando pedido...</p></div>';
+    const modalVis = document.getElementById('modalVisualizarPedido');
+    if (modalVis) modalVis.classList.add('active');
+
+    const seq = ++_visualizarPedidoSeq;
+    let pedido = pedidos.find(p => String(p.id) === String(pedidoId));
 
     // Sempre buscar da API para garantir dados completos (condicoes_pagamento, etc.)
     try {
-        // BE-002: Usar apenas cookies httpOnly — nunca localStorage.getItem('token')
-        const response = await fetch(`/api/compras/pedidos/${pedidoId}`, {
-            credentials: 'include'
+        const response = await fetch(`/api/compras/pedidos/${encodeURIComponent(pedidoId)}`, {
+            credentials: 'include',
+            cache: 'no-store'
         });
         if (response.ok) {
-            pedido = await response.json();
+            const fresh = await response.json();
+            // [FIX C4] Se o usuário clicou em outro pedido enquanto este request estava pendente,
+            // descarta esta resposta para não mostrar dados do pedido errado.
+            if (seq !== _visualizarPedidoSeq) return;
+            // [FIX C4] Validar que o pedido retornado é mesmo o solicitado
+            if (fresh && (String(fresh.id) === String(pedidoId) || String(fresh.numero_pedido) === String(pedidoId))) {
+                pedido = fresh;
+            } else {
+                console.warn('[Compras] API retornou pedido diferente do solicitado:', fresh?.id, '!=', pedidoId);
+            }
+        } else {
+            console.warn('[Compras] /api/compras/pedidos/' + pedidoId + ' status', response.status);
         }
     } catch (error) {
         console.error('Erro ao buscar pedido:', error);
     }
 
+    if (seq !== _visualizarPedidoSeq) return;
+
     if (!pedido) {
+        if (content) content.innerHTML = '<div style="text-align:center;padding:40px;color:#dc2626;"><i class="fas fa-exclamation-triangle" style="font-size:24px;"></i><p style="margin-top:8px;">Pedido não encontrado</p></div>';
         mostrarToast('Pedido não encontrado', 'error');
         return;
     }

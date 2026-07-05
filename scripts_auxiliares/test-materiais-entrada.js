@@ -1,17 +1,17 @@
 const mysql = require('mysql2/promise');
 
 (async () => {
-    const pool = await mysql.createPool({ 
-        host: 'interchange.proxy.rlwy.net', 
-        user: 'root', 
-        password: 'iiilOZutDOnPCwxgiTKeMuEaIzSwplcu', 
-        database: 'railway', 
-        port: 19396 
+    const pool = await mysql.createPool({
+        host: 'interchange.proxy.rlwy.net',
+        user: 'root',
+        password: process.env.RAILWAY_DB_PASSWORD || process.env.DB_PASSWORD || '',
+        database: 'railway',
+        port: 19396
     });
-    
+
     // Simulando a query da API atualizada
     const [materiais] = await pool.query(`
-        SELECT 
+        SELECT
             m.id,
             m.codigo_material as codigo,
             m.descricao as nome,
@@ -26,16 +26,16 @@ const mysql = require('mysql2/promise');
         FROM materiais m
         WHERE (m.ativo = 1 OR m.ativo IS NULL)
           AND EXISTS (
-              SELECT 1 FROM movimentacoes_estoque me 
+              SELECT 1 FROM movimentacoes_estoque me
               WHERE me.material_id = m.id AND me.tipo = 'ENTRADA'
           )
         ORDER BY m.descricao ASC
     `);
-    
+
     console.log('=== MATERIAIS COM ENTRADA REGISTRADA NO PCP ===');
     console.log('Total encontrados:', materiais.length);
     console.log('');
-    
+
     if (materiais.length > 0) {
         materiais.forEach((m, i) => {
             console.log(`${i + 1}. ${m.nome}`);
@@ -47,6 +47,6 @@ const mysql = require('mysql2/promise');
     } else {
         console.log('Nenhum material com entrada encontrado.');
     }
-    
+
     await pool.end();
 })();

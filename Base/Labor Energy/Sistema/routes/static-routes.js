@@ -87,9 +87,9 @@ function setupStaticRoutes(app, baseDir) {
         lastModified: true
     }));
 
-    // Rota antiga do dashboard: redireciona para o painel atual
+    // Rota para /public/index.html - redireciona para dashboard
     app.get('/public/index.html', (req, res) => {
-        res.redirect('/dashboard');
+        res.redirect('/');
     });
 
     // Servir Socket.io client library
@@ -156,12 +156,6 @@ function setupStaticRoutes(app, baseDir) {
     app.use('/Compras', express.static(path.join(baseDir, 'modules', 'Compras'), {
         setHeaders: (res, filePath) => setTextHeaders(res, filePath)
     }));
-    app.use('/Logistica', express.static(path.join(baseDir, 'modules', 'Logistica', 'public'), {
-        setHeaders: (res, filePath) => setTextHeaders(res, filePath)
-    }));
-    // FUNC-04: Redirect /Logistica e /Logistica/ para index.html
-    app.get('/Logistica', (req, res) => res.redirect('/Logistica/index.html'));
-    app.get('/Logistica/', (req, res) => res.redirect('/Logistica/index.html'));
     app.use('/RecursosHumanos', express.static(path.join(baseDir, 'modules', 'RH', 'public'), {
         setHeaders: (res, filePath) => setTextHeaders(res, filePath)
     }));

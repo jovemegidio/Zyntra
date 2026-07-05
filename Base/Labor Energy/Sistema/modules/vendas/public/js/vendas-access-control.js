@@ -1,5 +1,5 @@
 ﻿/**
- * ZYNTRA - Controle de Acesso por Permissões de Vendas
+ * ALUFORCE - Controle de Acesso por Permissões de Vendas
  *
  * Este script verifica as permissões do usuário logado e:
  * 1. Esconde itens da sidebar que o usuário não tem permissão
@@ -170,7 +170,7 @@
             const token = (typeof AluforceAuth !== 'undefined' && AluforceAuth.getTabToken()) || sessionStorage.getItem('tabAuthToken');
             // Verificar se há token antes de fazer requisição
             if (!token) {
-
+                console.log('🔒 [VENDAS] Sem token - pulando verificação de permissões');
                 return;
             }
 
@@ -181,7 +181,7 @@
             });
 
             if (!response.ok) {
-
+                console.log('🔒 [VENDAS] Não autenticado - permissões não verificadas');
                 return; // Não está logado - não bloquear a página
             }
 
@@ -200,6 +200,7 @@
 
             // Se é restrito ou tem permissões específicas de apenas kanban
             if (isRestrito || (permVendas && permVendas.kanban === true && !permVendas.pedidos)) {
+                console.log('🔒 [VENDAS] Usuário com acesso restrito detectado:', email);
 
                 // Aplicar restrições visuais na sidebar (esconder itens não permitidos)
                 // NÃO redirecionar - apenas ocultar itens da sidebar
@@ -217,6 +218,13 @@
                 VENDEDORES_IDS
             };
 
+            console.log('🔒 [VENDAS] Permissões:', {
+                usuario: user.nome,
+                isSupervisor: window.ALUFORCE_PERMISSIONS.isSupervisor,
+                isAdmin: window.ALUFORCE_PERMISSIONS.isAdmin,
+                vendedorId: window.ALUFORCE_PERMISSIONS.vendedorId
+            });
+
         } catch (error) {
             console.error('Erro ao verificar permissões:', error);
         }
@@ -224,6 +232,7 @@
 
     // Função para esconder itens da sidebar
     function aplicarRestricoesSidebar() {
+        console.log('🔒 [VENDAS] Aplicando restrições de acesso - Apenas Kanban');
 
         // Esconder todos os botões da sidebar exceto Kanban
         const sidebarBtns = document.querySelectorAll('.sidebar-nav .sidebar-btn');

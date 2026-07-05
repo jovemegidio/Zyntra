@@ -27,7 +27,10 @@ const ApiConfig = (function() {
         currentServer: null,
         isLocalAvailable: false,
         isProductionAvailable: false,
-        lastCheck: null
+        lastCheck: null,
+        // BE-004: Exponential backoff — aumentar intervalo a cada falha consecutiva
+        consecutiveFailures: 0,
+        currentCheckInterval: CONFIG.checkInterval
     };
 
     /**
@@ -165,25 +168,51 @@ const ApiConfig = (function() {
      */
     async function init() {
         log('🚀 Inicializando ApiConfig...');
-        
+
         // Tenta usar servidor salvo primeiro
         const savedServer = localStorage.getItem('preferredServer');
         if (savedServer) {
             state.currentServer = savedServer === 'local' ? CONFIG.localServer : CONFIG.productionServer;
             log(`📍 Usando servidor salvo: ${savedServer}`);
         }
-        
+
         // Detecta melhor servidor em background
         detectBestServer();
-        
-        // Verifica periodicamente
-        setInterval(async () => {
-            if (navigator.onLine) {
-                await detectBestServer();
-            }
-        }, CONFIG.checkInterval);
-        
-        log('✅ ApiConfig inicializado');
+
+        // BE-004: Verificação periódica com exponential backoff
+        // Se todos os servidores falharem repetidamente, aumentar intervalo:
+        // 30s → 60s → 120s → 300s → 300s (cap) — reset quando um servidor responder
+        const MAX_BACKOFF_MS = 300000; // 5 minutos
+        let _healthTimer = null;
+        function _scheduleNextHealthCheck() {
+            if (_healthTimer) clearTimeout(_healthTimer);
+            _healthTimer = setTimeout(async () => {
+                if (navigator.onLine) {
+                    const prevServer = state.currentServer;
+                    await detectBestServer();
+                    if (state.currentServer) {
+                        // Servidor disponível — resetar backoff
+                        if (state.consecutiveFailures > 0) {
+                            log(`✅ Servidor recuperado após ${state.consecutiveFailures} falhas — resetando backoff`);
+                        }
+                        state.consecutiveFailures = 0;
+                        state.currentCheckInterval = CONFIG.checkInterval;
+                    } else {
+                        // Falha — aumentar intervalo (backoff exponencial com cap)
+                        state.consecutiveFailures++;
+                        state.currentCheckInterval = Math.min(
+                            CONFIG.checkInterval * Math.pow(2, state.consecutiveFailures - 1),
+                            MAX_BACKOFF_MS
+                        );
+                        log(`⚠️ Health check falhou (${state.consecutiveFailures}x) — próxima verificação em ${state.currentCheckInterval / 1000}s`);
+                    }
+                }
+                _scheduleNextHealthCheck();
+            }, state.currentCheckInterval);
+        }
+        _scheduleNextHealthCheck();
+
+        log('✅ ApiConfig inicializado com exponential backoff');
     }
 
     /**

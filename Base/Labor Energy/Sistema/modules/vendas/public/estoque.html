@@ -11,7 +11,7 @@
     <title>Zyntra: Consulta de Estoque</title>
     
     <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
-    <script src="/js/auth-unified.js?v=20260301" defer></script>
+    <script src="/js/auth-unified.js?v=20260527" defer></script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,7 +29,7 @@
             --sidebar-width: 48px;
             --header-height: 42px;
             --primary-blue: #225cfa;
-            --primary-dark: #1a1a2e;
+            --primary-dark: #ffffff;
             --bg-gray: #f5f5f5;
             --border-color: #e5e5e5;
             --text-primary: #1a1a1a;
@@ -320,7 +320,7 @@
         }
         .estoque-badge.disponivel, .estoque-badge.success { background: #dcfce7; color: #166534; }
         .estoque-badge.baixo, .estoque-badge.warning { background: #fef3c7; color: #92400e; }
-        .estoque-badge.critico, .estoque-badge.danger { background: #fee2e2; color: #991b1b; }
+        .estoque-badge.crítico, .estoque-badge.danger { background: #fee2e2; color: #991b1b; }
         .estoque-badge.zerado { background: #f3f4f6; color: #6b7280; }
 
         .quantidade-cell { 
@@ -695,7 +695,7 @@
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <script src="/js/tooltips-professional.js?v=20260209"></script>
     <script src="/js/modal-title.js?v=20260210"></script>
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
 
     <!-- Chat Widget BOB AI - DESATIVADO -->
     <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
@@ -709,7 +709,7 @@
 
         
         <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
+        <aside class="sidebar" id="mobile-sidebar">
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
                 <i class="fas fa-home"></i>
             </a>
@@ -745,7 +745,7 @@
             </nav>
 
             <div class="sidebar-bottom">
-                <button class="sidebar-btn" title="Configurações">
+                <button class="sidebar-btn" title="Configurações" onclick="window.location.href='/dashboard'">
                     <i class="fas fa-cog"></i>
                 </button>
             </div>
@@ -763,7 +763,7 @@
                         <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
                         <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
                         <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Estoque</span>
                     </div>
                 </div>
@@ -773,6 +773,10 @@
                     </button>
                     <div class="user-greeting">
                         <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo" style="display:none;">
+                            <span id="user-initial">U</span>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -799,9 +803,42 @@
                         0%, 100% { opacity: 1; }
                         50% { opacity: 0.4; }
                     }
-                
+
     /* ===== COMPRAS STANDARD — STAT CARDS ===== */
 
+    .category-chips {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 16px;
+    }
+    .category-chips-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #6b7280;
+        white-space: nowrap;
+    }
+    .category-chip {
+        padding: 5px 14px;
+        border-radius: 20px;
+        border: 1.5px solid #e5e7eb;
+        background: white;
+        font-size: 12px;
+        font-weight: 500;
+        color: #374151;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .category-chip:hover {
+        border-color: #3b82f6;
+        color: #3b82f6;
+    }
+    .category-chip.active {
+        background: #3b82f6;
+        border-color: #3b82f6;
+        color: white;
+    }
 
     </style>
 
@@ -876,6 +913,20 @@
                     </button>
                 </div>
 
+                <!-- Categorias Rápidas -->
+                <div class="category-chips" id="category-chips">
+                    <span class="category-chips-label">Categorias:</span>
+                    <button class="category-chip active" onclick="filtrarCategoria(this, '')">Todas</button>
+                    <button class="category-chip" onclick="filtrarCategoria(this, 'Ferramentas')">Ferramentas</button>
+                    <button class="category-chip" onclick="filtrarCategoria(this, 'Material Elétrico')">Material Elétrico</button>
+                    <button class="category-chip" onclick="filtrarCategoria(this, 'EPI')">EPI</button>
+                    <button class="category-chip" onclick="filtrarCategoria(this, 'Cabos e Fios')">Cabos e Fios</button>
+                    <button class="category-chip" onclick="filtrarCategoria(this, 'Iluminação')">Iluminação</button>
+                    <button class="category-chip" onclick="filtrarCategoria(this, 'Automação')">Automação</button>
+                    <button class="category-chip" onclick="filtrarCategoria(this, 'Hidráulica')">Hidráulica</button>
+                    <button class="category-chip" onclick="filtrarCategoria(this, 'Outros')">Outros</button>
+                </div>
+
                 <!-- Table -->
                 <div class="table-container" style="position: relative;">
                     <div class="table-header">
@@ -884,7 +935,7 @@
                             <button class="table-tab active" onclick="setView('todos')">Todos</button>
                             <button class="table-tab" onclick="setView('disponivel')">Normal</button>
                             <button class="table-tab" onclick="setView('baixo')">Baixo</button>
-                            <button class="table-tab" onclick="setView('critico')">Crítico</button>
+                            <button class="table-tab" onclick="setView('crítico')">Crítico</button>
                         </div>
                     </div>
 
@@ -953,7 +1004,7 @@
         let produtosFiltrados = [];
         let paginaAtual = 1;
         const itensPorPagina = 50; // Mesmo padrão do PCP
-        let ordenacaoAtual = { campo: 'nome', direcao: 'asc' };
+        let ordenaçãoAtual = { campo: 'nome', direcao: 'asc' };
         let autoRefreshInterval = null;
         const AUTO_REFRESH_TIME = 30000; // Atualização a cada 30 segundos
 
@@ -1032,24 +1083,28 @@
                         }
                         
                         // Nome do usuário
-                        document.getElementById('user-name').textContent = primeiroNome;
-                        
+                        const userNameEl = document.getElementById('user-name');
+                        if (userNameEl) userNameEl.textContent = primeiroNome;
+
                         // Iniciais
                         const initials = (user.nome || userName).split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-                        document.getElementById('user-initials').textContent = initials;
-                        
+                        const userInitialsEl = document.getElementById('user-initials');
+                        if (userInitialsEl) userInitialsEl.textContent = initials;
+
                         // Foto do usuário - verificar múltiplos campos
                         let userAvatar = (user.avatar || user.foto || user.foto_perfil_url);
                         if (userAvatar === '/avatars/default.webp') userAvatar = null;
                         if (!userAvatar) {
                             userAvatar = getAvatarFromEmail(user.email, user.nome);
                         }
-                        
+
                         if (userAvatar) {
                             const photoEl = document.getElementById('user-photo');
-                            photoEl.src = userAvatar;
-                            photoEl.classList.add('visible');
-                            document.getElementById('user-initials').style.display = 'none';
+                            if (photoEl) {
+                                photoEl.src = userAvatar;
+                                photoEl.classList.add('visible');
+                                if (userInitialsEl) userInitialsEl.style.display = 'none';
+                            }
                         }
                     }
                 }
@@ -1083,16 +1138,16 @@
                     todosProdutos = [];
                     atualizarEstatisticas({});
                     filtrarProdutos();
-                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
+                    { const _lu = document.getElementById('last-update'); if (_lu) _lu.textContent = new Date().toLocaleTimeString('pt-BR'); }
                     return;
                 }
                 
                 todosProdutos = produtos.map(p => {
                     // Dados já vêm formatados da nova API
-                    const codigo = p.codigo || p.id || '';
-                    const descricao = p.nome || p.descricao || '';
+                    const código = p.codigo || p.id || '';
+                    const descrição = p.nome || p.descricao || '';
                     const sku = p.sku || '-';
-                    const categoria = (p.categoria && p.categoria.trim()) ? p.categoria.trim().toUpperCase() : detectarCategoria(descricao);
+                    const categoria = (p.categoria && p.categoria.trim()) ? p.categoria.trim().toUpperCase() : detectarCategoria(descrição);
                     const estoque = Number(p.estoque_atual || 0);
                     const estoqueMinimo = Number(p.estoque_minimo || 10);
                     const preco = Number(p.preco_venda || p.preco || p.preco_custo || 0);
@@ -1101,9 +1156,9 @@
                     
                     return {
                         id: p.id,
-                        codigo: codigo,
-                        nome: descricao,
-                        descricao: descricao,
+                        código: código,
+                        nome: descrição,
+                        descrição: descrição,
                         sku: sku,
                         categoria: categoria,
                         estoque: estoque,
@@ -1112,7 +1167,7 @@
                         gtin: gtin,
                         unidade: unidade,
                         ultima_movimentacao: p.ultima_movimentacao,
-                        total_movimentacoes: p.total_movimentacoes,
+                        total_movimentações: p.total_movimentações,
                         // Dados originais para referência
                         _raw: p
                     };
@@ -1128,7 +1183,7 @@
                 filtrarProdutos();
                 
                 // Atualiza timestamp
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
+                { const _lu = document.getElementById('last-update'); if (_lu) _lu.textContent = new Date().toLocaleTimeString('pt-BR'); }
 
             } catch (error) {
                 console.error('Erro:', error);
@@ -1158,7 +1213,7 @@
 
         // Obter status do estoque - MESMA LÓGICA DO PCP
         function getStatusEstoque(estoque, estoqueMinimo = 10) {
-            if (estoque <= 0) return { status: 'critico', label: 'Crítico', class: 'danger' };
+            if (estoque <= 0) return { status: 'crítico', label: 'Crítico', class: 'danger' };
             if (estoque <= estoqueMinimo) return { status: 'baixo', label: 'Baixo', class: 'warning' };
             return { status: 'normal', label: 'Normal', class: 'success' };
         }
@@ -1205,11 +1260,12 @@
                 .map(([cat, qtd]) => `${cat}: ${qtd}`)
                 .join(' | ');
 
-            document.getElementById('stat-total').textContent = total;
-            document.getElementById('stat-disponivel').textContent = estoqueNormal;
-            document.getElementById('stat-baixo').textContent = estoqueBaixo;
-            document.getElementById('stat-zerado').textContent = estoqueCritico;
-            document.getElementById('stat-categorias').textContent = totalCategorias;
+            const _setStat = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+            _setStat('stat-total', total);
+            _setStat('stat-disponivel', estoqueNormal);
+            _setStat('stat-baixo', estoqueBaixo);
+            _setStat('stat-zerado', estoqueCritico);
+            _setStat('stat-categorias', totalCategorias);
             
             // Mostrar detalhe das categorias
             const detailEl = document.getElementById('stat-categorias-detail');
@@ -1259,6 +1315,15 @@
             }
         }
 
+        // Filtro rápido por categoria (chips)
+        function filtrarCategoria(btn, categoria) {
+            document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            const select = document.getElementById('filter-categoria');
+            if (select) select.value = categoria;
+            filtrarProdutos();
+        }
+
         // Filtrar produtos
         function filtrarProdutos() {
             const termo = document.getElementById('search-input').value.toLowerCase();
@@ -1282,7 +1347,7 @@
                 let matchStatus = true;
                 if (status === 'disponivel') matchStatus = statusInfo.status === 'normal';
                 else if (status === 'baixo') matchStatus = statusInfo.status === 'baixo';
-                else if (status === 'zerado') matchStatus = statusInfo.status === 'critico';
+                else if (status === 'zerado') matchStatus = statusInfo.status === 'crítico';
 
                 return matchBusca && matchCategoria && matchStatus;
             });
@@ -1299,18 +1364,18 @@
 
         // Ordenar produtos
         function ordenar(campo) {
-            if (ordenacaoAtual.campo === campo) {
-                ordenacaoAtual.direcao = ordenacaoAtual.direcao === 'asc' ? 'desc' : 'asc';
+            if (ordenaçãoAtual.campo === campo) {
+                ordenaçãoAtual.direcao = ordenaçãoAtual.direcao === 'asc' ? 'desc' : 'asc';
             } else {
-                ordenacaoAtual.campo = campo;
-                ordenacaoAtual.direcao = 'asc';
+                ordenaçãoAtual.campo = campo;
+                ordenaçãoAtual.direcao = 'asc';
             }
             ordenarProdutos();
             renderizarProdutos();
         }
 
         function ordenarProdutos() {
-            const { campo, direcao } = ordenacaoAtual;
+            const { campo, direcao } = ordenaçãoAtual;
             produtosFiltrados.sort((a, b) => {
                 let valA = a[campo];
                 let valB = b[campo];
@@ -1332,17 +1397,18 @@
             const emptyState = document.getElementById('empty-state');
             const tableWrapper = document.querySelector('.table-wrapper');
 
+            const _setItems = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
             if (produtosFiltrados.length === 0) {
-                tbody.innerHTML = '';
-                emptyState.style.display = 'block';
-                tableWrapper.style.display = 'none';
-                document.getElementById('items-showing').textContent = '0';
-                document.getElementById('items-total').textContent = '0';
+                if (tbody) tbody.innerHTML = '';
+                if (emptyState) emptyState.style.display = 'block';
+                if (tableWrapper) tableWrapper.style.display = 'none';
+                _setItems('items-showing', '0');
+                _setItems('items-total', '0');
                 return;
             }
 
-            emptyState.style.display = 'none';
-            tableWrapper.style.display = 'block';
+            if (emptyState) emptyState.style.display = 'none';
+            if (tableWrapper) tableWrapper.style.display = 'block';
 
             // PaginAção
             const inicio = (paginaAtual - 1) * itensPorPagina;
@@ -1375,15 +1441,15 @@
             }).join('');
 
             // Atualizar info
-            document.getElementById('items-showing').textContent = produtosPagina.length;
-            document.getElementById('items-total').textContent = produtosFiltrados.length;
+            _setItems('items-showing', produtosPagina.length);
+            _setItems('items-total', produtosFiltrados.length);
 
             // Renderizar paginAção
-            renderizarPaginacao();
+            renderizarPaginação();
         }
 
         // Renderizar paginAção
-        function renderizarPaginacao() {
+        function renderizarPaginação() {
             const totalPaginas = Math.ceil(produtosFiltrados.length / itensPorPagina);
             const pagination = document.getElementById('pagination');
 
@@ -1438,7 +1504,7 @@
                 document.getElementById('filter-status').value = 'disponivel';
             } else if (view === 'baixo') {
                 document.getElementById('filter-status').value = 'baixo';
-            } else if (view === 'critico') {
+            } else if (view === 'crítico') {
                 document.getElementById('filter-status').value = 'zerado';
             }
             filtrarProdutos();
@@ -1504,22 +1570,22 @@
 
                 const p = detalhes || produto;
                 const nome = p.nome || p.descricao || '';
-                const codigo = p.codigo || '';
+                const código = p.codigo || '';
                 const categoria = p.categoria || produto.categoria || 'CABOS';
                 const estoque = Number(p.estoque_atual || produto.estoque || 0);
                 const estoqueMinimo = Number(p.estoque_minimo || produto.estoque_minimo || 5);
                 const preco = Number(p.preco || produto.preco || 0);
                 const unidade = p.unidade_medida || produto.unidade || 'M';
-                const observacoes = p.observacoes || '';
+                const observações = p.observações || '';
                 const sku = p.sku || produto.sku || '-';
 
                 const unidadeAbrev = formatarUnidadeAbrev(unidade);
                 const precoFmt = preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
                 const statusInfo = getStatusEstoque(estoque, estoqueMinimo);
-                const stMap = { 'normal': 'ok', 'baixo': 'warn', 'critico': 'crit' };
+                const stMap = { 'normal': 'ok', 'baixo': 'warn', 'crítico': 'crit' };
                 const stClass = stMap[statusInfo.status] || 'ok';
-                const stLabel = { 'normal': 'Disponível para venda', 'baixo': 'Estoque baixo  atenção', 'critico': 'Nível crítico  sem estoque' }[statusInfo.status];
+                const stLabel = { 'normal': 'Disponível para venda', 'baixo': 'Estoque baixo  atenção', 'crítico': 'Nível crítico  sem estoque' }[statusInfo.status];
                 const stIcon = { 'ok': 'fa-check-circle', 'warn': 'fa-exclamation-triangle', 'crit': 'fa-times-circle' }[stClass];
 
                 const estoqueMax = Math.max(estoqueMinimo * 5, estoque, 100);
@@ -1534,7 +1600,7 @@
                 const totalRolosGeral = resumo.total_rolos || bobinas.filter(b => (b.tipo||'').toLowerCase() === 'rolo').length;
                 const totalBobinasReaisGeral = resumo.total_bobinas_reais || (totalBobinas - totalRolosGeral);
                 // Cor principal = mais frequente nas bobinas (dados reais)
-                const corProduto = p.cor || p.variacao || '';
+                const corProduto = p.cor || p.variação || '';
                 const corReal = (() => {
                     if (corProduto) return corProduto;
                     if (coresUnicas.length === 1) return coresUnicas[0];
@@ -1612,7 +1678,7 @@
                             <div>
                                 <div class="mdp-header-title">${escapeHtml(nome)}</div>
                                 <div class="mdp-header-sub">
-                                    <span style="font-family:monospace;font-weight:600;">${escapeHtml(codigo)}</span>
+                                    <span style="font-family:monospace;font-weight:600;">${escapeHtml(código)}</span>
                                     &nbsp;·&nbsp; ${escapeHtml(categoria)}
                                     ${sku !== '-' ? ' &nbsp;·&nbsp; SKU: '+escapeHtml(sku) : ''}
                                 </div>
@@ -1685,7 +1751,7 @@
                         </div>
                     </div>
 
-                    ${observacoes ? '<div class="mdp-section"><div class="mdp-obs"><i class="fas fa-sticky-note"></i><div><strong>Observação:</strong> '+escapeHtml(observacoes)+'</div></div></div>' : ''}
+                    ${observações ? '<div class="mdp-section"><div class="mdp-obs"><i class="fas fa-sticky-note"></i><div><strong>Observação:</strong> '+escapeHtml(observações)+'</div></div></div>' : ''}
 
                     <!-- Bobinas -->
                     ${bobinasHtml}
@@ -1797,7 +1863,7 @@
         
         // Toggle Sidebar Mobile
         function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
+            const sidebar = document.getElementById('mobile-sidebar');
             const overlay = document.getElementById('sidebar-overlay');
             sidebar.classList.toggle('open');
             if (overlay) overlay.classList.toggle('active');
@@ -1812,10 +1878,10 @@
     <!-- Performance Utilities -->
     <script src="/js/performance-utils.js?v=20260213"></script>
 
-    <script src="/js/auth-unified.js?v=20260301"></script>
+    <script src="/js/auth-unified.js?v=20260527"></script>
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
     <!-- Chat Widget BOB AI - DESATIVADO -->
-    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <!-- <script src="/chat/widget.js?v=20260418" defer></script> -->
     <script src="/js/user-dropdown.js?v=20260223" defer></script>
 
     <!-- Sidebar Click Animation -->
@@ -1828,5 +1894,6 @@
     <script src="/chat-teams/chat-widget.js?v=20260319" defer></script>
 </body>
 </html>
+
 
 

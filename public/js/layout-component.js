@@ -72,8 +72,8 @@
 
     // ── 4. CSS CRÍTICO — injetar se não estiver no <head> ─────────
     const REQUIRED_CSS = [
-        { id: 'css-design-system',     href: '/css/design-system.css?v=20260501' },
-        { id: 'css-global-header',     href: '/css/global-header-sidebar.css?v=20260501' },
+        { id: 'css-design-system',     href: '/css/design-system.css?v=20260610a' },
+        { id: 'css-global-header',     href: '/css/global-header-sidebar.css?v=20260610' },
         { id: 'css-components',        href: '/css/components.css?v=20260501' },
     ];
 
@@ -88,6 +88,30 @@
                 head.insertBefore(link, head.firstChild);
             }
         });
+
+        // Estilos do dropdown do usuário (saudação/avatar) — injetado uma vez
+        if (!document.getElementById('zc-user-dd-css')) {
+            const st = document.createElement('style');
+            st.id = 'zc-user-dd-css';
+            st.textContent = [
+                '.zc-user-area{position:relative;display:flex;align-items:center;gap:10px;cursor:pointer;}',
+                '.zc-user-area .user-greeting{user-select:none;}',
+                '.zc-ud-caret{font-size:10px;margin-left:6px;opacity:.7;}',
+                '.zc-user-dropdown{position:absolute;top:calc(100% + 10px);right:0;min-width:224px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:6px;opacity:0;visibility:hidden;transform:translateY(-6px);transition:opacity .15s,transform .15s,visibility .15s;z-index:10000;}',
+                '.zc-user-dropdown.open{opacity:1;visibility:visible;transform:translateY(0);}',
+                '.zc-ud-head{padding:10px 12px 8px;border-bottom:1px solid #f1f5f9;margin-bottom:4px;}',
+                '.zc-ud-name{font-weight:700;font-size:13px;color:#111827;}',
+                '.zc-ud-email{font-size:11px;color:#6b7280;margin-top:2px;word-break:break-all;}',
+                '.zc-ud-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;font-size:13px;color:#334155;background:none;border:none;border-radius:7px;cursor:pointer;text-decoration:none;text-align:left;font-family:inherit;}',
+                '.zc-ud-item:hover{background:#f1f5f9;color:#0f172a;}',
+                '.zc-ud-item i{width:16px;text-align:center;color:#64748b;}',
+                '.zc-ud-item.zc-ud-logout{color:#dc2626;}',
+                '.zc-ud-item.zc-ud-logout:hover{background:#fef2f2;}',
+                '.zc-ud-item.zc-ud-logout i{color:#dc2626;}',
+                '.zc-ud-divider{height:1px;background:#f1f5f9;margin:4px 6px;}'
+            ].join('');
+            head.appendChild(st);
+        }
     }
 
     // ── 5. CONSTRUIR HTML DO SIDEBAR ──────────────────────────────
@@ -127,15 +151,24 @@
             ? userNome.split(' ').map(function (p) { return p[0]; }).slice(0, 2).join('').toUpperCase()
             : 'U';
 
+        // Logo da marca: instâncias Labor injetam window.__BRAND_LOGO__ via o
+        // middleware de branding (zyntra-branding.js). Sem isto, o header usava
+        // a logo da Aluforce hardcoded em todas as páginas/módulos das instâncias.
+        var brandLogo = (typeof window !== 'undefined' && window.__BRAND_LOGO__) || '/images/Logo Monocromatico - Branco - Aluforce.png';
+        var brandName = (typeof window !== 'undefined' && window.__BRAND_NAME__) || empresaNome;
+        // Se a logo branca da marca não existir (ex.: Labor Eletric), degrada para
+        // o nome da marca em texto — nunca volta a exibir a Aluforce.
+        var logoOnError = "this.onerror=null;var s=document.createElement('span');s.textContent=this.alt||'';s.style.cssText='color:#fff;font-weight:600;font-size:14px;white-space:nowrap;';this.replaceWith(s);";
+
         return '<header class="header" id="zc-header">' +
             '  <div class="header-left">' +
             '    <button class="mobile-menu-btn" id="zc-mobile-menu-btn" title="Menu" aria-label="Abrir menu">' +
             '      <i class="fas fa-bars"></i>' +
             '    </button>' +
             '    <div class="header-brand">' +
-            '      <img id="zc-empresa-logo" src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="' + empresaNome + '" style="height:22px;object-fit:contain;">' +
+            '      <img id="zc-empresa-logo" src="' + brandLogo + '" alt="' + brandName + '" data-brand-logo-locked="true" onerror="' + logoOnError + '" style="height:22px;object-fit:contain;">' +
             '      <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>' +
-            '      <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">' +
+            '      <img src="/images/zyntra-header.png" alt="Zyntra" style="height:22px;object-fit:contain;">' +
             '      <span id="zc-modulo-label" style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">' + moduloLabel + '</span>' +
             '    </div>' +
             '  </div>' +
@@ -146,11 +179,22 @@
             '    <button class="header-btn" id="zc-notification-btn" title="Notificações">' +
             '      <i class="fas fa-bell"></i>' +
             '    </button>' +
-            '    <div class="user-greeting">' +
-            '      <span id="zc-greeting">' + greeting + '</span>, <strong id="zc-user-name">' + userNome + '</strong>' +
-            '    </div>' +
-            '    <div class="user-avatar" id="zc-user-avatar" title="' + userNome + '">' +
-            '      <span id="zc-user-initials">' + initials + '</span>' +
+            '    <div class="zc-user-area" id="zc-user-area">' +
+            '      <div class="user-greeting">' +
+            '        <span id="zc-greeting">' + greeting + '</span>, <strong id="zc-user-name">' + userNome + '</strong>' +
+            '        <i class="fas fa-chevron-down zc-ud-caret"></i>' +
+            '      </div>' +
+            '      <div class="user-avatar" id="zc-user-avatar" title="' + userNome + '">' +
+            '        <span id="zc-user-initials">' + initials + '</span>' +
+            '      </div>' +
+            '      <div class="zc-user-dropdown" id="zc-user-dropdown" role="menu" aria-hidden="true">' +
+            '        <div class="zc-ud-head"><div class="zc-ud-name" id="zc-ud-name">' + userNome + '</div><div class="zc-ud-email" id="zc-ud-email"></div></div>' +
+            '        <a class="zc-ud-item" href="/apps/minha-conta" role="menuitem"><i class="fas fa-user"></i> Minha Conta</a>' +
+            '        <a class="zc-ud-item" href="/treinamentos" role="menuitem"><i class="fas fa-graduation-cap"></i> Treinamentos</a>' +
+            '        <a class="zc-ud-item" href="/ajuda" role="menuitem"><i class="fas fa-question-circle"></i> Ajuda &amp; Suporte</a>' +
+            '        <div class="zc-ud-divider"></div>' +
+            '        <button class="zc-ud-item zc-ud-logout" id="zc-ud-logout" type="button" role="menuitem"><i class="fas fa-sign-out-alt"></i> Sair da conta</button>' +
+            '      </div>' +
             '    </div>' +
             '  </div>' +
             '</header>';
@@ -296,37 +340,76 @@
             const avatarEl   = document.getElementById('zc-user-avatar');
 
             const nome = user.nome || user.name || user.username || 'Usuário';
+            // Padroniza a saudação do cabeçalho para o PRIMEIRO nome (consistente com
+            // user-loader-global.js). Antes exibia o nome completo, gerando inconsistência
+            // entre módulos ("Andreia" vs "Andreia Trovão").
+            const primeiroNome = String(nome).trim().split(/\s+/)[0] || 'Usuário';
 
-            if (nameEl)     nameEl.textContent = nome;
+            if (nameEl)     nameEl.textContent = primeiroNome;
             if (initialsEl) {
                 const initials = nome.split(' ').map(function (p) { return p[0]; }).slice(0, 2).join('').toUpperCase();
                 initialsEl.textContent = initials;
             }
 
-            // Avatar com foto se disponível
-            if (avatarEl && user.avatar_url) {
-                avatarEl.innerHTML = '<img src="' + user.avatar_url + '" alt="' + nome + '">';
+            // Avatar com foto se disponível (auth retorna foto/avatar; legado retorna avatar_url)
+            const avatarSrc = user.avatar_url || user.foto || user.avatar;
+            if (avatarEl && avatarSrc) {
+                avatarEl.innerHTML = '<img src="' + avatarSrc + '" alt="' + nome + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
             }
 
             // Atualizar saudação
             const greetingEl = document.getElementById('zc-greeting');
             if (greetingEl) greetingEl.textContent = getGreeting();
 
-            // Atualizar logo da empresa se empresa_id diferente de Aluforce
+            // Dropdown do usuário (saudação/avatar): preencher e-mail/nome e ligar eventos
+            const udEmailEl = document.getElementById('zc-ud-email');
+            if (udEmailEl && (user.email || user.login)) udEmailEl.textContent = user.email || user.login;
+            const udNameEl = document.getElementById('zc-ud-name');
+            if (udNameEl) udNameEl.textContent = nome;
+
+            const userArea = document.getElementById('zc-user-area');
+            const dropdown = document.getElementById('zc-user-dropdown');
+            if (userArea && dropdown && !userArea.dataset.ddWired) {
+                userArea.dataset.ddWired = '1';
+                userArea.addEventListener('click', function (e) {
+                    if (e.target.closest('.zc-ud-item')) return; // não fechar antes de navegar
+                    e.stopPropagation();
+                    const open = dropdown.classList.toggle('open');
+                    dropdown.setAttribute('aria-hidden', open ? 'false' : 'true');
+                });
+                document.addEventListener('click', function () {
+                    dropdown.classList.remove('open');
+                    dropdown.setAttribute('aria-hidden', 'true');
+                });
+                const logoutBtn = document.getElementById('zc-ud-logout');
+                if (logoutBtn) logoutBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    if (window.AluforceAuth && typeof window.AluforceAuth.logout === 'function') window.AluforceAuth.logout();
+                    else if (window.AuthUnified && typeof window.AuthUnified.logout === 'function') window.AuthUnified.logout();
+                    else window.location.href = '/login.html';
+                });
+            }
+
+            // Atualizar logo da empresa por empresa_id (apenas na instância
+            // Aluforce multi-empresa). Em instâncias de marca (Labor), a logo já
+            // vem fixada por window.__BRAND_LOGO__ e NÃO deve ser sobrescrita.
             const logoEl = document.getElementById('zc-empresa-logo');
-            if (logoEl && user.empresa_id) {
+            if (logoEl && !window.__BRAND_LOGO__ && user.empresa_id) {
                 const logoMap = {
                     1: '/images/Logo Monocromatico - Branco - Aluforce.png',
-                    2: '/images/Logo Monocromatico - Branco - Labor Eletric.png',
-                    3: '/images/Logo Monocromatico - Branco - Labor Energy.png',
+                    2: '/images/labor-eletric-logo.png',
+                    3: '/images/labor-energy-logo-branco.png',
                 };
                 const src = logoMap[user.empresa_id];
                 if (src) {
                     logoEl.src = src;
                     logoEl.onerror = function () {
-                        // Fallback se a imagem não existir
-                        this.src = '/images/Logo Monocromatico - Branco - Aluforce.png';
+                        // Sem logo da marca: degrada para texto, nunca volta à Aluforce.
                         this.onerror = null;
+                        var s = document.createElement('span');
+                        s.textContent = this.alt || '';
+                        s.style.cssText = 'color:#fff;font-weight:600;font-size:14px;white-space:nowrap;';
+                        this.replaceWith(s);
                     };
                 }
             }

@@ -40,7 +40,6 @@ const ConciliacaoBancaria = {
     async carregarContas() {
         try {
             const response = await fetch('/api/conciliacao/contas-bancarias');
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const result = await response.json();
             
             if (result.success) {
@@ -158,7 +157,7 @@ const ConciliacaoBancaria = {
                 method: 'POST',
                 body: formData
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
             const result = await response.json();
             
             if (result.success) {
@@ -184,7 +183,6 @@ const ConciliacaoBancaria = {
 
         try {
             const response = await fetch(`/api/conciliacao/transacoes-pendentes?conta_id=${this.contaAtual.id}`);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const result = await response.json();
             
             if (result.success) {
@@ -277,7 +275,6 @@ const ConciliacaoBancaria = {
     async buscarSugestoes(transacaoId) {
         try {
             const response = await fetch(`/api/conciliacao/sugestoes-conciliacao/${transacaoId}`);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const result = await response.json();
             
             if (result.success) {
@@ -379,7 +376,7 @@ const ConciliacaoBancaria = {
                     conta_id: contaId
                 })
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
             const result = await response.json();
             
             if (result.success) {
@@ -406,7 +403,7 @@ const ConciliacaoBancaria = {
             const response = await fetch(`/api/conciliacao/ignorar/${transacaoId}`, {
                 method: 'PUT'
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
             const result = await response.json();
             
             if (result.success) {
@@ -426,7 +423,6 @@ const ConciliacaoBancaria = {
 
         try {
             const response = await fetch(`/api/conciliacao/resumo?conta_id=${this.contaAtual.id}`);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const result = await response.json();
             
             if (result.success) {

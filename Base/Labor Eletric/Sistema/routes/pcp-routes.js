@@ -383,7 +383,7 @@ module.exports = function createPCPRoutes(deps) {
         try {
             const limit = Math.min(parseInt(req.query.limit) || 200, 500);
             const offset = parseInt(req.query.offset) || 0;
-            const [rows] = await pool.query('SELECT id, codigo, produto_nome, quantidade, status, data_previsao_entrega, numero_pedido, cliente, observacoes, time_producao, created_at, updated_at FROM ordens_producao ORDER BY id DESC LIMIT ? OFFSET ?', [limit, offset]);
+            const [rows] = await pool.query('SELECT id, codigo, produto_nome, quantidade, status, COALESCE(data_previsao_entrega, data_prevista) as data_previsao_entrega, data_prevista, numero_pedido, cliente, observacoes, time_producao, created_at, updated_at FROM ordens_producao ORDER BY id DESC LIMIT ? OFFSET ?', [limit, offset]);
             res.json(rows);
         } catch (error) { next(error); }
     });
@@ -1193,7 +1193,7 @@ module.exports = function createPCPRoutes(deps) {
                     status,
                     prioridade,
                     data_inicio,
-                    data_prevista as dataConclusao,
+                    COALESCE(data_prevista, data_previsao_entrega) as dataConclusao,
                     data_conclusao,
                     responsavel,
                     progresso,
@@ -1273,6 +1273,31 @@ module.exports = function createPCPRoutes(deps) {
                         message: `Já existe uma OP ativa (${opExistente[0].codigo}) para o pedido #${pedido_id}.`,
                         op_existente: opExistente[0]
                     });
+                }
+            }
+
+            // FALHA 4: detectar OP duplicada quando NÃO há vínculo de pedido_id
+            // (mesmo produto + quantidade criados nos últimos 30 min). Sobreponível via confirmar_duplicata.
+            if (!pedido_id && !req.body.confirmar_duplicata) {
+                const nomeProdutoDup = produto || (produtos && produtos[0]?.descricao) || '';
+                const qtdDup = quantidade || (produtos && produtos[0]?.quantidade) || 0;
+                if (nomeProdutoDup && qtdDup) {
+                    const [dupRows] = await connection.query(
+                        `SELECT id, codigo FROM ordens_producao
+                         WHERE produto_nome LIKE ? AND quantidade = ?
+                         AND status NOT IN ('cancelada', 'concluida', 'finalizada')
+                         AND created_at >= DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+                         ORDER BY id DESC LIMIT 1`,
+                        [`%${nomeProdutoDup}%`, qtdDup]
+                    );
+                    if (dupRows.length > 0) {
+                        await connection.rollback();
+                        return res.status(409).json({
+                            duplicata: true,
+                            message: `Já existe uma OP recente (${dupRows[0].codigo}) para "${nomeProdutoDup}" com a mesma quantidade. Confirme para criar mesmo assim.`,
+                            op_existente: dupRows[0]
+                        });
+                    }
                 }
             }
 
@@ -2134,11 +2159,15 @@ module.exports = function createPCPRoutes(deps) {
             const q = (req.query.q || '').trim();
             const like = `%${q}%`;
 
-            let sql = 'SELECT id, codigo, nome, descricao, sku, gtin, unidade_medida as unidade, COALESCE(preco_venda, preco_custo, 0) as preco, status, familia, categoria, estoque_atual, estoque_minimo FROM produtos';
+            // FALHA 1: alinhar contagem do Estoque PCP com o dashboard
+            // (exclui inativos e categoria 'GERAL' — não são itens de produção PCP)
+            const baseFiltroProdutos = "(ativo = 1 OR ativo IS NULL) AND (categoria IS NULL OR categoria != 'GERAL')";
+
+            let sql = 'SELECT id, codigo, nome, descricao, sku, gtin, unidade_medida as unidade, COALESCE(preco_venda, preco_custo, 0) as preco, status, familia, categoria, estoque_atual, estoque_minimo FROM produtos WHERE ' + baseFiltroProdutos;
             let params = [];
 
             if (q) {
-                sql += ' WHERE codigo LIKE ? OR descricao LIKE ? OR nome LIKE ?';
+                sql += ' AND (codigo LIKE ? OR descricao LIKE ? OR nome LIKE ?)';
                 params.push(like, like, like);
             }
 
@@ -2147,11 +2176,11 @@ module.exports = function createPCPRoutes(deps) {
 
             const [rows] = await pool.query(sql, params);
 
-            // Contar total
-            let countSql = 'SELECT COUNT(*) as total FROM produtos';
+            // Contar total com o mesmo filtro do dashboard (FALHA 1 — consistência)
+            let countSql = 'SELECT COUNT(*) as total FROM produtos WHERE ' + baseFiltroProdutos;
             let countParams = [];
             if (q) {
-                countSql += ' WHERE codigo LIKE ? OR descricao LIKE ? OR nome LIKE ?';
+                countSql += ' AND (codigo LIKE ? OR descricao LIKE ? OR nome LIKE ?)';
                 countParams.push(like, like, like);
             }
             const [countResult] = await pool.query(countSql, countParams);
@@ -4605,7 +4634,7 @@ module.exports = function createPCPRoutes(deps) {
             const [rows] = await pool.query(`
                 SELECT
                     p.id, p.cliente_id, p.empresa_id, p.vendedor_id,
-                    p.valor, p.valor_total, p.status, p.prioridade,
+                    p.valor, p.valor AS valor_total, p.status, p.prioridade,
                     p.prazo_entrega, p.condicao_pagamento, p.cenario_fiscal,
                     p.descricao, p.created_at, p.updated_at, p.version,
                     c.nome as cliente_nome,
@@ -4626,7 +4655,7 @@ module.exports = function createPCPRoutes(deps) {
             const [rows] = await pool.query(`
                 SELECT
                     p.id, p.cliente_id, p.empresa_id, p.vendedor_id,
-                    p.valor, p.valor_total, p.status, p.prioridade,
+                    p.valor, p.valor AS valor_total, p.status, p.prioridade,
                     p.prazo_entrega, p.nfe_numero, p.nfe_chave,
                     p.created_at, p.updated_at,
                     c.nome as cliente_nome
@@ -8637,11 +8666,11 @@ module.exports = function createPCPRoutes(deps) {
                 return res.json({ success: true, apontamentos: [] });
             }
 
-            let whereClause = 'WHERE usuario_id = ?';
+            let whereClause = 'WHERE ap.usuario_id = ?';
             const params = [usuario_id];
 
             if (data) {
-                whereClause += ' AND DATE(hora_inicio) = ?';
+                whereClause += ' AND DATE(ap.hora_inicio) = ?';
                 params.push(data);
             }
 
@@ -9217,19 +9246,31 @@ tr:nth-child(even){background:#f8fafc}
     // ============================================================
 
     // --- KPIs ---
+    // [FIX A6] Taxa de Aprovação agora considera quantidade_aprovada/quantidade_inspecionada
     router.get('/qualidade/kpis', authenticateToken, asyncHandler(async (req, res) => {
         const now = new Date();
         const firstDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
         const [[insp]] = await pool.query(
-            `SELECT COUNT(*) as total, SUM(status='aprovado') as aprovados, SUM(status='pendente') as pendentes
+            `SELECT
+                COUNT(*) as total,
+                SUM(status='aprovado') as aprovados_status,
+                SUM(status='pendente') as pendentes,
+                COALESCE(SUM(quantidade_inspecionada),0) as qtd_insp,
+                COALESCE(SUM(quantidade_aprovada),0) as qtd_aprov
              FROM qualidade_inspecoes WHERE data_inspecao >= ?`, [firstDay]);
         const [[ncs]] = await pool.query(
             `SELECT COUNT(*) as abertas FROM qualidade_nao_conformidades WHERE status IN ('aberta','em_analise','acao_corretiva')`);
         const [[cks]] = await pool.query(
             `SELECT COUNT(*) as ativos FROM qualidade_checklists WHERE ativo = 1`);
         const total = insp.total || 0;
-        const aprovados = insp.aprovados || 0;
-        const taxa = total > 0 ? Math.round((aprovados / total) * 100) : 0;
+        const qtdInsp = Number(insp.qtd_insp) || 0;
+        const qtdAprov = Number(insp.qtd_aprov) || 0;
+        let taxa = 0;
+        if (qtdInsp > 0) {
+            taxa = Math.round((qtdAprov / qtdInsp) * 100);
+        } else if (total > 0) {
+            taxa = Math.round((Number(insp.aprovados_status) || 0) / total * 100);
+        }
         res.json({ success: true, data: {
             total_inspecoes: total,
             taxa_aprovacao: taxa,

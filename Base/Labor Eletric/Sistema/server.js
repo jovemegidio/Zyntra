@@ -79,6 +79,7 @@ const {
 
 // Zyntra Branding Middleware (ativado via env BRAND=zyntra)
 const { zyntraBrandingMiddleware, zyntraBrandInfo } = require('./middleware/zyntra-branding');
+const { tenantCookieScopeMiddleware } = require('./utils/tenant-cookie-scope');
 
 // AUDIT-FIX R-17/R-18/R-19/R-20: Módulo LGPD compliance
 const { createLGPDRouter } = require('./routes/lgpd');
@@ -668,8 +669,10 @@ const allowedOrigins = [
         'http://127.0.0.1:3000',
         'http://127.0.0.1:5000',
     ] : []),
-    'https://aluforce.api.br',      // Domínio principal de produção
-    'https://www.aluforce.api.br',  // WWW do domínio principal
+    'https://zyntraerp.com.br',     // Novo domínio principal de produção
+    'https://www.zyntraerp.com.br', // WWW do novo domínio principal
+    'https://aluforce.api.br',      // Domínio legado (redireciona para zyntraerp.com.br)
+    'https://www.aluforce.api.br',  // WWW do domínio legado
     'https://aluforce.ind.br',
     'https://erp.aluforce.ind.br',
     'https://www.aluforce.ind.br',
@@ -678,7 +681,7 @@ const allowedOrigins = [
     'http://tauri.localhost',        // App Desktop Tauri (ALUFORCE ERP Desktop)
     'https://tauri.localhost',       // App Desktop Tauri (HTTPS variant)
     'tauri://localhost',             // App Desktop Tauri (custom scheme)
-    process.env.CORS_ORIGIN, // Origem customizada via env
+    ...String(process.env.CORS_ORIGIN || '').split(',').map(function(x){return x.trim();}).filter(function(x){return x && x !== '*';}), // Origens customizadas via env (CSV)
 ].filter(Boolean);
 
 app.use(cors({
@@ -692,7 +695,8 @@ app.use(cors({
             return callback(null, false);
         }
 
-        if (allowedOrigins.includes(origin)) {
+        const __corsWildcard = String(process.env.CORS_ORIGIN || '').split(',').map(function(x){return x.trim();}).indexOf('*') !== -1;
+        if (__corsWildcard || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             // Bloquear origens não permitidas em qualquer ambiente
@@ -709,6 +713,7 @@ app.use(cors({
 // FIX 19/02/2026: cookieParser DEVE rodar ANTES do csrfProtection
 // para que req.cookies esteja populado quando o CSRF verificar o csrf_token cookie
 app.use(cookieParser());
+app.use(tenantCookieScopeMiddleware);
 app.use(csrfProtection);
 
 // Zyntra Branding: aplica branding e banner demo em respostas HTML
@@ -1009,9 +1014,6 @@ app.get(['/Zyntra-SGE', '/Zyntra-SGE/'], (req, res, next) => {
     req.params[0] = 'index.html';
     sendZyntraSgeHtml(req, res, next);
 });
-app.get(/^\/Zyntra-SGE\/Empresas\/(?:aluforce|energy|labor-energy|labor-eletric)\/painel\.html$/i, authenticatePage, (req, res) => {
-    res.redirect(302, '/dashboard');
-});
 app.get(/^\/Zyntra-SGE\/(.+\.html)$/i, (req, res, next) => {
     const requestedPath = String(req.params[0] || '').toLowerCase();
     if (requestedPath.startsWith('empresas/')) {
@@ -1120,12 +1122,12 @@ app.get('/dashboard-v2/*', authenticatePage, async (req, res) => {
 });
 
 // Aliases lowercase para módulos
-app.get('/rh', authenticatePage, (req, res) => res.redirect('/RH'));
+app.get('/rh', authenticatePage, (req, res) => res.redirect('/RH/'));
 app.get('/pcp', authenticatePage, (req, res) => res.redirect('/PCP/index.html'));
-app.get('/vendas', authenticatePage, (req, res) => res.redirect('/Vendas'));
-app.get('/compras', authenticatePage, (req, res) => res.redirect('/Compras'));
-app.get('/logistica', authenticatePage, (req, res) => res.redirect('/Logistica'));
-app.get('/financeiro', authenticatePage, (req, res) => res.redirect('/Financeiro'));
+app.get('/vendas', authenticatePage, (req, res) => res.redirect('/Vendas/index.html'));
+app.get('/compras', authenticatePage, (req, res) => res.redirect('/Compras/index.html'));
+app.get('/logistica', authenticatePage, (req, res) => res.redirect('/Logistica/index.html'));
+app.get('/financeiro', authenticatePage, (req, res) => res.redirect('/Financeiro/index.html'));
 
 // Compatibilidade: rota antiga do dashboard redireciona para o painel atual
 app.get('/index.html', authenticatePage, (req, res) => {
@@ -1163,9 +1165,6 @@ const empresasPortalOptions = {
 };
 app.get(['/Empresas', '/Empresas/'], authenticatePage, (req, res) => {
     res.redirect('/dashboard');
-});
-app.get(/^\/Empresas\/(?:aluforce|energy|labor-energy|labor-eletric)\/painel\.html$/i, authenticatePage, (req, res) => {
-    res.redirect(302, '/dashboard');
 });
 app.use('/Empresas', authenticatePage, express.static(empresasPortalPath, empresasPortalOptions));
 
@@ -1541,15 +1540,35 @@ function serveCleanUrl(req, res, next, moduleDir) {
     next();
 }
 
+// Canonical module roots. Keep bare and trailing-slash module URLs as
+// compatibility aliases, but redirect them before wildcard clean-URL routes.
+function redirectToCanonicalModule(target) {
+    return (req, res) => res.redirect(302, target);
+}
+
+function redirectToCanonicalRh(req, res) {
+    const firstName = req.user?.nome ? req.user.nome.split(' ')[0].toLowerCase() : '';
+    const emailPrefix = req.user?.email ? req.user.email.split('@')[0].toLowerCase() : '';
+    if (userPermissions.isAdmin(firstName) || userPermissions.isAdmin(emailPrefix)) {
+        return res.redirect(302, '/RH/areaadm.html');
+    }
+    return res.redirect(302, '/RH/funcionario.html');
+}
+
+app.get(['/PCP', '/PCP/'], authenticateModuleHtml, redirectToCanonicalModule('/PCP/index.html'));
+app.get(['/NFe', '/NFe/', '/e-Nf-e', '/e-Nf-e/'], authenticateModuleHtml, redirectToCanonicalModule('/Faturamento/index.html'));
+app.get(['/Financeiro', '/Financeiro/'], authenticateModuleHtml, redirectToCanonicalModule('/Financeiro/resumo'));
+app.get(['/Vendas', '/Vendas/'], authenticateModuleHtml, redirectToCanonicalModule('/Vendas/index.html'));
+app.get(['/Compras', '/Compras/'], authenticateModuleHtml, redirectToCanonicalModule('/Compras/index.html'));
+app.get(['/RH', '/RH/', '/RecursosHumanos', '/RecursosHumanos/'], authenticatePage, redirectToCanonicalRh);
+app.get(['/Logistica', '/Logistica/'], authenticateModuleHtml, redirectToCanonicalModule('/Logistica/index.html'));
+app.get(['/Faturamento', '/Faturamento/'], authenticateModuleHtml, redirectToCanonicalModule('/Faturamento/index.html'));
+
 // PCP
 app.get('/PCP/*.html', authenticateModuleHtml, (req, res, next) => {
     safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'PCP'));
 });
 app.get('/PCP/*', (req, res, next) => {
-    if (!req.params[0]) { // /PCP/ trailing slash → serve index.html
-        req.params = { 0: 'index.html' };
-        return authenticateModuleHtml(req, res, () => safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'PCP')));
-    }
     if (req.params[0].includes('.')) return next(); // skip static assets
     authenticateModuleHtml(req, res, () => serveCleanUrl(req, res, next, path.join(__dirname, 'modules', 'PCP')));
 });
@@ -1557,21 +1576,17 @@ app.get('/modules/PCP/*.html', authenticateModuleHtml, (req, res, next) => {
     safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'PCP'));
 });
 
-// NFe
-app.get('/NFe/*.html', authenticateModuleHtml, (req, res, next) => {
-    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'NFe'));
-});
-app.get('/NFe/*', (req, res, next) => {
-    if (req.params[0].includes('.')) return next();
-    authenticateModuleHtml(req, res, () => serveCleanUrl(req, res, next, path.join(__dirname, 'modules', 'NFe')));
-});
-app.get('/e-Nf-e/*.html', authenticateModuleHtml, (req, res, next) => {
-    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'NFe'));
-});
-app.get('/e-Nf-e/*', (req, res, next) => {
-    if (req.params[0].includes('.')) return next();
-    authenticateModuleHtml(req, res, () => serveCleanUrl(req, res, next, path.join(__dirname, 'modules', 'NFe')));
-});
+// NFe — módulo ANTIGO descartado. Todas as rotas /NFe/* e /e-Nf-e/* redirecionam
+// para o módulo visual NOVO em /Faturamento/*. Mapeia páginas reais 1:1; o resto cai em index.
+function nfeToFaturamento(rest) {
+    let file = String(rest || '').split('?')[0].split('#')[0].split('/').pop().toLowerCase();
+    if (file && !file.includes('.')) file += '.html';
+    const reais = ['index.html', 'consultar.html', 'eventos.html', 'inutilizacao.html', 'relatorios.html', 'dashboard.html'];
+    return '/Faturamento/' + (reais.includes(file) ? file : 'index.html');
+}
+const redirecionarNFe = (req, res) => res.redirect(302, nfeToFaturamento(req.params[0]));
+app.get('/NFe/*', authenticateModuleHtml, redirecionarNFe);
+app.get('/e-Nf-e/*', authenticateModuleHtml, redirecionarNFe);
 
 // Financeiro — com clean URLs e aliases root-level
 // Todas as páginas disponíveis no módulo Financeiro
@@ -1597,11 +1612,6 @@ app.get('/Financeiro/*', (req, res, next) => {
         }, path.join(__dirname, 'modules', 'Financeiro', 'public'));
     });
 });
-// Financeiro: Dashboard alias
-app.get('/Financeiro', authenticateModuleHtml, (req, res, next) => {
-    req.params = { 0: 'index.html' };
-    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'Financeiro', 'public'));
-});
 
 // Aliases root-level para páginas do Financeiro (apenas habilitadas)
 const finRootAliases = {
@@ -1626,16 +1636,8 @@ app.get('/Vendas/*.html', authenticateModuleHtml, (req, res, next) => {
     safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'Vendas', 'public'));
 });
 app.get('/Vendas/*', (req, res, next) => {
-    if (!req.params[0]) { // /Vendas/ trailing slash → serve index.html
-        req.params = { 0: 'index.html' };
-        return authenticateModuleHtml(req, res, () => safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'Vendas', 'public')));
-    }
     if (req.params[0].includes('.')) return next();
     authenticateModuleHtml(req, res, () => serveCleanUrl(req, res, next, path.join(__dirname, 'modules', 'Vendas', 'public')));
-});
-app.get('/Vendas', authenticateModuleHtml, (req, res, next) => {
-    req.params = { 0: 'index.html' };
-    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'Vendas', 'public'));
 });
 
 // Compras
@@ -1643,16 +1645,8 @@ app.get('/Compras/*.html', authenticateModuleHtml, (req, res, next) => {
     safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'Compras'));
 });
 app.get('/Compras/*', (req, res, next) => {
-    if (!req.params[0]) { // /Compras/ trailing slash → serve index.html
-        req.params = { 0: 'index.html' };
-        return authenticateModuleHtml(req, res, () => safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'Compras')));
-    }
     if (req.params[0].includes('.')) return next();
     authenticateModuleHtml(req, res, () => serveCleanUrl(req, res, next, path.join(__dirname, 'modules', 'Compras')));
-});
-app.get('/Compras', authenticateModuleHtml, (req, res, next) => {
-    req.params = { 0: 'index.html' };
-    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'Compras'));
 });
 
 // RH
@@ -1670,25 +1664,14 @@ app.get('/RH/*', (req, res, next) => {
     if (req.params[0].includes('.')) return next();
     authenticateModuleHtml(req, res, () => serveCleanUrl(req, res, next, path.join(__dirname, 'modules', 'RH', 'public')));
 });
-app.get(['/RH', '/RecursosHumanos'], authenticateModuleHtml, (req, res, next) => {
-    req.params = { 0: 'areaadm.html' };
-    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'RH', 'public'));
-});
 
 // Logistica
-// BUG-027: redirect /Logistica/dashboard.html e trailing slash para index.html
-app.get('/Logistica/dashboard.html', authenticateModuleHtml, (req, res) => res.redirect('/Logistica/index.html'));
-app.get('/Logistica/', authenticateModuleHtml, (req, res) => res.redirect('/Logistica/index.html'));
 app.get('/Logistica/*.html', authenticateModuleHtml, (req, res, next) => {
     safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'Logistica', 'public'));
 });
 app.get('/Logistica/*', (req, res, next) => {
     if (req.params[0].includes('.')) return next();
     authenticateModuleHtml(req, res, () => serveCleanUrl(req, res, next, path.join(__dirname, 'modules', 'Logistica', 'public')));
-});
-app.get('/Logistica', authenticateModuleHtml, (req, res, next) => {
-    req.params = { 0: 'index.html' };
-    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'Logistica', 'public'));
 });
 
 // Faturamento
@@ -1698,10 +1681,6 @@ app.get('/Faturamento/*.html', authenticateModuleHtml, (req, res, next) => {
 app.get('/Faturamento/*', (req, res, next) => {
     if (req.params[0].includes('.')) return next();
     authenticateModuleHtml(req, res, () => serveCleanUrl(req, res, next, path.join(__dirname, 'modules', 'Faturamento', 'public')));
-});
-app.get('/Faturamento', authenticateModuleHtml, (req, res, next) => {
-    req.params = { 0: 'dashboard.html' };
-    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'Faturamento', 'public'));
 });
 
 app.use('/modules', (req, res, next) => {
@@ -1775,20 +1754,8 @@ const moduleStaticOpts = (res, filePath) => {
 };
 const mso = { dotfiles: 'deny', index: false, setHeaders: moduleStaticOpts };
 
-const nfeStaticOptions = {
-    dotfiles: 'deny',
-    index: false,
-    setHeaders: (res, filePath) => {
-        moduleStaticOpts(res, filePath);
-        if (filePath.endsWith('.html')) {
-            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-            res.setHeader('Pragma', 'no-cache');
-            res.setHeader('Expires', '0');
-        }
-    }
-};
-app.use('/NFe', express.static(path.join(__dirname, 'modules', 'NFe'), nfeStaticOptions));
-app.use('/e-Nf-e', express.static(path.join(__dirname, 'modules', 'NFe'), nfeStaticOptions));
+// Mounts estáticos do módulo NFe ANTIGO removidos — /NFe/* e /e-Nf-e/* agora
+// redirecionam para /Faturamento/* (ver handlers de redirecionamento acima).
 
 // Servir templates de importação Zyntra (xlsx) para download direto
 // Rota explícita para subpastas (zyntra/) + arquivo direto
@@ -1850,6 +1817,10 @@ app.use('/RH', express.static(path.join(__dirname, 'modules', 'RH', 'public'), m
 
 // Servir arquivos compartilhados dos módulos
 app.use('/_shared', express.static(path.join(__dirname, 'modules', '_shared'), { dotfiles: 'deny', index: false }));
+
+// /modules/NFe/* (módulo ANTIGO) → redireciona para o módulo NOVO /Faturamento/*
+// Precisa vir ANTES do static /modules abaixo para interceptar links legados.
+app.get('/modules/NFe/*', (req, res) => res.redirect(302, nfeToFaturamento(req.params[0])));
 
 // Servir módulos diretamente com rotas específicas
 app.use('/modules', express.static(path.join(__dirname, 'modules'), {
@@ -2126,6 +2097,10 @@ try {
     const financeiroRoutes = require('./src/routes/financeiro');
     app.use('/api/financeiro', financeiroRoutes);
     console.log('✅ Rotas Financeiro API carregadas: /api/financeiro/*');
+    // Cobrança e integração bancária (PIX, boleto, CNAB, consulta de crédito, clientes/fornecedores)
+    const financeiroCobrancaRoutes = require('./src/routes/financeiro-cobranca');
+    app.use('/api/financeiro', financeiroCobrancaRoutes);
+    console.log('✅ Rotas Financeiro/Cobrança carregadas: /api/financeiro/{pix,emitir-boleto,cnab,analise-credito,clientes-fornecedores}');
 } catch (err) {
     console.error('❌ Erro ao carregar rotas Financeiro:', err.message);
 }
@@ -2572,6 +2547,8 @@ registerAllRoutes(app, {
     authorizeAdminOrComercial,
     authorizeACL,
     writeAuditLog,
+    enviarEmail: typeof enviarEmail === 'function' ? enviarEmail : null,
+    sendEmail: typeof sendEmail === 'function' ? sendEmail : null,
     cacheMiddleware,
     CACHE_CONFIG,
     // AUDIT-FIX SEC-001: Pass checkOwnership for IDOR protection on data endpoints

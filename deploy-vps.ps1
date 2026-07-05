@@ -148,11 +148,37 @@ if ($ok -gt 0) {
         ssh @SSH_OPTS $VPS_HOST "pm2 restart aluforce-v2-production --update-env; pm2 save"
         Write-Host "PM2 Aluforce reiniciado!" -ForegroundColor Green
 
-        # Sincroniza dashboard-v2 para instâncias Labor e reinicia
-        Write-Host "Sincronizando dashboard-v2 para Labor Energy e Labor Eletric..." -ForegroundColor Cyan
+        # Sincroniza dashboard-v2 e index.html para instâncias Labor e reinicia
+        Write-Host "Sincronizando interface base para Labor Energy e Labor Eletric..." -ForegroundColor Cyan
         ssh @SSH_OPTS $VPS_HOST @"
+mkdir -p /var/www/labor-energy/public /var/www/labor-eletric/public
 cp -r /var/www/aluforce/public/dashboard-v2 /var/www/labor-energy/public/
 cp -r /var/www/aluforce/public/dashboard-v2 /var/www/labor-eletric/public/
+cp -r /var/www/aluforce/public/css /var/www/labor-energy/public/
+cp -r /var/www/aluforce/public/css /var/www/labor-eletric/public/
+cp -r /var/www/aluforce/public/js /var/www/labor-energy/public/
+cp -r /var/www/aluforce/public/js /var/www/labor-eletric/public/
+cp -r /var/www/aluforce/public/logos /var/www/labor-energy/public/
+cp -r /var/www/aluforce/public/logos /var/www/labor-eletric/public/
+cp -r /var/www/aluforce/public/relatorios /var/www/labor-energy/public/
+cp -r /var/www/aluforce/public/relatorios /var/www/labor-eletric/public/
+cp /var/www/aluforce/public/login.html /var/www/labor-energy/public/login.html
+cp /var/www/aluforce/public/login.html /var/www/labor-eletric/public/login.html
+cp /var/www/aluforce/public/index.html /var/www/labor-energy/public/index.html
+cp /var/www/aluforce/public/index.html /var/www/labor-eletric/public/index.html
+mkdir -p /var/www/labor-energy/public/images /var/www/labor-eletric/public/images /var/www/labor-energy/middleware /var/www/labor-eletric/middleware
+cp /var/www/aluforce/public/images/labor-eletric-logo.png /var/www/labor-energy/public/images/ 2>/dev/null || true
+cp /var/www/aluforce/public/images/labor-eletric-logo.png /var/www/labor-eletric/public/images/ 2>/dev/null || true
+cp /var/www/aluforce/public/images/labor-eletric-logo-branco.png /var/www/labor-energy/public/images/ 2>/dev/null || true
+cp /var/www/aluforce/public/images/labor-eletric-logo-branco.png /var/www/labor-eletric/public/images/ 2>/dev/null || true
+cp /var/www/aluforce/public/images/labor-energy-logo.png /var/www/labor-energy/public/images/ 2>/dev/null || true
+cp /var/www/aluforce/public/images/labor-energy-logo.png /var/www/labor-eletric/public/images/ 2>/dev/null || true
+cp /var/www/aluforce/public/images/labor-energy-logo-branco.png /var/www/labor-energy/public/images/ 2>/dev/null || true
+cp /var/www/aluforce/public/images/labor-energy-logo-branco.png /var/www/labor-eletric/public/images/ 2>/dev/null || true
+cp /var/www/aluforce/public/images/labor-energy-logo-preto.png /var/www/labor-energy/public/images/ 2>/dev/null || true
+cp /var/www/aluforce/public/images/labor-energy-logo-preto.png /var/www/labor-eletric/public/images/ 2>/dev/null || true
+cp /var/www/aluforce/middleware/zyntra-branding.js /var/www/labor-energy/middleware/zyntra-branding.js
+cp /var/www/aluforce/middleware/zyntra-branding.js /var/www/labor-eletric/middleware/zyntra-branding.js
 pm2 restart labor-energy-demo --update-env
 pm2 restart labor-eletric-demo --update-env
 pm2 save

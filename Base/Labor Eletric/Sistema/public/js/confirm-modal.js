@@ -254,7 +254,7 @@
 
             // Configurar textos
             title.textContent = options.title || 'Confirmar ação';
-            message.textContent = options.message || 'Tem certeza que deseja continuar?';
+            message.innerHTML = options.message || 'Tem certeza que deseja continuar?';
 
             // Configurar botões
             cancelBtn.innerHTML = `<i class="fas fa-times"></i> ${options.cancelText || 'Cancelar'}`;

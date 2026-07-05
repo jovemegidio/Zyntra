@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 
 <head>
@@ -12,15 +12,13 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/Faturamento/css/faturamento-layout.css?v=20260413b">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260621b" defer></script>
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <!-- Chat Widget BOB AI -->
     <link rel="stylesheet" href="/chat/widget.css?v=20260218">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260326">
-    <script src="/js/user-greeting-avatar.js?v=20260402" defer></script>
-<!-- FIX-100: Global fetch error guard -->
-<script>!function(){var o=window.fetch;window.fetch=async function(){var r=await o.apply(this,arguments);if(!r.ok&&r.status>=500)console.warn('[Fetch] Erro '+r.status+': '+(typeof arguments[0]==='string'?arguments[0]:''));return r}}()</script>
     <link rel="stylesheet" href="/css/design-system.css?v=20260502">
 </head>
 
@@ -31,16 +29,18 @@
         <aside class="sidebar" id="mobile-sidebar">
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
             <nav class="sidebar-nav">
-                <a href="/Faturamento/dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
-                <a href="/Faturamento/index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
-                <a href="/Faturamento/consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
-                <a href="/Faturamento/eventos.html" class="sidebar-btn active" title="Eventos"><i
+                <a href="dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+                <a href="index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
+                <a href="eventos.html" class="sidebar-btn active" title="Eventos"><i
                         class="fas fa-calendar-check"></i></a>
-                <a href="/Faturamento/inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
-                <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
-                <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+                <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+                <a href="contratos.html" class="sidebar-btn" title="Contratos"><i class="fas fa-file-signature"></i></a>
+                <a href="/Faturamento/logistica.html" class="sidebar-btn" title="Logística CT-e/MDF-e"><i class="fas fa-truck"></i></a>
+                <a href="/Faturamento/cenario-fiscal.html" class="sidebar-btn" title="Cenário Fiscal"><i class="fas fa-gavel"></i></a>
             </nav>
             <div class="sidebar-bottom">
+                <a href="/Faturamento/painel-contador.html" class="sidebar-btn" title="Painel do Contador"><i class="fas fa-calculator"></i></a>
                 <a href="/Faturamento/relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
             </div>
         </aside>
@@ -62,13 +62,8 @@
                     <button class="header-btn" title="Atualizar" onclick="location.reload()"><i
                             class="fas fa-sync-alt"></i></button>
                     <div class="user-greeting">
-                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
-                        <div class="user-avatar" id="user-avatar">
-                            <img src="" alt="" id="user-photo"
-                                style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
-                            <span id="user-initials">U</span>
-                        </div>
-                    </div>
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">...</strong></span>
+</div>
                 </div>
             </header>
 
@@ -168,10 +163,10 @@
                             </div>
                             <div class="form-group">
                                 <label>Texto da Correção (mín. 15 caracteres)</label>
-                                <textarea class="form-control" id="correcaoCCe" rows="3" maxlength="1000"
+                                <textarea class="form-control" id="correcaoCCe" rows="3" maxlength="255"
                                     placeholder="Descreva a correção..."
-                                    oninput="atualizarContador('correcaoCCe','charCounterCCe',1000)"></textarea>
-                                <div class="char-counter" id="charCounterCCe">0 / 1000</div>
+                                    oninput="atualizarContador('correcaoCCe','charCounterCCe',255)"></textarea>
+                                <div class="char-counter" id="charCounterCCe">0 / 255</div>
                             </div>
                             <button class="btn btn-primary w-full" onclick="registrarCCe()"><i class="fas fa-edit"></i>
                                 Registrar CC-e</button>
@@ -223,22 +218,79 @@
             counter.className = 'char-counter' + (len > max * 0.9 ? ' danger' : len > max * 0.7 ? ' warning' : '');
         }
 
-        async function carregarNFe() {
-            const nfeId = document.getElementById('nfeId').value;
-            if (!nfeId) { showAlert('Informe o ID da NF-e', 'warning'); return; }
-            try {
-                const r = await fetch(`/api/faturamento/nfes/${nfeId}`, { credentials: 'include' });
+        async function buscarNFePorEntrada(entrada) {
+            // Suporta: ID interno, número (com ou sem padding), chave de acesso (44 dígitos)
+            const limpo = String(entrada).trim();
+            if (!limpo) return null;
+            const numerico = limpo.replace(/\D/g, '');
+
+            // Caso 1: chave de acesso completa (44 dígitos)
+            if (numerico.length === 44) {
+                const r = await fetch(`/api/faturamento/nfes?chave_acesso=${encodeURIComponent(numerico)}`, { credentials: 'include' });
                 if (r.ok) {
-                    const nfe = await r.json();
-                    document.getElementById('infoNumero').textContent = nfe.numero || '-';
-                    document.getElementById('infoSerie').textContent = nfe.serie || '-';
-                    document.getElementById('infoChave').textContent = nfe.chave_acesso || '-';
-                    document.getElementById('infoStatus').innerHTML = `<span class="badge ${(nfe.status || '').toLowerCase()}">${nfe.status || '-'}</span>`;
-                    document.getElementById('infoDataAutorizacao').textContent = nfe.data_autorizacao ? new Date(nfe.data_autorizacao).toLocaleString('pt-BR') : '-';
-                    document.getElementById('nfeInfo').classList.remove('hidden');
-                    carregarEventos(nfeId);
-                } else { showAlert('NF-e não encontrada', 'danger'); }
+                    const data = await r.json();
+                    const lista = Array.isArray(data) ? data : (data.data || data.nfes || []);
+                    if (lista.length) return lista[0];
+                }
+            }
+
+            // Caso 2: tentar busca por ID interno
+            try {
+                const r = await fetch(`/api/faturamento/nfes/${encodeURIComponent(limpo)}`, { credentials: 'include' });
+                if (r.ok) return await r.json();
+            } catch (e) { /* fallthrough */ }
+
+            // Caso 3: buscar por número (remove padding e tenta com numero=N)
+            const numero = parseInt(numerico, 10);
+            if (Number.isFinite(numero) && numero > 0) {
+                const tryParams = [
+                    `numero=${numero}`,
+                    `busca=${numero}`
+                ];
+                for (const p of tryParams) {
+                    try {
+                        const r = await fetch(`/api/faturamento/nfes?${p}`, { credentials: 'include' });
+                        if (r.ok) {
+                            const data = await r.json();
+                            const lista = Array.isArray(data) ? data : (data.data || data.nfes || []);
+                            const match = lista.find(n => parseInt(String(n.numero || 0).replace(/\D/g, ''), 10) === numero);
+                            if (match) return match;
+                            if (lista.length === 1) return lista[0];
+                        }
+                    } catch (e) { /* try next */ }
+                }
+            }
+            return null;
+        }
+
+        async function carregarNFe() {
+            const entrada = document.getElementById('nfeId').value;
+            if (!entrada) { showAlert('Informe o ID, número ou chave da NF-e', 'warning'); return; }
+            try {
+                const nfe = await buscarNFePorEntrada(entrada);
+                if (!nfe || !nfe.id) {
+                    showAlert('NF-e não encontrada. Verifique o ID, número ou chave informada.', 'danger');
+                    return;
+                }
+                const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+                const numeroFmt = nfe.numero ? String(nfe.numero).replace(/\D/g, '').padStart(9, '0') : '-';
+                setText('infoNumero', numeroFmt);
+                setText('infoSerie', nfe.serie || '-');
+                setText('infoChave', nfe.chave_acesso || '-');
+                const statusEl = document.getElementById('infoStatus');
+                if (statusEl) statusEl.innerHTML = `<span class="badge ${(nfe.status || '').toLowerCase()}">${nfe.status || '-'}</span>`;
+                setText('infoDataAutorizacao', nfe.data_autorizacao ? new Date(nfe.data_autorizacao).toLocaleString('pt-BR') : '-');
+                const info = document.getElementById('nfeInfo');
+                if (info) info.classList.remove('hidden');
+                // Atualiza o input com o ID interno para que ações subsequentes (cancelar, CC-e) usem o ID correto
+                document.getElementById('nfeId').dataset.resolvedId = nfe.id;
+                carregarEventos(nfe.id);
             } catch (e) { showAlert('Erro ao carregar NF-e', 'danger'); }
+        }
+
+        function getNfeIdResolved() {
+            const inp = document.getElementById('nfeId');
+            return inp.dataset.resolvedId || inp.value;
         }
 
         async function carregarEventos(id) {
@@ -256,7 +308,7 @@
                         <strong style="font-size:13px;">${ev.tipo || ev.evento || 'Evento'}</strong>
                         <span class="text-muted" style="font-size:11px;">${ev.data ? new Date(ev.data).toLocaleString('pt-BR') : '-'}</span>
                     </div>
-                    <p style="margin:0;font-size:12px;color:var(--text-secondary);">${ev.descrição || ev.justificativa || '-'}</p>
+                    <p style="margin:0;font-size:12px;color:var(--text-secondary);">${ev.descricao || ev.justificativa || '-'}</p>
                     ${ev.protocolo ? '<p style="margin:4px 0 0;font-size:11px;"><span class="code">' + ev.protocolo + '</span></p>' : ''}
                 </div>
             `).join('');
@@ -265,7 +317,7 @@
         }
 
         async function cancelarNFe() {
-            const id = document.getElementById('nfeId').value;
+            const id = getNfeIdResolved();
             const just = document.getElementById('justificativaCancelamento').value;
             if (!id) { showAlert('Selecione uma NF-e primeiro', 'warning'); return; }
             if (just.length < 15) { showAlert('Justificativa deve ter no mínimo 15 caracteres', 'warning'); return; }
@@ -278,7 +330,7 @@
         }
 
         async function registrarCCe() {
-            const id = document.getElementById('nfeId').value;
+            const id = getNfeIdResolved();
             const correcao = document.getElementById('correcaoCCe').value;
             if (!id) { showAlert('Selecione uma NF-e primeiro', 'warning'); return; }
             if (correcao.length < 15) { showAlert('Texto da correção deve ter no mínimo 15 caracteres', 'warning'); return; }
@@ -291,14 +343,24 @@
 
         function carregarDadosUsuario() {
             const h = new Date().getHours();
-            document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+            const greetEl = document.getElementById('greeting-text');
+            if (greetEl) greetEl.textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
             fetch('/api/me', { credentials: 'include' })
                 .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
                 .then(u => {
                     const nome = u.nome || u.name || 'Usuário';
-                    document.getElementById('user-name').textContent = nome.split(' ')[0];
-                    document.getElementById('user-initials').textContent = nome.substring(0, 2).toUpperCase();
-                    if (u.foto || u.avatar) { document.getElementById('user-photo').src = u.foto || u.avatar; document.getElementById('user-photo').style.display = 'block'; document.getElementById('user-initials').style.display = 'none'; }
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = nome.split(' ')[0];
+                    const initialsEl = document.getElementById('user-initials');
+                    if (initialsEl) initialsEl.textContent = nome.substring(0, 2).toUpperCase();
+                    if (u.foto || u.avatar) {
+                        const photoEl = document.getElementById('user-photo');
+                        if (photoEl) {
+                            photoEl.src = u.foto || u.avatar;
+                            photoEl.style.display = 'block';
+                            if (initialsEl) initialsEl.style.display = 'none';
+                        }
+                    }
                 }).catch(() => { });
         }
 
@@ -320,3 +382,4 @@
 </body>
 
 </html>
+

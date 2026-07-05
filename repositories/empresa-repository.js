@@ -34,16 +34,11 @@ class EmpresaRepository extends BaseRepository {
 
     async search(q, { isAdmin = false, vendedorId = null } = {}) {
         const like = `%${q}%`;
-        let where = 'WHERE (nome_fantasia LIKE ? OR razao_social LIKE ? OR cnpj LIKE ?)';
+        const where = 'WHERE (nome_fantasia LIKE ? OR razao_social LIKE ? OR cnpj LIKE ?)';
         const params = [like, like, like];
 
-        if (!isAdmin && vendedorId) {
-            where += ' AND (vendedor_id = ? OR vendedor_id IS NULL)';
-            params.push(vendedorId);
-        }
-
         return this.query(
-            `SELECT id, nome_fantasia, cnpj FROM empresas ${where} ORDER BY nome_fantasia LIMIT 10`,
+            `SELECT id, nome_fantasia, razao_social, cnpj FROM empresas ${where} ORDER BY nome_fantasia LIMIT 20`,
             params
         );
     }

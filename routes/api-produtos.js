@@ -33,7 +33,8 @@ function createProdutosRouter(pool, authenticateToken, io) {
                     cst_pis, aliquota_pis, cst_cofins, aliquota_cofins,
                     peso_liquido, peso_bruto, largura, altura, comprimento,
                     info_adicional_produto, numero_fci,
-                    classe_tributaria_ibs, classe_tributaria_cbs, ex_tipi
+                    classe_tributaria_ibs, classe_tributaria_cbs, ex_tipi,
+                    classe_tributaria_is, imposto_seletivo_sujeito
                 FROM produtos WHERE 1=1
             `;
             let params = [];
@@ -101,6 +102,8 @@ function createProdutosRouter(pool, authenticateToken, io) {
                 numero_fci: produto.numero_fci || null,
                 classe_tributaria_ibs: produto.classe_tributaria_ibs || null,
                 classe_tributaria_cbs: produto.classe_tributaria_cbs || null,
+                classe_tributaria_is: produto.classe_tributaria_is || null,
+                imposto_seletivo_sujeito: !!produto.imposto_seletivo_sujeito,
                 ex_tipi: produto.ex_tipi || null
             }));
             
@@ -175,8 +178,9 @@ function createProdutosRouter(pool, authenticateToken, io) {
                     cst_pis, aliquota_pis, cst_cofins, aliquota_cofins,
                     peso_liquido, peso_bruto, largura, altura, comprimento,
                     info_adicional_produto, numero_fci,
-                    classe_tributaria_ibs, classe_tributaria_cbs
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    classe_tributaria_ibs, classe_tributaria_cbs,
+                    classe_tributaria_is, imposto_seletivo_sujeito
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 dados.codigo,
                 dados.nome,
@@ -220,9 +224,11 @@ function createProdutosRouter(pool, authenticateToken, io) {
                 dados.info_adicional_produto || null,
                 dados.numero_fci || null,
                 dados.classe_tributaria_ibs || null,
-                dados.classe_tributaria_cbs || null
+                dados.classe_tributaria_cbs || null,
+                dados.classe_tributaria_is || null,
+                dados.imposto_seletivo_sujeito ? 1 : 0
             ]);
-            
+
             // Emitir evento WebSocket
             if (io) {
                 io.emit('produto:criado', { id: result.insertId, codigo: dados.codigo, nome: dados.nome });
@@ -266,7 +272,8 @@ function createProdutosRouter(pool, authenticateToken, io) {
                     cst_pis = ?, aliquota_pis = ?, cst_cofins = ?, aliquota_cofins = ?,
                     peso_liquido = ?, peso_bruto = ?, largura = ?, altura = ?, comprimento = ?,
                     info_adicional_produto = ?, numero_fci = ?,
-                    classe_tributaria_ibs = ?, classe_tributaria_cbs = ?
+                    classe_tributaria_ibs = ?, classe_tributaria_cbs = ?,
+                    classe_tributaria_is = ?, imposto_seletivo_sujeito = ?
                 WHERE id = ?
             `, [
                 dados.codigo,
@@ -312,6 +319,8 @@ function createProdutosRouter(pool, authenticateToken, io) {
                 dados.numero_fci || null,
                 dados.classe_tributaria_ibs || null,
                 dados.classe_tributaria_cbs || null,
+                dados.classe_tributaria_is || null,
+                dados.imposto_seletivo_sujeito ? 1 : 0,
                 id
             ]);
             

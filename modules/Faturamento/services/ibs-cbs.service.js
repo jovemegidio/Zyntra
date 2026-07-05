@@ -1,231 +1,202 @@
-/**
- * SERVIÇO DE CÁLCULO IBS/CBS — Reforma Tributária
- * Conforme NT 2025.002 / Ato Conjunto RFB/CGIBS nº 01/2025
- * 
- * IBS = Imposto sobre Bens e Serviços (estadual+municipal, substitui ICMS/ISS)
- * CBS = Contribuição sobre Bens e Serviços (federal, substitui PIS/COFINS)
- * 
- * Cronograma de transição:
- *   2026: IBS 10% + ICMS 90%
- *   2027-2032: Crescimento gradual IBS
- *   2033: IBS 100%, ICMS extinto
- * 
- * @version 1.0.0
- * @date 2026-02-23
- */
-
 'use strict';
 
 const { Decimal } = require('./calculo-tributos.service');
-
-// ============================================================
-// ALÍQUOTAS DE REFERÊNCIA (Lei Complementar 214/2025)
-// ============================================================
+const ReformaTributariaService = require('../../../services/reforma-tributaria.service');
 
 const ALIQUOTAS_REFERENCIA = {
     CBS: {
-        padrao: 8.80,           // Alíquota cheia CBS
-        reduzida_60: 3.52,      // 60% de redução
-        reduzida_30: 6.16,      // 30% de redução
+        teste_2026: 0.9,
+        padrao: 0.9,
+        reduzida_60: 0.36,
+        reduzida_30: 0.63
     },
     IBS: {
-        padrao: 17.70,          // Alíquota cheia IBS
-        reduzida_60: 7.08,      // 60% de redução
-        reduzida_30: 12.39,     // 30% de redução
+        teste_2026: 0.1,
+        padrao: 0.1,
+        reduzida_60: 0.04,
+        reduzida_30: 0.07
+    },
+    IS: {
+        padrao: 0
     }
 };
 
-// Cronograma de transição IBS↔ICMS (hardcoded como fallback)
-const CRONOGRAMA_TRANSICAO = {
-    2026: { ibs: 10, icms: 90 },
-    2027: { ibs: 20, icms: 80 },
-    2028: { ibs: 30, icms: 70 },
-    2029: { ibs: 40, icms: 60 },
-    2030: { ibs: 50, icms: 50 },
-    2031: { ibs: 60, icms: 40 },
-    2032: { ibs: 80, icms: 20 },
-    2033: { ibs: 100, icms: 0 },
-};
+const CRONOGRAMA_TRANSICAO = ReformaTributariaService.CRONOGRAMA_IBS_ICMS;
+
+function getPool(options = {}) {
+    return options.pool || global.dbPool || null;
+}
+
+function getDefaultAliquota(tipo) {
+    const upper = String(tipo || '').toUpperCase();
+    if (upper === 'IBS') return ALIQUOTAS_REFERENCIA.IBS.padrao;
+    if (upper === 'IS') return ALIQUOTAS_REFERENCIA.IS.padrao;
+    return ALIQUOTAS_REFERENCIA.CBS.padrao;
+}
 
 class IBSCBSService {
-
-    /**
-     * Verifica se IBS/CBS está ativo na configuração da empresa
-     */
-    static async isAtivo() {
+    static async isAtivo(options = {}) {
         try {
-            if (global.dbPool) {
-                const [rows] = await global.dbPool.query(
-                    'SELECT ibs_cbs_ativo, ibs_cbs_modo, regime_tributario FROM empresa_config WHERE id = 1'
-                );
-                if (rows.length > 0) {
-                    return {
-                        ativo: !!rows[0].ibs_cbs_ativo,
-                        modo: rows[0].ibs_cbs_modo || 'transicao',
-                        regime: rows[0].regime_tributario || 'simples'
-                    };
-                }
-            }
-            return { ativo: false, modo: 'transicao', regime: 'simples' };
+            const pool = getPool(options);
+            if (!pool) return { ativo: false, modo: 'homologacao_2026', regime: 'simples' };
+            const cfg = await ReformaTributariaService.getConfig(pool);
+            return {
+                ativo: !!cfg.destacar_documentos,
+                modo: cfg.modo_calculo || 'homologacao_2026',
+                regime: options.regime || 'simples',
+                config: cfg
+            };
         } catch (error) {
             console.error('[IBS/CBS] Erro ao verificar status:', error.message);
-            return { ativo: false, modo: 'transicao', regime: 'simples' };
+            return { ativo: false, modo: 'homologacao_2026', regime: 'simples' };
         }
     }
 
-    /**
-     * Obtém percentuais de transição IBS↔ICMS para o ano corrente
-     */
     static async getPercentuaisTransicao(ano = null) {
-        const anoRef = ano || new Date().getFullYear();
-
-        // Tentar buscar do banco
-        try {
-            if (global.dbPool) {
-                const [rows] = await global.dbPool.query(
-                    'SELECT percentual_ibs, percentual_icms FROM transicao_ibs_icms_cronograma WHERE ano = ?',
-                    [anoRef]
-                );
-                if (rows.length > 0) {
-                    return {
-                        ano: anoRef,
-                        percentualIBS: parseFloat(rows[0].percentual_ibs),
-                        percentualICMS: parseFloat(rows[0].percentual_icms)
-                    };
-                }
-            }
-        } catch (e) {
-            // Fallback para tabela hardcoded
-        }
-
-        // Fallback
-        const transicao = CRONOGRAMA_TRANSICAO[anoRef];
-        if (transicao) {
-            return {
-                ano: anoRef,
-                percentualIBS: transicao.ibs,
-                percentualICMS: transicao.icms
-            };
-        }
-
-        // Antes de 2026 ou depois de 2033
-        if (anoRef < 2026) return { ano: anoRef, percentualIBS: 0, percentualICMS: 100 };
-        return { ano: anoRef, percentualIBS: 100, percentualICMS: 0 };
+        const data = ano ? `${ano}-01-01` : undefined;
+        const t = ReformaTributariaService.getPercentuaisTransicao(data);
+        return {
+            ano: t.ano,
+            percentualIBS: t.percentualIBS,
+            percentualICMS: t.percentualICMS
+        };
     }
 
-    /**
-     * Resolve a alíquota de classificação tributária
-     * @param {string} classeTributaria — código cClassTrib (ex: 'CBS-001')
-     * @param {string} tipo — 'CBS' ou 'IBS'
-     */
-    static async resolverAliquota(classeTributaria, tipo) {
-        if (!classeTributaria) {
-            return tipo === 'CBS' ? ALIQUOTAS_REFERENCIA.CBS.padrao : ALIQUOTAS_REFERENCIA.IBS.padrao;
-        }
+    static async resolverAliquota(classeTributaria, tipo, options = {}) {
+        const upper = String(tipo || 'CBS').toUpperCase();
+        const pool = getPool(options);
 
-        // Tentar buscar do banco
-        try {
-            if (global.dbPool) {
-                const [rows] = await global.dbPool.query(
+        if (pool) {
+            try {
+                const regra = await ReformaTributariaService.resolveRegra(pool, {
+                    tributo: upper,
+                    data: options.data,
+                    ncm: options.ncm,
+                    uf: options.uf,
+                    cclasstrib: classeTributaria
+                });
+                if (regra && regra.aliquota != null) return parseFloat(regra.aliquota);
+            } catch (_) {
+                // Fallback abaixo.
+            }
+
+            try {
+                const [rows] = await pool.query(
                     'SELECT aliquota_referencia FROM classificacao_tributaria_ibs_cbs WHERE codigo = ? AND tipo = ? AND ativo = TRUE',
-                    [classeTributaria, tipo]
+                    [classeTributaria, upper]
                 );
                 if (rows.length > 0 && rows[0].aliquota_referencia != null) {
                     return parseFloat(rows[0].aliquota_referencia);
                 }
+            } catch (_) {
+                // Fallback abaixo.
             }
-        } catch (e) {
-            // fallback
         }
 
-        // Fallback por padrão de código
-        if (classeTributaria.includes('002')) {
-            return tipo === 'CBS' ? ALIQUOTAS_REFERENCIA.CBS.reduzida_60 : ALIQUOTAS_REFERENCIA.IBS.reduzida_60;
+        if (!classeTributaria) return getDefaultAliquota(upper);
+        const classe = String(classeTributaria);
+        if (classe.includes('002')) {
+            return upper === 'CBS' ? ALIQUOTAS_REFERENCIA.CBS.reduzida_60 : ALIQUOTAS_REFERENCIA.IBS.reduzida_60;
         }
-        if (classeTributaria.includes('003')) {
-            return tipo === 'CBS' ? ALIQUOTAS_REFERENCIA.CBS.reduzida_30 : ALIQUOTAS_REFERENCIA.IBS.reduzida_30;
+        if (classe.includes('003')) {
+            return upper === 'CBS' ? ALIQUOTAS_REFERENCIA.CBS.reduzida_30 : ALIQUOTAS_REFERENCIA.IBS.reduzida_30;
         }
-        if (['004', '005', '006', '007'].some(s => classeTributaria.includes(s))) {
-            return 0;
-        }
-
-        return tipo === 'CBS' ? ALIQUOTAS_REFERENCIA.CBS.padrao : ALIQUOTAS_REFERENCIA.IBS.padrao;
+        if (['004', '005', '006', '007'].some(s => classe.includes(s))) return 0;
+        return getDefaultAliquota(upper);
     }
 
-    /**
-     * Calcula IBS e CBS para um item da NF-e.
-     * Usa Decimal para precisão exata (mesma classe do calculo-tributos.service).
-     * 
-     * @param {Object} item — item do pedido (precisa ter classe_tributaria_ibs, classe_tributaria_cbs)
-     * @param {Decimal|number} valorProduto — valor da base de cálculo
-     * @param {Object} options — { modo: 'transicao'|'pleno', ano: 2026 }
-     * @returns {Object} { cbs: {...}, ibs: {...}, transicao: {...} }
-     */
     static async calcularIBSCBS(item, valorProduto, options = {}) {
-        const modo = options.modo || 'transicao';
-        const base = Decimal.from(valorProduto);
+        const pool = getPool(options);
+        const data = options.data || options.data_referencia || (options.ano ? `${options.ano}-01-01` : undefined);
 
-        const resultado = {
+        if (pool) {
+            const calc = await ReformaTributariaService.calcularItem(pool, item, {
+                ...options,
+                data,
+                base: valorProduto
+            });
+            return this.normalizarResultado(calc);
+        }
+
+        const base = Decimal.from(valorProduto);
+        const aliqCBS = Decimal.from(await this.resolverAliquota(item.classe_tributaria_cbs, 'CBS', options));
+        const aliqIBS = Decimal.from(await this.resolverAliquota(item.classe_tributaria_ibs, 'IBS', options));
+        const aliqIS = Decimal.from(await this.resolverAliquota(item.classe_tributaria_is, 'IS', options));
+        const cbsValor = parseFloat(base.percent(aliqCBS).toFixed(2));
+        const ibsValor = parseFloat(base.percent(aliqIBS).toFixed(2));
+        const isValor = parseFloat(base.percent(aliqIS).toFixed(2));
+        const transicao = await this.getPercentuaisTransicao(options.ano);
+        const fatorIBS = Decimal.from(transicao.percentualIBS).div(100);
+        const fatorICMS = Decimal.from(transicao.percentualICMS).div(100);
+
+        return {
             cbs: {
                 cClassTrib: item.classe_tributaria_cbs || null,
-                baseCalculo: 0,
-                aliquota: 0,
-                valor: 0
+                baseCalculo: parseFloat(base.toFixed(2)),
+                aliquota: aliqCBS.toNumber(),
+                valor: cbsValor
             },
             ibs: {
                 cClassTrib: item.classe_tributaria_ibs || null,
-                baseCalculo: 0,
-                aliquota: 0,
-                valor: 0
+                baseCalculo: parseFloat(base.toFixed(2)),
+                aliquota: aliqIBS.toNumber(),
+                valor: ibsValor
             },
-            transicao: null
-        };
-
-        // CBS
-        const aliqCBS = Decimal.from(await this.resolverAliquota(item.classe_tributaria_cbs, 'CBS'));
-        if (aliqCBS.isPositive()) {
-            resultado.cbs.baseCalculo = parseFloat(base.toFixed(2));
-            resultado.cbs.aliquota = aliqCBS.toNumber();
-            resultado.cbs.valor = parseFloat(base.percent(aliqCBS).toFixed(2));
-        }
-
-        // IBS
-        const aliqIBS = Decimal.from(await this.resolverAliquota(item.classe_tributaria_ibs, 'IBS'));
-        if (aliqIBS.isPositive()) {
-            resultado.ibs.baseCalculo = parseFloat(base.toFixed(2));
-            resultado.ibs.aliquota = aliqIBS.toNumber();
-            resultado.ibs.valor = parseFloat(base.percent(aliqIBS).toFixed(2));
-        }
-
-        // Período de transição: calcular proporção IBS↔ICMS
-        if (modo === 'transicao') {
-            const transicao = await this.getPercentuaisTransicao(options.ano);
-            const fatorIBS = Decimal.from(transicao.percentualIBS).div(Decimal.from(100));
-            const fatorICMS = Decimal.from(transicao.percentualICMS).div(Decimal.from(100));
-
-            resultado.transicao = {
+            imposto_seletivo: {
+                cClassTrib: item.classe_tributaria_is || null,
+                baseCalculo: parseFloat(base.toFixed(2)),
+                aliquota: aliqIS.toNumber(),
+                valor: isValor
+            },
+            transicao: {
                 ano: transicao.ano,
                 percentualIBS: transicao.percentualIBS,
                 percentualICMS: transicao.percentualICMS,
-                ibsEfetivo: parseFloat(Decimal.from(resultado.ibs.valor).mul(fatorIBS).toFixed(2)),
-                icmsResidual: parseFloat(Decimal.from(resultado.ibs.valor).mul(fatorICMS).toFixed(2))
-            };
-        }
-
-        return resultado;
+                ibsEfetivo: parseFloat(Decimal.from(ibsValor).mul(fatorIBS).toFixed(2)),
+                icmsResidual: parseFloat(Decimal.from(ibsValor).mul(fatorICMS).toFixed(2))
+            },
+            total_reforma: parseFloat(Decimal.from(cbsValor).add(ibsValor).add(isValor).toFixed(2))
+        };
     }
 
-    /**
-     * Gera os nós XML <IBS> e <CBS> para um item (grupo imposto)
-     * Conforme NT 2025.002 v1.40
-     * 
-     * @param {Object} impostoNode — nó XML <imposto> do xmlbuilder2
-     * @param {Object} ibsCbsCalc — resultado de calcularIBSCBS()
-     */
+    static normalizarResultado(calc) {
+        const base = calc.base || 0;
+        return {
+            cbs: {
+                cClassTrib: calc.cbs?.cClassTrib || null,
+                baseCalculo: calc.cbs?.valor > 0 ? base : 0,
+                aliquota: calc.cbs?.aliquota || 0,
+                valor: calc.cbs?.valor || 0,
+                regra_id: calc.cbs?.regra_id || null
+            },
+            ibs: {
+                cClassTrib: calc.ibs?.cClassTrib || null,
+                baseCalculo: calc.ibs?.valor > 0 ? base : 0,
+                aliquota: calc.ibs?.aliquota || 0,
+                valor: calc.ibs?.valor || 0,
+                regra_id: calc.ibs?.regra_id || null
+            },
+            imposto_seletivo: {
+                cClassTrib: calc.imposto_seletivo?.cClassTrib || null,
+                baseCalculo: calc.imposto_seletivo?.valor > 0 ? base : 0,
+                aliquota: calc.imposto_seletivo?.aliquota || 0,
+                valor: calc.imposto_seletivo?.valor || 0,
+                regra_id: calc.imposto_seletivo?.regra_id || null
+            },
+            transicao: calc.transicao ? {
+                ano: calc.transicao.ano,
+                percentualIBS: calc.transicao.percentualIBS,
+                percentualICMS: calc.transicao.percentualICMS,
+                ibsEfetivo: calc.transicao.ibsEfetivo || 0,
+                icmsResidual: calc.transicao.icmsResidual || calc.transicao.icmsIssResidual || 0
+            } : null,
+            total_reforma: calc.total_reforma || 0
+        };
+    }
+
     static adicionarXMLIBSCBS(impostoNode, ibsCbsCalc) {
         if (!ibsCbsCalc) return;
 
-        // <CBS> — Contribuição sobre Bens e Serviços (Federal)
         if (ibsCbsCalc.cbs && ibsCbsCalc.cbs.cClassTrib) {
             const cbs = impostoNode.ele('CBS');
             cbs.ele('cClassTrib').txt(ibsCbsCalc.cbs.cClassTrib);
@@ -237,7 +208,6 @@ class IBSCBSService {
             cbs.up();
         }
 
-        // <IBS> — Imposto sobre Bens e Serviços (Estadual+Municipal)
         if (ibsCbsCalc.ibs && ibsCbsCalc.ibs.cClassTrib) {
             const ibs = impostoNode.ele('IBS');
             ibs.ele('cClassTrib').txt(ibsCbsCalc.ibs.cClassTrib);
@@ -246,7 +216,6 @@ class IBSCBSService {
                 ibs.ele('pIBS').txt(Decimal.from(ibsCbsCalc.ibs.aliquota).toFixed(4));
                 ibs.ele('vIBS').txt(Decimal.from(ibsCbsCalc.ibs.valor).toFixed(2));
             }
-            // Período de transição
             if (ibsCbsCalc.transicao) {
                 ibs.ele('pIBSEfetivo').txt(Decimal.from(ibsCbsCalc.transicao.percentualIBS).toFixed(2));
                 ibs.ele('vIBSEfetivo').txt(Decimal.from(ibsCbsCalc.transicao.ibsEfetivo).toFixed(2));
@@ -254,32 +223,47 @@ class IBSCBSService {
             }
             ibs.up();
         }
+
+        if (ibsCbsCalc.imposto_seletivo && ibsCbsCalc.imposto_seletivo.valor > 0) {
+            const isNode = impostoNode.ele('IS');
+            if (ibsCbsCalc.imposto_seletivo.cClassTrib) {
+                isNode.ele('cClassTrib').txt(ibsCbsCalc.imposto_seletivo.cClassTrib);
+            }
+            isNode.ele('vBC').txt(Decimal.from(ibsCbsCalc.imposto_seletivo.baseCalculo).toFixed(2));
+            isNode.ele('pIS').txt(Decimal.from(ibsCbsCalc.imposto_seletivo.aliquota).toFixed(4));
+            isNode.ele('vIS').txt(Decimal.from(ibsCbsCalc.imposto_seletivo.valor).toFixed(2));
+            isNode.up();
+        }
     }
 
-    /**
-     * Gera os totais IBS/CBS para ICMSTot
-     * @param {Array} itensCalculados — array de resultados de calcularIBSCBS
-     * @returns {Object} { totalCBS, totalIBS, totalIBSEfetivo, totalICMSResidual }
-     */
     static totalizarIBSCBS(itensCalculados) {
         let totalCBS = Decimal.from(0);
         let totalIBS = Decimal.from(0);
+        let totalIS = Decimal.from(0);
         let totalIBSEfetivo = Decimal.from(0);
         let totalICMSResidual = Decimal.from(0);
 
-        for (const calc of itensCalculados) {
+        for (const calc of itensCalculados || []) {
             if (!calc) continue;
-            totalCBS = totalCBS.add(Decimal.from(calc.cbs?.valor || 0));
-            totalIBS = totalIBS.add(Decimal.from(calc.ibs?.valor || 0));
+            totalCBS = totalCBS.add(calc.cbs?.valor || 0);
+            totalIBS = totalIBS.add(calc.ibs?.valor || 0);
+            totalIS = totalIS.add(calc.imposto_seletivo?.valor || 0);
             if (calc.transicao) {
-                totalIBSEfetivo = totalIBSEfetivo.add(Decimal.from(calc.transicao.ibsEfetivo || 0));
-                totalICMSResidual = totalICMSResidual.add(Decimal.from(calc.transicao.icmsResidual || 0));
+                totalIBSEfetivo = totalIBSEfetivo.add(calc.transicao.ibsEfetivo || 0);
+                totalICMSResidual = totalICMSResidual.add(calc.transicao.icmsResidual || 0);
             }
         }
 
+        const totalCBSNum = parseFloat(totalCBS.toFixed(2));
+        const totalIBSNum = parseFloat(totalIBS.toFixed(2));
+        const totalISNum = parseFloat(totalIS.toFixed(2));
+
         return {
-            totalCBS: parseFloat(totalCBS.toFixed(2)),
-            totalIBS: parseFloat(totalIBS.toFixed(2)),
+            totalCBS: totalCBSNum,
+            totalIBS: totalIBSNum,
+            totalIS: totalISNum,
+            totalImpostoSeletivo: totalISNum,
+            totalReforma: parseFloat(Decimal.from(totalCBSNum).add(totalIBSNum).add(totalISNum).toFixed(2)),
             totalIBSEfetivo: parseFloat(totalIBSEfetivo.toFixed(2)),
             totalICMSResidual: parseFloat(totalICMSResidual.toFixed(2))
         };

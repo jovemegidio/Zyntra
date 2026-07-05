@@ -17,7 +17,8 @@
      * Inicializar módulo
      */
     function init() {
-
+        console.log('🛒 Módulo de Compras inicializado');
+        
         // Carregar dados do usuário
         loadUserData();
         

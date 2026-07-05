@@ -17,14 +17,6 @@ const builder = require('xmlbuilder2');
 const crypto = require('crypto');
 const { Decimal, ValidacaoFiscal } = require('./calculo-tributos.service');
 
-// Reforma Tributária — NT 2025.002
-let IBSCBSService;
-try {
-    IBSCBSService = require('./ibs-cbs.service');
-} catch (e) {
-    console.warn('[XML-NFe] IBSCBSService não disponível:', e.message);
-}
-
 class XmlNFeService {
 
     /**
@@ -101,6 +93,15 @@ class XmlNFeService {
         ide.ele('finNFe').txt(dados.finalidade || '1');
         ide.ele('indFinal').txt(dados.consumidorFinal || '1');
         ide.ele('indPres').txt(dados.indicadorPresenca || '1');
+        // NFref — documentos referenciados (ex.: devolução referencia a NF-e original).
+        // Posição no schema: após indPres e antes de procEmi.
+        const _refs = Array.isArray(dados.nfRef) ? dados.nfRef : (dados.nfRef ? [dados.nfRef] : []);
+        _refs.forEach((ref) => {
+            const chaveRef = String(ref || '').replace(/\D/g, '');
+            if (chaveRef.length === 44) {
+                ide.ele('NFref').ele('refNFe').txt(chaveRef);
+            }
+        });
         ide.ele('procEmi').txt('0');
         ide.ele('verProc').txt(dados.versaoAplicativo || 'ALUFORCE-2.0');
 
@@ -232,9 +233,10 @@ class XmlNFeService {
         this.adicionarPIS(imposto, itemCalculado.pis);
         this.adicionarCOFINS(imposto, itemCalculado.cofins);
 
-        // IBS/CBS — Reforma Tributária (NT 2025.002)
-        if (IBSCBSService && itemCalculado.ibsCbs) {
-            IBSCBSService.adicionarXMLIBSCBS(imposto, itemCalculado.ibsCbs);
+        if (itemCalculado.ibsCbs) {
+            throw new Error(
+                'IBS/CBS bloqueado: layout NT 2025.002 ainda não foi homologado nesta versão do emissor'
+            );
         }
 
         imposto.up();
@@ -246,12 +248,24 @@ class XmlNFeService {
     // ============================================================
 
     static adicionarICMS(imposto, icms, emitente) {
+        if ((icms.valorICMSST || 0) > 0) {
+            throw new Error('ICMS-ST bloqueado: grupo XML ainda nao homologado neste emissor');
+        }
+        if ((icms.valorICMSDestinatario || 0) > 0 || (icms.valorICMSRemetente || 0) > 0) {
+            throw new Error('DIFAL bloqueado: grupo ICMSUFDest ainda nao homologado neste emissor');
+        }
+
         const icmsNode = imposto.ele('ICMS');
 
         if (emitente.regimeTributario === 1) {
             // Simples Nacional — tag ICMSSN + CSOSN
-            const csosn = icms.csosn || '102';
-            const icmsSN = icmsNode.ele(`ICMSSN${csosn}`);
+            const csosn = String(icms.csosn || '').padStart(3, '0');
+            const gruposSemCredito = ['102', '103', '300', '400'];
+            if (csosn !== '101' && !gruposSemCredito.includes(csosn)) {
+                throw new Error(`CSOSN ${csosn || 'nao informado'} nao suportado no XML`);
+            }
+            const nomeGrupo = csosn === '101' ? 'ICMSSN101' : 'ICMSSN102';
+            const icmsSN = icmsNode.ele(nomeGrupo);
             icmsSN.ele('orig').txt(icms.origem);
             icmsSN.ele('CSOSN').txt(csosn);
             if (csosn === '101') {
@@ -261,16 +275,17 @@ class XmlNFeService {
             icmsSN.up();
         } else {
             // Regime Normal
-            const cst = icms.cst || '00';
-            const icmsTag = icmsNode.ele(`ICMS${cst}`);
+            const cst = String(icms.cst || '').padStart(2, '0');
+            if (cst !== '00') {
+                throw new Error(`ICMS CST ${cst || 'nao informado'} nao suportado no XML`);
+            }
+            const icmsTag = icmsNode.ele('ICMS00');
             icmsTag.ele('orig').txt(icms.origem);
             icmsTag.ele('CST').txt(cst);
-            if (icms.baseCalculo > 0) {
-                icmsTag.ele('modBC').txt(String(icms.modalidadeBC));
-                icmsTag.ele('vBC').txt(this.formatarDecimal(icms.baseCalculo, 2));
-                icmsTag.ele('pICMS').txt(this.formatarDecimal(icms.aliquota, 4));
-                icmsTag.ele('vICMS').txt(this.formatarDecimal(icms.valorICMS, 2));
-            }
+            icmsTag.ele('modBC').txt(String(icms.modalidadeBC));
+            icmsTag.ele('vBC').txt(this.formatarDecimal(icms.baseCalculo, 2));
+            icmsTag.ele('pICMS').txt(this.formatarDecimal(icms.aliquota, 4));
+            icmsTag.ele('vICMS').txt(this.formatarDecimal(icms.valorICMS, 2));
             if (icms.valorFCP > 0) {
                 icmsTag.ele('pFCP').txt(this.formatarDecimal(icms.aliquotaFCP, 4));
                 icmsTag.ele('vFCP').txt(this.formatarDecimal(icms.valorFCP, 2));
@@ -303,17 +318,20 @@ class XmlNFeService {
 
     static adicionarPIS(imposto, pis) {
         const pisNode = imposto.ele('PIS');
-        if (pis.valorPIS > 0) {
+        const cst = String(pis.cst || '').padStart(2, '0');
+        if (['01', '02'].includes(cst)) {
             const pisAliq = pisNode.ele('PISAliq');
-            pisAliq.ele('CST').txt(pis.cst);
+            pisAliq.ele('CST').txt(cst);
             pisAliq.ele('vBC').txt(this.formatarDecimal(pis.baseCalculo, 2));
             pisAliq.ele('pPIS').txt(this.formatarDecimal(pis.aliquota, 4));
             pisAliq.ele('vPIS').txt(this.formatarDecimal(pis.valorPIS, 2));
             pisAliq.up();
-        } else {
+        } else if (['04', '05', '06', '07', '08', '09'].includes(cst)) {
             const pisNT = pisNode.ele('PISNT');
-            pisNT.ele('CST').txt(pis.cst);
+            pisNT.ele('CST').txt(cst);
             pisNT.up();
+        } else {
+            throw new Error(`PIS CST ${cst || 'nao informado'} nao suportado no XML`);
         }
         return pisNode.up();
     }
@@ -324,17 +342,20 @@ class XmlNFeService {
 
     static adicionarCOFINS(imposto, cofins) {
         const cofinsNode = imposto.ele('COFINS');
-        if (cofins.valorCOFINS > 0) {
+        const cst = String(cofins.cst || '').padStart(2, '0');
+        if (['01', '02'].includes(cst)) {
             const cofinsAliq = cofinsNode.ele('COFINSAliq');
-            cofinsAliq.ele('CST').txt(cofins.cst);
+            cofinsAliq.ele('CST').txt(cst);
             cofinsAliq.ele('vBC').txt(this.formatarDecimal(cofins.baseCalculo, 2));
             cofinsAliq.ele('pCOFINS').txt(this.formatarDecimal(cofins.aliquota, 4));
             cofinsAliq.ele('vCOFINS').txt(this.formatarDecimal(cofins.valorCOFINS, 2));
             cofinsAliq.up();
-        } else {
+        } else if (['04', '05', '06', '07', '08', '09'].includes(cst)) {
             const cofinsNT = cofinsNode.ele('COFINSNT');
-            cofinsNT.ele('CST').txt(cofins.cst);
+            cofinsNT.ele('CST').txt(cst);
             cofinsNT.up();
+        } else {
+            throw new Error(`COFINS CST ${cst || 'nao informado'} nao suportado no XML`);
         }
         return cofinsNode.up();
     }
@@ -371,12 +392,10 @@ class XmlNFeService {
         icmsTot.ele('vNF').txt(this.formatarDecimal(totais.valorTotal, 2));
         icmsTot.ele('vTotTrib').txt(this.formatarDecimal(totais.valorTotalTributos || 0, 2));
 
-        // IBS/CBS Totais — Reforma Tributária (NT 2025.002)
-        if (totais.totalCBS > 0) {
-            icmsTot.ele('vCBS').txt(this.formatarDecimal(totais.totalCBS, 2));
-        }
-        if (totais.totalIBS > 0) {
-            icmsTot.ele('vIBS').txt(this.formatarDecimal(totais.totalIBS, 2));
+        if ((totais.totalCBS || 0) > 0 || (totais.totalIBS || 0) > 0) {
+            throw new Error(
+                'IBS/CBS bloqueado: totais não podem ser emitidos sem o layout oficial homologado'
+            );
         }
 
         icmsTot.up();
@@ -450,6 +469,9 @@ class XmlNFeService {
         const numero = String(dados.numeroNFe).padStart(9, '0');
         const tipoEmissao = String(dados.tipoEmissao || '1');
         const codigoNumerico = String(dados.codigoNumerico || this.gerarCodigoNumerico()).padStart(8, '0');
+        // [FIX cNF divergente] Persistir o cNF nos dados para que adicionarIDE use o MESMO
+        // valor da chave; antes cada um gerava um código → <cNF> ≠ chave → rejeição 502.
+        dados.codigoNumerico = codigoNumerico;
 
         const chave43 = uf + aamm + cnpj + mod + serie + numero + tipoEmissao + codigoNumerico;
         const dv = this.calcularDigitoVerificador(chave43);
@@ -492,11 +514,12 @@ class XmlNFeService {
     static formatarDataHora(data) {
         const d = new Date(data);
         const pad = (n) => String(n).padStart(2, '0');
-        // Obter offset real da timezone do servidor
-        const offsetMinutes = d.getTimezoneOffset();
-        const offsetHours = -Math.floor(offsetMinutes / 60);
-        const sign = offsetHours >= 0 ? '+' : '-';
-        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${pad(Math.abs(offsetHours))}:00`;
+        // [FIX schema 225] O <dhEmi>/<dhSaiEnt> exige fuso BRASILEIRO. O servidor roda em UTC,
+        // o que gerava offset "+00:00" — inválido no XSD da NF-e (só aceita -02 a -05).
+        // Convertemos o instante para o horário de Brasília (-03:00, fixo: SP não tem mais
+        // horário de verão) e fixamos o offset, independente da timezone do servidor.
+        const brt = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+        return `${brt.getUTCFullYear()}-${pad(brt.getUTCMonth() + 1)}-${pad(brt.getUTCDate())}T${pad(brt.getUTCHours())}:${pad(brt.getUTCMinutes())}:${pad(brt.getUTCSeconds())}-03:00`;
     }
 
     static formatarAAMM(data) {

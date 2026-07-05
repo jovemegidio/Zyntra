@@ -9,16 +9,20 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="css/fin-layout.css?v=20260319">
-    <link rel="stylesheet" href="css/fin-components.css?v=20260319">
-    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260319">
+    <link rel="stylesheet" href="/Financeiro/css/fin-layout.css?v=20260524">
+    <link rel="stylesheet" href="/Financeiro/css/fin-components.css?v=20260524">
+    <!-- Header/menu padronizado com o layout global (substitui fin-header-sidebar) -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260622">
+    <script src="/js/global-sidebar-submenu.js?v=20260621b" defer></script>
 
     <script src="/js/anti-copy-protection.js"></script>
     <link rel="stylesheet" href="/css/popup-confirmacao.css">
-    <script src="/js/modal-title.js?v=20260319"></script>
+    <script src="/js/modal-title.js?v=20260408"></script>
 
     <style>
         /* ===== CONTAS BANCÁRIAS — ESTILOS ESPECÍFICOS ===== */
+        /* Área de conteúdo rolável (mesmo padrão de relatorios/contas_pagar) */
+        .content-area { flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; padding: 16px 20px; }
         .summary-cards {
             display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;
         }
@@ -45,7 +49,8 @@
 
         /* Bank Cards */
         .bank-cards-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;
+            align-content: start;
         }
         .bank-card {
             background: white; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
@@ -113,8 +118,9 @@
         .empty-state p { font-size: 14px; margin-bottom: 16px; }
 
         /* ===== MODAIS ===== */
-        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; }
-        .modal.active { display: flex; }
+        /* Overlay full-screen — !important neutraliza o .modal (caixa 560px) do design-system.css */
+        .modal { display: none !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: auto !important; max-width: none !important; max-height: none !important; background: rgba(0,0,0,0.5) !important; z-index: 10000; align-items: center !important; justify-content: center !important; flex-direction: row !important; border-radius: 0 !important; box-shadow: none !important; animation: none !important; padding: 16px !important; }
+        .modal.active { display: flex !important; }
         .modal-content { background: white; border-radius: 16px; width: 95%; max-height: 90vh; overflow-y: auto; }
 
         .modal-institucional { max-width: 600px; }
@@ -194,7 +200,7 @@
         @media (max-width: 768px) { .summary-cards { grid-template-columns: 1fr; } .bank-cards-grid { grid-template-columns: 1fr; } .form-row { grid-template-columns: 1fr; } }
     </style>
     <!-- Chat Widget BOB AI -->
-    <link rel="stylesheet" href="/chat/widget.css?v=20260319">
+    <link rel="stylesheet" href="/chat/widget.css?v=20260408">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260614">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260320">
     <link rel="stylesheet" href="/css/design-system.css?v=20260502">
@@ -203,50 +209,13 @@
     <div class="app-container">
         <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
-        <!-- Sidebar -->
-        <aside class="sidebar" id="mobile-sidebar">
-            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
-            <nav class="sidebar-nav">
-                <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
-                <a href="contas_pagar.html" class="sidebar-btn" title="Contas a Pagar"><i class="fas fa-file-invoice-dollar"></i></a>
-                <a href="contas_receber.html" class="sidebar-btn" title="Contas a Receber"><i class="fas fa-hand-holding-usd"></i></a>
-                <a href="contas_bancarias.html" class="sidebar-btn active" title="Contas Bancárias"><i class="fas fa-university"></i></a>
-                <a href="fluxo_caixa.html" class="sidebar-btn" title="Fluxo de Caixa"><i class="fas fa-money-bill-wave"></i></a>
-                <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
-            </nav>
-            <div class="sidebar-bottom"><a href="/dashboard" class="sidebar-btn" title="Configurações"><i class="fas fa-cog"></i></a></div>
-        </aside>
+        <!-- Sidebar global (populada por global-sidebar-submenu.js) -->
+        <aside class="sidebar" id="mobile-sidebar"></aside>
 
         <!-- Main -->
         <main class="main-area" data-page-name="Contas Bancárias">
-            <header class="header" id="financeiro-header">
-                <div class="header-left">
-                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
-                    <div class="header-brand">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
-                        <span class="header-separator">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span class="header-dash">—</span>
-                        <span class="page-title">Contas Bancárias</span>
-                    </div>
-                </div>
-                <div class="header-right">
-                    <button class="header-btn" title="Nova Conta" onclick="abrirModalConta()"><i class="fas fa-plus"></i></button>
-                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
-                    <div class="notification-container">
-                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
-                            <i class="fas fa-bell"></i><span class="notification-badge" id="notification-count" style="display:none;">0</span>
-                        </button>
-                    </div>
-                    <div class="user-greeting">
-                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
-                        <div class="user-avatar" id="user-avatar">
-                            <img src="" alt="Foto" id="user-photo" style="display:none;">
-                            <span id="user-initials">U</span>
-                        </div>
-                    </div>
-                </div>
-            </header>
+            <!-- Header global (populado por global-sidebar-submenu.js) -->
+            <header class="header"></header>
 
             <div class="content-area">
                 <!-- Resumo -->
@@ -314,9 +283,26 @@
                         <div class="form-group"><label><i class="fas fa-building"></i> Agência</label><input type="text" class="form-input" id="agencia" placeholder="0000"></div>
                         <div class="form-group"><label><i class="fas fa-hashtag"></i> Número da Conta</label><input type="text" class="form-input" id="numero-conta" placeholder="00000-0"></div>
                     </div>
-                    <div class="form-group">
-                        <label><i class="fas fa-dollar-sign"></i> Saldo Inicial</label>
-                        <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" class="form-input with-prefix" id="saldo-inicial" value="0" placeholder="0,00"></div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label><i class="fas fa-dollar-sign"></i> Saldo Inicial</label>
+                            <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" class="form-input with-prefix" id="saldo-inicial" value="0" placeholder="0,00"></div>
+                        </div>
+                        <div class="form-group"><label><i class="fas fa-calendar"></i> Data do Saldo Inicial</label><input type="date" class="form-input" id="data-saldo-inicial"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label><i class="fas fa-credit-card"></i> Limite de Crédito</label>
+                            <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" class="form-input with-prefix" id="limite-credito" value="0" placeholder="0,00"></div>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-link"></i> Conta Vinculada</label>
+                            <select class="form-input" id="conta-vinculada"><option value="">Nenhuma</option></select>
+                        </div>
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;">
+                        <input type="checkbox" id="nao-considerar-resumo" style="width:auto">
+                        <label for="nao-considerar-resumo" style="margin:0">Não considerar esta conta no Resumo, no Fluxo de Caixa e no Orçamento de Caixa</label>
                     </div>
                     <div class="form-group"><label><i class="fas fa-comment"></i> Observações</label><textarea class="form-input" id="observacoes" rows="2" placeholder="Informações adicionais..."></textarea></div>
                 </div>
@@ -334,9 +320,9 @@
             <div class="modal-header-institucional">
                 <div class="modal-header-icon"><i class="fas fa-exchange-alt"></i></div>
                 <div class="modal-header-info"><h3 class="modal-title">Nova Movimentação</h3><p class="modal-subtitle">Registre uma entrada ou saída</p></div>
-                <button class="close-modal-inst" onclick="fecharModalMovimentacao()">×</button>
+                <button class="close-modal-inst" onclick="fecharModalMovimentação()">×</button>
             </div>
-            <form id="form-movimentacao" onsubmit="salvarMovimentacao(event)">
+            <form id="form-movimentacao" onsubmit="salvarMovimentação(event)">
                 <input type="hidden" id="mov-conta-id">
                 <div class="form-body">
                     <div class="form-row">
@@ -356,7 +342,7 @@
                     <div class="form-group"><label><i class="fas fa-calendar"></i> Data *</label><input type="date" class="form-input" id="mov-data" required></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn-cancel" onclick="fecharModalMovimentacao()"><i class="fas fa-times"></i> Cancelar</button>
+                    <button type="button" class="btn-cancel" onclick="fecharModalMovimentação()"><i class="fas fa-times"></i> Cancelar</button>
                     <button type="submit" class="btn-save" style="background:linear-gradient(135deg,#059669,#10b981);"><i class="fas fa-check"></i> Registrar</button>
                 </div>
             </form>
@@ -447,7 +433,7 @@
                 </div>
             </div>
             <div class="view-footer">
-                <button class="bank-btn mov" onclick="abrirMovimentacaoFromView()"><i class="fas fa-plus-circle"></i> Movimentação</button>
+                <button class="bank-btn mov" onclick="abrirMovimentaçãoFromView()"><i class="fas fa-plus-circle"></i> Movimentação</button>
                 <button class="bank-btn extrato" onclick="abrirExtratoFromView()"><i class="fas fa-list"></i> Extrato</button>
                 <button class="bank-btn edit" onclick="editarContaFromView()"><i class="fas fa-edit"></i> Editar</button>
             </div>
@@ -462,17 +448,52 @@
         function toggleNotificacoes() { if (typeof window.NotificationsManager !== 'undefined') window.NotificationsManager.togglePanel(); }
 
         let contasBancarias = [];
-        let extratoMovimentacoes = [];
+        let extratoMovimentações = [];
         let contaVisualizando = null;
 
         const bankLogos = { '001': 'bancodobrasil.png', '237': 'bradesco.png', '104': 'caixa-economica.png', '341': 'itaú.png', '033': 'santander.png', '260': 'nubank.png', '077': 'inter.png' };
         const bankNames = { '001': 'Banco do Brasil', '237': 'Bradesco', '104': 'Caixa Econômica', '341': 'Itaú', '033': 'Santander', '260': 'Nubank', '077': 'Inter' };
         const tipoNames = { 'corrente': 'Conta Corrente', 'poupanca': 'Poupança', 'investimento': 'Investimento', 'pagamento': 'Conta Pagamento' };
 
-        function getBankLogoHtml(codigo, size = 42) {
-            const logo = bankLogos[codigo];
-            if (logo) return `<img src="../bancos-vetores/${logo}" class="bank-logo" style="width:${size}px;height:${size}px;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="bank-logo-placeholder" style="width:${size}px;height:${size}px;display:none;"><i class="fas fa-university"></i></div>`;
-            return `<div class="bank-logo-placeholder" style="width:${size}px;height:${size}px;"><i class="fas fa-university"></i></div>`;
+        // Ícones próprios das contas/fundos do cliente (pasta Icones Banco), servidos em
+        // /Financeiro/icones-banco/. Casamento por nome (não por código de banco), já que
+        // são contas/fundos com nome próprio (ex.: "Delmonte", "Nubank", "IGNIS").
+        const customBankIcons = ['Delmonte', 'Annex', 'IGNIS', 'ITAU', 'Nubank', 'Caixinha'];
+        function normalizaNome(s) {
+            return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+        }
+        function buscarIconePersonalizado(nomeConta) {
+            const alvo = normalizaNome(nomeConta);
+            if (!alvo) return null;
+            return customBankIcons.find(icone => {
+                const n = normalizaNome(icone);
+                return n.length >= 4 && (alvo.indexOf(n) !== -1 || n.indexOf(alvo) !== -1);
+            }) || null;
+        }
+        // Inicial do banco/conta (fallback quando não há ícone na pasta)
+        function inicialBanco(nomeConta, código) {
+            const s = String(nomeConta || código || '').trim();
+            const m = s.match(/[A-Za-zÀ-ÿ0-9]/);
+            return (m ? m[0] : 'B').toUpperCase();
+        }
+        function corInicial(txt) {
+            const paleta = ['#1e40af','#0ea5e9','#16a34a','#7c3aed','#db2777','#ea580c','#0891b2','#4f46e5','#be123c','#15803d'];
+            let h = 0; const s = String(txt || '');
+            for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+            return paleta[h % paleta.length];
+        }
+        // Fallback padrão = imagem Fallback.jpg (pasta Icones Banco). hidden=true => oculto (onerror do <img>).
+        function bankFallbackHtml(size, hidden) {
+            const disp = hidden ? 'none' : 'inline-block';
+            return `<img src="/Financeiro/icones-banco/Fallback.jpg" class="bank-logo" style="width:${size}px;height:${size}px;display:${disp};object-fit:contain;background:#fff;">`;
+        }
+        function getBankLogoHtml(código, size = 42, nomeConta = '') {
+            const icone = buscarIconePersonalizado(nomeConta);
+            if (icone) return `<img src="/Financeiro/icones-banco/${encodeURIComponent(icone)}.jpg" class="bank-logo" style="width:${size}px;height:${size}px;" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'">` + bankFallbackHtml(size, true);
+            const logo = bankLogos[código];
+            if (logo) return `<img src="../bancos-vetores/${logo}" class="bank-logo" style="width:${size}px;height:${size}px;" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'">` + bankFallbackHtml(size, true);
+            // Sem ícone na pasta e sem vetor → imagem Fallback.jpg
+            return bankFallbackHtml(size, false);
         }
 
         async function carregarDadosUsuario() {
@@ -484,7 +505,8 @@
                     const h = new Date().getHours();
                     const greetEl = document.getElementById('greeting-text');
                     if (greetEl) greetEl.textContent = h >= 18 || h < 5 ? 'Boa noite' : h >= 12 ? 'Boa tarde' : 'Bom dia';
-                    document.getElementById('user-name').textContent = (nome || '').split(' ')[0];
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = (nome || '').split(' ')[0];
 
                     const avatarMap = {'clemerson':'/avatars/Clemerson.webp','isabela':'/avatars/Isabela.webp','thaina':'/avatars/Thaina.webp','thiago':'/avatars/Thiago.webp','nicolas':'/avatars/NicolasDaniel.webp','nicolasdaniel':'/avatars/NicolasDaniel.webp','rh':'/avatars/Rh.webp','admin':'/avatars/admin.webp','ti':'/avatars/TI.webp','tialuforce':'/avatars/TI.webp','antonio':'/avatars/Antonio.webp','antônio':'/avatars/Antonio.webp','andreia':'/avatars/Andreia.webp','guilherme':'/avatars/Guilherme.webp','marcelo':'/avatars/Marcelo.webp','financeiro':'/avatars/Financeiro.webp','douglas':'/avatars/Douglas.webp','hellen':'/avatars/Hellen.webp','helen':'/avatars/Hellen.webp'};
                     let avatarUrl = null;
@@ -499,7 +521,16 @@
             } catch(e) { console.error(e); }
         }
 
-        async function init() { await Promise.all([carregarDadosUsuario(), carregarContas()]); }
+        async function init() {
+            await Promise.all([carregarDadosUsuario(), carregarContas()]);
+            // Ações acionadas pelo mega-menu lateral (?ação=nova / ?ação=transferencia)
+            try {
+                const ação = new URLSearchParams(window.location.search).get('ação');
+                if (ação === 'nova') { abrirModalConta(); }
+                else if (ação === 'transferencia') { abrirModalTransferencia(); }
+                if (ação) window.history.replaceState({}, document.title, window.location.pathname);
+            } catch (e) { /* noop */ }
+        }
 
         async function carregarContas() {
             try {
@@ -525,7 +556,7 @@
                 const statusClass = c.status === 'inativa' ? 'inativa' : 'ativa';
                 return `<div class="bank-card">
                     <div class="bank-card-header">
-                        ${getBankLogoHtml(c.banco_codigo || c.codigo_banco)}
+                        ${getBankLogoHtml(c.banco_codigo || c.codigo_banco, 42, c.nome || c.banco_nome)}
                         <div class="bank-info"><div class="bank-name">${esc(c.nome) || 'Conta'}</div><div class="bank-type">${bankNames[c.banco_codigo || c.codigo_banco] || esc(c.banco_nome) || 'Banco'} • ${tipoNames[c.tipo] || esc(c.tipo) || 'Corrente'}</div></div>
                         <span class="bank-card-status ${statusClass}">${statusClass === 'ativa' ? 'Ativa' : 'Inativa'}</span>
                     </div>
@@ -539,7 +570,7 @@
                     </div>
                     <div class="bank-card-actions">
                         <button class="bank-btn view" onclick="abrirModalVisualizar(${c.id})"><i class="fas fa-eye"></i> Ver</button>
-                        <button class="bank-btn mov" onclick="abrirModalMovimentacao(${c.id})"><i class="fas fa-plus-circle"></i> Mov.</button>
+                        <button class="bank-btn mov" onclick="abrirModalMovimentação(${c.id})"><i class="fas fa-plus-circle"></i> Mov.</button>
                         <button class="bank-btn extrato" onclick="abrirModalExtrato(${c.id})"><i class="fas fa-list"></i> Extrato</button>
                         <button class="bank-btn edit" onclick="editarConta(${c.id})"><i class="fas fa-edit"></i></button>
                         <button class="bank-btn delete" onclick="excluirConta(${c.id})"><i class="fas fa-trash"></i></button>
@@ -554,6 +585,12 @@
             document.getElementById('form-conta').reset();
             document.getElementById('conta-id').value = '';
             document.getElementById('modal-conta-titulo').textContent = 'Nova Conta Bancária';
+
+            const selVinculada = document.getElementById('conta-vinculada');
+            selVinculada.innerHTML = '<option value="">Nenhuma</option>' + contasBancarias
+                .filter(c => !id || c.id !== id)
+                .map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+
             if (id) {
                 const c = contasBancarias.find(x => x.id === id); if (!c) return;
                 document.getElementById('modal-conta-titulo').textContent = 'Editar Conta Bancária';
@@ -565,6 +602,10 @@
                 document.getElementById('numero-conta').value = c.numero_conta || '';
                 document.getElementById('saldo-inicial').value = c.saldo || 0;
                 document.getElementById('observacoes').value = c.observacoes || '';
+                document.getElementById('limite-credito').value = c.limite_credito || 0;
+                document.getElementById('data-saldo-inicial').value = c.data_saldo_inicial ? String(c.data_saldo_inicial).slice(0, 10) : '';
+                selVinculada.value = c.conta_vinculada || '';
+                document.getElementById('nao-considerar-resumo').checked = !!c.nao_considerar_resumo;
             }
         }
         function fecharModalConta() { document.getElementById('modal-conta').classList.remove('active'); }
@@ -573,7 +614,19 @@
         async function salvarConta(event) {
             event.preventDefault();
             const id = document.getElementById('conta-id').value;
-            const dados = { nome: document.getElementById('nome-conta').value, banco: document.getElementById('banco').value, tipo: document.getElementById('tipo-conta').value, agencia: document.getElementById('agencia').value, numero_conta: document.getElementById('numero-conta').value, saldo: parseFloat(document.getElementById('saldo-inicial').value) || 0, observacoes: document.getElementById('observacoes').value };
+            const dados = {
+                nome: document.getElementById('nome-conta').value,
+                banco: document.getElementById('banco').value,
+                tipo: document.getElementById('tipo-conta').value,
+                agencia: document.getElementById('agencia').value,
+                numero_conta: document.getElementById('numero-conta').value,
+                saldo: parseFloat(document.getElementById('saldo-inicial').value) || 0,
+                observacoes: document.getElementById('observacoes').value,
+                limite_credito: parseFloat(document.getElementById('limite-credito').value) || 0,
+                data_saldo_inicial: document.getElementById('data-saldo-inicial').value || null,
+                conta_vinculada: document.getElementById('conta-vinculada').value || null,
+                nao_considerar_resumo: document.getElementById('nao-considerar-resumo').checked
+            };
             try {
                 const url = id ? `/api/financeiro/contas-bancarias/${id}` : '/api/financeiro/contas-bancarias';
                 const r = await fetch(url, { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(dados) });
@@ -581,29 +634,56 @@
             } catch(e) { console.error(e); alert('Erro ao salvar conta'); }
         }
 
+        // Lê um cookie por nome (usado para o token CSRF double-submit)
+        function getCookie(nome) {
+            return document.cookie.split('; ').reduce(function (acc, c) {
+                const i = c.indexOf('='); const k = c.slice(0, i);
+                return k === nome ? decodeURIComponent(c.slice(i + 1)) : acc;
+            }, '');
+        }
+        // Headers que satisfazem a proteção CSRF para escritas (ex.: DELETE sem corpo).
+        // Mantém a autenticação por cookie intacta (não envia Bearer p/ evitar token stale):
+        //  - X-Requested-With: cobre o bypass de "custom header" quando há cookie authToken
+        //  - x-csrf-token == cookie csrf_token: cobre o double-submit quando não há authToken
+        function csrfHeaders(extra) {
+            const h = Object.assign({ 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }, extra || {});
+            const csrf = getCookie('csrf_token');
+            if (csrf) h['x-csrf-token'] = csrf;
+            return h;
+        }
+
         async function excluirConta(id) {
             if (!confirm('Excluir esta conta bancária?')) return;
             try {
-                const r = await fetch(`/api/financeiro/contas-bancarias/${id}`, { method: 'DELETE', credentials: 'include' });
-                if (r.ok) { alert('Conta excluída!'); await init(); } else { alert('Erro ao excluir'); }
+                const r = await fetch(`/api/financeiro/contas-bancarias/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include',
+                    headers: csrfHeaders()
+                });
+                if (r.ok) { alert('Conta excluída!'); await init(); }
+                else {
+                    let msg = 'Erro ao excluir';
+                    try { const e = await r.json(); if (e && (e.error || e.message)) msg = 'Erro ao excluir: ' + (e.error || e.message); } catch (_) {}
+                    alert(msg);
+                }
             } catch(e) { alert('Erro ao excluir'); }
         }
 
-        // ===== MODAL MOVIMENTAÇÃO =====
-        function abrirModalMovimentacao(contaId) {
+        // ===== MODAL MOVIMENTAÇÁO =====
+        function abrirModalMovimentação(contaId) {
             document.getElementById('modal-movimentacao').classList.add('active');
             document.getElementById('form-movimentacao').reset();
             document.getElementById('mov-conta-id').value = contaId;
             document.getElementById('mov-data').value = new Date().toISOString().split('T')[0];
         }
-        function fecharModalMovimentacao() { document.getElementById('modal-movimentacao').classList.remove('active'); }
+        function fecharModalMovimentação() { document.getElementById('modal-movimentacao').classList.remove('active'); }
 
-        async function salvarMovimentacao(event) {
+        async function salvarMovimentação(event) {
             event.preventDefault();
-            const dados = { conta_id: document.getElementById('mov-conta-id').value, tipo: document.getElementById('mov-tipo').value, valor: parseFloat(document.getElementById('mov-valor').value), descricao: document.getElementById('mov-descricao').value, data: document.getElementById('mov-data').value };
+            const dados = { conta_id: document.getElementById('mov-conta-id').value, tipo: document.getElementById('mov-tipo').value, valor: parseFloat(document.getElementById('mov-valor').value), descrição: document.getElementById('mov-descricao').value, data: document.getElementById('mov-data').value };
             try {
                 const r = await fetch('/api/financeiro/movimentacoes-bancarias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(dados) });
-                if (r.ok) { alert('Movimentação registrada!'); fecharModalMovimentacao(); await init(); } else { alert('Erro ao registrar'); }
+                if (r.ok) { alert('Movimentação registrada!'); fecharModalMovimentação(); await init(); } else { alert('Erro ao registrar'); }
             } catch(e) { alert('Erro ao registrar'); }
         }
 
@@ -627,7 +707,7 @@
             const fim = document.getElementById('extrato-data-fim').value;
             try {
                 const r = await fetch(`/api/financeiro/movimentacoes-bancarias?conta_id=${contaId}&inicio=${inicio}&fim=${fim}`, { credentials: 'include' });
-                if (r.ok) { const rawExtrato = await r.json(); const arrExtrato = rawExtrato?.data || rawExtrato; extratoMovimentacoes = Array.isArray(arrExtrato) ? arrExtrato : []; renderizarExtrato(); }
+                if (r.ok) { const rawExtrato = await r.json(); const arrExtrato = rawExtrato?.data || rawExtrato; extratoMovimentações = Array.isArray(arrExtrato) ? arrExtrato : []; renderizarExtrato(); }
             } catch(e) { console.error(e); }
         }
 
@@ -637,7 +717,7 @@
 
         function renderizarExtrato() {
             const tipo = document.getElementById('extrato-tipo').value;
-            let dados = [...extratoMovimentacoes];
+            let dados = [...extratoMovimentações];
             if (tipo) dados = dados.filter(m => m.tipo === tipo);
             const lista = document.getElementById('extrato-lista');
             if (dados.length === 0) { lista.innerHTML = '<p style="text-align:center;color:var(--gray-400);padding:40px;">Nenhuma movimentação encontrada</p>'; } else {
@@ -656,7 +736,7 @@
             const inicio = document.getElementById('extrato-data-inicio').value;
             const fim = document.getElementById('extrato-data-fim').value;
             const escHtml = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-            const rows = extratoMovimentacoes.map(m => {
+            const rows = extratoMovimentações.map(m => {
                 const tipo = m.tipo === 'entrada' ? 'entrada' : 'saida';
                 const sinal = tipo === 'entrada' ? '+' : '-';
                 const valor = (parseFloat(m.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
@@ -668,7 +748,8 @@
         }
 
         // ===== MODAL TRANSFERÊNCIA =====
-        function abrirModalTransferencia() {
+        async function abrirModalTransferencia() {
+            if (!contasBancarias.length) await carregarContas();
             document.getElementById('modal-transferencia').classList.add('active');
             document.getElementById('form-transferencia').reset();
             document.getElementById('transf-data').value = new Date().toISOString().split('T')[0];
@@ -694,8 +775,8 @@
             const desc = document.getElementById('transf-descricao').value || 'Transferência entre contas';
             if (origemId === destinoId) { alert('Selecione contas diferentes'); return; }
             try {
-                const r1 = await fetch('/api/financeiro/movimentacoes-bancarias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ conta_id: origemId, tipo: 'saida', valor, descricao: `${desc} (Saída)`, data }) });
-                const r2 = await fetch('/api/financeiro/movimentacoes-bancarias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ conta_id: destinoId, tipo: 'entrada', valor, descricao: `${desc} (Entrada)`, data }) });
+                const r1 = await fetch('/api/financeiro/movimentacoes-bancarias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ conta_id: origemId, tipo: 'saida', valor, descrição: `${desc} (Saída)`, data }) });
+                const r2 = await fetch('/api/financeiro/movimentacoes-bancarias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ conta_id: destinoId, tipo: 'entrada', valor, descrição: `${desc} (Entrada)`, data }) });
                 if (r1.ok && r2.ok) { alert('Transferência realizada!'); fecharModalTransferencia(); await init(); } else { alert('Erro na transferência'); }
             } catch(e) { alert('Erro na transferência'); }
         }
@@ -705,7 +786,7 @@
             const c = contasBancarias.find(x => x.id === id); if (!c) return;
             contaVisualizando = c;
             const saldo = parseFloat(c.saldo) || 0;
-            document.getElementById('view-bank-logo-container').innerHTML = getBankLogoHtml(c.banco_codigo || c.codigo_banco, 56).replace('class="bank-logo"', 'class="view-bank-logo"').replace('class="bank-logo-placeholder"', 'class="view-bank-logo-placeholder"');
+            document.getElementById('view-bank-logo-container').innerHTML = getBankLogoHtml(c.banco_codigo || c.codigo_banco, 56, c.nome || c.banco_nome).replace('class="bank-logo"', 'class="view-bank-logo"').replace('class="bank-logo-placeholder"', 'class="view-bank-logo-placeholder"');
             document.getElementById('view-nome').textContent = c.nome || 'Conta';
             document.getElementById('view-saldo').textContent = `R$ ${saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
             document.getElementById('view-banco').textContent = bankNames[c.banco_codigo || c.codigo_banco] || c.banco_nome || '-';
@@ -713,32 +794,32 @@
             document.getElementById('view-agencia').textContent = c.agencia || '-';
             document.getElementById('view-numero').textContent = c.numero_conta || '-';
             document.getElementById('view-status').textContent = c.status === 'inativa' ? 'Inativa' : 'Ativa';
-            document.getElementById('view-obs').textContent = c.observacoes || 'Nenhuma observação';
+            document.getElementById('view-obs').textContent = c.observações || 'Nenhuma observação';
             document.getElementById('modal-visualizar').classList.add('active');
         }
         function fecharModalVisualizar() { document.getElementById('modal-visualizar').classList.remove('active'); }
-        function abrirMovimentacaoFromView() { if(contaVisualizando){fecharModalVisualizar();abrirModalMovimentacao(contaVisualizando.id);}}
+        function abrirMovimentaçãoFromView() { if(contaVisualizando){fecharModalVisualizar();abrirModalMovimentação(contaVisualizando.id);}}
         function abrirExtratoFromView() { if(contaVisualizando){fecharModalVisualizar();abrirModalExtrato(contaVisualizando.id);}}
         function editarContaFromView() { if(contaVisualizando){fecharModalVisualizar();editarConta(contaVisualizando.id);}}
 
         document.addEventListener('DOMContentLoaded', () => { init().catch(e => console.error(e)); });
     </script>
 
-    <script src="/js/chat-suporte-widgets.js?v=20260319"></script>
-    <script src="../../_shared/connection-monitor.js?v=20260319"></script>
+    <script src="/js/chat-suporte-widgets.js?v=20260408"></script>
+    <script src="../../_shared/connection-monitor.js?v=20260408"></script>
     <script src="/js/popup-confirmacao.js"></script>
     <script src="js/importar-xlsx.js"></script>
     <script src="/js/auth-unified.js?v=20260326"></script>
     <script src="/js/inactivity-manager.js?v=20260324" defer></script>
-    <script src="/js/mobile-auto-enhance.js?v=20260319" defer></script>
-    <script src="/Financeiro/js/financeiro-sidebar.js?v=20260319"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260408" defer></script>
+    <script src="/Financeiro/js/financeiro-sidebar.js?v=20260408"></script>
 
-<!-- Zyntra: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260319"></script>
-    <script src="/_shared/accessibility-widget.js?v=20260319"></script>
+<!-- Zyntra: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260429"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260408"></script>
 
     <!-- Chat Corporativo (Teams) -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/chat-teams/chat-widget.js?v=20260319" defer></script>
-    <script src="/js/user-dropdown.js?v=20260319" defer></script>
+    <script src="/chat-teams/chat-widget.js?v=20260408" defer></script>
+    <script src="/js/user-dropdown.js?v=20260408" defer></script>
 </body>
 </html>

@@ -110,7 +110,7 @@
     function showInstallButton() {
         // ✅ Mostrar botão SOMENTE no Painel de Controle (dashboard)
         const path = window.location.pathname;
-        const isDashboard = (path === '/' || path === '/dashboard' || path === '/painel');
+        const isDashboard = (path === '/' || path === '/index.html' || path === '/dashboard' || path === '/painel');
         if (!isDashboard) return;
 
         // Verificar se já existe
@@ -515,8 +515,16 @@
     });
 
     // Escutar mudanças de controlador
+    var _swRefreshing = false;
     navigator.serviceWorker?.addEventListener('controllerchange', () => {
-        log('🔄 Controlador do SW mudou - recarregando...');
+        if (_swRefreshing) return;
+        try {
+            // NAO recarregar enquanto houver modal aberto / edicao em curso (evita 'modal pisca' e perda de estado)
+            if (document.querySelector('.modal.show, .modal-overlay.show, .modal-overlay.active, .modal.active, .modal[style*="display: block"]') || document.body.classList.contains('modal-open')) {
+                return;
+            }
+        } catch (e) {}
+        _swRefreshing = true;
         window.location.reload();
     });
 

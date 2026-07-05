@@ -1,862 +1,3253 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
-    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <script src="/js/anti-copy-protection.js?v=20260410" defer></script>
+    <link rel="icon" type="image/jpeg" href="/favicon-zyntra.jpg">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>Zyntra: Financeiro</title>
-    <!-- Suprimir console.log em produção -->
-    <script>if(location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){console.log=function(){}}</script>
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Zyntra: Contas a Pagar</title>
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
-        integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
-        rel="stylesheet">
+    <!-- Autenticação -->
+    <script src="/js/auth-unified.js?v=20260326" defer></script>
+    <script src="/js/inactivity-manager.js?v=20260324" defer></script>
 
-    <!-- Design System Institucional Financeiro -->
-    <link rel="stylesheet" href="css/fin-layout.css?v=20260319">
-    <link rel="stylesheet" href="css/fin-components.css?v=20260319">
-    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260319">
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="css/fin-pagination.css">
+    <script src="js/fin-pagination.js"></script>
 
-    <script src="/js/anti-copy-protection.js"></script>
-    <script src="/js/user-greeting-avatar.js?v=20260402" defer></script>
-    <link rel="stylesheet" href="/css/popup-confirmacao.css">
-    <script src="/js/modal-title.js?v=20260319"></script>
+    <!-- Financeiro Design System -->
+    <link rel="stylesheet" href="css/fin-components.css?v=20260411">
+    <link rel="stylesheet" href="css/financeiro.css?v=20260411">
 
+    <!-- XLSX Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        /* ===== DASHBOARD ESPECÍFICO ===== */
-        .kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
+    :root {
+        --primary-blue: #3b82f6;
+        --primary-orange: #3b82f6;
+        --primary-dark: #ffffff;
+        --bg-gray: #f8fafc;
+        --border-color: #e2e8f0;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+    }
+
+        /* Botão Importar - usa classe padrão .btn.btn-success do fin-components.css */
+.user-avatar img.visible { display: block; }
+        .user-avatar .user-initial { display: block; }
+        .user-avatar img.visible + .user-initial { display: none; }
+
+/* Animação de entrada */
+        .page-content { animation: fadeInContent 0.4s ease-out; }
+
+        /* Animação escalonada para KPIs e Cards */
+        .kpi-grid .kpi-card { animation: slideInUp 0.5s ease-out backwards; }
+        .kpi-grid .kpi-card:nth-child(1) { animation-delay: 0.05s; }
+        .kpi-grid .kpi-card:nth-child(2) { animation-delay: 0.1s; }
+        .kpi-grid .kpi-card:nth-child(3) { animation-delay: 0.15s; }
+        .kpi-grid .kpi-card:nth-child(4) { animation-delay: 0.2s; }
+
+        .filters-section { animation: slideInUp 0.5s ease-out backwards; animation-delay: 0.25s; }
+        .table-container { animation: slideInUp 0.5s ease-out backwards; animation-delay: 0.3s; }
+
+        /* PAGE HEADER/BUTTONS - definidos em fin-components.css */
+/* Override de cor de acento para Contas a Pagar (danger/red) */
+        .page-title-section h1 i { color: var(--danger); font-size: 28px; }
+        .btn-primary { background: linear-gradient(135deg, var(--danger), #dc2626); color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4); }
+
+        /* KPI CARDS - Padrão Compras */
+
+        /* FILTERS - DESIGN PREMIUM */
+        .filters-bar, .filters-section {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
             margin-bottom: 24px;
-        }
-
-        .kpi-card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-            border: 1px solid var(--gray-100);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .kpi-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .kpi-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 20px rgba(0,0,0,0.03);
+            border: 1px solid rgba(0,0,0,0.04);
             display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 12px;
-            font-size: 18px;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: flex-end;
         }
-
-        .kpi-value {
-            font-size: 24px;
-            font-weight: 800;
-            color: var(--gray-900);
-            margin-bottom: 4px;
-        }
-
-        .kpi-label {
+        .filter-group { display: flex; flex-direction: column; gap: 6px; }
+        .filter-group label { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .filter-group input, .filter-group select {
+            padding: 12px 14px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
             font-size: 13px;
-            color: var(--gray-500);
-            font-weight: 500;
+            min-width: 150px;
+            transition: all 0.2s ease;
+        }
+        .filter-group input:focus, .filter-group select:focus {
+            outline: none;
+            border-color: var(--danger);
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
         }
 
-        .kpi-sub {
-            font-size: 11px;
-            color: var(--gray-400);
-            margin-top: 4px;
-        }
-
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        .dash-card {
+        /* TABLE - DESIGN PREMIUM */
+        .card, .table-container-wrapper {
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-            border: 1px solid var(--gray-100);
+            border-radius: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 20px rgba(0,0,0,0.03);
             overflow: hidden;
+            border: 1px solid rgba(0,0,0,0.04);
         }
-
-        .dash-card-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--gray-100);
+        .card-header, .table-header {
+            padding: 24px 28px;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: linear-gradient(180deg, #fafafa 0%, white 100%);
         }
-
-        .dash-card-header h3 {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--gray-800);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin: 0;
-        }
-
-        .dash-card-header h3 i {
-            color: var(--info-500);
-        }
-
-        .dash-card-body {
+        .card-header h3, .table-header h3 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 12px; color: var(--text-primary); }
+        .card-header h3 i, .table-header h3 i { color: var(--danger); font-size: 18px; }
+        .table-container { overflow-x: auto; }
+        table, .data-table { width: 100%; border-collapse: collapse; }
+        th {
+            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
             padding: 16px 20px;
-        }
-
-        /* Transações */
-        .transaction-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .transaction-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 10px;
-            border-radius: 10px;
-            background: var(--gray-50);
-            transition: background 0.2s;
-        }
-
-        .transaction-item:hover {
-            background: var(--gray-100);
-        }
-
-        .trans-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-        }
-
-        .trans-icon.entrada {
-            background: #dcfce7;
-            color: #16a34a;
-        }
-
-        .trans-icon.saida {
-            background: #fee2e2;
-            color: #dc2626;
-        }
-
-        .trans-details {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .trans-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--gray-800);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .trans-date {
+            text-align: left;
             font-size: 11px;
-            color: var(--gray-400);
-            margin-top: 2px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
+        td { padding: 18px 20px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        tr { transition: all 0.15s ease; }
+        tr:hover { background: linear-gradient(90deg, rgba(239, 68, 68, 0.03), transparent); }
+        tr:last-child td { border-bottom: none; }
+        .valor { font-weight: 700; font-family: 'Inter', monospace; }
+        .valor.saida { color: var(--danger); }
 
-        .trans-value {
-            font-size: 13px;
-            font-weight: 700;
-            white-space: nowrap;
-        }
-
-        .trans-value.entrada {
-            color: #16a34a;
-        }
-
-        .trans-value.saida {
-            color: #dc2626;
-        }
-
-        /* Quick Actions */
-        .quick-actions {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        .quick-action-btn {
-            display: flex;
-            flex-direction: column;
+        /* STATUS BADGES - DESIGN PREMIUM */
+        .badge, .status-badge {
+            display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 16px 12px;
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            background: white;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            transition: all 0.2s ease;
+        }
+        .badge-success, .status-badge.pago { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #166534; }
+        .badge-warning, .status-badge.pendente { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
+        .badge-danger, .status-badge.vencido { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #991b1b; }
+        .badge-info, .status-badge.parcial { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1e40af; }
+        .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+        /* ACTIONS - DESIGN PREMIUM */
+        .btn-action {
+            width: 38px;
+            height: 38px;
+            border: none;
+            border-radius: 10px;
             cursor: pointer;
-            transition: all 0.2s;
-            text-decoration: none;
-        }
-
-        .quick-action-btn:hover {
-            border-color: var(--info-500);
-            background: var(--gray-50);
-            transform: translateY(-2px);
-        }
-
-        .quick-action-btn i {
-            font-size: 20px;
-            color: var(--info-500);
-        }
-
-        .quick-action-btn span {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--gray-700);
-            text-align: center;
-        }
-
-        /* Vencimentos */
-        .venc-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 10px;
-            border-radius: 10px;
-            background: var(--gray-50);
-            margin-bottom: 8px;
-        }
-
-        .venc-item:last-child {
-            margin-bottom: 0;
-        }
-
-        .venc-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
-        }
-
-        .venc-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .venc-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--gray-800);
-            white-space: nowrap;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-right: 6px;
+            position: relative;
             overflow: hidden;
-            text-overflow: ellipsis;
         }
-
-        .venc-date {
-            font-size: 11px;
-            margin-top: 2px;
+        .btn-action::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: currentColor;
+            opacity: 0;
+            transition: opacity 0.2s;
         }
+        .btn-action:hover::before { opacity: 0.1; }
+        .btn-action.view { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #2563eb; }
+        .btn-action.edit { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
+        .btn-action.pagar { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #16a34a; }
+        .btn-action.delete { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #dc2626; }
+        .btn-action:hover { transform: translateY(-2px) scale(1.08); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 
-        .venc-value {
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--gray-800);
-            white-space: nowrap;
-        }
+        /* MODAL */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 20px; width: 90%; max-width: 720px; min-height: 580px; max-height: 90vh; overflow: hidden; box-shadow: 0 25px 80px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.15); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border-color); }
+        .modal-header h3 { font-size: 18px; font-weight: 600; }
+        .modal-close { width: 32px; height: 32px; border: none; background: transparent; cursor: pointer; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .modal-close:hover { background: var(--bg-gray); }
+        .modal-body { padding: 24px; overflow-y: auto; max-height: calc(90vh - 140px); }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 12px; }
 
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .kpi-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
+        /* FORM */
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary); }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px 16px; border: 2px solid var(--border-color); border-radius: 10px; font-size: 14px; transition: all 0.2s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--danger); box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
-            .dashboard-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 640px) {
-            .kpi-grid {
-                grid-template-columns: 1fr;
-            }
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .page-content { padding: 16px; }
+            .filters-bar, .filters-section { flex-direction: column; }
+            .filter-group { width: 100%; }
+            .filter-group input, .filter-group select { width: 100%; }
+            .form-row { grid-template-columns: 1fr; }
         }
     </style>
-    <!-- Chat Corporativo (Teams) -->
-    <link rel="stylesheet" href="/chat-teams/chat-widget.css?v=20260319">
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+
+    <!-- Header & Sidebar refinado -->
+    <!-- Global Header & Sidebar - override final unificado -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260621b" defer></script>
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260326">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260614">
     <link rel="stylesheet" href="/css/design-system.css?v=20260502">
 </head>
-<!-- Loader -->
-<div class="loader-wrapper" id="loader-wrapper">
-    <div class="loader-spinner"></div>
-</div>
+<body>
+    <div class="app-container">
+        <!-- Overlay para fechar sidebar em mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
-<div class="app-container">
-    <!-- Overlay Mobile -->
-    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
 
-    <!-- Sidebar -->
-    <aside class="sidebar" id="mobile-sidebar">
-        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
-            <i class="fas fa-home"></i>
-        </a>
-        <nav class="sidebar-nav">
-            <a href="index.html" class="sidebar-btn active" title="Dashboard">
-                <i class="fas fa-chart-pie"></i>
-            </a>
-            <a href="contas_pagar.html" class="sidebar-btn" title="Contas a Pagar">
-                <i class="fas fa-file-invoice-dollar"></i>
-            </a>
-            <a href="contas_receber.html" class="sidebar-btn" title="Contas a Receber">
-                <i class="fas fa-hand-holding-usd"></i>
-            </a>
-            <a href="contas_bancarias.html" class="sidebar-btn" title="Contas Bancárias">
-                <i class="fas fa-university"></i>
-            </a>
-            <a href="fluxo_caixa.html" class="sidebar-btn" title="Fluxo de Caixa">
-                <i class="fas fa-money-bill-wave"></i>
-            </a>
-            <a href="relatorios.html" class="sidebar-btn" title="Relatórios">
-                <i class="fas fa-chart-bar"></i>
-            </a>
-        </nav>
-        <div class="sidebar-bottom">
-            <a href="/dashboard" class="sidebar-btn" title="Configurações">
-                <i class="fas fa-cog"></i>
-            </a>
-        </div>
-    </aside>
+            <nav class="sidebar-nav">
+                <a href="/Financeiro" class="sidebar-btn" title="Dashboard">
+                    <i class="fas fa-chart-line"></i>
+                </a>
+                <a href="/Financeiro/contas-pagar" class="sidebar-btn active" title="Contas a Pagar">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </a>
+                <a href="/Financeiro/contas-receber" class="sidebar-btn" title="Contas a Receber">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </a>
+                <a href="/Financeiro/fluxo-caixa" class="sidebar-btn" title="Fluxo de Caixa">
+                    <i class="fas fa-chart-area"></i>
+                </a>
+                <a href="/Financeiro/bancos" class="sidebar-btn" title="Bancos">
+                    <i class="fas fa-university"></i>
+                </a>
+                <a href="/Financeiro/plano-contas" class="sidebar-btn" title="Plano de Contas">
+                    <i class="fas fa-list-alt"></i>
+                </a>
+                <a href="/Financeiro/orcamentos" class="sidebar-btn" title="Orçamentos">
+                    <i class="fas fa-calculator"></i>
+                </a>
+                <a href="/Financeiro/conciliacao" class="sidebar-btn" title="Conciliação">
+                    <i class="fas fa-balance-scale"></i>
+                </a>
+                <a href="/Financeiro/relatorios" class="sidebar-btn" title="Relatórios">
+                    <i class="fas fa-chart-bar"></i>
+                </a>
+                <a href="/Financeiro/dre.html" class="sidebar-btn" title="DRE">
+                    <i class="fas fa-chart-line"></i>
+                </a>
+                <a href="/Financeiro/desconto-duplicatas.html" class="sidebar-btn" title="Desconto de Duplicatas"><i class="fas fa-file-invoice"></i></a>
+            </nav>
 
-    <!-- Main -->
-    <main class="main-area" data-page-name="Financeiro">
-        <!-- Header -->
-        <header class="header" id="financeiro-header">
-            <div class="header-left">
-                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
-                    <i class="fas fa-bars"></i>
+            <div class="sidebar-bottom">
+                <!-- [DEV SPEC 2.1] Centro de Custos oculto -->
+                <a href="/Financeiro/centros-custo" class="sidebar-btn" title="Centros de Custo" style="display:none">
+                    <i class="fas fa-sitemap"></i>
+                </a>
+                <a href="impostos.html" class="sidebar-btn" title="Impostos">
+                    <i class="fas fa-percent"></i>
+                </a>
+                <button class="sidebar-btn" title="Configurações" id="btn-config" onclick="toggleConfiguracoes()">
+                    <i class="fas fa-cog"></i>
                 </button>
-                <div class="header-brand">
-                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE"
-                        style="height:22px;object-fit:contain;">
-                    <span class="header-separator">|</span>
-                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                    <span class="header-dash">—</span>
-                    <span class="page-title">Financeiro</span>
-                </div>
             </div>
-            <div class="header-right">
-                <button class="header-btn" title="Atualizar" onclick="location.reload()"><i
-                        class="fas fa-sync-alt"></i></button>
-                <div class="user-greeting">
-                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
-                    <div class="user-avatar" id="user-avatar">
-                        <img src="" alt="Foto do usuário" id="user-photo" style="display:none;">
-                        <span id="user-initials">U</span>
-                    </div>
-                </div>
-            </div>
-        </header>
+        </aside>
 
-        <!-- Content -->
-        <div class="content-area">
-            <!-- KPIs -->
-            <div class="metrics-grid">
-                <div class="metric-card orange">
-                    <div class="metric-header">
-                        <div class="metric-icon orange"><i class="fas fa-arrow-down"></i></div>
-                        <span class="metric-trend" id="trend-receber">&mdash;</span>
+        <!-- MAIN -->
+        <main class="main-area">
+            <header class="header">
+    <script src="/js/anti-copy-protection.js?v=20260410" defer></script>
+                <div class="header-left">
+                    <!-- Botão Menu Mobile -->
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span class="header-separator">|</span>
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span class="header-dash">&#8212;</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Contas a Pagar</span>
                     </div>
-                    <div class="metric-value" id="kpi-total-receber">R$ 0,00</div>
-                    <div class="metric-label">Total a Receber</div>
                 </div>
-                <div class="metric-card blue">
-                    <div class="metric-header">
-                        <div class="metric-icon blue"><i class="fas fa-arrow-up"></i></div>
-                        <span class="metric-trend" id="trend-pagar">&mdash;</span>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
                     </div>
-                    <div class="metric-value" id="kpi-total-pagar">R$ 0,00</div>
-                    <div class="metric-label">Total a Pagar</div>
                 </div>
-                <div class="metric-card green">
-                    <div class="metric-header">
-                        <div class="metric-icon green"><i class="fas fa-balance-scale"></i></div>
-                        <span class="metric-trend" id="trend-saldo">&mdash;</span>
-                    </div>
-                    <div class="metric-value" id="kpi-saldo">R$ 0,00</div>
-                    <div class="metric-label">Saldo Projetado</div>
-                </div>
-                <div class="metric-card purple">
-                    <div class="metric-header">
-                        <div class="metric-icon purple"><i class="fas fa-exclamation-triangle"></i></div>
-                        <span class="metric-trend" id="trend-vencidos">&mdash;</span>
-                    </div>
-                    <div class="metric-value" id="kpi-vencidos">0</div>
-                    <div class="metric-label">Contas Vencidas</div>
-                </div>
-            </div>
+            </header>
 
-            <!-- Dashboard Grid -->
-            <div class="dashboard-grid">
-                <!-- Últimas Transações -->
-                <div class="dash-card">
-                    <div class="dash-card-header">
-                        <h3><i class="fas fa-exchange-alt"></i> Últimas Transações</h3>
-                        <a href="fluxo_caixa.html"
-                            style="font-size:12px;color:var(--info-500);text-decoration:none;font-weight:600;">Ver Todas
-                            →</a>
+            <!-- CONTENT -->
+            <div class="main-content">
+
+            <div class="page-content">
+                <!-- Page Header -->
+                <div class="page-header" style="justify-content: flex-end;">
+                    <div class="page-actions">
+        <button class="btn btn-success" onclick="abrirModalImportar('contas-pagar')"><i class="fas fa-file-excel"></i> Importar XLSX</button>
+                        <button class="btn btn-secondary" onclick="exportarCSV()"><i class="fas fa-download"></i> Exportar</button>
+                        <button class="btn btn-primary" onclick="abrirModalNovaConta()"><i class="fas fa-plus"></i> Nova Despesa</button>
                     </div>
-                    <div class="dash-card-body">
-                        <div class="transaction-list" id="transaction-list">
-                            <div style="text-align:center;padding:20px;color:var(--gray-400);">
-                                <i class="fas fa-spinner fa-spin"
-                                    style="font-size:24px;margin-bottom:8px;display:block;"></i>
-                                Carregando...
+                </div>
+
+                <!-- Stats -->
+                <div class="metrics-grid">
+                    <div class="metric-card red">
+                        <div class="metric-header">
+                            <div class="metric-icon red"><i class="fas fa-file-invoice-dollar"></i></div>
+                        </div>
+                        <div class="metric-value" id="stat-total">R$ 0,00</div>
+                        <div class="metric-label">Total a Pagar</div>
+                    </div>
+                    <div class="metric-card orange">
+                        <div class="metric-header">
+                            <div class="metric-icon orange"><i class="fas fa-clock"></i></div>
+                        </div>
+                        <div class="metric-value" id="stat-hoje">R$ 0,00</div>
+                        <div class="metric-label">Vence Hoje</div>
+                    </div>
+                    <div class="metric-card red">
+                        <div class="metric-header">
+                            <div class="metric-icon red"><i class="fas fa-exclamation-triangle"></i></div>
+                        </div>
+                        <div class="metric-value" id="stat-vencido">R$ 0,00</div>
+                        <div class="metric-label">Vencidos</div>
+                    </div>
+                    <div class="metric-card green">
+                        <div class="metric-header">
+                            <div class="metric-icon green"><i class="fas fa-check-circle"></i></div>
+                        </div>
+                        <div class="metric-value" id="stat-pago">R$ 0,00</div>
+                        <div class="metric-label">Pago no Mês</div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters-bar">
+                    <div class="filter-group">
+                        <label>Período</label>
+                        <select id="filter-periodo" onchange="filtrarDados()">
+                            <option value="all" selected>Todos</option>
+                            <option value="mes-atual">Mês Atual</option>
+                            <option value="mes-anterior">Mês Anterior</option>
+                            <option value="próximos-30">Próximos 30 dias</option>
+                            <option value="próximos-60">Próximos 60 dias</option>
+                            <option value="próximos-90">Próximos 90 dias</option>
+                            <option value="ultimos-30">últimos 30 dias</option>
+                            <option value="ultimos-60">últimos 60 dias</option>
+                            <option value="ultimos-90">últimos 90 dias</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Status</label>
+                        <select id="filter-status" onchange="filtrarDados()">
+                            <option value="">Todos</option>
+                            <option value="pendente">A Vencer</option>
+                            <option value="vencido">Vencido</option>
+                            <option value="pago">Liquidado</option>
+                            <option value="parcial">Parcial</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Fornecedor</label>
+                        <input type="text" id="filter-fornecedor" placeholder="Buscar fornecedor..." onkeyup="filtrarDados()">
+                    </div>
+                    <div class="filter-group">
+                        <label>Categoria</label>
+                        <select id="filter-categoria" onchange="filtrarDados()">
+                            <option value="">Todas</option>
+                            <option value="fornecedores">Fornecedores</option>
+                            <option value="despesas-fixas">Despesas Fixas</option>
+                            <option value="impostos">Impostos</option>
+                            <option value="folha">Folha de Pagamento</option>
+                            <option value="outros">Outros</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-list" style="color: var(--danger); margin-right: 8px;"></i> Lista de Contas a Pagar</h3>
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <button class="btn btn-outline btn-sm" onclick="mostrarTodasContas()" title="Mostrar todas as contas">
+                                <i class="fas fa-list"></i> Todas
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="filtrarImpostos()" title="Filtrar DARF, IR, SIMPLES, FGTS, INSS">
+                                <i class="fas fa-file-invoice-dollar"></i> Impostos
+                            </button>
+                        </div>
+                    </div>
+                    <div style="padding: 0 20px;">
+                        <div class="fp-search-bar">
+                            <div class="fp-search-wrap">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="fp-search-cp" placeholder="Pesquisar por fornecedor, documento, descrição, categoria..." oninput="window._finPg['fp-pg-cp'].search(this.value)">
                             </div>
+                            <span class="fp-count" id="fp-info-cp"></span>
                         </div>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Documento</th>
+                                    <th>Fornecedor</th>
+                                    <th>Descrição</th>
+                                    <th>Categoria</th>
+                                    <th>Venc. Original</th>
+                                    <th>Venc. Atualizado</th>
+                                    <th>Valor</th>
+                                    <th>Pago</th>
+                                    <th>Saldo</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-contas">
+                                <tr>
+                                    <td colspan="10" style="text-align: center; padding: 40px;">
+                                        <i class="fas fa-spinner fa-spin"></i> Carregando...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="padding: 12px 20px;"><div class="fp-pagination" id="fp-pg-cp"></div></div>
+                </div>
+            </div>
+
+            </div> <!-- /main-content -->
+</main>
+    </div>
+
+    <!-- ================================================================================
+         MODAL INICIAL - INCLUIR CONTA A PAGAR (ESCOLHA DO MÉTODO)
+         ================================================================================ -->
+    <div class="modal-overlay-omie" id="modalEscolhaMetodo" onclick="if(event.target === this) fecharModalEscolha()">
+        <div class="modal-omie modal-escolha">
+            <div class="modal-header-omie">
+                <h2>Incluir Conta a Pagar</h2>
+                <button class="btn-fechar-omie" onclick="fecharModalEscolha()">Fechar <i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body-omie">
+                <!-- Opção 1: Nota Fiscal Eletrônica -->
+                <div class="opcao-metodo" onclick="abrirModalNFe()">
+                    <div class="opcao-info">
+                        <div class="opcao-título">Nota Fiscal Eletrônica</div>
+                        <p>Importe o arquivo XML de uma Nota Fiscal Eletrônica (NF-e) com os movimentos de estoque e as informações para Contas a Pagar. Válido para a NF-e âmbito nacional.</p>
+                    </div>
+                    <div class="opcao-icone">
+                        <i class="fas fa-file-invoice"></i>
                     </div>
                 </div>
 
-                <!-- Ações Rápidas -->
-                <div class="dash-card">
-                    <div class="dash-card-header">
-                        <h3><i class="fas fa-bolt"></i> Ações Rápidas</h3>
+                <!-- Opção 2: Código de Barras -->
+                <div class="opcao-metodo" onclick="abrirModalCódigoBarras()">
+                    <div class="opcao-info">
+                        <div class="opcao-título">Código de Barras</div>
+                        <p>Informe boletos de cobrança de qualquer banco, conta de água, luz, telefone, gás e de outras empresas conveniadas, impostos, tributos e pagamentos do Detran.</p>
                     </div>
-                    <div class="dash-card-body">
-                        <div class="quick-actions">
-                            <button class="quick-action-btn" onclick="novoLancamento()">
-                                <i class="fas fa-plus-circle"></i>
-                                <span>Novo Lançamento</span>
-                            </button>
-                            <button class="quick-action-btn" onclick="novaReceita()">
-                                <i class="fas fa-arrow-down" style="color:#16a34a;"></i>
-                                <span>Nova Receita</span>
-                            </button>
-                            <button class="quick-action-btn" onclick="novaDespesa()">
-                                <i class="fas fa-arrow-up" style="color:#dc2626;"></i>
-                                <span>Nova Despesa</span>
-                            </button>
-                            <button class="quick-action-btn" onclick="novaTransferencia()">
-                                <i class="fas fa-exchange-alt"></i>
-                                <span>Transferência</span>
-                            </button>
-                            <button class="quick-action-btn" onclick="window.location.href='relatorios.html'">
-                                <i class="fas fa-chart-bar"></i>
-                                <span>Relatórios</span>
-                            </button>
-                            <button class="quick-action-btn" onclick="window.location.href='contas_bancarias.html'">
-                                <i class="fas fa-university"></i>
-                                <span>Contas Bancárias</span>
-                            </button>
-                        </div>
+                    <div class="opcao-icone">
+                        <i class="fas fa-barcode"></i>
                     </div>
                 </div>
 
-                <!-- Próximos Vencimentos -->
-                <div class="dash-card" style="grid-column: 1 / -1;">
-                    <div class="dash-card-header">
-                        <h3><i class="fas fa-exclamation-circle"></i> Próximos Vencimentos</h3>
-                        <a href="contas_pagar.html"
-                            style="font-size:12px;color:var(--info-500);text-decoration:none;font-weight:600;">Ver Todas
-                            →</a>
+                <!-- Opção 3: Inserção Manual -->
+                <div class="opcao-metodo" onclick="abrirModalManual()">
+                    <div class="opcao-info">
+                        <div class="opcao-título">Inserção Manual</div>
+                        <p>Digite manualmente a Conta a Pagar</p>
                     </div>
-                    <div class="dash-card-body" id="vencimentos-container">
-                        <div style="text-align:center;padding:20px;color:var(--gray-400);">
-                            <i class="fas fa-spinner fa-spin"
-                                style="font-size:24px;margin-bottom:8px;display:block;"></i>
-                            Carregando vencimentos...
-                        </div>
+                    <div class="opcao-icone">
+                        <i class="fas fa-edit"></i>
                     </div>
                 </div>
             </div>
         </div>
-    </main>
-</div>
+    </div>
 
-<script>
-    // FIX-100: XSS protection for innerHTML with API data
-    function esc(s) { return String(s || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
-
-    // ===== TOAST NOTIFICATION =====
-    function showToast(message, type) {
-        type = type || 'info';
-        var toast = document.createElement('div');
-        toast.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:99999;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-width:400px;';
-        toast.style.background = type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#3b82f6';
-        var span = document.createElement('span');
-        span.textContent = message;
-        toast.appendChild(span);
-        document.body.appendChild(toast);
-        setTimeout(function () { toast.remove(); }, 4000);
-    }
-
-    // ===== TOGGLE MOBILE SIDEBAR =====
-    function toggleMobileSidebar() {
-        document.getElementById('mobile-sidebar')?.classList.toggle('mobile-open');
-        document.getElementById('sidebar-overlay')?.classList.toggle('active');
-    }
-
-    function toggleNotificacoes() {
-        if (typeof window.NotificationsManager !== 'undefined') {
-            window.NotificationsManager.togglePanel();
-        }
-    }
-
-    // ===== AUTENTICAÇÃO & INIT =====
-    document.addEventListener('DOMContentLoaded', async function () {
-        const loader = document.getElementById('loader-wrapper');
-        try {
-            const resp = await fetch('/api/me', { credentials: 'include' });
-            if (resp.ok) {
-                const user = await resp.json();
-                localStorage.setItem('userData', JSON.stringify(user));
-                atualizarUsuario(user);
-            }
-        } catch (e) {
-            console.error('Erro na autenticação:', e);
-        }
-
-        await carregarKPIs();
-        await carregarProximosVencimentos();
-        await carregarUltimosLancamentos();
-
-        setTimeout(() => { if (loader) loader.classList.add('hide'); }, 400);
-    });
-
-    // ===== FORMATTERS =====
-    function formatarMoeda(valor) {
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
-    }
-    function formatarData(data) {
-        if (!data) return 'N/D';
-        var s = String(data).slice(0, 10);
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return 'N/D';
-        var d = new Date(s + 'T00:00:00');
-        if (isNaN(d.getTime())) return 'N/D';
-        return d.toLocaleDateString('pt-BR');
-    }
-
-    // ===== CARREGAR KPIS =====
-    async function carregarKPIs() {
-        try {
-            const resp = await fetch('/api/financeiro/resumo-kpis', { credentials: 'include' });
-            if (!resp.ok) throw new Error('Erro ao carregar KPIs');
-            const result = await resp.json();
-            const data = result.data || result;
-
-            const totalReceber = document.getElementById('kpi-total-receber');
-            const totalPagar = document.getElementById('kpi-total-pagar');
-            const saldo = document.getElementById('kpi-saldo');
-            const vencidos = document.getElementById('kpi-vencidos');
-            const qtdReceber = document.getElementById('kpi-qtd-receber');
-            const qtdPagar = document.getElementById('kpi-qtd-pagar');
-            const vencidosSub = document.getElementById('kpi-vencidos-sub');
-
-            if (totalReceber) totalReceber.textContent = formatarMoeda(data.totalReceber);
-            if (totalPagar) totalPagar.textContent = formatarMoeda(data.totalPagar);
-            if (saldo) {
-                saldo.textContent = formatarMoeda(data.saldo);
-                saldo.style.color = data.saldo >= 0 ? '#22c55e' : '#ef4444';
-            }
-            if (vencidos) {
-                vencidos.textContent = data.vencidos || 0;
-                vencidos.style.color = (data.vencidos || 0) > 0 ? '#ef4444' : '#22c55e';
-            }
-            if (qtdReceber) qtdReceber.textContent = `${data.quantidadeReceber || 0} lançamentos pendentes`;
-            if (qtdPagar) qtdPagar.textContent = `${data.quantidadePagar || 0} lançamentos pendentes`;
-            if (vencidosSub) vencidosSub.textContent = (data.vencidos || 0) > 0 ? 'Atenção necessária' : 'Nenhum vencido';
-        } catch (error) {
-            console.error('[Dashboard] Erro ao carregar KPIs:', error);
-            ['kpi-total-receber', 'kpi-total-pagar', 'kpi-saldo', 'kpi-vencidos'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.textContent = 'Erro';
-            });
-        }
-    }
-
-    // ===== PRÓXIMOS VENCIMENTOS =====
-    async function carregarProximosVencimentos() {
-        try {
-            const resp = await fetch('/api/financeiro/proximos-vencimentos?limite=5', { credentials: 'include' });
-            if (!resp.ok) throw new Error('Erro ao carregar vencimentos');
-            const result = await resp.json();
-            const vencimentos = result.data || [];
-            const container = document.getElementById('vencimentos-container');
-
-            if (container && vencimentos.length > 0) {
-                container.innerHTML = vencimentos.map(v => {
-                    const hoje = new Date();
-                    const venc = new Date(String(v.data_vencimento).slice(0, 10) + 'T00:00:00');
-                    const diffDias = Math.ceil((venc - hoje) / (1000 * 60 * 60 * 24));
-                    let diasText = '', corTexto = '#64748b';
-
-                    if (diffDias < 0) { diasText = `Vencido há ${Math.abs(diffDias)} dias`; corTexto = '#ef4444'; }
-                    else if (diffDias === 0) { diasText = 'Vence hoje'; corTexto = '#f59e0b'; }
-                    else if (diffDias === 1) { diasText = 'Vence amanhã'; corTexto = '#f59e0b'; }
-                    else { diasText = `Vence em ${diffDias} dias`; }
-
-                    const icone = v.tipo === 'receber' ? 'fa-arrow-down' : 'fa-arrow-up';
-                    const corIcone = v.tipo === 'receber' ? '#22c55e' : '#ef4444';
-
-                    return `
-                            <div class="venc-item">
-                                <div class="venc-icon" style="background: ${v.tipo === 'receber' ? '#dcfce7' : '#fee2e2'};">
-                                    <i class="fas ${icone}" style="color: ${corIcone};"></i>
-                                </div>
-                                <div class="venc-info">
-                                    <div class="venc-title">${esc(v.descrição || 'Sem Descrição')}</div>
-                                    <div class="venc-date" style="color: ${corTexto};">${diasText}</div>
-                                </div>
-                                <div class="venc-value">${formatarMoeda(v.valor)}</div>
-                            </div>
-                        `;
-                }).join('');
-            } else if (container) {
-                container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;">Nenhum vencimento próximo</div>';
-            }
-        } catch (error) {
-            console.error('[Dashboard] Erro ao carregar vencimentos:', error);
-        }
-    }
-
-    // ===== ÚLTIMOS LANÇAMENTOS =====
-    async function carregarUltimosLancamentos() {
-        try {
-            const resp = await fetch('/api/financeiro/ultimos-lancamentos?limite=5', { credentials: 'include' });
-            if (!resp.ok) throw new Error('Erro ao carregar lançamentos');
-            const result = await resp.json();
-            const lancamentos = result.data || [];
-            const container = document.getElementById('transaction-list');
-
-            if (container && lancamentos.length > 0) {
-                container.innerHTML = lancamentos.map(l => {
-                    const isEntrada = l.tipo === 'Receber';
-                    return `
-                            <div class="transaction-item">
-                                <div class="trans-icon ${isEntrada ? 'entrada' : 'saida'}">
-                                    <i class="fas ${isEntrada ? 'fa-arrow-down' : 'fa-arrow-up'}"></i>
-                                </div>
-                                <div class="trans-details">
-                                    <div class="trans-title">${esc(l.descrição || 'Sem Descrição')}</div>
-                                    <div class="trans-date">Vence: ${formatarData(l.data_vencimento)}</div>
-                                </div>
-                                <div class="trans-value ${isEntrada ? 'entrada' : 'saida'}">
-                                    ${isEntrada ? '+' : '-'} ${formatarMoeda(l.valor)}
-                                </div>
-                            </div>
-                        `;
-                }).join('');
-            } else if (container) {
-                container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;">Nenhum lançamento recente</div>';
-            }
-        } catch (error) {
-            console.error('[Dashboard] Erro ao carregar lançamentos:', error);
-        }
-    }
-
-    // ===== AVATAR MAP =====
-    const avatarNameMap = {
-        'clemerson': '/avatars/Clemerson.png', 'isabela': '/avatars/Isabela.png', 'isabella': '/avatars/Isabela.png',
-        'thaina': '/avatars/Thaina.webp', 'thiago': '/avatars/Thiago.png',
-        'nicolas': '/avatars/NicolasDaniel.webp', 'nicolasdaniel': '/avatars/NicolasDaniel.webp',
-        'rh': '/avatars/Rh.webp', 'admin': '/avatars/admin.webp',
-        'ti': '/avatars/TI.webp', 'tialuforce': '/avatars/TI.webp',
-        'antonio': '/avatars/Antonio.webp', 'antônio': '/avatars/Antonio.webp',
-        'andreia': '/avatars/Andreia.webp', 'andréia': '/avatars/Andreia.webp',
-        'guilherme': '/avatars/GuilhermeBastos.png', 'marcelo': '/avatars/Marcelo.webp',
-        'financeiro': '/avatars/Financeiro.webp', 'douglas': '/avatars/Douglas.webp',
-        'hellen': '/avatars/Hellen.webp', 'helen': '/avatars/Hellen.webp',
-        'augusto': '/avatars/Augusto.png', 'renata': '/avatars/Renata.png',
-        'fabiano': '/avatars/Fabiano.png', 'fabiola': '/avatars/Fabiola.webp',
-        'marcia': '/avatars/Marcia.png', 'márcia': '/avatars/Marcia.png',
-        'ronaldo': '/avatars/Ronaldo.png', 'joao': '/avatars/JoaoVitor.png', 'joão': '/avatars/JoaoVitor.png',
-        'fernando': '/avatars/Fernando.png', 'robson': '/avatars/Robson.png',
-        'junior': '/avatars/Junior.png', 'bruno': '/avatars/Bruno.png',
-        'tatiane': '/avatars/Tatiane.png', 'felipesimoes': '/avatars/FelipeSimoes.png',
-        'felipe': '/avatars/FelipeSimoes.png', 'jamesson': '/avatars/jamerson.svg',
-        'sergio': '/avatars/Sergio.png', 'lucas': '/avatars/Lucas.png',
-        'miqueias': '/avatars/Miqueias.png', 'lucio': '/avatars/Lucio.png', 'lúcio': '/avatars/Lucio.png'
-    };
-
-    function atualizarUsuario(user) {
-        const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
-        const inicial = primeiroNome.charAt(0).toUpperCase();
-
-        const greetingTextEl = document.getElementById('greeting-text');
-        if (greetingTextEl) {
-            const hour = new Date().getHours();
-            let greeting = 'Bom dia';
-            if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
-            else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
-            greetingTextEl.textContent = greeting;
-        }
-
-        const nameEl = document.getElementById('user-name');
-        if (nameEl) nameEl.textContent = primeiroNome;
-
-        let userAvatar = (user.avatar && user.avatar !== '/avatars/default.webp') ? user.avatar :
-            (user.foto && user.foto !== '/avatars/default.webp') ? user.foto : null;
-        if (!userAvatar && user.email) {
-            const username = user.email.split('@')[0].split('.')[0].toLowerCase();
-            userAvatar = avatarNameMap[username];
-        }
-        if (!userAvatar && user.nome) {
-            const firstName = user.nome.split(' ')[0].toLowerCase();
-            userAvatar = avatarNameMap[firstName];
-        }
-
-        const avatarImg = document.getElementById('user-photo');
-        const initialEl = document.getElementById('user-initials');
-
-        if (userAvatar && avatarImg) {
-            avatarImg.src = userAvatar;
-            avatarImg.style.display = 'block';
-            avatarImg.onerror = function () {
-                this.style.display = 'none';
-                if (initialEl) { initialEl.textContent = inicial; initialEl.style.display = 'flex'; }
-            };
-            if (initialEl) initialEl.style.display = 'none';
-        } else if (initialEl) {
-            initialEl.textContent = inicial;
-            initialEl.style.display = 'flex';
-            if (avatarImg) avatarImg.style.display = 'none';
-        }
-    }
-
-    // ===== AÇÕES =====
-    function novoLancamento() { abrirModalLancamento(); }
-    function novaReceita() { window.location.href = 'contas_receber.html?acao=nova'; }
-    function novaDespesa() { window.location.href = 'contas_pagar.html?acao=nova'; }
-    function novaTransferencia() { abrirModalTransferencia(); }
-
-    // ===== MODAL TRANSFERÊNCIA =====
-    function abrirModalTransferencia() {
-        const modalHtml = `
-                <div id="modal-transferencia" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;">
-                    <div style="background:white;border-radius:16px;padding:28px;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                            <h3 style="font-size:18px;font-weight:700;color:#1f2937;margin:0;">Transferência entre Contas</h3>
-                            <button onclick="fecharModalTransferencia()" style="background:none;border:none;font-size:22px;color:#94a3b8;cursor:pointer;">×</button>
-                        </div>
-                        <form id="form-transferencia">
-                            <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">Conta de Origem *</label><select id="transf-origem" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;" required><option value="">Selecione...</option></select></div>
-                            <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">Conta de Destino *</label><select id="transf-destino" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;" required><option value="">Selecione...</option></select></div>
-                            <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">Valor *</label><input type="number" id="transf-valor" step="0.01" min="0.01" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;" required></div>
-                            <div style="margin-bottom:20px;"><label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">Descrição</label><input type="text" id="transf-descrição" placeholder="Ex: Transferência para pagamentos" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;"></div>
-                            <div style="display:flex;gap:10px;justify-content:flex-end;">
-                                <button type="button" onclick="fecharModalTransferencia()" style="padding:10px 20px;border:1px solid #e5e7eb;background:white;color:#475569;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;">Cancelar</button>
-                                <button type="submit" onclick="realizarTransferencia(event)" style="padding:10px 20px;background:#1e40af;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;"><i class="fas fa-exchange-alt"></i> Transferir</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            `;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        carregarContasTransferencia();
-    }
-    function fecharModalTransferencia() { document.getElementById('modal-transferencia')?.remove(); }
-    async function carregarContasTransferencia() {
-        try {
-            const resp = await fetch('/api/financeiro/contas-bancarias', { credentials: 'include' });
-            if (resp.ok) {
-                const rawContas = await resp.json();
-                const contas = Array.isArray(rawContas) ? rawContas : (Array.isArray(rawContas?.data) ? rawContas.data : []);
-                const origemSelect = document.getElementById('transf-origem');
-                const destinoSelect = document.getElementById('transf-destino');
-                contas.forEach(c => {
-                    const option = `<option value="${c.id}">${esc(c.nome)} - R$ ${(c.saldo || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</option>`;
-                    origemSelect.innerHTML += option;
-                    destinoSelect.innerHTML += option;
-                });
-            }
-        } catch (err) { console.error('Erro ao carregar contas:', err); }
-    }
-    async function realizarTransferencia(event) {
-        event.preventDefault();
-        const origem = document.getElementById('transf-origem').value;
-        const destino = document.getElementById('transf-destino').value;
-        const valor = parseFloat(document.getElementById('transf-valor').value);
-        const descrição = document.getElementById('transf-descrição').value || 'Transferência entre contas';
-        if (origem === destino) { showToast('Origem e destino não podem ser iguais.', 'warning'); return; }
-        try {
-            const resp = await fetch('/api/financeiro/transferencias', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-                body: JSON.stringify({ conta_origem_id: origem, conta_destino_id: destino, valor, descrição })
-            });
-            if (resp.ok) { showToast('Transferência realizada com sucesso!', 'success'); fecharModalTransferencia(); location.reload(); }
-            else { showToast('Erro ao realizar transferência.', 'error'); }
-        } catch (err) { console.error('Erro:', err); showToast('Erro ao realizar transferência.', 'error'); }
-    }
-
-    // ===== MODAL LANÇAMENTO =====
-    function abrirModalLancamento() {
-        const modalHtml = `
-                <div id="modal-lancamento" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;">
-                    <div style="background:white;border-radius:16px;padding:28px;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                            <h3 style="font-size:18px;font-weight:700;color:#1f2937;margin:0;">Novo Lançamento</h3>
-                            <button onclick="fecharModalLancamento()" style="background:none;border:none;font-size:22px;color:#94a3b8;cursor:pointer;">×</button>
-                        </div>
-                        <div style="display:flex;gap:14px;margin-bottom:20px;">
-                            <button onclick="novaReceita(); fecharModalLancamento();" style="flex:1;padding:20px;background:#dbeafe;border:2px solid #3b82f6;border-radius:14px;cursor:pointer;text-align:center;">
-                                <i class="fas fa-arrow-down" style="font-size:28px;color:#1e40af;margin-bottom:10px;display:block;"></i>
-                                <span style="font-size:15px;font-weight:700;color:#1e40af;">Nova Receita</span>
-                                <p style="font-size:11px;color:#64748b;margin-top:4px;">Registrar entrada</p>
-                            </button>
-                            <button onclick="novaDespesa(); fecharModalLancamento();" style="flex:1;padding:20px;background:#fee2e2;border:2px solid #ef4444;border-radius:14px;cursor:pointer;text-align:center;">
-                                <i class="fas fa-arrow-up" style="font-size:28px;color:#dc2626;margin-bottom:10px;display:block;"></i>
-                                <span style="font-size:15px;font-weight:700;color:#dc2626;">Nova Despesa</span>
-                                <p style="font-size:11px;color:#64748b;margin-top:4px;">Registrar saída</p>
-                            </button>
-                        </div>
-                        <button onclick="novaTransferencia(); fecharModalLancamento();" style="width:100%;padding:14px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
-                            <i class="fas fa-exchange-alt" style="font-size:18px;color:#3b82f6;"></i>
-                            <span style="font-size:13px;font-weight:600;color:#475569;">Transferência entre Contas</span>
+    <!-- ================================================================================
+         MODAL IMPORTAR NF-e
+         ================================================================================ -->
+    <div class="modal-overlay-omie" id="modalNFe" onclick="if(event.target === this) fecharModalNFe()">
+        <div class="modal-omie modal-nfe">
+            <div class="modal-header-omie">
+                <h2>Importar Nota Fiscal Eletrônica</h2>
+                <button class="btn-fechar-omie" onclick="fecharModalNFe()">Fechar <i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body-omie" style="padding: 24px;">
+                <div class="nfe-input-section">
+                    <label>Digite aqui a chave de acesso da Nota Fiscal Eletrônica (NF-e)</label>
+                    <div class="nfe-input-row">
+                        <input type="text" id="chaveNFe" placeholder="Chave de 44 dígitos" maxlength="44">
+                        <button class="btn-pesquisar-nfe" onclick="pesquisarNFe()">
+                            <i class="fas fa-search"></i> Pesquisar NF-e
                         </button>
                     </div>
                 </div>
+                <div class="nfe-demo">
+                    <div class="nfe-demo-danfe">
+                        <div style="border: 1px dashed #ccc; padding: 20px; text-align: center; color: #999;">
+                            <i class="fas fa-file-alt" style="font-size: 48px; margin-bottom: 10px;"></i>
+                            <p>(Demonstrativo DANFE)</p>
+                        </div>
+                    </div>
+                    <div class="nfe-demo-info">
+                        <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
+                            <svg width="100%" height="40">
+                                <rect x="0" y="0" width="100%" height="40" fill="url(#barcode)"/>
+                            </svg>
+                        </div>
+                        <div style="border: 2px solid #ef4444; padding: 10px; background: #fff5f5;">
+                            <small style="color: #ef4444; font-weight: bold;">CHAVE DE ACESSO</small>
+                            <p style="font-family: monospace; font-size: 11px; color: #ef4444;">0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000</p>
+                        </div>
+                        <p style="text-align: center; font-size: 11px; color: #666; margin-top: 10px;">(Identificação da chave de acesso no DANFE)</p>
+                    </div>
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <a href="#" class="link-upload-nfe" onclick="uploadArquivoNFe()">
+                        <i class="fas fa-upload"></i> Ou clique aqui para selecionar o arquivo da NF-e.
+                    </a>
+                    <input type="file" id="inputArquivoNFe" accept=".xml" style="display: none;" onchange="processarArquivoNFe(this)">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================================
+         MODAL CDIGO DE BARRAS
+         ================================================================================ -->
+    <div class="modal-overlay-omie" id="modalCodigoBarras" onclick="if(event.target === this) fecharModalCódigoBarras()">
+        <div class="modal-omie modal-código-barras">
+            <div class="modal-header-omie">
+                <h2>Informar o Código de Barras</h2>
+                <button class="btn-fechar-omie" onclick="fecharModalCódigoBarras()">Fechar <i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body-omie" style="padding: 40px; text-align: center;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; text-align: left; margin-bottom: 8px; color: #666;">Digite o código de barras aqui</label>
+                    <input type="text" id="codigoBarrasInput" style="width: 100%; max-width: 400px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;" placeholder="">
+                </div>
+                <div style="margin-bottom: 30px;">
+                    <a href="#" class="link-upload-boleto" onclick="uploadBoleto()">
+                        <i class="fas fa-camera"></i> Ou clique aqui para fazer o <strong>upload do boleto bancário</strong>
+                    </a>
+                    <input type="file" id="inputBoleto" accept="image/*,.pdf" style="display: none;" onchange="processarBoleto(this)">
+                </div>
+                <button class="btn-continuar-omie" onclick="processarCódigoBarras()">
+                    <i class="fas fa-check"></i> Continuar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================================
+         MODAL NOVA CONTA A PAGAR - INSERÇÁƒO MANUAL (ESTILO OMIE COM ABAS)
+         ================================================================================ -->
+    <div class="modal-overlay-omie" id="modalConta" onclick="if(event.target === this) fecharModal()">
+        <div class="modal-omie modal-conta-pagar">
+            <!-- HEADER -->
+            <div class="modal-header-conta">
+                <div class="modal-header-left-conta">
+                    <div class="modal-avatar-conta">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="modal-título-conta">
+                        <h2 id="modal-titulo">Nova Conta a Pagar</h2>
+                    </div>
+                </div>
+                <div class="modal-header-right-conta">
+                    <button class="btn-fechar-omie" type="button" onclick="fecharModal()">
+                        Fechar <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- BODY -->
+            <div class="modal-body-conta">
+                <form id="formConta">
+                    <input type="hidden" id="conta-id">
+
+                    <!-- SEO PRINCIPAL (SEMPRE VISVEL) -->
+                    <div class="form-principal-conta">
+                        <div class="form-row-conta">
+                            <div class="form-group-conta" style="flex: 2;">
+                                <label>Favorecido / Fornecedor <i class="fas fa-external-link-alt link-icon"></i></label>
+                                <div class="input-search-conta">
+                                    <input type="text" id="conta-fornecedor" placeholder="Digite para buscar..." required>
+                                    <i class="fas fa-search"></i>
+                                </div>
+                            </div>
+                            <div class="form-group-conta">
+                                <label>Vencimento</label>
+                                <div class="input-icon-conta">
+                                    <input type="date" id="conta-vencimento-original" required>
+                                    <i class="fas fa-calendar"></i>
+                                </div>
+                            </div>
+                            <div class="form-group-conta" style="max-width: 150px;">
+                                <label>Valor da Conta <span class="parcela-info">001/001</span></label>
+                                <input type="text" id="conta-valor" placeholder="0,00" oninput="formatarMoedaInput(this)" required style="text-align: right;">
+                            </div>
+                        </div>
+                        <div class="form-row-conta">
+                            <div class="form-group-conta">
+                                <label>Categoria <a href="#" class="link-adicionar"><i class="fas fa-plus"></i></a></label>
+                                <select id="conta-categoria">
+                                    <option value="">Selecione...</option>
+                                    <option value="fornecedores">Fornecedores</option>
+                                    <option value="despesas-fixas">Despesas Fixas</option>
+                                    <option value="impostos">Impostos e Tributos</option>
+                                    <option value="folha">Folha de Pagamento</option>
+                                    <option value="servicos">Serviços</option>
+                                    <option value="materiais">Materiais</option>
+                                    <option value="outros">Outros</option>
+                                </select>
+                            </div>
+                            <div class="form-group-conta">
+                                <label>Previsão de Pagamento</label>
+                                <div class="input-icon-conta">
+                                    <input type="date" id="conta-vencimento">
+                                    <i class="fas fa-calendar"></i>
+                                </div>
+                            </div>
+                            <div class="form-group-conta">
+                                <label>Conta Corrente</label>
+                                <select id="conta-banco">
+                                    <option value="">Selecione...</option>
+                                </select>
+                            </div>
+                            <div class="form-group-conta">
+                                <label>Forma de Pagamento</label>
+                                <select id="conta-forma-pagamento">
+                                    <option value="">Selecione...</option>
+                                    <option value="boleto">Boleto</option>
+                                    <option value="pix">PIX</option>
+                                    <option value="ted">TED</option>
+                                    <option value="doc">DOC</option>
+                                    <option value="cartão">Cartão</option>
+                                    <option value="cheque">Cheque</option>
+                                    <option value="dinheiro">Dinheiro</option>
+                                    <option value="debito_automatico">Débito Automático</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ABAS (TABS) -->
+                    <div class="tabs-conta">
+                        <button type="button" class="tab-conta active" data-tab="detalhes">Detalhes</button>
+                        <button type="button" class="tab-conta" data-tab="impostos">Impostos Retidos</button>
+                        <button type="button" class="tab-conta" data-tab="departamentos">Departamentos</button>
+                        <button type="button" class="tab-conta" data-tab="repetião">Repetição</button>
+                        <button type="button" class="tab-conta" data-tab="pagamentos">Pagamentos</button>
+                        <button type="button" class="tab-conta" data-tab="integração">
+                            <i class="fas fa-link" style="margin-right: 4px; opacity: 0.5;"></i> Integração Bancária e CNAB
+                        </button>
+                        <button type="button" class="tab-conta" data-tab="diversos">Diversos</button>
+                    </div>
+
+                    <!-- CONTEÚDO DAS ABAS -->
+                    <div class="tab-content-conta">
+                        <!-- ABA: DETALHES -->
+                        <div class="tab-pane-conta active" id="tab-detalhes">
+                            <div class="form-row-conta">
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Nota Fiscal</label>
+                                    <input type="text" id="conta-documento" placeholder="">
+                                </div>
+                                <div class="form-group-conta">
+                                    <label>Data de Emissão</label>
+                                    <div class="input-icon-conta">
+                                        <input type="date" id="conta-emissão">
+                                        <i class="fas fa-calendar"></i>
+                                    </div>
+                                </div>
+                                <div class="form-group-conta">
+                                    <label>Data de Registro</label>
+                                    <div class="input-icon-conta">
+                                        <input type="date" id="conta-registro">
+                                        <i class="fas fa-calendar"></i>
+                                    </div>
+                                </div>
+                                <div class="form-group-conta">
+                                    <label>Projeto <a href="#" class="link-adicionar"><i class="fas fa-plus"></i></a></label>
+                                    <div class="input-search-conta">
+                                        <input type="text" id="conta-projeto" placeholder="">
+                                        <i class="fas fa-search"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row-conta">
+                                <div class="form-group-conta" style="flex: 1;">
+                                    <label>Observações</label>
+                                    <textarea id="conta-observacoes" rows="4" placeholder=""></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ABA: IMPOSTOS RETIDOS -->
+                        <div class="tab-pane-conta" id="tab-impostos">
+                            <div class="form-row-conta">
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Valor PIS</label>
+                                    <div class="input-valor-imposto">
+                                        <input type="text" id="valor-pis" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                    </div>
+                                </div>
+                                <div class="form-group-conta checkbox-conta">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reter-pis">
+                                        <span>Reter</span>
+                                    </label>
+                                </div>
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Valor COFINS</label>
+                                    <div class="input-valor-imposto">
+                                        <input type="text" id="valor-cofins" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                    </div>
+                                </div>
+                                <div class="form-group-conta checkbox-conta">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reter-cofins">
+                                        <span>Reter</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-row-conta">
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Valor CSLL</label>
+                                    <div class="input-valor-imposto">
+                                        <input type="text" id="valor-csll" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                    </div>
+                                </div>
+                                <div class="form-group-conta checkbox-conta">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reter-csll">
+                                        <span>Reter</span>
+                                    </label>
+                                </div>
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Valor IR</label>
+                                    <div class="input-valor-imposto">
+                                        <input type="text" id="valor-ir" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                    </div>
+                                </div>
+                                <div class="form-group-conta checkbox-conta">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reter-ir">
+                                        <span>Reter</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-row-conta">
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Valor ISS</label>
+                                    <div class="input-valor-imposto">
+                                        <input type="text" id="valor-iss" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                    </div>
+                                </div>
+                                <div class="form-group-conta checkbox-conta">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reter-iss">
+                                        <span>Reter</span>
+                                    </label>
+                                </div>
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Valor INSS</label>
+                                    <div class="input-valor-imposto">
+                                        <input type="text" id="valor-inss" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                    </div>
+                                </div>
+                                <div class="form-group-conta checkbox-conta">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reter-inss">
+                                        <span>Reter</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ABA: DEPARTAMENTOS -->
+                        <div class="tab-pane-conta" id="tab-departamentos">
+                            <div class="departamentos-section">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                                    <h4 style="margin:0;font-size:14px;color:#374151;font-weight:600;">
+                                        <i class="fas fa-sitemap" style="margin-right:6px;color:#6366f1;"></i> Distribuião por Centro de Custo
+                                    </h4>
+                                    <button type="button" class="btn-add-depto" onclick="adicionarLinhaDistribuicao()" style="background:#6366f1;color:white;border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                                        <i class="fas fa-plus"></i> Adicionar
+                                    </button>
+                                </div>
+                                <div style="background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;overflow:hidden;">
+                                    <table style="width:100%;border-collapse:collapse;font-size:13px;" id="tabela-distribuição">
+                                        <thead>
+                                            <tr style="background:#f1f5f9;">
+                                                <th style="padding:10px 14px;text-align:left;font-weight:600;color:#475569;">Centro de Custo</th>
+                                                <th style="padding:10px 14px;text-align:center;font-weight:600;color:#475569;width:120px;">% Rateio</th>
+                                                <th style="padding:10px 14px;text-align:right;font-weight:600;color:#475569;width:140px;">Valor (R$)</th>
+                                                <th style="padding:10px 14px;text-align:center;font-weight:600;color:#475569;width:50px;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="distribuição-body">
+                                            <tr id="dist-empty-row">
+                                                <td colspan="4" style="padding:24px;text-align:center;color:#9ca3af;">
+                                                    <i class="fas fa-info-circle" style="margin-right:6px;"></i> Clique em "Adicionar" para distribuir o valor entre centros de custo
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:10px 14px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;">
+                                    <span style="font-size:12px;font-weight:600;color:#166534;"><i class="fas fa-calculator" style="margin-right:6px;"></i> Total Distribudo</span>
+                                    <span style="font-size:13px;font-weight:700;color:#166534;" id="dist-total-perc">0%</span>
+                                    <span style="font-size:13px;font-weight:700;color:#166534;" id="dist-total-valor">R$ 0,00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ABA: REPETIO -->
+                        <div class="tab-pane-conta" id="tab-repetião">
+                            <div class="repetição-section">
+                                <div style="margin-bottom:18px;">
+                                    <h4 style="margin:0 0 4px;font-size:14px;color:#374151;font-weight:600;">
+                                        <i class="fas fa-redo" style="margin-right:6px;color:#f59e0b;"></i> Repetição / Recorrência Automática
+                                    </h4>
+                                    <p style="margin:0;font-size:12px;color:#9ca3af;">Configure para gerar automaticamente novas parcelas a partir desta conta.</p>
+                                </div>
+
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;">
+                                    <div>
+                                        <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Frequência</label>
+                                        <select id="rep-frequencia" onchange="atualizarPreviewRepeticao()" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;color:#374151;background:white;">
+                                            <option value="">Não repetir</option>
+                                            <option value="semanal">Semanal</option>
+                                            <option value="quinzenal">Quinzenal</option>
+                                            <option value="mensal">Mensal</option>
+                                            <option value="bimestral">Bimestral</option>
+                                            <option value="trimestral">Trimestral</option>
+                                            <option value="semestral">Semestral</option>
+                                            <option value="anual">Anual</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Nº de Repetiães</label>
+                                        <input type="number" id="rep-quantidade" min="1" max="60" value="12" onchange="atualizarPreviewRepeticao()" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;color:#374151;">
+                                    </div>
+                                </div>
+
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;">
+                                    <div>
+                                        <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">A partir de</label>
+                                        <input type="date" id="rep-data-inicio" onchange="atualizarPreviewRepeticao()" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;color:#374151;">
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Manter dia do vencimento</label>
+                                        <select id="rep-dia-fixo" onchange="atualizarPreviewRepeticao()" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;color:#374151;">
+                                            <option value="original">Mesmo dia do vencimento original</option>
+                                            <option value="Último">último dia do mês</option>
+                                            <option value="5">Dia 5</option>
+                                            <option value="10">Dia 10</option>
+                                            <option value="15">Dia 15</option>
+                                            <option value="20">Dia 20</option>
+                                            <option value="25">Dia 25</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px;margin-bottom:14px;">
+                                    <div style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:8px;">
+                                        <i class="fas fa-eye" style="margin-right:6px;"></i> Prvia das Parcelas
+                                    </div>
+                                    <div id="rep-preview" style="max-height:180px;overflow-y:auto;font-size:12px;color:#78350f;">
+                                        <span style="color:#b45309;">Selecione a frequência para visualizar as datas.</span>
+                                    </div>
+                                </div>
+
+                                <div style="display:flex;gap:10px;">
+                                    <button type="button" onclick="aplicarRepeticao()" style="flex:1;padding:10px;background:#f59e0b;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+                                        <i class="fas fa-check"></i> Gerar Parcelas
+                                    </button>
+                                    <button type="button" onclick="limparRepeticao()" style="padding:10px 18px;background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+                                        Limpar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ABA: PAGAMENTOS -->
+                        <div class="tab-pane-conta" id="tab-pagamentos">
+                            <div class="pagamentos-layout">
+                                <div class="pagamentos-tabela">
+                                    <div class="pagamentos-header-info">Pagamentos Realizados</div>
+                                    <div class="drag-info">Arraste uma ou mais colunas aqui para agrupar</div>
+                                    <table class="tabela-pagamentos">
+                                        <thead>
+                                            <tr>
+                                                <th>Data do Pagam... <i class="fas fa-sort"></i></th>
+                                                <th>Valor Pago <i class="fas fa-sort"></i></th>
+                                                <th>Descon... <i class="fas fa-sort"></i></th>
+                                                <th>Juros <i class="fas fa-sort"></i></th>
+                                                <th>Multa <i class="fas fa-sort"></i></th>
+                                                <th>Banco <i class="fas fa-sort"></i></th>
+                                                <th>Data de Déb... <i class="fas fa-sort"></i></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="7" style="text-align: center; padding: 20px; color: #999;">
+                                                    Nenhum registro encontrado
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    <div class="pagamentos-pagination" id="paginacaoPagamentos" style="display: none;">
+                                        <span>|&#9664;</span> <span>&#9664; anterior</span>
+                                        <span class="page-number">1</span>
+                                        <span>próxima &#9654;</span> <span>&#9654;|</span>
+                                    </div>
+                                    <div class="pagamentos-botoes">
+                                        <button type="button" class="btn-cancelar-pagamento">
+                                            <i class="fas fa-times"></i> Cancelar Pagamento
+                                        </button>
+                                        <button type="button" class="btn-registrar-pagamento" onclick="abrirModalPagamentoInterno()">
+                                            <i class="fas fa-dollar-sign"></i> Registrar Pagamento
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="pagamentos-resumo">
+                                    <div class="resumo-item">
+                                        <label>Total já Pago da Conta</label>
+                                        <input type="text" value="0,00" readonly>
+                                    </div>
+                                    <div class="resumo-item">
+                                        <label>Total de Descontos</label>
+                                        <input type="text" value="0,00" readonly>
+                                    </div>
+                                    <div class="resumo-item">
+                                        <label>Total de Juros e Multas</label>
+                                        <input type="text" value="0,00" readonly>
+                                    </div>
+                                    <div class="resumo-item destaque">
+                                        <label>$ A Pagar da Conta</label>
+                                        <input type="text" value="0,00" readonly class="valor-a-pagar">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ABA: INTEGRAÇÁƒO BANCÁRIA E CNAB -->
+                        <div class="tab-pane-conta" id="tab-integracao">
+                            <div class="empty-state-conta">
+                                <span>ðŸ¦</span>
+                                <p>Ainda não temos suporte para integração bancária CNAB para esta conta.</p>
+                            </div>
+                        </div>
+
+                        <!-- ABA: DIVERSOS -->
+                        <div class="tab-pane-conta" id="tab-diversos">
+                            <div class="form-row-conta">
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Número do Pedido</label>
+                                    <input type="text" id="conta-pedido">
+                                </div>
+                                <div class="form-group-conta">
+                                    <label>Tipo de Documento</label>
+                                    <select id="conta-tipo-doc">
+                                        <option value="outros">Outros</option>
+                                        <option value="nf">Nota Fiscal</option>
+                                        <option value="boleto">Boleto</option>
+                                        <option value="recibo">Recibo</option>
+                                        <option value="contrato">Contrato</option>
+                                    </select>
+                                </div>
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Número do Documento</label>
+                                    <input type="text" id="conta-num-doc">
+                                </div>
+                                <div class="form-group-conta" style="max-width: 120px;">
+                                    <label>Número da Parcela</label>
+                                    <input type="text" id="conta-parcela" value="001/001">
+                                </div>
+                            </div>
+                            <div class="form-row-conta">
+                                <div class="form-group-conta">
+                                    <label>Chave da NF-e</label>
+                                    <input type="text" id="conta-chave-nfe" placeholder="">
+                                </div>
+                                <div class="form-group-conta">
+                                    <label>Código de Barras</label>
+                                    <input type="text" id="conta-codigo-barras" placeholder="">
+                                </div>
+                            </div>
+                            <div class="form-row-conta">
+                                <div class="form-group-conta">
+                                    <label>Vendedor <a href="#" class="link-adicionar"><i class="fas fa-plus"></i></a></label>
+                                    <div class="input-search-conta">
+                                        <input type="text" id="conta-vendedor" placeholder="">
+                                        <i class="fas fa-search"></i>
+                                    </div>
+                                </div>
+                                <div class="form-group-conta">
+                                    <label>Origem</label>
+                                    <div class="input-search-conta">
+                                        <input type="text" id="conta-origem" value="Conta a Pagar">
+                                        <i class="fas fa-search"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- PAINEL LATERAL SALVAR -->
+            <div class="painel-lateral-salvar">
+                <button type="button" class="btn-salvar-lateral" onclick="salvarConta()">
+                    <i class="fas fa-cloud-upload-alt"></i> Salvar
+                </button>
+                <button type="button" class="btn-avancar-lateral" onclick="salvarConta()">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================================
+         MODAL VISUALIZAR CONTA A PAGAR (ESTILO OMIE)
+         ================================================================================ -->
+    <div class="modal-overlay-omie" id="modalVisualizarConta" onclick="if(event.target === this) fecharModalVisualizar()">
+        <div class="modal-omie modal-visualizar-conta">
+            <!-- HEADER -->
+            <div class="modal-header-omie">
+                <div class="modal-header-omie-left">
+                    <div class="modal-avatar-omie">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                    </div>
+                    <div>
+                        <h2 id="view-titulo">Detalhes da Conta</h2>
+                        <span id="view-documento-sub" style="font-size:12px;color:#6b7280;font-weight:500;"></span>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span id="view-status-badge" class="view-status-badge"></span>
+                    <button class="btn-fechar-omie" type="button" onclick="fecharModalVisualizar()">
+                        Fechar <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- BODY -->
+            <div class="modal-body-omie" style="overflow-y:auto;">
+                <!-- Seção Principal -->
+                <div class="view-section">
+                    <div class="view-section-title"><i class="fas fa-user"></i> Informações Principais</div>
+                    <div class="view-grid">
+                        <div class="view-field">
+                            <label>Fornecedor</label>
+                            <div class="view-value" id="view-fornecedor">-</div>
+                        </div>
+                        <div class="view-field">
+                            <label>Documento</label>
+                            <div class="view-value" id="view-documento">-</div>
+                        </div>
+                        <div class="view-field">
+                            <label>Categoria</label>
+                            <div class="view-value" id="view-categoria">-</div>
+                        </div>
+                        <div class="view-field">
+                            <label>Código de Barras</label>
+                            <div class="view-value" id="view-codigo-barras" style="font-family:monospace;font-size:12px;">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção Valores -->
+                <div class="view-section">
+                    <div class="view-section-title"><i class="fas fa-dollar-sign"></i> Valores</div>
+                    <div class="view-grid view-grid-3">
+                        <div class="view-field view-field-destaque">
+                            <label>Valor Total</label>
+                            <div class="view-value view-valor-total" id="view-valor-total">R$ 0,00</div>
+                        </div>
+                        <div class="view-field view-field-success">
+                            <label>Valor Pago</label>
+                            <div class="view-value" id="view-valor-pago">R$ 0,00</div>
+                        </div>
+                        <div class="view-field view-field-warning">
+                            <label>Saldo Restante</label>
+                            <div class="view-value" id="view-saldo">R$ 0,00</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção Datas -->
+                <div class="view-section">
+                    <div class="view-section-title"><i class="fas fa-calendar-alt"></i> Datas</div>
+                    <div class="view-grid view-grid-3">
+                        <div class="view-field">
+                            <label>Data Emissão</label>
+                            <div class="view-value" id="view-emissão">-</div>
+                        </div>
+                        <div class="view-field">
+                            <label>Vencimento Original</label>
+                            <div class="view-value" id="view-vencimento-original">-</div>
+                        </div>
+                        <div class="view-field">
+                            <label>Vencimento Atualizado</label>
+                            <div class="view-value view-venc-atualizado" id="view-vencimento-atualizado">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção Observações -->
+                <div class="view-section">
+                    <div class="view-section-title"><i class="fas fa-sticky-note"></i> Observações</div>
+                    <div class="view-obs" id="view-observacoes">Nenhuma observação registrada.</div>
+                </div>
+            </div>
+
+            <!-- FOOTER -->
+            <div class="view-footer-conta">
+                <button class="btn-view-secondary" onclick="fecharModalVisualizar()"><i class="fas fa-times"></i> Fechar</button>
+                <div style="display:flex;gap:10px;">
+                    <button class="btn-view-edit" id="btn-view-editar" onclick="editarContaFromView()"><i class="fas fa-edit"></i> Editar</button>
+                    <button class="btn-view-pagar" id="btn-view-pagar" onclick="pagarContaFromView()"><i class="fas fa-check-circle"></i> Registrar Pagamento</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CSS PARA MODAIS ESTILO OMIE - VERSO 2 -->
+    <style>
+        /* ========== OVERLAY PADRÁƒO ========== */
+        .modal-overlay-omie {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15,23,42,0.65);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay-omie.active { display: flex; }
+
+        /* ========== MODAL BASE OMIE ========== */
+        .modal-omie {
+            background: #fff;
+            border-radius: 12px;
+            max-height: 95vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.25);
+            animation: cpSlideIn 0.25s ease-out;
+        }
+        @keyframes cpSlideIn {
+            from { opacity: 0; transform: translateY(-20px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* ========== HEADER PADRÁƒO ========== */
+        .modal-header-omie {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 24px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .modal-header-omie-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .modal-avatar-omie {
+            width: 46px;
+            height: 46px;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #84cc16;
+            font-size: 20px;
+            border: 2px solid #bbf7d0;
+        }
+        .modal-header-omie h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #84cc16;
+            margin: 0;
+            letter-spacing: -0.3px;
+        }
+        .btn-fechar-omie {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .btn-fechar-omie:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+            color: #111827;
+        }
+
+        /* ========== MODAL BODY ========== */
+        .modal-body-omie {
+            padding: 24px;
+            background: #fafafa;
+        }
+
+        /* ========== MODAL ESCOLHA MÉTODO ========== */
+        .modal-escolha {
+            width: 640px;
+            max-width: 96vw;
+        }
+        .modal-escolha .modal-body-omie {
+            padding: 28px;
+        }
+        .opcao-metodo {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #fff;
+        }
+        .opcao-metodo:hover {
+            border-color: #84cc16;
+            background: linear-gradient(135deg, #f8fff0 0%, #f0fdf4 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(132, 204, 22, 0.15);
+        }
+        .opcao-metodo:last-child { margin-bottom: 0; }
+        .opcao-título {
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            padding: 10px 18px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: inline-block;
+            box-shadow: 0 2px 6px rgba(132, 204, 22, 0.3);
+        }
+        .opcao-info p {
+            font-size: 13px;
+            color: #6b7280;
+            margin: 0;
+            max-width: 400px;
+            line-height: 1.5;
+        }
+        .opcao-icone {
+            width: 80px;
+            height: 80px;
+            background: #f0fdf4;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #84cc16;
+            font-size: 32px;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+        .opcao-metodo:hover .opcao-icone {
+            background: #84cc16;
+            color: #fff;
+        }
+
+        /* ========== MODAL NF-e ========== */
+        .modal-nfe {
+            width: 720px;
+            max-width: 96vw;
+        }
+        .nfe-input-section {
+            margin-bottom: 24px;
+        }
+        .nfe-input-section label {
+            display: block;
+            font-size: 13px;
+            color: #374151;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .nfe-input-row {
+            display: flex;
+            gap: 12px;
+        }
+        .nfe-input-row input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .nfe-input-row input:focus {
+            outline: none;
+            border-color: #84cc16;
+            box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.15);
+        }
+        .btn-pesquisar-nfe {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(132, 204, 22, 0.3);
+        }
+        .btn-pesquisar-nfe:hover {
+            background: linear-gradient(135deg, #65a30d 0%, #4d7c0f 100%);
+            transform: translateY(-1px);
+        }
+        .nfe-demo {
+            display: flex;
+            gap: 24px;
+            padding: 24px;
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+        }
+        .nfe-demo-danfe { flex: 1; }
+        .nfe-demo-info { flex: 1; }
+        .link-upload-nfe {
+            color: #84cc16;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .link-upload-nfe:hover { text-decoration: underline; }
+
+        /* ========== MODAL CDIGO DE BARRAS ========== */
+        .modal-código-barras {
+            width: 540px;
+            max-width: 96vw;
+        }
+        .link-upload-boleto {
+            color: #84cc16;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .link-upload-boleto:hover { text-decoration: underline; }
+        .btn-continuar-omie {
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(132, 204, 22, 0.3);
+        }
+        .btn-continuar-omie:hover {
+            background: linear-gradient(135deg, #65a30d 0%, #4d7c0f 100%);
+            transform: translateY(-1px);
+        }
+
+        /* ========== MODAL CONTA A PAGAR (PRINCIPAL) ========== */
+        .modal-conta-pagar {
+            width: 96vw;
+            max-width: 1150px;
+            height: 92vh;
+            max-height: 800px;
+            display: flex;
+            flex-direction: row;
+            position: relative;
+            border-radius: 16px;
+        }
+
+        /* Header da Conta */
+        .modal-header-conta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 24px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 100px;
+            z-index: 10;
+            border-radius: 16px 0 0 0;
+        }
+        .modal-header-left-conta {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .modal-avatar-conta {
+            width: 46px;
+            height: 46px;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #84cc16;
+            font-size: 20px;
+            border: 2px solid #bbf7d0;
+        }
+        .modal-título-conta h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #84cc16;
+            margin: 0;
+            letter-spacing: -0.3px;
+        }
+
+        /* Body da Conta */
+        .modal-body-conta {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+            padding-top: 82px;
+            padding-right: 100px;
+            background: #fafafa;
+            border-radius: 16px 0 0 16px;
+        }
+
+        /* Seção Principal do Formulário */
+        .form-principal-conta {
+            padding: 24px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .form-row-conta {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 18px;
+            align-items: flex-end;
+        }
+        .form-row-conta:last-child { margin-bottom: 0; }
+        .form-group-conta {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .form-group-conta label {
+            font-size: 12px;
+            color: #374151;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .form-group-conta input,
+        .form-group-conta select,
+        .form-group-conta textarea {
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #111827;
+            background: #fff;
+            transition: all 0.2s;
+        }
+        .form-group-conta input::placeholder { color: #9ca3af; }
+        .form-group-conta input:focus,
+        .form-group-conta select:focus,
+        .form-group-conta textarea:focus {
+            outline: none;
+            border-color: #84cc16;
+            box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.15);
+            background: #fefffe;
+        }
+        .form-group-conta textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        /* Input com Ácone */
+        .input-icon-conta, .input-search-conta {
+            position: relative;
+        }
+        .input-icon-conta input, .input-search-conta input {
+            padding-right: 40px;
+            width: 100%;
+        }
+        .input-icon-conta i, .input-search-conta i {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        /* Links */
+        .link-adicionar {
+            font-size: 12px;
+            color: #84cc16;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .link-adicionar:hover { text-decoration: underline; }
+        .link-icon {
+            color: #84cc16;
+            font-size: 11px;
+            margin-left: 4px;
+        }
+        .parcela-info {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-left: auto;
+        }
+
+        /* ========== ABAS (TABS) ========== */
+        .tabs-conta {
+            display: flex;
+            border-bottom: 1px solid #e5e7eb;
+            background: #fff;
+            padding: 0 24px;
+            gap: 4px;
+            overflow-x: auto;
+        }
+        .tab-conta {
+            padding: 14px 18px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 13px;
+            font-weight: 600;
+            color: #6b7280;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+            margin-bottom: -1px;
+        }
+        .tab-conta:hover {
+            color: #374151;
+            background: #f9fafb;
+            border-radius: 8px 8px 0 0;
+        }
+        .tab-conta.active {
+            color: #84cc16;
+            border-bottom-color: #84cc16;
+            background: #f0fdf4;
+            border-radius: 8px 8px 0 0;
+        }
+
+        /* Contedo das abas */
+        .tab-content-conta {
+            padding: 24px;
+            min-height: 200px;
+            background: #fff;
+        }
+        .tab-pane-conta {
+            display: none;
+        }
+        .tab-pane-conta.active {
+            display: block;
+            animation: cpFadeIn 0.2s ease;
+        }
+        @keyframes cpFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Empty state */
+        .empty-state-conta {
+            text-align: center;
+            padding: 48px 24px;
+            color: #6b7280;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px dashed #e5e7eb;
+        }
+        .empty-state-conta span {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 12px;
+        }
+        .empty-state-conta p {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #6b7280;
+        }
+        .link-ação {
+            color: #84cc16;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .link-ação:hover { text-decoration: underline; }
+
+        /* Checkbox */
+        .checkbox-conta {
+            justify-content: flex-end;
+            padding-bottom: 10px;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #4b5563;
+            cursor: pointer;
+        }
+        .checkbox-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #84cc16;
+        }
+
+        /* Input valor imposto */
+        .input-valor-imposto input {
+            text-align: right;
+            width: 100%;
+        }
+
+        /* ========== PAGAMENTOS LAYOUT ========== */
+        .pagamentos-layout {
+            display: flex;
+            gap: 24px;
+        }
+        .pagamentos-tabela {
+            flex: 2;
+        }
+        .pagamentos-resumo {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .pagamentos-header-info {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+        .drag-info {
+            font-size: 12px;
+            color: #9ca3af;
+            background: #f3f4f6;
+            padding: 10px;
+            text-align: center;
+            margin-bottom: 8px;
+            border-radius: 6px;
+        }
+        .tabela-pagamentos {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .tabela-pagamentos th {
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            color: white;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        .tabela-pagamentos th:first-child { border-radius: 8px 0 0 0; }
+        .tabela-pagamentos th:last-child { border-radius: 0 8px 0 0; }
+        .tabela-pagamentos td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .pagamentos-pagination {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            padding: 10px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .page-number {
+            background: #84cc16;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+        .pagamentos-botoes {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            justify-content: center;
+        }
+        .btn-cancelar-pagamento {
+            padding: 10px 20px;
+            background: #fee2e2;
+            color: #dc2626;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-cancelar-pagamento:hover {
+            background: #fecaca;
+        }
+        .btn-registrar-pagamento {
+            padding: 10px 20px;
+            background: #dcfce7;
+            color: #16a34a;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-registrar-pagamento:hover {
+            background: #bbf7d0;
+        }
+        .resumo-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .resumo-item label {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .resumo-item input {
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            text-align: right;
+            font-size: 14px;
+            background: #f9fafb;
+        }
+        .resumo-item.destaque input {
+            background: #fef3c7;
+            border-color: #f59e0b;
+            font-weight: 700;
+        }
+
+        /* ========== PAINEL LATERAL SALVAR ========== */
+        .painel-lateral-salvar {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100%;
+            background: linear-gradient(to top, #f3f4f6, #f9fafb);
+            border-left: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 100px;
+            gap: 16px;
+            border-radius: 0 16px 16px 0;
+        }
+        .btn-salvar-lateral {
+            padding: 14px 18px;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            border: none;
+            color: white;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(132, 204, 22, 0.3);
+        }
+        .btn-salvar-lateral:hover {
+            background: linear-gradient(135deg, #65a30d 0%, #4d7c0f 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(132, 204, 22, 0.4);
+        }
+        .btn-avancar-lateral {
+            width: 44px;
+            height: 44px;
+            background: #fff;
+            border: 2px solid #84cc16;
+            color: #84cc16;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+        .btn-avancar-lateral:hover {
+            background: #84cc16;
+            color: white;
+        }
+
+        /* ========== MODAL VISUALIZAR CONTA ========== */
+        .modal-visualizar-conta {
+            width: 680px;
+            max-width: 96vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .view-section {
+            background: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid #e5e7eb;
+        }
+        .view-section:last-child { margin-bottom: 0; }
+        .view-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #84cc16;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .view-section-title i { font-size: 14px; }
+        .view-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .view-grid-3 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+        .view-field label {
+            display: block;
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+        .view-field .view-value {
+            font-size: 14px;
+            color: #111827;
+            font-weight: 500;
+            padding: 8px 12px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border: 1px solid #f3f4f6;
+            min-height: 20px;
+        }
+        .view-field-destaque .view-value {
+            font-size: 18px;
+            font-weight: 800;
+            color: #dc2626;
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+        .view-field-success .view-value {
+            color: #059669;
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+            font-weight: 700;
+        }
+        .view-field-warning .view-value {
+            color: #d97706;
+            background: #fffbeb;
+            border-color: #fde68a;
+            font-weight: 700;
+        }
+        .view-obs {
+            font-size: 14px;
+            color: #4b5563;
+            padding: 12px 16px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border: 1px solid #f3f4f6;
+            line-height: 1.6;
+            min-height: 40px;
+            white-space: pre-wrap;
+        }
+        .view-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .view-status-badge.status-pendente { background: #fef3c7; color: #92400e; }
+        .view-status-badge.status-vencido { background: #fee2e2; color: #991b1b; }
+        .view-status-badge.status-pago { background: #dcfce7; color: #166534; }
+        .view-status-badge.status-parcial { background: #dbeafe; color: #1e40af; }
+        .view-footer-conta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: #fff;
+            border-top: 1px solid #e5e7eb;
+            border-radius: 0 0 12px 12px;
+        }
+        .btn-view-secondary {
+            padding: 10px 20px;
+            background: #f3f4f6;
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .btn-view-secondary:hover { background: #e5e7eb; color: #374151; }
+        .btn-view-edit {
+            padding: 10px 20px;
+            background: #fff;
+            color: #84cc16;
+            border: 2px solid #84cc16;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .btn-view-edit:hover { background: #f0fdf4; }
+        .btn-view-pagar {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(132, 204, 22, 0.3);
+        }
+        .btn-view-pagar:hover { background: linear-gradient(135deg, #65a30d 0%, #4d7c0f 100%); transform: translateY(-1px); }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 768px) {
+            .modal-conta-pagar {
+                width: 100%;
+                height: 100vh;
+                max-height: none;
+                border-radius: 0;
+            }
+            .modal-body-conta {
+                padding-right: 0;
+                border-radius: 0;
+            }
+            .painel-lateral-salvar {
+                display: none;
+            }
+            .modal-header-conta {
+                right: 0;
+                border-radius: 0;
+            }
+            .form-row-conta {
+                flex-direction: column;
+            }
+            .form-group-conta {
+                max-width: none !important;
+            }
+            .tabs-conta {
+                overflow-x: auto;
+                padding: 0 16px;
+            }
+            .pagamentos-layout {
+                flex-direction: column;
+            }
+            .modal-escolha, .modal-nfe, .modal-código-barras {
+                width: 100%;
+                max-width: none;
+                border-radius: 0;
+                height: 100vh;
+                max-height: none;
+            }
+            .modal-visualizar-conta {
+                width: 100%;
+                max-width: none;
+                max-height: none;
+                height: 100vh;
+                border-radius: 0;
+            }
+            .view-grid, .view-grid-3 {
+                grid-template-columns: 1fr;
+            }
+            .view-footer-conta {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+
+    <!-- Script para controle das abas e modais -->
+    <script>
+        // Controle das abas do modal de conta
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabs = document.querySelectorAll('.tab-conta');
+            const panes = document.querySelectorAll('.tab-pane-conta');
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const targetTab = this.getAttribute('data-tab');
+
+                    tabs.forEach(t => t.classList.remove('active'));
+                    panes.forEach(p => p.classList.remove('active'));
+
+                    this.classList.add('active');
+                    document.getElementById('tab-' + targetTab).classList.add('active');
+                });
+            });
+        });
+
+        // Funães dos modais de escolha
+        function abrirModalEscolhaMetodo() {
+            document.getElementById('modalEscolhaMetodo').classList.add('active');
+        }
+        function fecharModalEscolha() {
+            document.getElementById('modalEscolhaMetodo').classList.remove('active');
+        }
+        function abrirModalNFe() {
+            fecharModalEscolha();
+            document.getElementById('modalNFe').classList.add('active');
+        }
+        function fecharModalNFe() {
+            document.getElementById('modalNFe').classList.remove('active');
+        }
+        function abrirModalCódigoBarras() {
+            fecharModalEscolha();
+            document.getElementById('modalCodigoBarras').classList.add('active');
+        }
+        function fecharModalCódigoBarras() {
+            document.getElementById('modalCodigoBarras').classList.remove('active');
+        }
+        function abrirModalManual() {
+            fecharModalEscolha();
+            abrirModal();
+        }
+
+        // Funães auxiliares
+        function pesquisarNFe() {
+            const chave = document.getElementById('chaveNFe').value;
+            if (chave.length !== 44) {
+                alert('A chave de acesso deve ter 44 dígitos');
+                return;
+            }
+            alert('Pesquisando NF-e: ' + chave);
+        }
+        function uploadArquivoNFe() {
+            document.getElementById('inputArquivoNFe').click();
+        }
+        function processarArquivoNFe(input) {
+            if (!input.files || !input.files[0]) return;
+            const file = input.files[0];
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            if (ext === 'xml') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const parser = new DOMParser();
+                        const xmlDoc = parser.parseFromString(e.target.result, 'text/xml');
+                        const ns = 'http://www.portalfiscal.inf.br/nfe';
+
+                        const getTag = (tag) => {
+                            const el = xmlDoc.getElementsByTagNameNS(ns, tag)[0] || xmlDoc.getElementsByTagName(tag)[0];
+                            return el ? el.textContent.trim() : '';
+                        };
+
+                        // Preencher dados da nota
+                        fecharModalNFe();
+                        abrirModal();
+
+                        document.getElementById('conta-fornecedor').value = getTag('xNome') || '';
+                        document.getElementById('conta-documento').value = getTag('nNF') || '';
+                        const vNF = getTag('vNF') || getTag('vLiq');
+                        if (vNF) document.getElementById('conta-valor').value = parseFloat(vNF).toFixed(2).replace('.', ',');
+                        const dhEmi = getTag('dhEmi') || getTag('dEmi');
+                        if (dhEmi) document.getElementById('conta-emissão').value = dhEmi.substring(0, 10);
+
+                        mostrarNotificação('NF-e importada com sucesso! Verifique os dados.', 'success');
+                    } catch (err) {
+                        console.error('Erro ao parsear XML:', err);
+                        mostrarNotificação('Erro ao ler o arquivo XML da NF-e.', 'error');
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                mostrarNotificação('Para importação automática, envie o arquivo XML da NF-e. PDFs precisam ser preenchidos manualmente.', 'warning');
+                fecharModalNFe();
+                abrirModal();
+            }
+            input.value = ''; // Reset input
+        }
+        function uploadBoleto() {
+            document.getElementById('inputBoleto').click();
+        }
+        function processarBoleto(input) {
+            if (!input.files || !input.files[0]) return;
+            const file = input.files[0];
+            mostrarNotificação('Boleto "' + file.name + '" anexado. Preencha os dados manualmente ou use o código de barras.', 'info');
+            input.value = ''; // Reset input
+        }
+        function processarCódigoBarras() {
+            const código = document.getElementById('codigoBarrasInput').value;
+            if (!código) {
+                alert('Digite o código de barras');
+                return;
+            }
+            fecharModalCódigoBarras();
+            abrirModal();
+            document.getElementById('conta-codigo-barras').value = código;
+        }
+        function abrirModalPagamentoInterno() {
+            if (!editandoId) {
+                mostrarNotificação('Salve a conta antes de registrar o pagamento', 'warning');
+                return;
+            }
+            abrirModalPagamento(editandoId);
+        }
+    </script>
+
+    <!-- Modal Pagamento - Padrão SaaS Empresarial -->
+    <div class="modal-overlay-saas" id="modalPagamento" onclick="if(event.target === this) fecharModalPagamento()">
+        <div class="modal-saas modal-sm">
+            <div class="modal-header-saas header-green">
+                <div class="modal-header-content-saas">
+                    <div class="modal-header-icon-saas">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="modal-header-text-saas">
+                        <h2>Registrar Pagamento</h2>
+                        <p>Confirme os dados do pagamento</p>
+                    </div>
+                    <button class="modal-close-saas" onclick="fecharModalPagamento()"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="modal-body-saas">
+                <input type="hidden" id="pagamento-conta-id">
+
+                <div class="alert-saas alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <div class="alert-saas-content">
+                        <strong id="pagamento-fornecedor">Fornecedor</strong>
+                        <p id="pagamento-descricao">Descrição da conta</p>
+                    </div>
+                </div>
+
+                <div class="form-section-saas">
+                    <div class="form-grid-saas cols-1">
+                        <div class="form-group-saas">
+                            <label><i class="fas fa-dollar-sign"></i> Valor a Pagar</label>
+                            <div class="valor-destaque-saas">
+                                <span class="currency-symbol">R$</span>
+                                <input type="text" id="pagamento-valor" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                            </div>
+                        </div>
+                        <div class="form-group-saas">
+                            <label><i class="fas fa-calendar"></i> Data do Pagamento</label>
+                            <input type="date" id="pagamento-data">
+                        </div>
+                        <div class="form-group-saas">
+                            <label><i class="fas fa-university"></i> Conta Bancária</label>
+                            <select id="pagamento-banco">
+                                <option value="">Selecione a conta...</option>
+                            </select>
+                        </div>
+                        <div class="form-group-saas">
+                            <label><i class="fas fa-sticky-note"></i> Observação</label>
+                            <input type="text" id="pagamento-obs" placeholder="Observação do pagamento">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer-saas">
+                <div class="modal-footer-right-saas">
+                    <button class="btn-saas btn-saas-ghost" onclick="fecharModalPagamento()">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button class="btn-saas btn-saas-success" onclick="confirmarPagamento()" id="btnConfirmarPagamento">
+                        <i class="fas fa-check"></i> Confirmar Pagamento
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CSS dos Modais SaaS -->
+    <link rel="stylesheet" href="css/modais-saas.css">
+
+    <script>
+        let contasPagar = [];
+        let todasContas = []; // Todas as contas para filtros
+        let contasBancarias = [];
+        let editandoId = null;
+
+        // Paginação
+        const pgCP = new FinPagination({
+            containerId: 'fp-pg-cp',
+            searchId: 'fp-search-cp',
+            infoId: 'fp-info-cp',
+            perPage: 30,
+            getData: () => contasPagar,
+            searchFields: [
+                c => c.fornecedor || c.fornecedor_nome,
+                c => c.numero_documento || c.documento,
+                c => c.descricao || c.observações,
+                c => c.categoria,
+                c => c.status
+            ],
+            renderRows: (pageData, allFiltered) => {
+                const tbody = document.getElementById('tabela-contas');
+                if (allFiltered.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;"><i class="fas fa-inbox" style="font-size:32px;color:#e2e8f0;display:block;margin-bottom:12px;"></i>Nenhuma conta a pagar encontrada</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = pageData.map(c => {
+                    const valorTotal = parseFloat(c.valor_total || c.valor || 0);
+                    const valorPago = parseFloat(c.valor_pago || c.pago || 0);
+                    const saldo = valorTotal - valorPago;
+
+                    let status = c.status || 'pendente';
+                    const hoje = new Date().toISOString().split('T')[0];
+                    const vencimento = c.data_vencimento || c.vencimento;
+
+                    if (status !== 'pago' && vencimento && vencimento < hoje) {
+                        status = 'vencido';
+                    } else if (valorPago > 0 && valorPago < valorTotal) {
+                        status = 'parcial';
+                    }
+
+                    const statusClass = { 'pago': 'badge-success', 'vencido': 'badge-danger', 'parcial': 'badge-info', 'pendente': 'badge-warning' }[status] || 'badge-warning';
+                    const statusLabel = { 'pendente': 'Pendente', 'parcial': 'Parcial', 'pago': 'Pago', 'vencido': 'Vencido' }[status] || status;
+                    const categoriaLabel = { 'fornecedores': 'Fornecedores', 'despesas-fixas': 'Despesas Fixas', 'impostos': 'Impostos', 'folha': 'Folha', 'servicos': 'Serviços', 'materiais': 'Materiais', 'outros': 'Outros' }[c.categoria] || c.categoria || '-';
+                    const fornecedor = c.fornecedor || c.fornecedor_nome || '-';
+                    const documento = c.numero_documento || c.documento || '-';
+                    const descrição = c.descricao || c.observações || '-';
+                    const vencimentoOriginal = c.data_vencimento_original || c.vencimento_original || vencimento;
+                    const vencimentoAtualizado = c.data_vencimento_atualizado || c.vencimento_atualizado || vencimento;
+
+                    return `
+                        <tr data-id="${c.id}">
+                            <td><strong>${esc(documento)}</strong></td>
+                            <td>${esc(fornecedor)}</td>
+                            <td>${esc(descrição)}</td>
+                            <td>${esc(categoriaLabel)}</td>
+                            <td>${formatarData(vencimentoOriginal)}</td>
+                            <td>${formatarData(vencimentoAtualizado)}</td>
+                            <td class="valor saida">${formatarMoeda(valorTotal)}</td>
+                            <td>${formatarMoeda(valorPago)}</td>
+                            <td class="valor">${formatarMoeda(saldo)}</td>
+                            <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+                            <td>
+                                <button class="btn-action view" title="Ver detalhes" onclick="verConta(${c.id})"><i class="fas fa-eye"></i></button>
+                                ${status !== 'pago' ? `<button class="btn-action pagar" title="Registrar pagamento" onclick="abrirModalPagamento(${c.id})"><i class="fas fa-check"></i></button>` : ''}
+                                <button class="btn-action edit" title="Editar" onclick="editarConta(${c.id})"><i class="fas fa-edit"></i></button>
+                                ${status !== 'pago' ? `<button class="btn-action delete" title="Excluir" onclick="excluirConta(${c.id})"><i class="fas fa-trash"></i></button>` : ''}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        });
+        window._finPg['fp-pg-cp'] = pgCP;
+
+        // Carregar usuário
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+
+                    const hour = new Date().getHours();
+                    let greeting = 'Bom dia';
+                    if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                    else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+
+                    const greetingEl = document.getElementById('greeting-text');
+                    const userNameEl = document.getElementById('user-name');
+                    const userInitialsEl = document.getElementById('user-initials');
+                    if (greetingEl) greetingEl.textContent = greeting;
+                    if (userNameEl) userNameEl.textContent = primeiroNome;
+                    if (userInitialsEl) userInitialsEl.textContent = primeiroNome.charAt(0).toUpperCase();
+
+                    const fotoUrl = user.avatar || user.foto || user.foto_perfil_url;
+                    const fotoEl = document.getElementById('user-photo');
+                    const inicialEl = document.getElementById('user-initials');
+
+                    if (fotoUrl && fotoUrl !== '/avatars/default.webp' && fotoEl) {
+                        fotoEl.src = fotoUrl;
+                        fotoEl.onload = () => {
+                            fotoEl.style.display = 'block';
+                            fotoEl.classList.add('visible');
+                            if (inicialEl) inicialEl.style.display = 'none';
+                        };
+                        fotoEl.onerror = () => { fotoEl.style.display = 'none'; if (inicialEl) { inicialEl.textContent = primeiroNome.charAt(0).toUpperCase(); inicialEl.style.display = 'flex'; } };
+                    }
+                }
+            } catch (e) { console.error('Erro ao carregar usuário:', e); }
+        }
+
+        // Carregar contas bancárias
+        async function carregarContasBancarias() {
+            try {
+                const response = await fetch('/api/financeiro/contas-bancarias', { credentials: 'include' });
+                const data = await response.json();
+                const raw = data.data || data || [];
+                contasBancarias = Array.isArray(raw) ? raw : [];
+
+                const selectConta = document.getElementById('conta-banco');
+                const selectPagamento = document.getElementById('pagamento-banco');
+
+                const options = contasBancarias.map(c => {
+                    const nome = c.nome || c.banco || c.banco_nome || 'Conta';
+                    const detalhe = (c.agencia || c.conta) ? ` - ${c.agencia || ''}/${c.conta || ''}` : '';
+                    return `<option value="${c.id}">${nome}${detalhe}</option>`;
+                }).join('');
+
+                if (selectConta) selectConta.innerHTML = '<option value="">Selecione a conta...</option>' + options;
+                if (selectPagamento) selectPagamento.innerHTML = '<option value="">Selecione a conta...</option>' + options;
+            } catch (e) {
+                console.error('Erro ao carregar contas bancárias:', e);
+            }
+        }
+
+        // Carregar contas a pagar
+        async function carregarContas() {
+            try {
+                const response = await fetch('/api/financeiro/contas-pagar', { credentials: 'include' });
+                const data = await response.json();
+                const raw = data.data || data || [];
+                contasPagar = Array.isArray(raw) ? raw : [];
+                todasContas = [...contasPagar]; // Guardar todas para filtros
+                populateMesesFiltro();
+                filtrarDados();
+                atualizarStats();
+            } catch (e) {
+                console.error('Erro ao carregar contas:', e);
+                contasPagar = [];
+                renderizarTabela();
+                atualizarStats();
+            }
+        }
+
+        // Popula o filtro de período com meses detectados dos dados
+        function populateMesesFiltro() {
+            const select = document.getElementById('filter-periodo');
+            if (!select) return;
+
+            // Remover opções de mês anteriores (padrão YYYY-MM)
+            Array.from(select.options).forEach(opt => {
+                if (/^\d{4}-\d{2}$/.test(opt.value)) opt.remove();
+            });
+
+            // Coletar meses únicos dos dados
+            const mesesSet = new Set();
+            todasContas.forEach(c => {
+                const venc = c.data_vencimento || c.vencimento || c.mes_referencia;
+                if (venc) {
+                    const mesStr = String(venc).slice(0, 7);
+                    if (/^\d{4}-\d{2}$/.test(mesStr)) mesesSet.add(mesStr);
+                }
+                if (c.mes_referencia && /^\d{4}-\d{2}$/.test(c.mes_referencia)) {
+                    mesesSet.add(c.mes_referencia);
+                }
+            });
+
+            // Também adicionar meses do ano corrente
+            const anoAtual = new Date().getFullYear();
+            for (let m = 1; m <= 12; m++) {
+                mesesSet.add(`${anoAtual}-${String(m).padStart(2, '0')}`);
+            }
+
+            const mesesOrdenados = Array.from(mesesSet).sort();
+            const nomesMeses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+            // Separador
+            const sep = document.createElement('option');
+            sep.disabled = true;
+            sep.textContent = '-- Meses --';
+            select.appendChild(sep);
+
+            mesesOrdenados.forEach(mes => {
+                const [ano, m] = mes.split('-');
+                const opt = document.createElement('option');
+                opt.value = mes;
+                opt.textContent = `${nomesMeses[parseInt(m) - 1]}/${ano}`;
+                select.appendChild(opt);
+            });
+        }
+
+        function renderizarTabela() {
+            pgCP.render();
+        }
+
+        function atualizarStats() {
+            const hoje = new Date().toISOString().split('T')[0];
+            var fonte = todasContas.length > 0 ? todasContas : contasPagar;
+
+            var pendentes = fonte.filter(function(c) { return c.status !== 'pago'; });
+            var totalPagar = pendentes.reduce(function(sum, c) {
+                var valor = parseFloat(c.valor_total || c.valor || 0);
+                var pago = parseFloat(c.valor_pago || c.pago || 0);
+                return sum + (valor - pago);
+            }, 0);
+
+            var venceHoje = fonte.filter(function(c) {
+                var venc = c.data_vencimento || c.vencimento;
+                return venc && String(venc).slice(0,10) === hoje && c.status !== 'pago';
+            }).reduce(function(sum, c) {
+                var valor = parseFloat(c.valor_total || c.valor || 0);
+                var pago = parseFloat(c.valor_pago || c.pago || 0);
+                return sum + (valor - pago);
+            }, 0);
+
+            var vencidos = fonte.filter(function(c) {
+                var venc = c.data_vencimento || c.vencimento;
+                return venc && String(venc).slice(0,10) < hoje && c.status !== 'pago';
+            }).reduce(function(sum, c) {
+                var valor = parseFloat(c.valor_total || c.valor || 0);
+                var pago = parseFloat(c.valor_pago || c.pago || 0);
+                return sum + (valor - pago);
+            }, 0);
+
+            var pagoMes = fonte.filter(function(c) { return c.status === 'pago'; }).reduce(function(sum, c) {
+                return sum + parseFloat(c.valor_pago || c.pago || c.valor_total || c.valor || 0);
+            }, 0);
+
+            document.getElementById('stat-total').textContent = formatarMoeda(totalPagar);
+            document.getElementById('stat-hoje').textContent = formatarMoeda(venceHoje);
+            document.getElementById('stat-vencido').textContent = formatarMoeda(vencidos);
+            document.getElementById('stat-pago').textContent = formatarMoeda(pagoMes);
+        }
+
+        function filtrarTabela() {
+            const busca = document.getElementById('searchInput').value.toLowerCase();
+            const linhas = document.querySelectorAll('#tabela-contas tr');
+            linhas.forEach(linha => {
+                const texto = linha.textContent.toLowerCase();
+                linha.style.display = texto.includes(busca) ? '' : 'none';
+            });
+        }
+
+        function filtrarDados() {
+            const status = document.getElementById('filter-status').value;
+            const categoria = document.getElementById('filter-categoria').value;
+            const fornecedor = document.getElementById('filter-fornecedor').value.toLowerCase();
+            const período = document.getElementById('filter-periodo').value;
+
+            // Calcular intervalo de datas baseado no período
+            let dataInicio = null;
+            let dataFim = null;
+            const hoje = new Date();
+
+            if (período === 'mes-atual') {
+                dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+                dataFim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+            } else if (período === 'mes-anterior') {
+                dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+                dataFim = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+            } else if (período.startsWith('próximos-')) {
+                const dias = parseInt(período.split('-')[1]);
+                dataInicio = new Date(hoje);
+                dataFim = new Date(hoje);
+                dataFim.setDate(dataFim.getDate() + dias);
+            } else if (período.startsWith('ultimos-')) {
+                const dias = parseInt(período.split('-')[1]);
+                dataInicio = new Date(hoje);
+                dataInicio.setDate(dataInicio.getDate() - dias);
+                dataFim = new Date(hoje);
+            } else if (/^\d{4}-\d{2}$/.test(período)) {
+                const [ano, mes] = período.split('-').map(Number);
+                dataInicio = new Date(ano, mes - 1, 1);
+                dataFim = new Date(ano, mes, 0);
+            }
+            // 'all' => dataInicio e dataFim ficam null
+
+            // Filtrar o array de contas
+            contasPagar = todasContas.filter(c => {
+                const statusConta = (c.status || 'pendente').toLowerCase();
+                const vencRaw = c.data_vencimento || c.vencimento;
+                const venc = vencRaw ? String(vencRaw).slice(0, 10) : null;
+                const categoriaConta = (c.categoria || '').toLowerCase();
+                const fornecedorConta = (c.fornecedor || c.fornecedor_nome || '').toLowerCase();
+
+                // Recalcular status visual
+                let statusVisual = statusConta;
+                const valorTotal = parseFloat(c.valor_total || c.valor || 0);
+                const valorPago = parseFloat(c.valor_pago || c.pago || 0);
+                if (statusConta !== 'pago' && venc && venc < hoje.toISOString().split('T')[0]) statusVisual = 'vencido';
+                else if (valorPago > 0 && valorPago < valorTotal) statusVisual = 'parcial';
+
+                if (status && statusVisual !== status) return false;
+                if (categoria && categoriaConta !== categoria) return false;
+                if (fornecedor && !fornecedorConta.includes(fornecedor)) return false;
+
+                if (dataInicio && dataFim && venc) {
+                    const dataVenc = new Date(venc + 'T00:00:00');
+                    if (dataVenc < dataInicio || dataVenc > dataFim) return false;
+                }
+
+                return true;
+            });
+
+            renderizarTabela();
+            atualizarStats();
+        }
+
+        // Abre modal de escolha do método (NF-e, Código de Barras ou Manual)
+        function abrirModalNovaConta() {
+            document.getElementById('modalEscolhaMetodo').classList.add('active');
+        }
+
+        function abrirModal() {
+            editandoId = null;
+            document.getElementById('modal-titulo').textContent = 'Nova Conta a Pagar';
+            document.getElementById('formConta').reset();
+            document.getElementById('conta-id').value = '';
+            document.getElementById('conta-emissão').value = new Date().toISOString().split('T')[0];
+            document.getElementById('conta-registro').value = new Date().toISOString().split('T')[0];
+            document.getElementById('modalConta').classList.add('active');
+
+            // Resetar para primeira aba
+            document.querySelectorAll('.tab-conta').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-pane-conta').forEach(p => p.classList.remove('active'));
+            document.querySelector('.tab-conta[data-tab="detalhes"]').classList.add('active');
+            document.getElementById('tab-detalhes').classList.add('active');
+        }
+
+        function fecharModal() {
+            document.getElementById('modalConta').classList.remove('active');
+        }
+
+        // ============================================
+        // DEPARTAMENTOS / CENTROS DE CUSTO é Distribuião
+        // ============================================
+        let centrosCusto = [];
+        let distribuicaoLinhas = [];
+
+        async function carregarCentrosCusto() {
+            try {
+                const res = await fetch('/api/financeiro/centros-custo', { credentials: 'include' });
+                const data = await res.json();
+                centrosCusto = data.data || [];
+            } catch(e) {
+                console.error('Erro ao carregar centros de custo:', e);
+            }
+        }
+        carregarCentrosCusto();
+
+        function adicionarLinhaDistribuicao() {
+            const empty = document.getElementById('dist-empty-row');
+            if (empty) empty.remove();
+
+            const idx = distribuicaoLinhas.length;
+            distribuicaoLinhas.push({ centro_custo_id: '', percentual: 0, valor: 0 });
+
+            const tbody = document.getElementById('distribuição-body');
+            const tr = document.createElement('tr');
+            tr.id = `dist-row-${idx}`;
+            tr.innerHTML = `
+                <td style="padding:8px 14px;">
+                    <select onchange="atualizarDistribuicao(${idx},'centro',this.value)" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                        <option value="">Selecione...</option>
+                        ${centrosCusto.map(c => `<option value="${c.id}">${c.nome}</option>`).join('')}
+                    </select>
+                </td>
+                <td style="padding:8px 14px;text-align:center;">
+                    <input type="number" min="0" max="100" step="0.01" value="0" onchange="atualizarDistribuicao(${idx},'perc',this.value)" style="width:90px;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;text-align:center;">
+                </td>
+                <td style="padding:8px 14px;text-align:right;">
+                    <span id="dist-valor-${idx}" style="font-weight:600;color:#1e293b;">R$ 0,00</span>
+                </td>
+                <td style="padding:8px 14px;text-align:center;">
+                    <button type="button" onclick="removerLinhaDistribuicao(${idx})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;"><i class="fas fa-trash-alt"></i></button>
+                </td>
             `;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-    }
-    function fecharModalLancamento() { document.getElementById('modal-lancamento')?.remove(); }
-</script>
+            tbody.appendChild(tr);
+        }
 
-<!-- External Scripts -->
-<script src="/js/confirm-modal.js?v=20260319"></script>
-<script src="/js/notifications-manager.js?v=20260319"></script>
-<script src="/js/notification-button.js?v=20260319"></script>
-<script src="../../PCP/usuario-system.js?v=1.0"></script>
-<!-- <script src="/chat/widget.js?v=20260319" defer></script> -->
-<script src="../../_shared/connection-monitor.js?v=20260319"></script>
-<script src="/js/popup-confirmacao.js"></script>
-<script src="/js/auth-unified.js?v=20260326"></script>
-<script src="/js/inactivity-manager.js?v=20260324" defer></script>
-<script src="/js/mobile-auto-enhance.js?v=20260319" defer></script>
-<script src="../js/financeiro-sidebar.js?v=20260319"></script>
-<script src="/_shared/accessibility-widget.js?v=20260319"></script>
-<!-- Chat Corporativo (Teams) -->
-<script src="/socket.io/socket.io.js"></script>
-<script src="/chat-teams/chat-widget.js?v=20260319" defer></script>
-<script src="/js/user-dropdown.js?v=20260319" defer></script>
+        function atualizarDistribuicao(idx, campo, valor) {
+            if (campo === 'centro') distribuicaoLinhas[idx].centro_custo_id = valor;
+            if (campo === 'perc') {
+                const p = Math.min(100, Math.max(0, parseFloat(valor) || 0));
+                distribuicaoLinhas[idx].percentual = p;
+                const valorConta = parseMoeda(document.getElementById('conta-valor').value) || 0;
+                distribuicaoLinhas[idx].valor = valorConta * p / 100;
+                const el = document.getElementById(`dist-valor-${idx}`);
+                if (el) el.textContent = formatarMoeda(distribuicaoLinhas[idx].valor);
+            }
+            recalcularTotalDistribuicao();
+        }
+
+        function removerLinhaDistribuicao(idx) {
+            const row = document.getElementById(`dist-row-${idx}`);
+            if (row) row.remove();
+            distribuicaoLinhas[idx] = null;
+            recalcularTotalDistribuicao();
+            if (distribuicaoLinhas.filter(Boolean).length === 0) {
+                const tbody = document.getElementById('distribuição-body');
+                tbody.innerHTML = `<tr id="dist-empty-row"><td colspan="4" style="padding:24px;text-align:center;color:#9ca3af;"><i class="fas fa-info-circle" style="margin-right:6px;"></i> Clique em "Adicionar" para distribuir o valor entre centros de custo</td></tr>`;
+            }
+        }
+
+        function recalcularTotalDistribuicao() {
+            let totalPerc = 0, totalValor = 0;
+            distribuicaoLinhas.filter(Boolean).forEach(l => {
+                totalPerc += l.percentual;
+                totalValor += l.valor;
+            });
+            const percEl = document.getElementById('dist-total-perc');
+            const valorEl = document.getElementById('dist-total-valor');
+            if (percEl) percEl.textContent = totalPerc.toFixed(1) + '%';
+            if (valorEl) valorEl.textContent = formatarMoeda(totalValor);
+            if (percEl) percEl.style.color = totalPerc > 100 ? '#dc2626' : '#166534';
+        }
+
+        // ============================================
+        // REPETIO / RECORRNCIA
+        // ============================================
+        function atualizarPreviewRepeticao() {
+            const freq = document.getElementById('rep-frequencia').value;
+            const qty = parseInt(document.getElementById('rep-quantidade').value) || 0;
+            const dataInicio = document.getElementById('rep-data-inicio').value || document.getElementById('conta-vencimento-original').value;
+            const diaFixo = document.getElementById('rep-dia-fixo').value;
+            const preview = document.getElementById('rep-preview');
+
+            if (!freq || !qty || !dataInicio) {
+                preview.innerHTML = '<span style="color:#b45309;">Selecione a frequência e a data para visualizar as datas.</span>';
+                return;
+            }
+
+            const freqMap = { semanal: 7, quinzenal: 14, mensal: 1, bimestral: 2, trimestral: 3, semestral: 6, anual: 12 };
+            const isMonthBased = !['semanal','quinzenal'].includes(freq);
+            const datas = [];
+            let d = new Date(dataInicio + 'T12:00:00');
+            const valorConta = parseMoeda(document.getElementById('conta-valor').value) || 0;
+
+            for (let i = 1; i <= qty; i++) {
+                let nd;
+                if (isMonthBased) {
+                    nd = new Date(d);
+                    nd.setMonth(nd.getMonth() + freqMap[freq] * i);
+                    if (diaFixo === 'Último') {
+                        nd = new Date(nd.getFullYear(), nd.getMonth() + 1, 0);
+                    } else if (diaFixo !== 'original') {
+                        const dia = parseInt(diaFixo);
+                        const lastDay = new Date(nd.getFullYear(), nd.getMonth() + 1, 0).getDate();
+                        nd.setDate(Math.min(dia, lastDay));
+                    }
+                } else {
+                    nd = new Date(d.getTime() + freqMap[freq] * i * 86400000);
+                }
+                datas.push(nd);
+            }
+
+            const fmt = (dt) => dt.toLocaleDateString('pt-BR');
+            const valorFmt = valorConta ? ` é R$ ${valorConta.toFixed(2).replace('.',',')}` : '';
+            let html = '<div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;">';
+            datas.forEach((dt, i) => {
+                html += `<div style="font-weight:600;">Parcela ${i+1}/${qty}</div><div>${fmt(dt)}${valorFmt}</div>`;
+            });
+            html += '</div>';
+            preview.innerHTML = html;
+        }
+
+        async function aplicarRepeticao() {
+            const freq = document.getElementById('rep-frequencia').value;
+            const qty = parseInt(document.getElementById('rep-quantidade').value) || 0;
+            const dataInicio = document.getElementById('rep-data-inicio').value || document.getElementById('conta-vencimento-original').value;
+            const diaFixo = document.getElementById('rep-dia-fixo').value;
+
+            if (!freq || !qty || !dataInicio) {
+                mostrarNotificação('Preencha frequência, quantidade e data de início', 'warning');
+                return;
+            }
+
+            if (!confirm(`Sero criadas ${qty} parcelas recorrentes. Deseja continuar?`)) return;
+            if (window._guardAplicarRep) return;
+            window._guardAplicarRep = true;
+
+            const freqMap = { semanal: 7, quinzenal: 14, mensal: 1, bimestral: 2, trimestral: 3, semestral: 6, anual: 12 };
+            const isMonthBased = !['semanal','quinzenal'].includes(freq);
+            const d = new Date(dataInicio + 'T12:00:00');
+
+            // Collect base data from form
+            const baseDados = {
+                fornecedor: document.getElementById('conta-fornecedor').value,
+                categoria: document.getElementById('conta-categoria').value,
+                numero_documento: document.getElementById('conta-documento').value,
+                valor_total: parseMoeda(document.getElementById('conta-valor').value),
+                data_emissao: document.getElementById('conta-emissão').value || null,
+                conta_bancaria_id: document.getElementById('conta-banco').value || null,
+                observações: document.getElementById('conta-observacoes').value
+            };
+
+            let criadas = 0, erros = 0;
+            for (let i = 1; i <= qty; i++) {
+                let nd;
+                if (isMonthBased) {
+                    nd = new Date(d);
+                    nd.setMonth(nd.getMonth() + freqMap[freq] * i);
+                    if (diaFixo === 'Último') {
+                        nd = new Date(nd.getFullYear(), nd.getMonth() + 1, 0);
+                    } else if (diaFixo !== 'original') {
+                        const dia = parseInt(diaFixo);
+                        const lastDay = new Date(nd.getFullYear(), nd.getMonth() + 1, 0).getDate();
+                        nd.setDate(Math.min(dia, lastDay));
+                    }
+                } else {
+                    nd = new Date(d.getTime() + freqMap[freq] * i * 86400000);
+                }
+
+                const venc = nd.toISOString().split('T')[0];
+                const desc = `${baseDados.fornecedor} é Parcela ${i}/${qty}`;
+
+                try {
+                    const resp = await fetch('/api/financeiro/contas-pagar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            ...baseDados,
+                            descrição: desc,
+                            data_vencimento: venc,
+                            data_vencimento_original: venc,
+                            observações: `[Recorrência ${freq} ${i}/${qty}] ${baseDados.observações || ''}`
+                        })
+                    });
+                    if (resp.ok) criadas++; else erros++;
+                } catch(e) { erros++; }
+            }
+
+            mostrarNotificação(`${criadas} parcelas geradas com sucesso!${erros ? ` (${erros} erros)` : ''}`, erros ? 'warning' : 'success');
+            await carregarContas();
+            window._guardAplicarRep = false;
+        }
+
+        function limparRepeticao() {
+            document.getElementById('rep-frequencia').value = '';
+            document.getElementById('rep-quantidade').value = '12';
+            document.getElementById('rep-data-inicio').value = '';
+            document.getElementById('rep-dia-fixo').value = 'original';
+            document.getElementById('rep-preview').innerHTML = '<span style="color:#b45309;">Selecione a frequência para visualizar as datas.</span>';
+        }
+
+        function editarConta(id) {
+            const conta = contasPagar.find(c => c.id === id);
+            if (!conta) return;
+
+            editandoId = id;
+            document.getElementById('modal-titulo').textContent = 'Editar Conta a Pagar';
+
+            document.getElementById('conta-id').value = conta.id;
+            document.getElementById('conta-fornecedor').value = conta.fornecedor || conta.fornecedor_nome || '';
+            document.getElementById('conta-categoria').value = conta.categoria || '';
+            document.getElementById('conta-documento').value = conta.numero_documento || conta.documento || '';
+            document.getElementById('conta-codigo-barras').value = conta.codigo_barras || '';
+            document.getElementById('conta-valor').value = formatarMoedaInput2(conta.valor_total || conta.valor || 0);
+            document.getElementById('conta-emissão').value = conta.data_emissao || '';
+            document.getElementById('conta-vencimento-original').value = conta.data_vencimento_original || conta.vencimento_original || conta.data_vencimento || conta.vencimento || '';
+            document.getElementById('conta-vencimento').value = conta.data_vencimento || conta.data_vencimento_atualizado || conta.vencimento || '';
+            document.getElementById('conta-banco').value = conta.conta_bancaria_id || '';
+            document.getElementById('conta-forma-pagamento').value = conta.forma_pagamento || '';
+            document.getElementById('conta-observacoes').value = conta.observações || '';
+
+            // Resetar para primeira aba
+            document.querySelectorAll('.tab-conta').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-pane-conta').forEach(p => p.classList.remove('active'));
+            document.querySelector('.tab-conta[data-tab="detalhes"]').classList.add('active');
+            document.getElementById('tab-detalhes').classList.add('active');
+
+            document.getElementById('modalConta').classList.add('active');
+        }
+
+        async function salvarConta() {
+            const dados = {
+                fornecedor: document.getElementById('conta-fornecedor').value,
+                fornecedor_id: document.getElementById('conta-fornecedor').dataset.id || document.getElementById('conta-fornecedor').value,
+                categoria: document.getElementById('conta-categoria').value,
+                numero_documento: document.getElementById('conta-documento').value,
+                codigo_barras: document.getElementById('conta-codigo-barras').value,
+                valor_total: parseMoeda(document.getElementById('conta-valor').value),
+                data_emissao: document.getElementById('conta-emissão').value || null,
+                data_vencimento_original: document.getElementById('conta-vencimento-original').value,
+                data_vencimento: document.getElementById('conta-vencimento').value || document.getElementById('conta-vencimento-original').value,
+                conta_bancaria_id: document.getElementById('conta-banco').value || null,
+                forma_pagamento: document.getElementById('conta-forma-pagamento').value || null,
+                descrição: document.getElementById('conta-documento').value || document.getElementById('conta-fornecedor').value,
+                observações: document.getElementById('conta-observacoes').value
+            };
+
+            if (!dados.fornecedor || !dados.valor_total || !dados.data_vencimento_original) {
+                mostrarNotificação('Preencha os campos obrigatórios', 'warning');
+                return;
+            }
+
+            const btn = document.querySelector('.btn-salvar-lateral');
+            const btnOriginal = btn ? btn.innerHTML : '';
+
+            try {
+                if (btn) {
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+                    btn.disabled = true;
+                }
+
+                const url = editandoId
+                    ? `/api/financeiro/contas-pagar/${editandoId}`
+                    : '/api/financeiro/contas-pagar';
+
+                // UC-FIN-01: Gerar X-Idempotency-Key para prevenir lançamentos duplicados
+                const headers = { 'Content-Type': 'application/json' };
+                if (!editandoId) {
+                    headers['X-Idempotency-Key'] = crypto.randomUUID();
+                }
+
+                const response = await fetch(url, {
+                    method: editandoId ? 'PUT' : 'POST',
+                    headers,
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    fecharModal();
+                    await carregarContas();
+                    mostrarNotificação(editandoId ? 'Conta atualizada com sucesso!' : 'Conta criada com sucesso!', 'success');
+                } else if (response.status === 409) {
+                    const error = await response.json();
+                    mostrarNotificação('Lançamento duplicado detectado. Esta conta já foi salva.', 'warning');
+                } else {
+                    const error = await response.json();
+                    mostrarNotificação('Erro: ' + (error.message || 'Falha ao salvar'), 'error');
+                }
+            } catch (e) {
+                console.error('Erro ao salvar:', e);
+                mostrarNotificação('Erro ao salvar conta', 'error');
+            } finally {
+                if (btn) {
+                    btn.innerHTML = btnOriginal;
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        // Modal de Pagamento
+        function abrirModalPagamento(id) {
+            const conta = contasPagar.find(c => c.id === id);
+            if (!conta) return;
+
+            const valorTotal = parseFloat(conta.valor_total || conta.valor || 0);
+            const valorPago = parseFloat(conta.valor_pago || conta.pago || 0);
+            const saldo = valorTotal - valorPago;
+
+            document.getElementById('pagamento-conta-id').value = id;
+            document.getElementById('pagamento-fornecedor').textContent = conta.fornecedor || conta.fornecedor_nome || 'Fornecedor';
+            document.getElementById('pagamento-descricao').textContent = conta.descricao || `Valor: ${formatarMoeda(saldo)}`;
+            document.getElementById('pagamento-valor').value = formatarMoedaInput2(saldo);
+            document.getElementById('pagamento-data').value = new Date().toISOString().split('T')[0];
+            document.getElementById('pagamento-banco').value = conta.conta_bancaria_id || '';
+            document.getElementById('pagamento-obs').value = '';
+
+            document.getElementById('modalPagamento').classList.add('active');
+        }
+
+        function fecharModalPagamento() {
+            document.getElementById('modalPagamento').classList.remove('active');
+        }
+
+        async function confirmarPagamento() {
+            const btn = document.getElementById('btnConfirmarPagamento');
+            const btnOriginal = btn.innerHTML;
+
+            const id = document.getElementById('pagamento-conta-id').value;
+            const dados = {
+                valor_pago: parseMoeda(document.getElementById('pagamento-valor').value),
+                data_pagamento: document.getElementById('pagamento-data').value,
+                conta_bancaria_id: document.getElementById('pagamento-banco').value || null,
+                observações: document.getElementById('pagamento-obs').value
+            };
+
+            if (!dados.valor_pago || !dados.data_pagamento) {
+                mostrarNotificação('Preencha o valor e a data do pagamento', 'warning');
+                return;
+            }
+
+            try {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+                btn.disabled = true;
+
+                const response = await fetch(`/api/financeiro/contas-pagar/${id}/baixa`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    fecharModalPagamento();
+                    await carregarContas();
+                    mostrarNotificação('Pagamento registrado com sucesso!', 'success');
+                } else {
+                    const error = await response.json();
+                    mostrarNotificação('Erro: ' + (error.message || 'Falha ao registrar pagamento'), 'error');
+                }
+            } catch (e) {
+                console.error('Erro ao pagar:', e);
+                mostrarNotificação('Erro ao registrar pagamento', 'error');
+            } finally {
+                btn.innerHTML = btnOriginal;
+                btn.disabled = false;
+            }
+        }
+
+        async function excluirConta(id) {
+            if (!confirm('Tem certeza que deseja excluir esta conta?')) return;
+            if (window._guardExcluirContaP) return;
+            window._guardExcluirContaP = true;
+
+            try {
+                const response = await fetch(`/api/financeiro/contas-pagar/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    await carregarContas();
+                    mostrarNotificação('Conta excluída com sucesso!', 'success');
+                } else {
+                    const error = await response.json();
+                    mostrarNotificação('Erro: ' + (error.message || 'Falha ao excluir'), 'error');
+                }
+            } catch (e) {
+                console.error('Erro ao excluir:', e);
+                mostrarNotificação('Erro ao excluir conta', 'error');
+            } finally { window._guardExcluirContaP = false; }
+        }
+
+        let contaVisualizandoId = null;
+
+        function verConta(id) {
+            const conta = contasPagar.find(c => c.id === id);
+            if (!conta) return;
+
+            contaVisualizandoId = id;
+
+            const valorTotal = parseFloat(conta.valor_total || conta.valor || 0);
+            const valorPago = parseFloat(conta.valor_pago || conta.pago || 0);
+            const saldo = valorTotal - valorPago;
+
+            const hoje = new Date().toISOString().split('T')[0];
+            const vencimento = conta.data_vencimento || conta.vencimento;
+            let status = conta.status || 'pendente';
+            if (status !== 'pago' && vencimento && String(vencimento).slice(0,10) < hoje) {
+                status = 'vencido';
+            } else if (valorPago > 0 && valorPago < valorTotal) {
+                status = 'parcial';
+            }
+
+            const statusLabels = { pendente: 'Pendente', vencido: 'Vencido', pago: 'Pago', parcial: 'Parcial' };
+            const statusIcons = { pendente: 'fa-clock', vencido: 'fa-exclamation-triangle', pago: 'fa-check-circle', parcial: 'fa-adjust' };
+
+            const categoriaLabels = { 'fornecedores': 'Fornecedores', 'despesas-fixas': 'Despesas Fixas', 'impostos': 'Impostos e Tributos', 'folha': 'Folha de Pagamento', 'servicos': 'Serviços', 'materiais': 'Materiais', 'outros': 'Outros' };
+
+            const doc = conta.numero_documento || conta.documento || '-';
+            const fornecedor = conta.fornecedor || conta.fornecedor_nome || '-';
+
+            document.getElementById('view-titulo').textContent = 'Detalhes da Conta a Pagar';
+            document.getElementById('view-documento-sub').textContent = doc !== '-' ? `Documento: ${doc}` : '';
+            document.getElementById('view-fornecedor').textContent = fornecedor;
+            document.getElementById('view-documento').textContent = doc;
+            document.getElementById('view-categoria').textContent = categoriaLabels[conta.categoria] || conta.categoria || '-';
+            document.getElementById('view-codigo-barras').textContent = conta.codigo_barras || '-';
+            document.getElementById('view-valor-total').textContent = formatarMoeda(valorTotal);
+            document.getElementById('view-valor-pago').textContent = formatarMoeda(valorPago);
+            document.getElementById('view-saldo').textContent = formatarMoeda(saldo);
+            document.getElementById('view-emissão').textContent = formatarData(conta.data_emissao) || '-';
+            document.getElementById('view-vencimento-original').textContent = formatarData(conta.data_vencimento_original || conta.vencimento_original || vencimento);
+            document.getElementById('view-vencimento-atualizado').textContent = formatarData(conta.data_vencimento_atualizado || conta.vencimento_atualizado || vencimento);
+            document.getElementById('view-observacoes').textContent = conta.observações || 'Nenhuma observação registrada.';
+
+            const badge = document.getElementById('view-status-badge');
+            badge.className = 'view-status-badge status-' + status;
+            badge.innerHTML = `<i class="fas ${statusIcons[status] || 'fa-clock'}"></i> ${statusLabels[status] || status}`;
+
+            // Mostrar/esconder botão de pagar
+            document.getElementById('btn-view-pagar').style.display = status === 'pago' ? 'none' : 'flex';
+
+            document.getElementById('modalVisualizarConta').classList.add('active');
+        }
+
+        function fecharModalVisualizar() {
+            document.getElementById('modalVisualizarConta').classList.remove('active');
+            contaVisualizandoId = null;
+        }
+
+        function editarContaFromView() {
+            const id = contaVisualizandoId;
+            fecharModalVisualizar();
+            if (id) editarConta(id);
+        }
+
+        function pagarContaFromView() {
+            const id = contaVisualizandoId;
+            fecharModalVisualizar();
+            if (id) abrirModalPagamento(id);
+        }
+
+        function exportarCSV() {
+            if (contasPagar.length === 0) {
+                mostrarNotificação('Não há dados para exportar', 'warning');
+                return;
+            }
+
+            let csv = 'Documento,Fornecedor,Categoria,Vencimento,Valor Total,Valor Pago,Status\n';
+            contasPagar.forEach(c => {
+                csv += `"${c.numero_documento || c.documento || ''}","${c.fornecedor || c.fornecedor_nome || ''}","${c.categoria || ''}","${c.data_vencimento || c.vencimento || ''}","${c.valor_total || c.valor || 0}","${c.valor_pago || c.pago || 0}","${c.status || ''}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `contas-pagar-${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+
+            mostrarNotificação('Arquivo exportado com sucesso!', 'success');
+        }
+
+        // Funões de formatação
+        // AUDIT-FIX S2.5: XSS protection for innerHTML with API data
+        function esc(s) { return String(s || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
+
+        function formatarMoeda(valor) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+        }
+
+        function parseMoeda(valor) {
+            if (!valor) return 0;
+            return parseFloat(valor.toString().replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+        }
+
+        function formatarMoedaInput(input) {
+            let valor = input.value.replace(/\D/g, '');
+            if (!valor) { input.value = ''; return; }
+            valor = (parseInt(valor) / 100).toFixed(2);
+            input.value = valor.replace('.', ',');
+        }
+
+        function formatarMoedaInput2(valor) {
+            return parseFloat(valor || 0).toFixed(2).replace('.', ',');
+        }
+
+        function formatarData(data) {
+            if (!data) return '-';
+            var s = String(data).slice(0, 10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '-';
+            return new Date(s + 'T00:00:00').toLocaleDateString('pt-BR');
+        }
+
+        // Notificações
+        function mostrarNotificação(mensagem, tipo = 'info') {
+            const cores = {
+                'success': '#22c55e',
+                'error': '#ef4444',
+                'warning': '#f59e0b',
+                'info': '#3b82f6'
+            };
+
+            const icones = {
+                'success': 'check-circle',
+                'error': 'times-circle',
+                'warning': 'exclamation-triangle',
+                'info': 'info-circle'
+            };
+
+            const notif = document.createElement('div');
+            notif.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: white;
+                padding: 16px 24px;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                z-index: 999999;
+                animation: slideIn 0.3s ease;
+                border-left: 4px solid ${cores[tipo]};
+            `;
+            notif.innerHTML = `
+                <i class="fas fa-${icones[tipo]}" style="color: ${cores[tipo]}; font-size: 20px;"></i>
+                <span style="font-size: 14px; font-weight: 500;">${mensagem}</span>
+            `;
+            document.body.appendChild(notif);
+
+            setTimeout(() => {
+                notif.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notif.remove(), 300);
+            }, 3000);
+        }
+
+        // Adicionar animações CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+            @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+        `;
+        document.head.appendChild(style);
+
+        // Função para filtrar impostos (DARF, IR, SIMPLES NACIONAL, FGTS, INSS)
+        function filtrarImpostos() {
+            const termosImpostos = ['DARF', 'IR', 'IRRF', 'IRPJ', 'SIMPLES', 'SIMPLES NACIONAL', 'FGTS', 'INSS', 'IMPOSTO', 'TRIBUTO', 'GPS', 'DAS', 'ISS', 'ICMS', 'PIS', 'COFINS', 'CSLL'];
+
+            // Filtrar por categoria impostos OU por termos no documento/fornecedor
+            const contasFiltradas = todasContas.filter(c => {
+                const categoria = (c.categoria || '').toLowerCase();
+                const documento = (c.numero_documento || c.documento || '').toUpperCase();
+                const fornecedor = (c.fornecedor || c.fornecedor_nome || '').toUpperCase();
+                const observação = (c.observação || c.obs || c.observações || '').toUpperCase();
+                const descrição = (c.descricao || '').toUpperCase();
+
+                // Verifica se é categoria de impostos
+                if (categoria === 'impostos') return true;
+
+                // Verifica se algum termo de imposto aparece no documento, fornecedor, observação ou descrição
+                return termosImpostos.some(termo =>
+                    documento.includes(termo) ||
+                    fornecedor.includes(termo) ||
+                    observação.includes(termo) ||
+                    descrição.includes(termo)
+                );
+            });
+
+            contasPagar = contasFiltradas;
+            renderizarTabela();
+            atualizarStats();
+
+            // Feedback visual
+            mostrarNotificação(`${contasFiltradas.length} conta(s) de impostos encontrada(s)`, contasFiltradas.length > 0 ? 'success' : 'warning');
+        }
+
+        // Função para mostrar todas as contas (limpar filtro)
+        function mostrarTodasContas() {
+            contasPagar = [...todasContas];
+            document.getElementById('filter-periodo').value = 'all';
+            document.getElementById('filter-status').value = '';
+            document.getElementById('filter-categoria').value = '';
+            document.getElementById('filter-fornecedor').value = '';
+            renderizarTabela();
+            atualizarStats();
+            mostrarNotificação('Exibindo todas as contas', 'info');
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarUsuario();
+            carregarContasBancarias();
+            carregarContas();
+        });
+    </script>
+
+    <!-- Sistema de Importação XLSX -->
+    <script src="js/importar-xlsx.js?v=20260131"></script>
+    <script src="js/financeiro-shared.js?v=20260217"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- Zyntra: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+
+    <!-- Chat Corporativo (Teams) -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
+    <script src="/js/user-dropdown.js?v=20260319" defer></script>
+
+    <!-- Modais do Financeiro (abre via ?fin=... vindo do mega-menu lateral) -->
+    <script src="/Financeiro/financeiro-modais.js?v=20260623c"></script>
 </body>
-
 </html>
+
+

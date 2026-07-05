@@ -22,8 +22,7 @@ function createLGPDRouter(pool, authenticateToken) {
     async function ensureLGPDTables() {
         const connection = await pool.getConnection();
         try {
-            await connection.beginTransaction();
-
+            // DDL statements cause implicit commits in MySQL — no transaction needed
             // Tabela de consentimentos
             await connection.query(`
                 CREATE TABLE IF NOT EXISTS lgpd_consentimentos (
@@ -135,9 +134,8 @@ function createLGPDRouter(pool, authenticateToken) {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             `);
 
-            await connection.commit();
         } catch (err) {
-            await connection.rollback();
+            if (err.code === 'ER_LOCK_DEADLOCK') return; // tables already being created by another process
             console.error('[LGPD] Erro ao criar tabelas:', err.message);
         } finally {
             connection.release();

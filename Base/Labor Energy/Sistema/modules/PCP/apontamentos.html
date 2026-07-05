@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
@@ -14,7 +14,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/pcp-layout.css">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260218">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260621b" defer></script>
     <link rel="stylesheet" href="css/pcp-components.css">
     <link rel="stylesheet" href="pcp-tablet-fix.css?v=20260120">
 
@@ -33,7 +34,7 @@
 
         /* Reset e body gerenciados por pcp-layout.css */
 
-        /* Sidebar, Header, Mobile ? gerenciado por global-header-sidebar.css */
+        /* Sidebar, Header, Mobile ? gerenciado por global-header-sidebar.css?v=20260621 */
 
         .header-title {
             color: white;
@@ -122,7 +123,7 @@
         }
         .op-item:hover { background: #f8fafc; }
         .op-item.selected { background: #dbeafe; }
-        .op-codigo { font-weight: 600; color: var(--primary-color); }
+        .op-código { font-weight: 600; color: var(--primary-color); }
         .op-produto { font-size: 14px; }
         .op-progresso { display: flex; align-items: center; gap: 8px; }
         .progress-bar {
@@ -145,7 +146,7 @@
             font-weight: 600;
         }
         .status-badge.ativa { background: #dbeafe; color: #3b82f6; }
-        .status-badge.em_produção { background: #fef3c7; color: #d97706; }
+        .status-badge.em_producao { background: #fef3c7; color: #d97706; }
         .status-badge.concluida { background: #dcfce7; color: #16a34a; }
         .status-badge.pendente { background: #f1f5f9; color: #64748b; }
 
@@ -328,8 +329,6 @@
     <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260326">
-<!-- FIX-100: Global fetch error guard -->
-<script>!function(){var o=window.fetch;window.fetch=async function(){var r=await o.apply(this,arguments);if(!r.ok&&r.status>=500)console.warn('[Fetch] Erro '+r.status+': '+(typeof arguments[0]==='string'?arguments[0]:''));return r}}()</script>
     <link rel="stylesheet" href="/css/design-system.css?v=20260502">
 </head>
 <body>
@@ -366,6 +365,9 @@
                 <a href="apontamentos.html" class="sidebar-btn active" title="Apontamentos">
                     <i class="fas fa-stopwatch"></i>
                 </a>
+                <a href="pages/qualidade.html" class="sidebar-btn" title="Qualidade">
+                    <i class="fas fa-award"></i>
+                </a>
                 <a href="pages/relatorios.html" class="sidebar-btn" title="Relatórios">
                     <i class="fas fa-chart-pie"></i>
                 </a>
@@ -387,7 +389,7 @@
                         <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
                         <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">?</span>
+                        <span style="color:rgba(255,255,255,0.35);font-weight:300;font-size:14px;user-select:none;margin:0 4px;">›</span>
                         <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Apontamentos</span>
                     </div>
                 </div>
@@ -397,10 +399,6 @@
                     </button>
                     <div class="user-greeting">
                         <span><span id="saudacao">Bom dia</span>, <strong id="userName">Operador</strong></span>
-                        <div class="user-avatar" id="userAvatar">
-                            <img src="" alt="Foto" id="user-photo" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:50%;">
-                            <span id="user-initials">O</span>
-                        </div>
                     </div>
                 </div>
             </header>
@@ -618,12 +616,12 @@
                 </div>
 
                 <!-- Botões de Aão -->
-                <div class="acoes-timer" id="acoesTimer" style="display: none;">
-                    <button class="btn-acao pausar" id="btnPausar" onclick="pausarAtividade()">
+                <div class="ações-timer" id="acoesTimer" style="display: none;">
+                    <button class="btn-ação pausar" id="btnPausar" onclick="pausarAtividade()">
                         <i class="fas fa-pause"></i>
                         <span>PAUSAR</span>
                     </button>
-                    <button class="btn-acao finalizar" onclick="finalizarAtividade()">
+                    <button class="btn-ação finalizar" onclick="finalizarAtividade()">
                         <i class="fas fa-stop"></i>
                         <span>FINALIZAR</span>
                     </button>
@@ -638,7 +636,7 @@
                             <span class="resumo-label">Total trabalhado</span>
                         </div>
                     </div>
-                    <div class="historico-lista" id="históricoLista">
+                    <div class="historico-lista" id="historicoLista">
                         <div class="empty-state-mini">
                             <i class="fas fa-clock"></i>
                             <p>Nenhum registro hoje</p>
@@ -785,7 +783,7 @@
             gap: 16px;
             margin-bottom: 24px;
         }
-        .btn-acao {
+        .btn-ação {
             display: flex;
             align-items: center;
             gap: 12px;
@@ -799,30 +797,30 @@
             text-transform: uppercase;
             letter-spacing: 1px;
         }
-        .btn-acao.pausar {
+        .btn-ação.pausar {
             background: linear-gradient(135deg, #f59e0b, #d97706);
             color: white;
             box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
         }
-        .btn-acao.pausar:hover {
+        .btn-ação.pausar:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
         }
-        .btn-acao.continuar {
+        .btn-ação.continuar {
             background: linear-gradient(135deg, #22c55e, #16a34a);
             color: white;
             box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4);
         }
-        .btn-acao.finalizar {
+        .btn-ação.finalizar {
             background: linear-gradient(135deg, #ef4444, #dc2626);
             color: white;
             box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
         }
-        .btn-acao.finalizar:hover {
+        .btn-ação.finalizar:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
         }
-        .btn-acao i {
+        .btn-ação i {
             font-size: 20px;
         }
 
@@ -903,7 +901,7 @@
             color: var(--text-secondary);
             margin-top: 2px;
         }
-        .historico-duracao {
+        .historico-duração {
             font-size: 18px;
             font-weight: 700;
             color: var(--text-primary);
@@ -939,7 +937,7 @@
             .timer-display-grande {
                 font-size: 48px;
             }
-            .btn-acao {
+            .btn-ação {
                 padding: 14px 24px;
                 font-size: 14px;
             }
@@ -1045,7 +1043,7 @@
             atualizarDataHoje();
             carregarHistoricoLocal();
             verificarAtividadeEmAndamento();
-            atualizarSaudacao();
+            atualizarSaudação();
         });
 
         function atualizarDataHoje() {
@@ -1058,7 +1056,7 @@
         }
 
         // Função para obter saudação baseada na hora
-        function getSaudacao() {
+        function getSaudação() {
             const hora = new Date().getHours();
             if (hora >= 5 && hora < 12) return 'Bom dia';
             if (hora >= 12 && hora < 18) return 'Boa tarde';
@@ -1131,9 +1129,9 @@
                     const primeiroNome = user.apelido || nome.split(' ')[0];
 
                     // Atualizar saudação e nome separadamente
-                    const saudacaoEl = document.getElementById('saudacao');
+                    const saudaçãoEl = document.getElementById('saudacao');
                     const userNameEl = document.getElementById('userName');
-                    if (saudacaoEl) saudacaoEl.textContent = getSaudacao() + ',';
+                    if (saudaçãoEl) saudaçãoEl.textContent = getSaudação() + ',';
                     if (userNameEl) userNameEl.textContent = primeiroNome;
 
                     const avatarEl = document.getElementById('userAvatar');
@@ -1197,56 +1195,28 @@
             const isFullAccess = rolesFullAccess.some(r => role.includes(r)) ||
                                  roles.some(r => rolesFullAccess.some(a => r.includes(a)));
 
+            if (isFullAccess) {
+                // Sidebar estática já contém todos os itens — não recriar para evitar flash
+                return;
+            }
+
             const sidebarBottom = document.querySelector('.sidebar-bottom');
 
-            if (isFullAccess) {
-                // Sidebar completa com todos os itens
-                sidebarNav.innerHTML = `
-                    <a href="index.html" class="sidebar-btn" title="Dashboard PCP">
-                        <i class="fas fa-tachometer-alt"></i>
-                    </a>
-                    <a href="pages/estoque.html" class="sidebar-btn" title="Estoque">
-                        <i class="fas fa-boxes"></i>
-                    </a>
-                    <a href="pages/materiais.html" class="sidebar-btn" title="Materiais">
-                        <i class="fas fa-layer-group"></i>
-                    </a>
-                    <a href="pages/ordem-compra.html" class="sidebar-btn" title="Ordem de Compra">
-                        <i class="fas fa-shopping-cart"></i>
-                    </a>
-                    <a href="ordens-producao.html" class="sidebar-btn" title="Ordens de Produção">
-                        <i class="fas fa-clipboard-list"></i>
-                    </a>
-                    <a href="pages/gestao-producao.html" class="sidebar-btn" title="Gestão de Produção">
-                        <i class="fas fa-industry"></i>
-                    </a>
-                    <a href="pages/faturamento.html" class="sidebar-btn" title="Faturamento">
-                        <i class="fas fa-file-invoice-dollar"></i>
-                    </a>
-                    <a href="apontamentos.html" class="sidebar-btn active" title="Apontamentos">
-                        <i class="fas fa-stopwatch"></i>
-                    </a>
-                    <a href="pages/relatorios.html" class="sidebar-btn" title="Relatórios">
-                        <i class="fas fa-chart-pie"></i>
-                    </a>
+            // Operador: apenas Ordens de Produção e Apontamentos
+            sidebarNav.innerHTML = `
+                <a href="ordens-producao.html" class="sidebar-btn" title="Ordens de Produção">
+                    <i class="fas fa-clipboard-list"></i>
+                </a>
+                <a href="apontamentos.html" class="sidebar-btn active" title="Apontamentos">
+                    <i class="fas fa-stopwatch"></i>
+                </a>
+            `;
+            if (sidebarBottom) {
+                sidebarBottom.innerHTML = `
+                    <button class="sidebar-btn" title="Sair" onclick="fazerLogout()">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
                 `;
-            } else {
-                // Operador: apenas Ordens de Produção e Apontamentos
-                sidebarNav.innerHTML = `
-                    <a href="ordens-producao.html" class="sidebar-btn" title="Ordens de Produção">
-                        <i class="fas fa-clipboard-list"></i>
-                    </a>
-                    <a href="apontamentos.html" class="sidebar-btn active" title="Apontamentos">
-                        <i class="fas fa-stopwatch"></i>
-                    </a>
-                `;
-                if (sidebarBottom) {
-                    sidebarBottom.innerHTML = `
-                        <button class="sidebar-btn" title="Sair" onclick="fazerLogout()">
-                            <i class="fas fa-sign-out-alt"></i>
-                        </button>
-                    `;
-                }
             }
         }
 
@@ -1262,7 +1232,7 @@
                 localStorage.removeItem('token');
                 localStorage.removeItem('authToken');
                 document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-                window.location.href = '/login';
+                window.location.assign('/login');
             }
         }
 
@@ -1273,14 +1243,14 @@
         }
 
         // Saudação dinâmica
-        function atualizarSaudacao() {
+        function atualizarSaudação() {
             const hora = new Date().getHours();
-            let saudacao = 'Bom dia';
-            if (hora >= 12 && hora < 18) saudacao = 'Boa tarde';
-            else if (hora >= 18 || hora < 6) saudacao = 'Boa noite';
+            let saudação = 'Bom dia';
+            if (hora >= 12 && hora < 18) saudação = 'Boa tarde';
+            else if (hora >= 18 || hora < 6) saudação = 'Boa noite';
 
             const el = document.getElementById('saudacao');
-            if (el) el.textContent = saudacao + ',';
+            if (el) el.textContent = saudação + ',';
         }
 
         function iniciarAtividade(tipo, nome, cor) {
@@ -1319,7 +1289,7 @@
 
             mostrarToast(`${nome} iniciado!`, 'success');
 
-            // === NOTIFICAÇÃO PUSH: Avisar todos os usuários PCP ===
+            // === NOTIFICAÇÁO PUSH: Avisar todos os usuários PCP ===
             notificarInicioPCP(tipo, nome);
         }
 
@@ -1331,11 +1301,11 @@
 
         // Enviar notificação push de início de atividade para o servidor
         async function notificarInicioPCP(tipo, nome) {
-            notificarAcaoPCP('iniciou', tipo, nome);
+            notificarAçãoPCP('iniciou', tipo, nome);
         }
 
         // Enviar notificação push genrica (início, pausa, retomada, finalização)
-        async function notificarAcaoPCP(ação, tipo, nome, duracao) {
+        async function notificarAçãoPCP(ação, tipo, nome, duração) {
             const headers = { 'Content-Type': 'application/json' };
             const operador = getOperadorNome();
             const body = {
@@ -1343,7 +1313,7 @@
                 nome_atividade: nome,
                 operador: operador,
                 ação: ação,
-                duracao: duracao || null
+                duração: duração || null
             };
 
             // Se offline, enfileirar
@@ -1407,11 +1377,11 @@
             // Atualizar botão pausar/continuar
             const btnPausar = document.getElementById('btnPausar');
             if (timerPausado) {
-                btnPausar.className = 'btn-acao continuar';
+                btnPausar.className = 'btn-ação continuar';
                 btnPausar.innerHTML = '<i class="fas fa-play"></i><span>CONTINUAR</span>';
                 btnPausar.onclick = continuarAtividade;
             } else {
-                btnPausar.className = 'btn-acao pausar';
+                btnPausar.className = 'btn-ação pausar';
                 btnPausar.innerHTML = '<i class="fas fa-pause"></i><span>PAUSAR</span>';
                 btnPausar.onclick = pausarAtividade;
             }
@@ -1447,7 +1417,7 @@
             mostrarToast('Atividade pausada', 'info');
             // Notificação push: atividade pausada
             if (atividadeAtual) {
-                notificarAcaoPCP('pausou', atividadeAtual.tipo, atividadeAtual.nome);
+                notificarAçãoPCP('pausou', atividadeAtual.tipo, atividadeAtual.nome);
             }
         }
 
@@ -1458,7 +1428,7 @@
             mostrarToast('Atividade retomada', 'success');
             // Notificação push: atividade retomada
             if (atividadeAtual) {
-                notificarAcaoPCP('retomou', atividadeAtual.tipo, atividadeAtual.nome);
+                notificarAçãoPCP('retomou', atividadeAtual.tipo, atividadeAtual.nome);
             }
         }
 
@@ -1471,9 +1441,9 @@
             }
             salvandoApontamento = true;
 
-            const pedidoNumero = document.getElementById('inputPedidoNumero')?.value?.trim() || '';
-            const produtoDescricao = document.getElementById('inputProdutoDescricao')?.value?.trim() || '';
-            const observacoes = document.getElementById('inputObservacoes')?.value?.trim() || '';
+            const pedidoNúmero = document.getElementById('inputPedidoNumero')?.value?.trim() || '';
+            const produtoDescrição = document.getElementById('inputProdutoDescricao')?.value?.trim() || '';
+            const observações = document.getElementById('inputObservacoes')?.value?.trim() || '';
             const maquina = document.getElementById('inputMaquina')?.value?.trim() || '';
             const turno = document.getElementById('inputTurno')?.value || '';
             const qtdProduzida = parseFloat(document.getElementById('inputQtdProduzida')?.value) || 0;
@@ -1486,11 +1456,11 @@
                 cor: atividadeAtual.cor,
                 horaInicio: horaInicio.toISOString(),
                 horaFim: new Date().toISOString(),
-                duracao: timerSeconds,
+                duração: timerSeconds,
                 data: new Date().toISOString().split('T')[0],
-                pedido_numero: pedidoNumero,
-                produto_descricao: produtoDescricao,
-                observacoes: observacoes,
+                pedido_numero: pedidoNúmero,
+                produto_descricao: produtoDescrição,
+                observações: observações,
                 maquina: maquina,
                 turno: turno,
                 quantidade_produzida: qtdProduzida,
@@ -1499,8 +1469,8 @@
 
             // Adicionar ao histórico
             históricoHoje.unshift(registro);
-            salvarHistoricoLocal();
-            renderizarHistorico();
+            salvarHistóricoLocal();
+            renderizarHistórico();
 
             // Salvar no servidor
             salvarRegistroServidor(registro);
@@ -1508,9 +1478,9 @@
             // Resetar timer
             resetarTimer();
 
-            mostrarToast(`${registro.nome} finalizado! Duração: ${formatarDuracao(registro.duracao)}`, 'success');
+            mostrarToast(`${registro.nome} finalizado! Duração: ${formatarDuração(registro.duração)}`, 'success');
             // Notificação push: atividade finalizada com duração
-            notificarAcaoPCP('finalizou', registro.tipo, registro.nome, formatarDuracao(registro.duracao));
+            notificarAçãoPCP('finalizou', registro.tipo, registro.nome, formatarDuração(registro.duração));
         }
 
         function finalizarAtividadeAutomatica() {
@@ -1520,9 +1490,9 @@
             salvandoApontamento = true;
 
             // Capturar campos de contexto antes de perder a referência
-            const pedidoNumero = document.getElementById('inputPedidoNumero')?.value?.trim() || '';
-            const produtoDescricao = document.getElementById('inputProdutoDescricao')?.value?.trim() || '';
-            const observacoes = document.getElementById('inputObservacoes')?.value?.trim() || '';
+            const pedidoNúmero = document.getElementById('inputPedidoNumero')?.value?.trim() || '';
+            const produtoDescrição = document.getElementById('inputProdutoDescricao')?.value?.trim() || '';
+            const observações = document.getElementById('inputObservacoes')?.value?.trim() || '';
             const maquina = document.getElementById('inputMaquina')?.value?.trim() || '';
             const turno = document.getElementById('inputTurno')?.value || '';
             const qtdProduzida = parseFloat(document.getElementById('inputQtdProduzida')?.value) || 0;
@@ -1535,11 +1505,11 @@
                 cor: atividadeAtual.cor,
                 horaInicio: horaInicio.toISOString(),
                 horaFim: new Date().toISOString(),
-                duracao: timerSeconds,
+                duração: timerSeconds,
                 data: new Date().toISOString().split('T')[0],
-                pedido_numero: pedidoNumero,
-                produto_descricao: produtoDescricao,
-                observacoes: observacoes,
+                pedido_numero: pedidoNúmero,
+                produto_descricao: produtoDescrição,
+                observações: observações,
                 maquina: maquina,
                 turno: turno,
                 quantidade_produzida: qtdProduzida,
@@ -1547,8 +1517,8 @@
             };
 
             históricoHoje.unshift(registro);
-            salvarHistoricoLocal();
-            renderizarHistorico();
+            salvarHistóricoLocal();
+            renderizarHistórico();
             salvarRegistroServidor(registro);
             salvandoApontamento = false;
         }
@@ -1585,7 +1555,7 @@
                 card.classList.remove('ativo');
             });
 
-            renderizarHistorico();
+            renderizarHistórico();
         }
 
         function salvarAtividadeEmAndamento() {
@@ -1599,7 +1569,7 @@
                 savedAt: new Date().toISOString(),
                 pedido_numero: document.getElementById('inputPedidoNumero')?.value?.trim() || '',
                 produto_descricao: document.getElementById('inputProdutoDescricao')?.value?.trim() || '',
-                observacoes: document.getElementById('inputObservacoes')?.value?.trim() || '',
+                observações: document.getElementById('inputObservacoes')?.value?.trim() || '',
                 maquina: document.getElementById('inputMaquina')?.value?.trim() || '',
                 turno: document.getElementById('inputTurno')?.value || '',
                 quantidade_produzida: parseFloat(document.getElementById('inputQtdProduzida')?.value) || 0,
@@ -1649,7 +1619,7 @@
                 // Restaurar campos de contexto se salvos
                 if (atividade.pedido_numero) document.getElementById('inputPedidoNumero').value = atividade.pedido_numero;
                 if (atividade.produto_descricao) document.getElementById('inputProdutoDescricao').value = atividade.produto_descricao;
-                if (atividade.observacoes) document.getElementById('inputObservacoes').value = atividade.observacoes;
+                if (atividade.observações) document.getElementById('inputObservacoes').value = atividade.observações;
                 if (atividade.maquina) document.getElementById('inputMaquina').value = atividade.maquina;
                 if (atividade.turno) document.getElementById('inputTurno').value = atividade.turno;
                 if (atividade.quantidade_produzida) document.getElementById('inputQtdProduzida').value = atividade.quantidade_produzida;
@@ -1659,17 +1629,17 @@
             }
         }
 
-        function salvarHistoricoLocal() {
-            localStorage.setItem('histórico_apontamentos_' + new Date().toISOString().split('T')[0], JSON.stringify(históricoHoje));
+        function salvarHistóricoLocal() {
+            localStorage.setItem('historico_apontamentos_' + new Date().toISOString().split('T')[0], JSON.stringify(históricoHoje));
         }
 
         function carregarHistoricoLocal() {
             const hoje = new Date().toISOString().split('T')[0];
-            const dados = localStorage.getItem('histórico_apontamentos_' + hoje);
+            const dados = localStorage.getItem('historico_apontamentos_' + hoje);
             if (dados) {
                 históricoHoje = JSON.parse(dados);
             }
-            renderizarHistorico();
+            renderizarHistórico();
 
             // Também carregar do servidor para ter dados completos
             carregarHistoricoServidor(hoje);
@@ -1707,8 +1677,8 @@
                         });
                         // Ordenar por hora de início (mais recente primeiro)
                         históricoHoje.sort((a, b) => new Date(b.horaInicio) - new Date(a.horaInicio));
-                        salvarHistoricoLocal();
-                        renderizarHistorico();
+                        salvarHistóricoLocal();
+                        renderizarHistórico();
                     }
                 }
             } catch (e) {
@@ -1723,10 +1693,10 @@
                 nome_atividade: registro.nome,
                 hora_inicio: registro.horaInicio,
                 hora_fim: registro.horaFim,
-                duracao_segundos: registro.duracao,
+                duracao_segundos: registro.duração,
                 pedido_numero: registro.pedido_numero || '',
                 produto_descricao: registro.produto_descricao || '',
-                observacoes: registro.observacoes || '',
+                observações: registro.observações || '',
                 ordem_producao_id: registro.ordem_producao_id || null,
                 maquina: registro.maquina || '',
                 turno: registro.turno || '',
@@ -1786,8 +1756,8 @@
             return div.innerHTML;
         }
 
-        function renderizarHistorico() {
-            const container = document.getElementById('históricoLista');
+        function renderizarHistórico() {
+            const container = document.getElementById('historicoLista');
 
             if (!históricoHoje.length) {
                 container.innerHTML = `
@@ -1801,8 +1771,8 @@
             }
 
             // Calcular tempo total
-            const totalSegundos = históricoHoje.reduce((acc, r) => acc + r.duracao, 0);
-            document.getElementById('totalTempo').textContent = formatarDuracao(totalSegundos);
+            const totalSegundos = históricoHoje.reduce((acc, r) => acc + r.duração, 0);
+            document.getElementById('totalTempo').textContent = formatarDuração(totalSegundos);
 
             container.innerHTML = históricoHoje.map(registro => {
                 const cores = coresAtividades[registro.tipo] || coresAtividades.outros;
@@ -1821,15 +1791,15 @@
                                 ${fim.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}
                                 ${registro.pedido_numero ? ` — <span style="color:#4338ca;font-weight:600;">Pedido #${escapeHtml(String(registro.pedido_numero))}</span>` : ''}
                             </div>
-                            ${registro.observacoes ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px;" title="${escapeHtml(registro.observacoes)}">${escapeHtml(registro.observacoes)}</div>` : ''}
+                            ${registro.observações ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px;" title="${escapeHtml(registro.observações)}">${escapeHtml(registro.observações)}</div>` : ''}
                         </div>
-                        <div class="historico-duracao">${formatarDuracao(registro.duracao)}</div>
+                        <div class="historico-duração">${formatarDuração(registro.duração)}</div>
                     </div>
                 `;
             }).join('');
         }
 
-        function formatarDuracao(segundos) {
+        function formatarDuração(segundos) {
             const h = Math.floor(segundos / 3600);
             const m = Math.floor((segundos % 3600) / 60);
             const s = segundos % 60;
@@ -1873,5 +1843,6 @@
     <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
 </body>
 </html>
+
 
 

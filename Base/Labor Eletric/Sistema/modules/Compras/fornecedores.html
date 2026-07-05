@@ -9,7 +9,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#1e1e1e">
     <meta name="format-detection" content="telephone=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -30,7 +30,7 @@
 
     <!-- CSS Padrão Global -->
     <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260301">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260301">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
     <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260301">
     <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
 
@@ -70,16 +70,16 @@
         <aside class="sidebar" id="mobile-sidebar">
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
             <nav class="sidebar-nav">
-                <button class="sidebar-btn" title="Dashboard" onclick="window.location.href='index.html'"><i class="fas fa-chart-line"></i></button>
-                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'"><i class="fas fa-shopping-cart"></i></button>
-                <button class="sidebar-btn" title="Cotações" onclick="window.location.href='cotacoes.html'"><i class="fas fa-file-invoice-dollar"></i></button>
-                <button class="sidebar-btn active" title="Fornecedores" onclick="window.location.href='fornecedores.html'"><i class="fas fa-users"></i></button>
-                <button class="sidebar-btn" title="Requisições" onclick="window.location.href='requisicoes.html'"><i class="fas fa-clipboard-list"></i></button>
-                <button class="sidebar-btn" title="Recebimento" onclick="window.location.href='recebimento.html'"><i class="fas fa-truck-loading"></i></button>
+                <button class="sidebar-btn" title="Dashboard" onclick="window.location.href='/Compras/index.html'"><i class="fas fa-chart-line"></i></button>
+                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='/Compras/pedidos.html'"><i class="fas fa-shopping-cart"></i></button>
+                <button class="sidebar-btn" title="Cotações" onclick="window.location.href='/Compras/cotacoes.html'"><i class="fas fa-file-invoice-dollar"></i></button>
+                <button class="sidebar-btn active" title="Fornecedores" onclick="window.location.href='/Compras/fornecedores.html'"><i class="fas fa-users"></i></button>
+                <button class="sidebar-btn" title="Requisições" onclick="window.location.href='/Compras/requisicoes.html'"><i class="fas fa-clipboard-list"></i></button>
+                <button class="sidebar-btn" title="Recebimento" onclick="window.location.href='/Compras/recebimento.html'"><i class="fas fa-truck-loading"></i></button>
             </nav>
             <div class="sidebar-bottom">
-                <button class="sidebar-btn" title="Estoque MP" onclick="window.location.href='gestao-estoque.html'"><i class="fas fa-boxes"></i></button>
-                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'"><i class="fas fa-chart-bar"></i></button>
+                <button class="sidebar-btn" title="Estoque MP" onclick="window.location.href='/Compras/gestao-estoque.html'"><i class="fas fa-boxes"></i></button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='/Compras/relatorios.html'"><i class="fas fa-chart-bar"></i></button>
             </div>
         </aside>
 
@@ -89,9 +89,9 @@
                 <div class="header-left">
                     <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
                     <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
                         <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Fornecedores</span>
                     </div>
@@ -172,7 +172,7 @@
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th style="width:50px">#</th>
+                                <th style="width:50px"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()" title="Selecionar todos"></th>
                                 <th>Razão Social</th>
                                 <th>CNPJ</th>
                                 <th>Categoria</th>
@@ -410,8 +410,14 @@
         cep = (cep || '').replace(/\D/g, '');
         if (cep.length !== 8) { _toast('CEP inválido', 'error'); return; }
         try {
-            const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-            const d = await r.json();
+            // Use XMLHttpRequest to avoid credentials:'include' patch (ViaCEP rejects credentialed requests)
+            const d = await new Promise(function(resolve, reject) {
+                var x = new XMLHttpRequest();
+                x.open('GET', 'https://viacep.com.br/ws/' + cep + '/json/');
+                x.onload = function() { x.status === 200 ? resolve(JSON.parse(x.responseText)) : reject(new Error('HTTP ' + x.status)); };
+                x.onerror = function() { reject(new Error('network')); };
+                x.send();
+            });
             if (d.erro) { _toast('CEP não encontrado', 'warning'); return; }
             document.getElementById('endereco').value = d.logradouro || '';
             document.getElementById('bairro').value = d.bairro || '';
@@ -617,3 +623,4 @@
     <script src="/_shared/accessibility-widget.js?v=20260418"></script>
 </body>
 </html>
+

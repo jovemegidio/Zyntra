@@ -764,7 +764,7 @@ const BOB_KNOWLEDGE_BASE = {
 • **Barra de pesquisa** — busca rápida
 • **Notificações** — atualizações importantes
 
-📖 [Ver tutorial completo](https://aluforce.api.br/ajuda/artigos/primeiro-acesso.html)`
+📖 [Ver tutorial completo](https://zyntraerp.com.br/ajuda/artigos/primeiro-acesso.html)`
     },
 
     configuracoes: {
@@ -778,8 +778,8 @@ Após o primeiro acesso, configure:
 3. **Usuários e Permissões** — quem acessa o quê
 4. **Certificado Digital** — para emissão de NF-e
 
-📖 [Configurações Iniciais](https://aluforce.api.br/ajuda/artigos/configuracoes-iniciais.html)
-📖 [Configurações por Segmento](https://aluforce.api.br/ajuda/artigos/configuracoes-segmento.html)`
+📖 [Configurações Iniciais](https://zyntraerp.com.br/ajuda/artigos/configuracoes-iniciais.html)
+📖 [Configurações por Segmento](https://zyntraerp.com.br/ajuda/artigos/configuracoes-segmento.html)`
     },
 
     // ── VENDAS ──
@@ -800,9 +800,9 @@ Após o primeiro acesso, configure:
 **Status do pedido:**
 • Rascunho → Pendente → Aprovado → Em Produção → Faturado → Entregue
 
-📖 [Tutorial: Criar Pedido](https://aluforce.api.br/ajuda/artigos/tutorial-novo-pedido-venda.html)
-📖 [Duplicar Pedido](https://aluforce.api.br/ajuda/artigos/tutorial-duplicar-pedido.html)
-📖 [Gerar Orçamento](https://aluforce.api.br/ajuda/artigos/tutorial-gerar-orcamento.html)`
+📖 [Tutorial: Criar Pedido](https://zyntraerp.com.br/ajuda/artigos/tutorial-novo-pedido-venda.html)
+📖 [Duplicar Pedido](https://zyntraerp.com.br/ajuda/artigos/tutorial-duplicar-pedido.html)
+📖 [Gerar Orçamento](https://zyntraerp.com.br/ajuda/artigos/tutorial-gerar-orcamento.html)`
     },
 
     orcamento: {
@@ -815,8 +815,8 @@ O Aluforce permite gerar orçamentos a partir de pedidos:
 3. O sistema gera um PDF formatado para o cliente
 4. Envie por e-mail diretamente pelo sistema
 
-📖 [Tutorial: Gerar Orçamento](https://aluforce.api.br/ajuda/artigos/tutorial-gerar-orcamento.html)
-📖 [Exportar Pedido em PDF](https://aluforce.api.br/ajuda/artigos/tutorial-exportar-pedido-pdf.html)`
+📖 [Tutorial: Gerar Orçamento](https://zyntraerp.com.br/ajuda/artigos/tutorial-gerar-orcamento.html)
+📖 [Exportar Pedido em PDF](https://zyntraerp.com.br/ajuda/artigos/tutorial-exportar-pedido-pdf.html)`
     },
 
     comissoes: {
@@ -829,7 +829,7 @@ Acompanhe suas comissões no módulo de Vendas:
 3. Veja o total de comissões a receber
 4. Exporte relatórios detalhados
 
-📖 [Tutorial: Acompanhar Comissões](https://aluforce.api.br/ajuda/artigos/tutorial-acompanhar-comissoes.html)`
+📖 [Tutorial: Acompanhar Comissões](https://zyntraerp.com.br/ajuda/artigos/tutorial-acompanhar-comissoes.html)`
     },
 
     prospeccao: {
@@ -841,7 +841,7 @@ Use a prospecção inteligente do Aluforce:
 2. Busque empresas por segmento, região ou porte
 3. Converta prospecções em clientes e pedidos
 
-📖 [Tutorial: Prospecção B2B](https://aluforce.api.br/ajuda/artigos/tutorial-prospeccao-b2b.html)`
+📖 [Tutorial: Prospecção B2B](https://zyntraerp.com.br/ajuda/artigos/tutorial-prospeccao-b2b.html)`
     },
 
     tabelaPrecos: {
@@ -853,7 +853,7 @@ Configure preços diferenciados:
 2. Crie tabelas por tipo de cliente, região ou volume
 3. Vincule tabelas aos clientes automaticamente
 
-📖 [Tabela de Preços](https://aluforce.api.br/ajuda/artigos/tabela-precos.html)`
+📖 [Tabela de Preços](https://zyntraerp.com.br/ajuda/artigos/tabela-precos.html)`
     },
 
     duplicarPedido: {
@@ -866,7 +866,7 @@ Para criar pedidos semelhantes rapidamente:
 3. Altere cliente, itens ou condições conforme necessário
 4. Salve o novo pedido
 
-📖 [Tutorial: Duplicar Pedido](https://aluforce.api.br/ajuda/artigos/tutorial-duplicar-pedido.html)`
+📖 [Tutorial: Duplicar Pedido](https://zyntraerp.com.br/ajuda/artigos/tutorial-duplicar-pedido.html)`
     },
 
     exportarPdf: {
@@ -878,7 +878,7 @@ Para criar pedidos semelhantes rapidamente:
 3. Selecione **PDF**
 4. O documento será gerado com layout profissional
 
-📖 [Tutorial: Exportar PDF](https://aluforce.api.br/ajuda/artigos/tutorial-exportar-pedido-pdf.html)`
+📖 [Tutorial: Exportar PDF](https://zyntraerp.com.br/ajuda/artigos/tutorial-exportar-pedido-pdf.html)`
     },
 
     // ── COMPRAS ──
@@ -896,10 +896,10 @@ Para criar pedidos semelhantes rapidamente:
 6. **Aprovação de compras** — Fluxo de aprovação
 7. **Relatórios de compras** — Análise de gastos
 
-📖 [Tutorial: Pedido de Compra](https://aluforce.api.br/ajuda/artigos/tutorial-novo-pedido-compra.html)
-📖 [Tutorial: Cotação](https://aluforce.api.br/ajuda/artigos/tutorial-cotacao-fornecedores.html)
-📖 [Tutorial: Entrada de Nota](https://aluforce.api.br/ajuda/artigos/tutorial-entrada-nota-compra.html)
-📖 [Cadastrar Fornecedor](https://aluforce.api.br/ajuda/artigos/tutorial-cadastrar-fornecedor.html)`
+📖 [Tutorial: Pedido de Compra](https://zyntraerp.com.br/ajuda/artigos/tutorial-novo-pedido-compra.html)
+📖 [Tutorial: Cotação](https://zyntraerp.com.br/ajuda/artigos/tutorial-cotacao-fornecedores.html)
+📖 [Tutorial: Entrada de Nota](https://zyntraerp.com.br/ajuda/artigos/tutorial-entrada-nota-compra.html)
+📖 [Cadastrar Fornecedor](https://zyntraerp.com.br/ajuda/artigos/tutorial-cadastrar-fornecedor.html)`
     },
 
     // ── FINANCEIRO ──
@@ -916,10 +916,10 @@ Para criar pedidos semelhantes rapidamente:
 • **Desconto de Duplicatas** — Antecipação de recebíveis
 • **Relatórios** — DRE, balanço e análises
 
-📖 [Contas a Pagar](https://aluforce.api.br/ajuda/artigos/tutorial-contas-pagar.html)
-📖 [Contas a Receber](https://aluforce.api.br/ajuda/artigos/tutorial-contas-receber.html)
-📖 [Fluxo de Caixa](https://aluforce.api.br/ajuda/artigos/tutorial-fluxo-caixa.html)
-📖 [Conciliação Bancária](https://aluforce.api.br/ajuda/artigos/tutorial-conciliacao-bancaria.html)`
+📖 [Contas a Pagar](https://zyntraerp.com.br/ajuda/artigos/tutorial-contas-pagar.html)
+📖 [Contas a Receber](https://zyntraerp.com.br/ajuda/artigos/tutorial-contas-receber.html)
+📖 [Fluxo de Caixa](https://zyntraerp.com.br/ajuda/artigos/tutorial-fluxo-caixa.html)
+📖 [Conciliação Bancária](https://zyntraerp.com.br/ajuda/artigos/tutorial-conciliacao-bancaria.html)`
     },
 
     contasPagar: {
@@ -933,7 +933,7 @@ Como lançar uma conta a pagar:
 4. Defina a forma de pagamento
 5. Salve e acompanhe os vencimentos
 
-📖 [Tutorial: Contas a Pagar](https://aluforce.api.br/ajuda/artigos/tutorial-contas-pagar.html)`
+📖 [Tutorial: Contas a Pagar](https://zyntraerp.com.br/ajuda/artigos/tutorial-contas-pagar.html)`
     },
 
     contasReceber: {
@@ -946,7 +946,7 @@ Como registrar um recebimento:
 3. Registre o pagamento recebido
 4. Confirme a baixa
 
-📖 [Tutorial: Contas a Receber](https://aluforce.api.br/ajuda/artigos/tutorial-contas-receber.html)`
+📖 [Tutorial: Contas a Receber](https://zyntraerp.com.br/ajuda/artigos/tutorial-contas-receber.html)`
     },
 
     fluxoCaixa: {
@@ -960,7 +960,7 @@ Consulte projeção financeira:
 4. Analise o saldo projetado
 5. Exporte relatórios
 
-📖 [Tutorial: Fluxo de Caixa](https://aluforce.api.br/ajuda/artigos/tutorial-fluxo-caixa.html)`
+📖 [Tutorial: Fluxo de Caixa](https://zyntraerp.com.br/ajuda/artigos/tutorial-fluxo-caixa.html)`
     },
 
     conciliacao: {
@@ -974,7 +974,7 @@ Integre seus extratos bancários:
 4. Confirme as conciliações
 5. Resolva divergências manualmente
 
-📖 [Tutorial: Conciliação Bancária](https://aluforce.api.br/ajuda/artigos/tutorial-conciliacao-bancaria.html)`
+📖 [Tutorial: Conciliação Bancária](https://zyntraerp.com.br/ajuda/artigos/tutorial-conciliacao-bancaria.html)`
     },
 
     descontoDuplicatas: {
@@ -987,7 +987,7 @@ Antecipação de recebíveis no Aluforce:
 3. Informe o banco e taxa de desconto
 4. Confirme a operação
 
-📖 [Desconto de Duplicatas](https://aluforce.api.br/ajuda/artigos/desconto-duplicatas.html)`
+📖 [Desconto de Duplicatas](https://zyntraerp.com.br/ajuda/artigos/desconto-duplicatas.html)`
     },
 
     contasBancarias: {
@@ -999,7 +999,7 @@ Antecipação de recebíveis no Aluforce:
 3. Defina a conta padrão
 4. Integre para conciliação automática
 
-📖 [Tutorial: Contas Bancárias](https://aluforce.api.br/ajuda/artigos/tutorial-gerenciar-contas-bancarias.html)`
+📖 [Tutorial: Contas Bancárias](https://zyntraerp.com.br/ajuda/artigos/tutorial-gerenciar-contas-bancarias.html)`
     },
 
     // ── FATURAMENTO / NF-e ──
@@ -1022,10 +1022,10 @@ Antecipação de recebíveis no Aluforce:
 4. Clique em **"Emitir NF-e"**
 5. Aguarde a autorização da SEFAZ
 
-📖 [Tutorial: Faturar Pedido](https://aluforce.api.br/ajuda/artigos/tutorial-faturar-pedido.html)
-📖 [Tutorial: Emitir NF-e](https://aluforce.api.br/ajuda/artigos/tutorial-emitir-nfe.html)
-📖 [Tutorial: Cancelar NF-e](https://aluforce.api.br/ajuda/artigos/tutorial-cancelar-nfe.html)
-📖 [Tutorial: Carta de Correção](https://aluforce.api.br/ajuda/artigos/tutorial-carta-correcao-cce.html)`
+📖 [Tutorial: Faturar Pedido](https://zyntraerp.com.br/ajuda/artigos/tutorial-faturar-pedido.html)
+📖 [Tutorial: Emitir NF-e](https://zyntraerp.com.br/ajuda/artigos/tutorial-emitir-nfe.html)
+📖 [Tutorial: Cancelar NF-e](https://zyntraerp.com.br/ajuda/artigos/tutorial-cancelar-nfe.html)
+📖 [Tutorial: Carta de Correção](https://zyntraerp.com.br/ajuda/artigos/tutorial-carta-correcao-cce.html)`
     },
 
     nfse: {
@@ -1037,7 +1037,7 @@ O Aluforce já suporta a migração para a NFS-e Nacional:
 • Consulta de notas de serviço
 • Adequação automática ao novo padrão
 
-📖 [NFS-e Nacional](https://aluforce.api.br/ajuda/artigos/nfs-e-nacional.html)`
+📖 [NFS-e Nacional](https://zyntraerp.com.br/ajuda/artigos/nfs-e-nacional.html)`
     },
 
     pix: {
@@ -1050,7 +1050,7 @@ Gere cobranças PIX pelo Aluforce:
 3. Gere o QR Code
 4. Envie ao cliente por e-mail ou WhatsApp
 
-📖 [Tutorial: Cobrança PIX](https://aluforce.api.br/ajuda/artigos/tutorial-pix-cobranca.html)`
+📖 [Tutorial: Cobrança PIX](https://zyntraerp.com.br/ajuda/artigos/tutorial-pix-cobranca.html)`
     },
 
     reguaCobranca: {
@@ -1063,7 +1063,7 @@ Configure cobranças automáticas:
 3. Personalize as mensagens
 4. Ative a régua para clientes
 
-📖 [Tutorial: Régua de Cobrança](https://aluforce.api.br/ajuda/artigos/tutorial-regua-cobranca.html)`
+📖 [Tutorial: Régua de Cobrança](https://zyntraerp.com.br/ajuda/artigos/tutorial-regua-cobranca.html)`
     },
 
     // ── ESTOQUE ──
@@ -1077,8 +1077,8 @@ Controle completo de inventário:
 • Inventário e contagem
 • Rastreabilidade de lotes
 
-📖 [Tutorial: Consultar Estoque](https://aluforce.api.br/ajuda/artigos/tutorial-consultar-estoque.html)
-📖 [Módulo Estoque](https://aluforce.api.br/ajuda/colecoes/estoque.html)`
+📖 [Tutorial: Consultar Estoque](https://zyntraerp.com.br/ajuda/artigos/tutorial-consultar-estoque.html)
+📖 [Módulo Estoque](https://zyntraerp.com.br/ajuda/colecoes/estoque.html)`
     },
 
     // ── PCP / PRODUÇÃO ──
@@ -1100,9 +1100,9 @@ Controle completo de inventário:
 4. O sistema verifica materiais disponíveis
 5. Inicie a produção
 
-📖 [Tutorial: Criar OP](https://aluforce.api.br/ajuda/artigos/tutorial-criar-ordem-producao.html)
-📖 [Tutorial: Apontar Produção](https://aluforce.api.br/ajuda/artigos/tutorial-apontar-producao.html)
-📖 [Tutorial: Estrutura BOM](https://aluforce.api.br/ajuda/artigos/tutorial-estrutura-bom.html)`
+📖 [Tutorial: Criar OP](https://zyntraerp.com.br/ajuda/artigos/tutorial-criar-ordem-producao.html)
+📖 [Tutorial: Apontar Produção](https://zyntraerp.com.br/ajuda/artigos/tutorial-apontar-producao.html)
+📖 [Tutorial: Estrutura BOM](https://zyntraerp.com.br/ajuda/artigos/tutorial-estrutura-bom.html)`
     },
 
     // ── RH ──
@@ -1117,10 +1117,10 @@ Controle completo de inventário:
 • **Cadastro de Funcionários** — Dados completos
 • **Treinamentos** — Gerenciar capacitações
 
-📖 [Tutorial: Consultar Holerite](https://aluforce.api.br/ajuda/artigos/tutorial-consultar-holerite.html)
-📖 [Tutorial: Solicitar Férias](https://aluforce.api.br/ajuda/artigos/tutorial-solicitar-ferias.html)
-📖 [Tutorial: Registrar Ponto](https://aluforce.api.br/ajuda/artigos/tutorial-registrar-ponto.html)
-📖 [Tutorial: Cadastrar Funcionário](https://aluforce.api.br/ajuda/artigos/tutorial-cadastrar-funcionario.html)`
+📖 [Tutorial: Consultar Holerite](https://zyntraerp.com.br/ajuda/artigos/tutorial-consultar-holerite.html)
+📖 [Tutorial: Solicitar Férias](https://zyntraerp.com.br/ajuda/artigos/tutorial-solicitar-ferias.html)
+📖 [Tutorial: Registrar Ponto](https://zyntraerp.com.br/ajuda/artigos/tutorial-registrar-ponto.html)
+📖 [Tutorial: Cadastrar Funcionário](https://zyntraerp.com.br/ajuda/artigos/tutorial-cadastrar-funcionario.html)`
     },
 
     holerite: {
@@ -1132,7 +1132,7 @@ Controle completo de inventário:
 3. Visualize proventos e descontos
 4. Baixe em PDF se necessário
 
-📖 [Tutorial: Consultar Holerite](https://aluforce.api.br/ajuda/artigos/tutorial-consultar-holerite.html)`
+📖 [Tutorial: Consultar Holerite](https://zyntraerp.com.br/ajuda/artigos/tutorial-consultar-holerite.html)`
     },
 
     ferias: {
@@ -1144,7 +1144,7 @@ Controle completo de inventário:
 3. Selecione o período desejado
 4. Envie para aprovação do gestor
 
-📖 [Tutorial: Solicitar Férias](https://aluforce.api.br/ajuda/artigos/tutorial-solicitar-ferias.html)`
+📖 [Tutorial: Solicitar Férias](https://zyntraerp.com.br/ajuda/artigos/tutorial-solicitar-ferias.html)`
     },
 
     ponto: {
@@ -1156,7 +1156,7 @@ Controle completo de inventário:
 3. Confirme sua entrada ou saída
 4. Consulte seu espelho de ponto
 
-📖 [Tutorial: Registrar Ponto](https://aluforce.api.br/ajuda/artigos/tutorial-registrar-ponto.html)`
+📖 [Tutorial: Registrar Ponto](https://zyntraerp.com.br/ajuda/artigos/tutorial-registrar-ponto.html)`
     },
 
     // ── CADASTROS ──
@@ -1170,8 +1170,8 @@ Gerencie sua base de dados:
 • **Produtos** — Catálogo com preços e estoque
 • **Serviços** — Serviços prestados pela empresa
 
-📖 [Cadastros](https://aluforce.api.br/ajuda/colecoes/cadastros.html)
-📖 [Cadastrar Fornecedor](https://aluforce.api.br/ajuda/artigos/tutorial-cadastrar-fornecedor.html)`
+📖 [Cadastros](https://zyntraerp.com.br/ajuda/colecoes/cadastros.html)
+📖 [Cadastrar Fornecedor](https://zyntraerp.com.br/ajuda/artigos/tutorial-cadastrar-fornecedor.html)`
     },
 
     // ── RELATÓRIOS ──
@@ -1187,8 +1187,8 @@ O Aluforce possui relatórios em todos os módulos:
 • **PCP** — Produção, eficiência, apontamentos
 • **RH** — Folha, ponto, treinamentos
 
-📖 [Relatórios de Vendas](https://aluforce.api.br/ajuda/artigos/relatorios-vendas.html)
-📖 [Relatórios Financeiros](https://aluforce.api.br/ajuda/artigos/relatorios-financeiros.html)`
+📖 [Relatórios de Vendas](https://zyntraerp.com.br/ajuda/artigos/relatorios-vendas.html)
+📖 [Relatórios Financeiros](https://zyntraerp.com.br/ajuda/artigos/relatorios-financeiros.html)`
     },
 
     // ── SEGURANÇA / PERMISSÕES ──
@@ -1202,8 +1202,8 @@ Gerencie acesso ao sistema:
 3. Restrinja ações (visualizar, criar, editar, excluir)
 4. Configure perfis de acesso por departamento
 
-📖 [Usuários e Permissões](https://aluforce.api.br/ajuda/artigos/usuarios-permissoes.html)
-📖 [Segurança](https://aluforce.api.br/ajuda/colecoes/seguranca.html)`
+📖 [Usuários e Permissões](https://zyntraerp.com.br/ajuda/artigos/usuarios-permissoes.html)
+📖 [Segurança](https://zyntraerp.com.br/ajuda/colecoes/seguranca.html)`
     },
 
     // ── WHATSAPP ──
@@ -1217,7 +1217,7 @@ Gerencie seu negócio pelo WhatsApp:
 • Acompanhe vendas em tempo real
 • Interaja com o sistema pelo celular
 
-📖 [Aluforce no WhatsApp](https://aluforce.api.br/ajuda/colecoes/whatsapp.html)`
+📖 [Aluforce no WhatsApp](https://zyntraerp.com.br/ajuda/colecoes/whatsapp.html)`
     },
 
     // ── CENÁRIOS DE NEGÓCIO ──
@@ -1231,7 +1231,7 @@ Exemplos práticos para seu dia a dia:
 • Ciclo financeiro: faturamento → cobrança → recebimento
 • Produção: pedido → OP → apontamento → entrega
 
-📖 [Cenários de Negócio](https://aluforce.api.br/ajuda/colecoes/cenarios.html)`
+📖 [Cenários de Negócio](https://zyntraerp.com.br/ajuda/colecoes/cenarios.html)`
     },
 
     // ── NOVIDADES ──
@@ -1245,7 +1245,7 @@ Fique por dentro das últimas atualizações:
 • Correções e otimizações
 • Integrações novas
 
-📖 [Novidades](https://aluforce.api.br/ajuda/colecoes/novidades.html)`
+📖 [Novidades](https://zyntraerp.com.br/ajuda/colecoes/novidades.html)`
     },
 
     // ── PORTAL ──
@@ -1259,7 +1259,7 @@ Plataforma que simplifica comunicação e gestão:
 • Acesso rápido a todos os módulos
 • Indicadores em tempo real
 
-📖 [Portal Aluforce](https://aluforce.api.br/ajuda/colecoes/portal.html)`
+📖 [Portal Aluforce](https://zyntraerp.com.br/ajuda/colecoes/portal.html)`
     },
 
     // ── TI / SUPORTE TÉCNICO (mantém os originais) ──
@@ -1368,7 +1368,7 @@ const BOB_SYSTEM_PROMPT = `Você é o BOB I.A., assistente virtual do sistema Al
 Você ajuda colaboradores com dúvidas sobre os módulos do sistema: Vendas, Compras, Financeiro, NF-e/NFS-e, PCP, RH, Estoque, Relatórios, Logística e WhatsApp Business.
 Responda sempre em português brasileiro, de forma profissional mas amigável.
 Use emojis moderadamente para tornar a conversa mais agradável.
-Quando não souber a resposta exata, oriente o usuário a acessar a Central de Ajuda em https://aluforce.api.br/ajuda.
+Quando não souber a resposta exata, oriente o usuário a acessar a Central de Ajuda em https://zyntraerp.com.br/ajuda.
 Seja conciso — respostas curtas e diretas são preferidas. Máximo 300 palavras.
 Nunca invente funcionalidades que o sistema não tem.
 Módulos disponíveis: Vendas (pedidos, orçamentos, comissões, prospecção), Compras (pedidos, cotações, fornecedores, recebimento), Financeiro (contas a pagar/receber, fluxo de caixa, conciliação, PIX, boletos), NF-e/NFS-e (emissão, cancelamento, carta de correção, DANFE), PCP (ordens de produção, kanban, BOM), RH (holerite, férias, ponto, treinamentos), Estoque (saldos, movimentações, inventário), Relatórios, Logística (entregas, rastreamento), WhatsApp Business.`;
@@ -1432,14 +1432,14 @@ async function generateBotResponse(userMessage, tiIsOnline, pool, userId) {
         const thanks = [
             'De nada! 😊 Se precisar de mais alguma ajuda com o sistema, é só perguntar!',
             'Disponha! 🤖 Estou aqui 24/7 para ajudar com o Aluforce!',
-            'Que bom que ajudou! ✅ Lembre-se: a Central de Ajuda tem tutoriais detalhados em https://aluforce.api.br/ajuda'
+            'Que bom que ajudou! ✅ Lembre-se: a Central de Ajuda tem tutoriais detalhados em https://zyntraerp.com.br/ajuda'
         ];
         return thanks[Math.floor(Math.random() * thanks.length)];
     }
 
     // ── Menu de ajuda completo ──
     if (/^(ajuda|help|menu|op[çc][oõ]es|o que voc[eê] faz|comandos|tudo|todos.*modulo)/i.test(msg)) {
-        return `🤖 **BOB I.A. — Assistente Aluforce ERP**\n\nPosso ajudar com **todos os módulos**:\n\n📋 **Guia Inicial** — Primeiro acesso, configurações\n🛒 **Vendas** — Pedidos, orçamentos, comissões, prospecção\n📦 **Compras** — Pedidos, cotações, fornecedores\n💰 **Financeiro** — Contas, fluxo de caixa, conciliação, PIX\n📄 **NF-e / NFS-e** — Emissão, cancelamento, carta de correção\n🏭 **PCP** — Ordens de produção, kanban, BOM\n👥 **RH** — Holerite, férias, ponto, treinamentos\n📦 **Estoque** — Saldos, movimentações, inventário\n📊 **Relatórios** — Todos os módulos\n🔒 **Segurança** — Permissões e acessos\n📱 **WhatsApp** — ERP pelo celular\n🔐 **TI** — Senha, rede, impressora, e-mail\n\n💡 Digite o assunto! Ex: *\"como criar pedido de venda\"*\n📖 Central de Ajuda: https://aluforce.api.br/ajuda`;
+        return `🤖 **BOB I.A. — Assistente Aluforce ERP**\n\nPosso ajudar com **todos os módulos**:\n\n📋 **Guia Inicial** — Primeiro acesso, configurações\n🛒 **Vendas** — Pedidos, orçamentos, comissões, prospecção\n📦 **Compras** — Pedidos, cotações, fornecedores\n💰 **Financeiro** — Contas, fluxo de caixa, conciliação, PIX\n📄 **NF-e / NFS-e** — Emissão, cancelamento, carta de correção\n🏭 **PCP** — Ordens de produção, kanban, BOM\n👥 **RH** — Holerite, férias, ponto, treinamentos\n📦 **Estoque** — Saldos, movimentações, inventário\n📊 **Relatórios** — Todos os módulos\n🔒 **Segurança** — Permissões e acessos\n📱 **WhatsApp** — ERP pelo celular\n🔐 **TI** — Senha, rede, impressora, e-mail\n\n💡 Digite o assunto! Ex: *\"como criar pedido de venda\"*\n📖 Central de Ajuda: https://zyntraerp.com.br/ajuda`;
     }
 
     // ── Buscar na base de conhecimento ──
@@ -1454,8 +1454,8 @@ async function generateBotResponse(userMessage, tiIsOnline, pool, userId) {
             switch (key) {
                 case 'senha':
                     return tiIsOnline
-                        ? `🔐 **Problemas com senha/acesso?**\n\nUm técnico do TI está **online agora**! Envie uma mensagem direta para ele.\n\n**Enquanto isso, tente:**\n• Verifique se o Caps Lock está desativado\n• Limpe o cache do navegador (Ctrl+Shift+Del)\n• Tente a opção "Esqueci minha senha"\n\n📖 [Primeiro Acesso](https://aluforce.api.br/ajuda/artigos/primeiro-acesso.html)`
-                        : `🔐 **Problemas com senha/acesso?**\n\n1. Verifique se o **Caps Lock** está desativado\n2. Tente **"Esqueci minha senha"** na tela de login\n3. Limpe o cache: **Ctrl+Shift+Del**\n4. Tente outro navegador (Chrome, Firefox, Edge)\n\n📖 [Primeiro Acesso](https://aluforce.api.br/ajuda/artigos/primeiro-acesso.html)\n\n⏰ TI disponível: Seg-Sex, 8h às 18h`;
+                        ? `🔐 **Problemas com senha/acesso?**\n\nUm técnico do TI está **online agora**! Envie uma mensagem direta para ele.\n\n**Enquanto isso, tente:**\n• Verifique se o Caps Lock está desativado\n• Limpe o cache do navegador (Ctrl+Shift+Del)\n• Tente a opção "Esqueci minha senha"\n\n📖 [Primeiro Acesso](https://zyntraerp.com.br/ajuda/artigos/primeiro-acesso.html)`
+                        : `🔐 **Problemas com senha/acesso?**\n\n1. Verifique se o **Caps Lock** está desativado\n2. Tente **"Esqueci minha senha"** na tela de login\n3. Limpe o cache: **Ctrl+Shift+Del**\n4. Tente outro navegador (Chrome, Firefox, Edge)\n\n📖 [Primeiro Acesso](https://zyntraerp.com.br/ajuda/artigos/primeiro-acesso.html)\n\n⏰ TI disponível: Seg-Sex, 8h às 18h`;
                 case 'internet':
                     return `🌐 **Problemas de conectividade?**\n\n1. **Reinicie** roteador/modem (desligue 30s)\n2. Reconecte o Wi-Fi\n3. CMD: \`ipconfig /release\` → \`ipconfig /renew\`\n4. Teste em outro dispositivo\n5. Tente cabo de rede\n\n${tiIsOnline ? '✅ TI online para ajudar!' : '⏰ TI offline — registre o problema.'}`;
                 case 'impressora':
@@ -1479,5 +1479,5 @@ async function generateBotResponse(userMessage, tiIsOnline, pool, userId) {
     }
 
     // ── Fallback geral (sem OpenAI disponível) ──
-    return `🤖 Não encontrei uma resposta exata para isso, mas posso te orientar!\n\n**Opções:**\n• Digite **"ajuda"** para ver todos os tópicos\n• Acesse a Central de Ajuda: https://aluforce.api.br/ajuda\n• Acesse os Tutoriais: https://aluforce.api.br/ajuda/colecoes/tutoriais.html\n${tiIsOnline ? '\n✅ Ou fale com o **TI online** para questões técnicas!' : '\n⏰ TI disponível: Seg-Sex, 8h às 18h'}`;
+    return `🤖 Não encontrei uma resposta exata para isso, mas posso te orientar!\n\n**Opções:**\n• Digite **"ajuda"** para ver todos os tópicos\n• Acesse a Central de Ajuda: https://zyntraerp.com.br/ajuda\n• Acesse os Tutoriais: https://zyntraerp.com.br/ajuda/colecoes/tutoriais.html\n${tiIsOnline ? '\n✅ Ou fale com o **TI online** para questões técnicas!' : '\n⏰ TI disponível: Seg-Sex, 8h às 18h'}`;
 }

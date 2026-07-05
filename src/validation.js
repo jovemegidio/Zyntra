@@ -6,11 +6,11 @@ const { ValidationError } = require('./errorHandler');
 const loginSchema = Joi.object({
   email: Joi.string()
     .email({ tlds: { allow: false } })
-    .pattern(/^[a-zA-Z0-9._%+-]+@(aluforce\.ind\.br|aluforce\.com|lumiereasses?oria\.com\.br)$/)
+    .pattern(/^[a-zA-Z0-9._%+-]+@(aluforce\.ind\.br|aluforce\.com|labor\.com\.br)$/)
     .required()
     .messages({
       'string.email': 'Email deve ter um formato válido',
-      'string.pattern.base': 'Apenas emails @aluforce.ind.br, @aluforce.com e @lumiereassessoria.com.br são permitidos',
+      'string.pattern.base': 'Apenas emails @aluforce.ind.br, @aluforce.com e @labor.com.br são permitidos',
       'any.required': 'Email é obrigatório'
     }),
   password: Joi.string()
@@ -39,7 +39,7 @@ const userCreateSchema = Joi.object({
     }),
   email: Joi.string()
     .email()
-    .pattern(/^[a-zA-Z0-9._%+-]+@(aluforce\.ind\.br|aluforce\.com|lumiereasses?oria\.com\.br)$/)
+    .pattern(/^[a-zA-Z0-9._%+-]+@(aluforce\.ind\.br|aluforce\.com|labor\.com\.br)$/)
     .required(),
   senha: Joi.string()
     .min(8)

@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const headerEl = document.querySelector('.main-header, .header, .topbar, .dash-nav');
     const rootEl = document.documentElement;
     const DARK_KEY = 'a11yDarkMode';
+    const withBasePath = (path) => window.__withBasePath ? window.__withBasePath(path) : path;
     
     // Aplicar preferência salva
     try { 
@@ -134,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     <div class="search-modules-grid">
                         ${modulosDisponiveis.map(m => `
-                            <div class="search-module-item" onclick="window.location.href='${m.url}'" style="--module-color: ${m.cor}; --module-color-rgb: ${m.corRgb}">
+                            <div class="search-module-item" onclick="window.location.href='${withBasePath(m.url)}'" style="--module-color: ${m.cor}; --module-color-rgb: ${m.corRgb}">
                                 <i class="fas ${m.icone}" style="color: ${m.cor}; background: linear-gradient(135deg, ${m.cor}14, ${m.cor}22);"></i>
                                 <span>${m.nome}</span>
                             </div>
@@ -206,7 +207,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     <div class="search-modules-grid compact">
                         ${modulosDisponiveis.slice(0, 4).map(m => `
-                            <div class="search-module-item" onclick="window.location.href='${m.url}'" style="--module-color: ${m.cor}">
+                            <div class="search-module-item" onclick="window.location.href='${withBasePath(m.url)}'" style="--module-color: ${m.cor}">
                                 <i class="fas ${m.icone}"></i>
                                 <span>${m.nome}</span>
                             </div>
@@ -257,7 +258,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 items.slice(0, 5).forEach(item => {
                     const link = getItemLink(item);
                     html += `
-                        <div class="search-result-item" onclick="${link ? `window.location.href='${link}'` : ''}">
+                        <div class="search-result-item" onclick="${link ? `window.location.href='${withBasePath(link)}'` : ''}">
                             <div class="result-icon" style="background: ${config.cor}20; color: ${config.cor}">
                                 <i class="fas ${config.icone}"></i>
                             </div>
@@ -472,7 +473,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Redirecionar para login
             console.log('[Header] ↩️ Redirecionando para login...');
-            setTimeout(() => { window.location.assign('/login.html'); }, 150);
+            setTimeout(() => {
+                const loginPath = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
+                window.location.assign(loginPath);
+            }, 150);
         });
         console.log('[Header] ✅ Logout configurado');
     } else {

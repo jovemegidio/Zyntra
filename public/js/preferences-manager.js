@@ -227,15 +227,12 @@
         },
 
         applyPreferences() {
-            // Apply dark mode only to header/sidebar via accessibility scope
+            // Apply dark mode
             if (this.preferences.darkMode) {
-                document.documentElement.classList.add('a11y-dark-mode');
-                localStorage.setItem('a11yDarkMode', '1');
+                document.body.classList.add('dark-mode');
             } else {
-                document.documentElement.classList.remove('a11y-dark-mode');
-                localStorage.setItem('a11yDarkMode', '0');
+                document.body.classList.remove('dark-mode');
             }
-            localStorage.removeItem('darkMode');
 
             // Apply font size
             this.applyFontSize(this.preferences.fontSize);

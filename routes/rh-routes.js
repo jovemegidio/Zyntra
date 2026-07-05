@@ -57,6 +57,20 @@ module.exports = function createRHRoutes(deps) {
     };
 
     // LGPD crypto (optional — fallback to identity if not available)
+    let funcionariosColumnSet = null;
+    const getFuncionariosColumns = async () => {
+        if (!funcionariosColumnSet) {
+            const [columns] = await pool.query('SHOW COLUMNS FROM funcionarios');
+            funcionariosColumnSet = new Set((columns || []).map(col => col.Field));
+        }
+        return funcionariosColumnSet;
+    };
+
+    const optionalFuncionarioSelect = (columns, field) => {
+        const safeField = String(field).replace(/`/g, '');
+        return columns.has(safeField) ? `\`${safeField}\`` : `NULL AS \`${safeField}\``;
+    };
+
     let lgpdCrypto = null;
     try {
         lgpdCrypto = require('../lgpd-crypto');
@@ -168,52 +182,22 @@ module.exports = function createRHRoutes(deps) {
         try {
             const { status, departamento, search, limit = 100, offset = 0 } = req.query;
 
-            // BE-005: Verificar se o usuário tem acesso explícito ao módulo RH
-            // Apenas usuários com área 'rh' recebem campos PII sensíveis
-            const userAreas = req.user?.areas || [];
-            const hasRhAccess = req.user?.is_admin === 1 ||
-                (Array.isArray(userAreas) && (userAreas.includes('rh') || userAreas.includes('RH')));
-
-            let sql;
-            if (hasRhAccess) {
-                // Acesso RH completo — todos os campos PII
-                sql = `
-                    SELECT
-                        id, nome_completo, email, cpf, rg, telefone,
-                        cargo, departamento, status, role,
-                        data_nascimento, data_admissao,
-                        estado_civil, nacionalidade, naturalidade,
-                        endereco, foto_perfil_url, foto_thumb_url,
-                        pis_pasep, ctps_numero, ctps_serie,
-                        banco, agencia, conta_corrente,
-                        tipo_chave_pix, chave_pix,
-                        dependentes, cnh, certificado_reservista,
-                        titulo_eleitor, zona_eleitoral, secao_eleitoral,
-                        filiacao_mae, filiacao_pai, dados_conjuge
-                    FROM funcionarios
-                    WHERE 1=1
-                `;
-            } else {
-                // Acesso sem RH — apenas campos não-PII (BE-005: conformidade LGPD)
-                sql = `
-                    SELECT
-                        id, nome_completo,
-                        CONCAT(SUBSTRING_INDEX(email,'@',1), '@***') AS email,
-                        NULL AS cpf, NULL AS rg,
-                        cargo, departamento, status, role,
-                        NULL AS data_nascimento, data_admissao,
-                        NULL AS estado_civil, NULL AS nacionalidade, NULL AS naturalidade,
-                        NULL AS endereco, foto_perfil_url, foto_thumb_url,
-                        NULL AS pis_pasep, NULL AS ctps_numero, NULL AS ctps_serie,
-                        NULL AS banco, NULL AS agencia, NULL AS conta_corrente,
-                        NULL AS tipo_chave_pix, NULL AS chave_pix,
-                        NULL AS dependentes, NULL AS cnh, NULL AS certificado_reservista,
-                        NULL AS titulo_eleitor, NULL AS zona_eleitoral, NULL AS secao_eleitoral,
-                        NULL AS filiacao_mae, NULL AS filiacao_pai, NULL AS dados_conjuge
-                    FROM funcionarios
-                    WHERE 1=1
-                `;
-            }
+            let sql = `
+                SELECT
+                    id, nome_completo, email, cpf, rg, telefone,
+                    cargo, departamento, status, role,
+                    data_nascimento, data_admissao,
+                    estado_civil, nacionalidade, naturalidade,
+                    endereco, foto_perfil_url, foto_thumb_url,
+                    pis_pasep, ctps_numero, ctps_serie,
+                    banco, agencia, conta_corrente,
+                    tipo_chave_pix, chave_pix,
+                    dependentes, cnh, certificado_reservista,
+                    titulo_eleitor, zona_eleitoral, secao_eleitoral,
+                    filiacao_mae, filiacao_pai, dados_conjuge
+                FROM funcionarios
+                WHERE 1=1
+            `;
             const params = [];
 
             if (status) {
@@ -225,9 +209,9 @@ module.exports = function createRHRoutes(deps) {
                 params.push(departamento);
             }
             if (search) {
-                sql += ' AND (nome_completo LIKE ? OR email LIKE ? OR cargo LIKE ?)';
+                sql += ' AND (nome_completo LIKE ? OR email LIKE ? OR cargo LIKE ? OR cpf LIKE ?)';
                 const searchTerm = `%${search}%`;
-                params.push(searchTerm, searchTerm, searchTerm);
+                params.push(searchTerm, searchTerm, searchTerm, searchTerm);
             }
 
             sql += ' ORDER BY nome_completo ASC LIMIT ? OFFSET ?';
@@ -253,21 +237,18 @@ module.exports = function createRHRoutes(deps) {
             const [cargoRows] = await pool.query('SELECT DISTINCT cargo FROM funcionarios WHERE cargo IS NOT NULL AND cargo != "" ORDER BY cargo');
             const cargos = cargoRows.map(r => r.cargo);
 
-            // Descriptografar CPF/RG (LGPD) — apenas se usuário tem acesso RH
-            if (hasRhAccess) {
-                const _dec = lgpdCrypto ? lgpdCrypto.decryptPII : (v => v);
-                rows.forEach(r => {
-                    if (r.cpf) r.cpf = _dec(r.cpf);
-                    if (r.rg) r.rg = _dec(r.rg);
-                });
-            }
+            // Descriptografar CPF/RG (LGPD)
+            const _dec = lgpdCrypto ? lgpdCrypto.decryptPII : (v => v);
+            rows.forEach(r => {
+                if (r.cpf) r.cpf = _dec(r.cpf);
+                if (r.rg) r.rg = _dec(r.rg);
+            });
 
             res.json({
                 funcionarios: rows,
                 stats: stats || { total: 0, ativos: 0, aniversariantes: 0, admissoes_mes: 0 },
                 departamentos,
-                cargos,
-                pii_masked: !hasRhAccess // Indicador para o frontend saber se os dados estão mascarados
+                cargos
             });
         } catch (error) {
             console.error('Erro ao listar funcionários:', error);
@@ -367,6 +348,23 @@ module.exports = function createRHRoutes(deps) {
                 return res.status(403).json({ message: 'Acesso negado' });
             }
 
+            const funcionarioColumns = await getFuncionariosColumns();
+            const optionalFields = [
+                'ativo',
+                'genero',
+                'escolaridade',
+                'observacoes',
+                'contato_emergencia',
+                'contato_emergencia_nome',
+                'contato_emergencia_telefone',
+                'contato_emergencia_parentesco',
+                'salario_base',
+                'email_corporativo',
+                'ramal',
+                'numero_matricula'
+            ];
+            const optionalSelect = optionalFields.map(field => optionalFuncionarioSelect(funcionarioColumns, field)).join(',\n                    ');
+
             // Buscar dados na tabela funcionarios (mais completa)
             const [rows] = await pool.query(`
                 SELECT
@@ -386,7 +384,8 @@ module.exports = function createRHRoutes(deps) {
                     data_demissao, motivo_demissao,
                     vt_ativo, vt_tipo_transporte, vt_valor_diario,
                     vt_qtd_passagens, vt_linhas, vt_dias_desconto,
-                    vt_mes_referencia, vt_motivo_desconto
+                    vt_mes_referencia, vt_motivo_desconto,
+                    ${optionalSelect}
                 FROM funcionarios
                 WHERE id = ?
             `, [id]);
@@ -451,8 +450,8 @@ module.exports = function createRHRoutes(deps) {
 
                 // Soft-delete: mark employee as inactive instead of destroying data
                 const [result] = await connection.query(
-                    'UPDATE funcionarios SET ativo = 0, status = ?, data_desligamento = NOW(), updated_at = NOW() WHERE id = ?',
-                    ['desligado', id]
+                    'UPDATE funcionarios SET ativo = 0, status = ?, data_demissao = COALESCE(data_demissao, CURDATE()), updated_at = NOW() WHERE id = ?',
+                    ['Demitido', id]
                 );
                 if (result.affectedRows === 0) {
                     await connection.rollback();
@@ -1461,7 +1460,8 @@ module.exports = function createRHRoutes(deps) {
                     COUNT(*) as total,
                     SUM(CASE WHEN status = 'publicado' THEN 1 ELSE 0 END) as publicados,
                     SUM(CASE WHEN status = 'rascunho' THEN 1 ELSE 0 END) as rascunhos,
-                    SUM(CASE WHEN visualizado = 1 THEN 1 ELSE 0 END) as visualizados
+                    SUM(CASE WHEN visualizado = 1 THEN 1 ELSE 0 END) as visualizados,
+                    SUM(CASE WHEN status = 'publicado' AND COALESCE(visualizado, 0) = 0 THEN 1 ELSE 0 END) as nao_visualizados
                 FROM rh_holerites_gestao
                 WHERE 1=1
             `;
@@ -1470,7 +1470,7 @@ module.exports = function createRHRoutes(deps) {
             if (mes) { statsSql += ' AND mes = ?'; statsParams.push(parseInt(mes)); }
             const [[stats]] = await pool.query(statsSql, statsParams);
 
-            res.json({ holerites, stats: stats || { total: 0, publicados: 0, rascunhos: 0, visualizados: 0 } });
+            res.json({ holerites, stats: stats || { total: 0, publicados: 0, rascunhos: 0, visualizados: 0, nao_visualizados: 0 } });
         } catch (error) {
             console.error('Erro ao listar holerites:', error);
             res.status(500).json({ message: 'Erro ao listar holerites' });
@@ -1531,6 +1531,37 @@ module.exports = function createRHRoutes(deps) {
         } catch (error) {
             console.error('Erro ao baixar holerite por período:', error);
             res.status(500).json({ message: 'Erro ao baixar holerite' });
+        }
+    });
+
+    // GET /api/rh/holerites/consentimentos - Lista de funcionários que confirmaram
+    // o recebimento digital dos holerites (modal "Consentimentos" em gestao-holerites).
+    // Faltava no servidor principal (só existia no modules/RH/server.js standalone),
+    // por isso o modal exibia "Erro ao carregar consentimentos". DEVE vir antes de :id.
+    router.get('/holerites/consentimentos', authorizeAdmin, async (req, res) => {
+        try {
+            const [rows] = await pool.query(`
+                SELECT h.id, h.funcionario_id,
+                       COALESCE(f.nome_completo, f.nome) AS nome_completo, f.cpf,
+                       CASE WHEN h.confirmado_recebimento = 1 THEN 'ativo' ELSE 'pendente' END AS status,
+                       h.data_confirmacao AS data_aceite,
+                       CONCAT(COALESCE(f.nome_completo, f.nome), ' – ', LPAD(fp.mes, 2, '0'), '/', fp.ano) AS assinatura_digital,
+                       fp.mes, fp.ano
+                FROM rh_holerites h
+                LEFT JOIN funcionarios f ON h.funcionario_id = f.id
+                LEFT JOIN rh_folhas_pagamento fp ON h.folha_id = fp.id
+                WHERE h.status = 'publicado' AND h.confirmado_recebimento = 1
+                ORDER BY h.data_confirmacao DESC
+            `);
+            const consentimentos = rows.map(r => ({
+                ...r,
+                cpf: (r.cpf && !String(r.cpf).startsWith('ENC:') && !String(r.cpf).includes('ENCRYPTED') && !String(r.cpf).startsWith('$2')) ? r.cpf : null,
+            }));
+            res.json({ consentimentos });
+        } catch (error) {
+            // Degrada para lista vazia (tabela/coluna ausente) em vez de erro no modal.
+            console.error('[rh] consentimentos:', error.message);
+            res.json({ consentimentos: [] });
         }
     });
 

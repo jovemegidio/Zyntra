@@ -22,6 +22,10 @@
 (function AluforceLayout() {
     'use strict';
 
+    function withBasePath(path) {
+        return window.__withBasePath ? window.__withBasePath(path) : path;
+    }
+
     // =========================================================================
     // 1. MODULE NAVIGATION CONFIGURATION
     // =========================================================================
@@ -199,7 +203,7 @@
         // Home / Dashboard link
         const logo = document.createElement('a');
         logo.className = 'alf-sidebar-logo';
-        logo.href = '/dashboard';
+        logo.href = withBasePath('/dashboard');
         logo.title = 'Voltar ao Painel';
         logo.innerHTML = '<i class="fas fa-home"></i>';
         aside.appendChild(logo);
@@ -216,7 +220,7 @@
             btn.className = 'alf-sidebar-btn';
             if (item.key === currentPage) btn.classList.add('active');
             btn.setAttribute('data-tooltip', item.title);
-            btn.href = config.basePath + item.page;
+            btn.href = withBasePath(config.basePath + item.page);
 
             btn.innerHTML = `<i class="${item.icon}"></i><span class="alf-nav-label">${item.title}</span>`;
             nav.appendChild(btn);
@@ -274,7 +278,7 @@
                     <i class="fas fa-bars"></i>
                 </button>
                 <div class="alf-header-brand">
-                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE">
+                    <img src="${withBasePath('/images/Logo Monocromatico - Branco - Aluforce.png')}" alt="ALUFORCE">
                     <span class="alf-separator">|</span>
                     <span class="alf-module-name">${config.label}</span>
                 </div>
@@ -292,10 +296,10 @@
                             <div class="name" id="alf-dropdown-name">${userName}</div>
                             <div class="email" id="alf-dropdown-email">${currentUser?.email || ''}</div>
                         </div>
-                        <a href="/RH/dados-pessoais.html" class="alf-user-dropdown-item">
+                        <a href="${withBasePath('/RH/dados-pessoais.html')}" class="alf-user-dropdown-item">
                             <i class="fas fa-user"></i> Meu Perfil
                         </a>
-                        <a href="/dashboard" class="alf-user-dropdown-item">
+                        <a href="${withBasePath('/dashboard')}" class="alf-user-dropdown-item">
                             <i class="fas fa-th-large"></i> Painel Principal
                         </a>
                         <button class="alf-user-dropdown-item danger" id="alf-logout-btn" type="button">
@@ -385,7 +389,7 @@
                     document.cookie.split(";").forEach(c => {
                         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
                     });
-                    window.location.href = '/login.html';
+                    window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
                 }
             });
         }

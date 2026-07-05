@@ -624,7 +624,7 @@
             if (href.includes('logout') || href.includes('login')) return false;
 
             // Não interceptar navegação para o dashboard (tem CSS inline pesado no <head>)
-            if (href === '/dashboard' || href === '/' || href.endsWith('/dashboard')) return false;
+            if (href === '/dashboard' || href === '/index.html' || href === '/' || href.endsWith('/dashboard')) return false;
 
             // Não interceptar se tem data-turbo="false"
             if (link.dataset.turbo === 'false') return false;

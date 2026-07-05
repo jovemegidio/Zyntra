@@ -36,7 +36,7 @@
     // Padrões que DEVEM ser interceptados
     const INTERCEPT_PATTERNS = [
         /^blob:/i,                    // Blob URLs (PDFs, HTML)
-        /\/api\/.*\/(danfe|pdf|relatorio|report|etiqueta|dacte|boleto)/i,
+        /\/api\/.*\/(danfe|pdf|relatorio|report|etiqueta|dacte|boleto|orcamento)/i,
         /\.pdf(\?|$)/i               // URLs de PDF diretas
     ];
 
@@ -301,12 +301,8 @@
         };
 
         if (htmlContent) {
-            // Conteúdo HTML direto — usar Blob URL para evitar about:srcdoc (ERR_INVALID_URL)
-            const blob = new Blob([htmlContent], { type: 'text/html; charset=utf-8' });
-            if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
-            currentBlobUrl = URL.createObjectURL(blob);
-            iframe.removeAttribute('srcdoc');
-            iframe.src = currentBlobUrl;
+            // Conteúdo HTML direto
+            iframe.srcdoc = htmlContent;
             downloadBtn.style.display = 'none';
         } else if (url) {
             // URL (PDF ou blob)
@@ -358,10 +354,8 @@
     }
 
     function openInNewTab() {
-        if (currentBlobUrl) {
-            originalWindowOpen(currentBlobUrl, '_blank');
-        } else if (currentHtmlContent) {
-            const blob = new Blob([currentHtmlContent], { type: 'text/html; charset=utf-8' });
+        if (currentHtmlContent) {
+            const blob = new Blob([currentHtmlContent], { type: 'text/html' });
             const url = URL.createObjectURL(blob);
             originalWindowOpen(url, '_blank');
         } else if (currentUrl) {

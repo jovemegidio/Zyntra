@@ -287,7 +287,11 @@ function securityHeaders() {
     const isDevelopment = process.env.NODE_ENV !== 'production';
 
     return helmet({
+        // AUDIT 2026-06-22: CSP em modo report-only ao ativar produção (aluforce).
+        // Evita quebrar o frontend (recursos fora da allowlist) enquanto coletamos
+        // violacoes no console; endurecer (remover reportOnly) apos revisar os reports.
         contentSecurityPolicy: isDevelopment ? false : {
+            reportOnly: true,
             directives: {
                 defaultSrc: ["'self'"],
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
@@ -304,7 +308,10 @@ function securityHeaders() {
                 baseUri: ["'self'"],
                 formAction: ["'self'"],
                 frameAncestors: ["'self'"],
-                upgradeInsecureRequests: [],
+                // FIX 25/06/2026: 'upgrade-insecure-requests' eh ignorado em policy report-only e
+                // o browser loga warning no console. Como esta CSP esta em reportOnly, omitimos a
+                // diretiva (null faz o helmet nao emiti-la). Reintroduzir ao endurecer (reportOnly:false).
+                upgradeInsecureRequests: null,
             },
         },
         // Desabilitar todos os headers HTTPS em desenvolvimento

@@ -66,7 +66,7 @@ async function carregarPedidosDaAPI() {
         });
         if (!resp.ok) {
             if (resp.status === 401) {
-                window.location.href = '/login.html';
+                window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
                 return;
             }
             throw new Error(`Erro ${resp.status}`);
@@ -677,13 +677,13 @@ async function abrirModalEditarPedido(id) {
         const pedidoLocal = pedidos.find(p => p.id == id);
         console.log('[Kanban] Pedido local encontrado:', pedidoLocal);
 
-        // Lock: verificar se pedido está bloqueado por status
-        const STATUS_BLOQUEADO = ['faturado', 'faturar', 'aprovado', 'pedido-aprovado', 'orcamento', 'orçamento', 'analise', 'analise-credito', 'recibo', 'entregue'];
+        // Lock comercial: vendedor só fica bloqueado durante Análise de Crédito.
+        const STATUS_BLOQUEADO = ['analise', 'análise', 'analise-credito', 'análise-crédito'];
         if (pedidoLocal && STATUS_BLOQUEADO.includes((pedidoLocal.status || '').toLowerCase())) {
             const emailTI = 'ti@aluforce.ind.br';
             const userEmail = (window.usuarioLogado && window.usuarioLogado.email || '').toLowerCase();
             if (userEmail !== emailTI) {
-                mostrarNotificacao(`Pedido com status "${pedidoLocal.status}" está bloqueado para edição. Somente TI pode editar.`, 'error');
+                mostrarNotificacao('Pedido em Análise de Crédito não pode ser editado por vendedor.', 'error');
                 return;
             }
         }

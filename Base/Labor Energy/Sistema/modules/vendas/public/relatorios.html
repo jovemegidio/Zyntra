@@ -13,7 +13,7 @@
     <title>Zyntra: Relatórios de Vendas</title>
     
     <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
-    <script src="/js/auth-unified.js?v=20260301" defer></script>
+    <script src="/js/auth-unified.js?v=20260527" defer></script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -34,7 +34,7 @@
             --tab-height: 0px;
             --primary: #225cfa;
             --primary-orange: #225cfa;
-            --primary-dark: #1a1a2e;
+            --primary-dark: #ffffff;
             --bg-gray: #f5f5f5;
             --border-color: #e5e5e5;
             --text-primary: #1a1a1a;
@@ -117,7 +117,8 @@
 
         /* Tooltip customizada ao passar o mouse */
         .sidebar-btn::after {
-            content: attr(title);
+            /* BUG-015: tooltips-professional.js converte title -> data-title; ler o atributo correto */
+            content: attr(data-title);
             position: absolute;
             left: 54px;
             background: #1a1a2e;
@@ -791,7 +792,7 @@
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <script src="/js/tooltips-professional.js?v=20260209"></script>
     <script src="/js/modal-title.js?v=20260210"></script>
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
 
     <!-- Chat Widget BOB AI - DESATIVADO -->
     <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
@@ -838,7 +839,7 @@
                 </button>
             </nav>
             <div class="sidebar-bottom">
-                <button class="sidebar-btn" title="Configurações">
+                <button class="sidebar-btn" title="Configurações" onclick="window.location.href='/dashboard'">
                     <i class="fas fa-cog"></i>
                 </button>
             </div>
@@ -856,21 +857,15 @@
                         <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
                         <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">›</span>
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
                         <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Relatórios</span>
                     </div>
                 </div>
                 <div class="header-right">
                     <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
-                    <button class="header-btn" title="Notificações">
-                        <i class="fas fa-bell"></i>
-                    </button>
+                    
                     <div class="user-greeting">
                         <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
-                        <div class="user-avatar" id="user-avatar">
-                            <img src="" alt="Foto do usuário" id="user-photo">
-                            <span id="user-initials">U</span>
-                        </div>
                     </div>
                 </div>
             </header>
@@ -1060,25 +1055,25 @@
 
                 <!-- Quick Reports -->
                 <div class="quick-reports">
-                    <div class="report-card" onclick="abrirModalRelatorio('vendas-periodo')">
+                    <div class="report-card" onclick="abrirModalRelatório('vendas-período')">
                         <div class="report-icon orange"><i class="fas fa-calendar-alt"></i></div>
                         <h4>Vendas por Período</h4>
                         <p>Análise detalhada de vendas por data</p>
                         <span class="report-arrow"><i class="fas fa-arrow-right"></i></span>
                     </div>
-                    <div class="report-card" onclick="abrirModalRelatorio('comissoes')">
+                    <div class="report-card" onclick="abrirModalRelatório('comissoes')">
                         <div class="report-icon green"><i class="fas fa-coins"></i></div>
                         <h4>Relatório de Comissões</h4>
-                        <p>Comissões por vendedor é Power 2% é Multiplex 1%</p>
+                        <p>Comissões por vendedor: Power 2% e Multiplex 1%</p>
                         <span class="report-arrow"><i class="fas fa-arrow-right"></i></span>
                     </div>
-                    <div class="report-card" onclick="abrirModalRelatorio('clientes')">
+                    <div class="report-card" onclick="abrirModalRelatório('clientes')">
                         <div class="report-icon blue"><i class="fas fa-users"></i></div>
                         <h4>Análise de Clientes</h4>
                         <p>Comportamento e histórico</p>
                         <span class="report-arrow"><i class="fas fa-arrow-right"></i></span>
                     </div>
-                    <div class="report-card" onclick="abrirModalRelatorio('produtos')">
+                    <div class="report-card" onclick="abrirModalRelatório('produtos')">
                         <div class="report-icon purple"><i class="fas fa-box-open"></i></div>
                         <h4>Performance de Produtos</h4>
                         <p>Produtos mais rentáveis</p>
@@ -1102,7 +1097,7 @@
                         <span class="rel-subtitle">Análise detalhada de vendas por data</span>
                     </div>
                 </div>
-                <button class="close-btn" onclick="fecharModal('modalVendasPeriodo')">
+                <button class="close-btn" onclick="fecharModal('modalVendasPeríodo')">
                     <i class="fas fa-times"></i> Fechar
                 </button>
             </div>
@@ -1146,18 +1141,18 @@
                     </div>
                 </div>
                 <div class="modal-sidebar-actions">
-                    <button class="sidebar-action-btn primary" onclick="gerarRelatorioPDF('vendas-periodo')">
+                    <button class="sidebar-action-btn primary" onclick="gerarRelatórioPDF('vendas-período')">
                         <i class="fas fa-file-pdf"></i> Gerar PDF
                     </button>
                     <div class="sidebar-divider"></div>
-                    <button class="sidebar-action-btn" onclick="limparFiltrosModal('vendas-periodo')">
+                    <button class="sidebar-action-btn" onclick="limparFiltrosModal('vendas-período')">
                         <i class="fas fa-eraser"></i> Limpar Filtros
                     </button>
-                    <button class="sidebar-action-btn" onclick="preVisualizarRelatorio('vendas-periodo')">
+                    <button class="sidebar-action-btn" onclick="preVisualizarRelatório('vendas-período')">
                         <i class="fas fa-eye"></i> Pré-visualizar
                     </button>
                     <div class="sidebar-divider"></div>
-                    <button class="sidebar-action-btn danger" onclick="fecharModal('modalVendasPeriodo')">
+                    <button class="sidebar-action-btn danger" onclick="fecharModal('modalVendasPeríodo')">
                         <i class="fas fa-times"></i> Fechar
                     </button>
                 </div>
@@ -1237,14 +1232,14 @@
                     </div>
                 </div>
                 <div class="modal-sidebar-actions">
-                    <button class="sidebar-action-btn primary green-btn" onclick="gerarRelatorioPDF('comissoes')">
+                    <button class="sidebar-action-btn primary green-btn" onclick="gerarRelatórioPDF('comissoes')">
                         <i class="fas fa-file-pdf"></i> Gerar PDF
                     </button>
                     <div class="sidebar-divider"></div>
                     <button class="sidebar-action-btn" onclick="limparFiltrosModal('comissoes')">
                         <i class="fas fa-eraser"></i> Limpar Filtros
                     </button>
-                    <button class="sidebar-action-btn" onclick="preVisualizarRelatorio('comissoes')">
+                    <button class="sidebar-action-btn" onclick="preVisualizarRelatório('comissoes')">
                         <i class="fas fa-eye"></i> Pré-visualizar
                     </button>
                     <div class="sidebar-divider"></div>
@@ -1333,14 +1328,14 @@
                     </div>
                 </div>
                 <div class="modal-sidebar-actions">
-                    <button class="sidebar-action-btn primary blue-btn" onclick="gerarRelatorioPDF('clientes')">
+                    <button class="sidebar-action-btn primary blue-btn" onclick="gerarRelatórioPDF('clientes')">
                         <i class="fas fa-file-pdf"></i> Gerar PDF
                     </button>
                     <div class="sidebar-divider"></div>
                     <button class="sidebar-action-btn" onclick="limparFiltrosModal('clientes')">
                         <i class="fas fa-eraser"></i> Limpar Filtros
                     </button>
-                    <button class="sidebar-action-btn" onclick="preVisualizarRelatorio('clientes')">
+                    <button class="sidebar-action-btn" onclick="preVisualizarRelatório('clientes')">
                         <i class="fas fa-eye"></i> Pré-visualizar
                     </button>
                     <div class="sidebar-divider"></div>
@@ -1399,14 +1394,14 @@
                     </div>
                 </div>
                 <div class="modal-sidebar-actions">
-                    <button class="sidebar-action-btn primary purple-btn" onclick="gerarRelatorioPDF('produtos')">
+                    <button class="sidebar-action-btn primary purple-btn" onclick="gerarRelatórioPDF('produtos')">
                         <i class="fas fa-file-pdf"></i> Gerar PDF
                     </button>
                     <div class="sidebar-divider"></div>
                     <button class="sidebar-action-btn" onclick="limparFiltrosModal('produtos')">
                         <i class="fas fa-eraser"></i> Limpar Filtros
                     </button>
-                    <button class="sidebar-action-btn" onclick="preVisualizarRelatorio('produtos')">
+                    <button class="sidebar-action-btn" onclick="preVisualizarRelatório('produtos')">
                         <i class="fas fa-eye"></i> Pré-visualizar
                     </button>
                     <div class="sidebar-divider"></div>
@@ -1767,14 +1762,14 @@
         
         // Mapeamento dos modais por tipo
         const modalMap = {
-            'vendas-periodo': 'modalVendasPeriodo',
+            'vendas-período': 'modalVendasPeríodo',
             'comissoes': 'modalComissoes',
             'clientes': 'modalClientes',
             'produtos': 'modalProdutos'
         };
         
         // Abrir modal de filtros
-        async function abrirModalRelatorio(tipo) {
+        async function abrirModalRelatório(tipo) {
             const modalId = modalMap[tipo];
             if (!modalId) {
                 console.error('Modal não encontrado para tipo:', tipo);
@@ -1789,7 +1784,7 @@
             const dataInicio = inicio.toISOString().split('T')[0];
             
             // Preencher campos de data conforme o modal
-            if (tipo === 'vendas-periodo') {
+            if (tipo === 'vendas-período') {
                 document.getElementById('modalVpDataInicio').value = dataInicio;
                 document.getElementById('modalVpDataFim').value = dataHoje;
                 await carregarVendedoresModal('modalVpVendedor');
@@ -1902,14 +1897,14 @@
         }
         
         // Gerar relatório PDF
-        async function gerarRelatorioPDF(tipo) {
-            const tiposRelatorio = {
-                'vendas-periodo': 'Vendas por Período',
+        async function gerarRelatórioPDF(tipo) {
+            const tiposRelatório = {
+                'vendas-período': 'Vendas por Período',
                 'comissoes': 'Relatório de Comissões',
                 'clientes': 'Análise de Clientes',
                 'produtos': 'Performance de Produtos'
             };
-            const título = tiposRelatorio[tipo] || tipo;
+            const título = tiposRelatório[tipo] || tipo;
             
             // Toast de loading
             const toast = document.createElement('div');
@@ -1922,7 +1917,7 @@
                 let url = '';
                 let params = new URLSearchParams();
                 
-                if (tipo === 'vendas-periodo') {
+                if (tipo === 'vendas-período') {
                     params.append('data_inicio', document.getElementById('modalVpDataInicio').value);
                     params.append('data_fim', document.getElementById('modalVpDataFim').value);
                     const vendedor = document.getElementById('modalVpVendedor').value;
@@ -1998,7 +1993,7 @@
             const dataHoje = hoje.toISOString().split('T')[0];
             const dataInicio = inicio.toISOString().split('T')[0];
 
-            if (tipo === 'vendas-periodo') {
+            if (tipo === 'vendas-período') {
                 document.getElementById('modalVpDataInicio').value = dataInicio;
                 document.getElementById('modalVpDataFim').value = dataHoje;
                 document.getElementById('modalVpVendedor').selectedIndex = 0;
@@ -2022,15 +2017,15 @@
         }
 
         // Pré-visualizar relatório (gera e abre em nova aba sem fechar modal)
-        async function preVisualizarRelatorio(tipo) {
-            // Usa mesma lógica de gerarRelatorioPDF mas sem fechar o modal
-            const tiposRelatorio = {
-                'vendas-periodo': 'Vendas por Período',
+        async function preVisualizarRelatório(tipo) {
+            // Usa mesma lógica de gerarRelatórioPDF mas sem fechar o modal
+            const tiposRelatório = {
+                'vendas-período': 'Vendas por Período',
                 'comissoes': 'Relatório de Comissões',
                 'clientes': 'Análise de Clientes',
                 'produtos': 'Performance de Produtos'
             };
-            const título = tiposRelatorio[tipo] || tipo;
+            const título = tiposRelatório[tipo] || tipo;
 
             const toast = document.createElement('div');
             toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#1e293b;color:white;padding:16px 24px;border-radius:12px;z-index:10001;display:flex;align-items:center;gap:12px;box-shadow:0 10px 40px rgba(0,0,0,0.2);';
@@ -2042,7 +2037,7 @@
                 let url = '';
                 let params = new URLSearchParams();
 
-                if (tipo === 'vendas-periodo') {
+                if (tipo === 'vendas-período') {
                     params.append('data_inicio', document.getElementById('modalVpDataInicio').value);
                     params.append('data_fim', document.getElementById('modalVpDataFim').value);
                     const vendedor = document.getElementById('modalVpVendedor').value;
@@ -2090,7 +2085,7 @@
             }
         }
         
-        // ==================== AUTENTICAÇÃO ====================
+        // ==================== AUTENTICAÇÁO ====================
         // Sistema usa cookies httpOnly para autenticação
         // Verificar autenticação via /api/me em vez de localStorage
         
@@ -2118,7 +2113,7 @@
         }
         
         // Verificar se usuário está autenticado via API
-        async function verificarAutenticacao() {
+        async function verificarAutenticação() {
             try {
                 const response = await fetchAutenticado('/api/me');
                 if (response.ok) {
@@ -2152,10 +2147,10 @@
                     const vendedores = await res.json();
                     vendedores.forEach(v => {
                         VENDEDORES_IDS[v.id] = v.nome;
-                        // Supervisores = nivel admin ou cargo supervisor/gerente
-                        const cargo = (v.cargo || v.funcao || '').toLowerCase();
-                        const nivel = (v.nivel || v.role || '').toLowerCase();
-                        if (nivel === 'admin' || nivel === 'supervisor' || cargo.includes('supervisor') || cargo.includes('gerente')) {
+                        // Supervisores = nível admin ou cargo supervisor/gerente
+                        const cargo = (v.cargo || v.função || '').toLowerCase();
+                        const nível = (v.nível || v.role || '').toLowerCase();
+                        if (nível === 'admin' || nível === 'supervisor' || cargo.includes('supervisor') || cargo.includes('gerente')) {
                             SUPERVISORES_IDS.push(v.id);
                             SUPERVISORES_NOMES.push((v.nome || '').split(' ')[0].toLowerCase());
                         }
@@ -2172,7 +2167,7 @@
             if (!usuarioLogado) return false;
             
             // Verificar por ID de funcionário
-            if (usuarioLogado.funcionário_id && SUPERVISORES_IDS.includes(usuarioLogado.funcionario_id)) {
+            if (usuarioLogado.funcionario_id && SUPERVISORES_IDS.includes(usuarioLogado.funcionario_id)) {
                 return true;
             }
             
@@ -2278,7 +2273,7 @@
         function getEmpresaRazao() { return dadosEmpresa?.razao_social || 'ALUFORCE'; }
         function getEmpresaCnpj()  { return dadosEmpresa?.cnpj || ''; }
         function getEmpresaIe()    { return dadosEmpresa?.ie || ''; }
-        function getEmpresaEndereco() { return dadosEmpresa?.endereco || ''; }
+        function getEmpresaEndereco() { return dadosEmpresa?.endereço || ''; }
         function getEmpresaCidade() { return dadosEmpresa?.cidade ? `${dadosEmpresa.cidade} - ${dadosEmpresa.uf || 'SP'}` : ''; }
         function getEmpresaCep()   { return dadosEmpresa?.cep || ''; }
 
@@ -2326,11 +2321,11 @@
 
                     // Saudação
                     const hora = new Date().getHours();
-                    let saudacao = 'Bom dia';
-                    if (hora >= 12 && hora < 18) saudacao = 'Boa tarde';
-                    else if (hora >= 18 || hora < 5) saudacao = 'Boa noite';
+                    let saudação = 'Bom dia';
+                    if (hora >= 12 && hora < 18) saudação = 'Boa tarde';
+                    else if (hora >= 18 || hora < 5) saudação = 'Boa noite';
                     const _elGreeting = document.getElementById('greeting-text');
-                    if (_elGreeting) _elGreeting.textContent = saudacao;
+                    if (_elGreeting) _elGreeting.textContent = saudação;
                 }
             } catch (error) {
                 console.error('Erro ao carregar usuário:', error);
@@ -2363,13 +2358,16 @@
                 console.log('?? Carregando dados de múltiplas APIs...');
                 console.time('Carregamento Relatório');
 
+                // Montar parâmetro de vendedor
+                const vendedorParam = vendedor ? `&vendedor_id=${vendedor}` : '';
+
                 // Executar todas as chamadas em paralelo
                 const [adminRes, vendedoresRes, topVendRes, topProdRes, monthlyRes] = await Promise.allSettled([
-                    fetchAutenticado(`/api/vendas/dashboard/admin?periodo=${diffDays}`),
+                    fetchAutenticado(`/api/vendas/dashboard-stats?período=${diffDays}${vendedorParam}`),
                     fetchAutenticado('/api/vendas/vendedores'),
-                    fetchAutenticado(`/api/vendas/dashboard/top-vendedores?data_inicio=${dataInicio}&data_fim=${dataFim}&limit=10`),
-                    fetchAutenticado(`/api/vendas/dashboard/top-produtos?data_inicio=${dataInicio}&data_fim=${dataFim}&limit=10`),
-                    fetchAutenticado('/api/vendas/dashboard/monthly?months=6')
+                    fetchAutenticado(`/api/vendas/dashboard/top-vendedores?data_inicio=${dataInicio}&data_fim=${dataFim}&limit=10${vendedorParam}`),
+                    fetchAutenticado(`/api/vendas/dashboard/top-produtos?data_inicio=${dataInicio}&data_fim=${dataFim}&limit=10${vendedorParam}`),
+                    fetchAutenticado(`/api/vendas/dashboard/monthly?months=6&data_inicio=${dataInicio}&data_fim=${dataFim}${vendedorParam}`)
                 ]);
 
                 console.timeEnd('Carregamento Relatório');
@@ -2378,25 +2376,22 @@
                 let statsData = null;
                 let vendedoresCount = 0;
                 if (adminRes.status === 'fulfilled' && adminRes.value.ok) {
-                    statsData = await adminRes.value.json();
-                    console.log('? Dashboard admin dados:', statsData);
-                } else {
-                    // Fallback: tentar dashboard-stats
-                    console.warn('?? dashboard/admin falhou, tentando fallback...');
-                    try {
-                        const fallback = await fetchAutenticado('/api/vendas/dashboard-stats');
-                        if (fallback.ok) {
-                            const fb = await fallback.json();
-                            statsData = {
-                                metricas: {
-                                    total_pedidos: (fb.pedidosPendentes || 0) + (fb.orcamentosAberto || 0),
-                                    valor_faturado: fb.totalFaturadoMes || 0,
-                                    ticket_medio: 0
-                                },
-                                taxaConversao: 0
-                            };
-                        }
-                    } catch(e) { console.warn('Fallback stats falhou:', e); }
+                    const rawStats = await adminRes.value.json();
+                    console.log('? Dashboard stats dados:', rawStats);
+                    // Normalizar: dashboard-stats retorna campos planos; dashboard/admin retorna {metricas:{}}
+                    if (rawStats.metricas) {
+                        statsData = rawStats;
+                    } else {
+                        statsData = {
+                            metricas: {
+                                total_pedidos: (rawStats.pedidosPendentes || 0) + (rawStats.orcamentosAberto || 0),
+                                valor_faturado: rawStats.totalFaturadoMes || 0,
+                                ticket_medio: 0
+                            },
+                            taxaConversao: 0,
+                            conversaoPorStatus: rawStats.conversaoPorStatus || []
+                        };
+                    }
                 }
 
                 // ---- CONTAGEM VENDEDORES ----
@@ -2420,7 +2415,7 @@
                     atualizarEstatisticas({ totalPedidos: 0, faturamento: 0, ticketMedio: 0, vendedoresAtivos: vendedoresCount });
                 }
 
-                // ---- GRÁFICO EVOLUÇÃO (monthly) ----
+                // ---- GRÁFICO EVOLUÇÁO (monthly) ----
                 if (monthlyRes.status === 'fulfilled' && monthlyRes.value.ok) {
                     const monthlyData = await monthlyRes.value.json();
                     console.log('? Evolução mensal:', monthlyData);
@@ -2434,7 +2429,7 @@
 
                 // ---- GRÁFICO CATEGORIAS (conversão por status) ----
                 if (statsData && statsData.conversaoPorStatus && statsData.conversaoPorStatus.length > 0) {
-                    const statusLabels = { 'faturado': 'Faturado', 'orcamento': 'Orçamento', 'analise': 'Em Análise', 'aprovado': 'Aprovado', 'cancelado': 'Cancelado', 'recibo': 'Recibo' };
+                    const statusLabels = { 'faturado': 'Faturado', 'orcamento': 'Orçamento', 'orçamento': 'Orçamento', 'analise': 'Em Análise', 'análise': 'Em Análise', 'aprovado': 'Aprovado', 'cancelado': 'Cancelado', 'recibo': 'Recibo' };
                     renderizarGraficoCategorias({
                         labels: statsData.conversaoPorStatus.map(s => statusLabels[s.status] || s.status),
                         valores: statsData.conversaoPorStatus.map(s => s.quantidade)
@@ -2447,8 +2442,8 @@
                 if (topVendRes.status === 'fulfilled' && topVendRes.value.ok) {
                     const topVend = await topVendRes.value.json();
                     console.log('? Top vendedores:', topVend);
-                    // Use topVendedores from admin dashboard if available (has more data)
-                    const vendedoresRank = statsData?.topVendedores || topVend || [];
+                    // Prefer dedicated top-vendedores API (filtered by role='comercial')
+                    const vendedoresRank = topVend || statsData?.topVendedores || [];
                     renderizarTopVendedores(vendedoresRank);
                 } else if (statsData?.topVendedores) {
                     renderizarTopVendedores(statsData.topVendedores);
@@ -2488,7 +2483,7 @@
                 // Usar API dashboard/admin que já existe
                 const url = `/api/vendas/dashboard/admin?periodo=${diffDays}`;
                 const res = await fetchAutenticado(url);
-                
+
                 if (res.ok) {
                     const data = await res.json();
                     console.log('Dashboard Admin dados:', data);
@@ -2628,7 +2623,11 @@
                             grid: { color: '#f1f5f9' }
                         },
                         x: {
-                            grid: { display: false }
+                            grid: { display: false },
+                            ticks: {
+                                maxRotation: 0,
+                                autoSkip: false
+                            }
                         }
                     }
                 }
@@ -2647,7 +2646,7 @@
                 
                 const url = `/api/vendas/dashboard/admin?periodo=${diffDays}`;
                 const res = await fetchAutenticado(url);
-                
+
                 if (res.ok) {
                     const data = await res.json();
                     console.log('Dados dashboard para categorias:', data);
@@ -2656,8 +2655,10 @@
                     if (data.conversaoPorStatus && data.conversaoPorStatus.length > 0) {
                         const statusLabels = {
                             'faturado': 'Faturado',
-                            'orçamento': 'Orçamento', 
+                            'orcamento': 'Orçamento',
+                            'orçamento': 'Orçamento',
                             'analise': 'Em Análise',
+                            'análise': 'Em Análise',
                             'aprovado': 'Aprovado',
                             'cancelado': 'Cancelado',
                             'recibo': 'Recibo'
@@ -2688,14 +2689,20 @@
             
             if (categoriasChart) categoriasChart.destroy();
             
-            // Cores por status
+            // Cores por status (normalizado para as labels amigáveis)
             const coresPorStatus = {
                 'Faturado': '#10b981',
                 'Orçamento': '#6366f1',
                 'Em Análise': '#f59e0b',
                 'Aprovado': '#3b82f6',
                 'Cancelado': '#ef4444',
-                'Recibo': '#8b5cf6'
+                'Recibo': '#8b5cf6',
+                'faturado': '#10b981',
+                'orcamento': '#6366f1',
+                'analise': '#f59e0b',
+                'aprovado': '#3b82f6',
+                'cancelado': '#ef4444',
+                'recibo': '#8b5cf6'
             };
             
             const labels = dados.labels || ['Faturado', 'Orçamento', 'Em Análise', 'Aprovado'];
@@ -2813,7 +2820,7 @@
             tbody.innerHTML = produtos.map((p, i) => `
                 <tr>
                     <td><span class="rank-badge ${getRankClass(i)}">${i + 1}</span></td>
-                    <td>${p.nome || p.código || p.produto || 'Produto'}</td>
+                    <td>${p.nome || p.codigo || p.produto || 'Produto'}</td>
                     <td>${p.quantidade || 0}</td>
                     <td class="valor-positivo">${formatarMoeda(p.valor || p.valor_total || 0)}</td>
                 </tr>
@@ -2888,7 +2895,7 @@
         }
 
         // ==================== AÇÕES ====================
-        function imprimirRelatorio() {
+        function imprimirRelatório() {
             // Impressão direta da página com CSS otimizado para print
             const style = document.createElement('style');
             style.id = 'print-style-temp';
@@ -3044,8 +3051,8 @@ tbody tr:nth-child(even) { background: #f8fafc; }
     <span>Documento gerado automaticamente pelo Zyntra ERP</span>
 </div>
 <div class="confidential">Documento Confidencial é Uso Interno</div>
-</body>
-</html>`);
+${'</body>'}
+${'</html>'}`);
             win.document.close();
         }
         
@@ -3105,10 +3112,10 @@ tbody tr:nth-child(even) { background: #f8fafc; }
  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
 <Styles>
  <Style ss:ID="título"><Font ss:Bold="1" ss:Color="#1A365D" ss:Size="16" ss:FontName="Segoe UI"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/></Style>
- <Style ss:ID="subtitulo"><Font ss:Color="#64748B" ss:Size="10" ss:FontName="Segoe UI"/></Style>
+ <Style ss:ID="subtítulo"><Font ss:Color="#64748B" ss:Size="10" ss:FontName="Segoe UI"/></Style>
  <Style ss:ID="kpiLabel"><Font ss:Bold="1" ss:Color="#334155" ss:Size="10" ss:FontName="Segoe UI"/><Interior ss:Color="#F1F5F9" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/></Borders></Style>
  <Style ss:ID="kpiValor"><Font ss:Bold="1" ss:Color="#1E40AF" ss:Size="12" ss:FontName="Segoe UI"/><Interior ss:Color="#F1F5F9" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/></Borders></Style>
- <Style ss:ID="secao"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:Size="11" ss:FontName="Segoe UI"/><Interior ss:Color="#1A365D" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/></Style>
+ <Style ss:ID="seção"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:Size="11" ss:FontName="Segoe UI"/><Interior ss:Color="#1A365D" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center"/></Style>
  <Style ss:ID="header"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:Size="10" ss:FontName="Segoe UI"/><Interior ss:Color="#2C5282" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#2C5282"/></Borders></Style>
  <Style ss:ID="normal"><Font ss:Size="10" ss:FontName="Segoe UI" ss:Color="#1E293B"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#F1F5F9"/></Borders></Style>
  <Style ss:ID="rank"><Font ss:Bold="1" ss:Size="10" ss:FontName="Segoe UI" ss:Color="#F97316"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#F1F5F9"/></Borders></Style>
@@ -3124,8 +3131,8 @@ tbody tr:nth-child(even) { background: #f8fafc; }
 `;
             // Título
             xml += `  <Row ss:Height="35"><Cell ss:StyleID="título" ss:MergeAcross="3"><Data ss:Type="String">ALUFORCE  |  Relatório de Vendas</Data></Cell></Row>
-  <Row ss:Height="18"><Cell ss:StyleID="subtitulo" ss:MergeAcross="3"><Data ss:Type="String">${escXml(getEmpresaRazao())} | CNPJ: ${escXml(getEmpresaCnpj())}</Data></Cell></Row>
-  <Row ss:Height="18"><Cell ss:StyleID="subtitulo" ss:MergeAcross="3"><Data ss:Type="String">Período: ${escXml(períodoTexto)} | Vendedor: ${escXml(vendedorSelecionado)} | Gerado em ${dataHoje} às ${horaAtual}</Data></Cell></Row>
+  <Row ss:Height="18"><Cell ss:StyleID="subtítulo" ss:MergeAcross="3"><Data ss:Type="String">${escXml(getEmpresaRazao())} | CNPJ: ${escXml(getEmpresaCnpj())}</Data></Cell></Row>
+  <Row ss:Height="18"><Cell ss:StyleID="subtítulo" ss:MergeAcross="3"><Data ss:Type="String">Período: ${escXml(períodoTexto)} | Vendedor: ${escXml(vendedorSelecionado)} | Gerado em ${dataHoje} às ${horaAtual}</Data></Cell></Row>
   <Row ss:Height="10"></Row>
 `;
             // KPIs
@@ -3144,7 +3151,7 @@ tbody tr:nth-child(even) { background: #f8fafc; }
   <Row ss:Height="10"></Row>
 `;
             // Top Vendedores
-            xml += `  <Row ss:Height="26"><Cell ss:StyleID="secao" ss:MergeAcross="3"><Data ss:Type="String">TOP VENDEDORES</Data></Cell></Row>
+            xml += `  <Row ss:Height="26"><Cell ss:StyleID="seção" ss:MergeAcross="3"><Data ss:Type="String">TOP VENDEDORES</Data></Cell></Row>
   <Row ss:Height="24">
    <Cell ss:StyleID="header"><Data ss:Type="String">#</Data></Cell>
    <Cell ss:StyleID="header"><Data ss:Type="String">Vendedor</Data></Cell>
@@ -3161,7 +3168,7 @@ tbody tr:nth-child(even) { background: #f8fafc; }
             }
             xml += `  <Row ss:Height="10"></Row>\n`;
             // Top Produtos
-            xml += `  <Row ss:Height="26"><Cell ss:StyleID="secao" ss:MergeAcross="3"><Data ss:Type="String">PRODUTOS MAIS VENDIDOS</Data></Cell></Row>
+            xml += `  <Row ss:Height="26"><Cell ss:StyleID="seção" ss:MergeAcross="3"><Data ss:Type="String">PRODUTOS MAIS VENDIDOS</Data></Cell></Row>
   <Row ss:Height="24">
    <Cell ss:StyleID="header"><Data ss:Type="String">#</Data></Cell>
    <Cell ss:StyleID="header"><Data ss:Type="String">Produto</Data></Cell>
@@ -3202,14 +3209,14 @@ tbody tr:nth-child(even) { background: #f8fafc; }
             setTimeout(() => toast.remove(), 3000);
         }
 
-        async function gerarRelatorio(tipo) {
-            const tiposRelatorio = {
-                'vendas-periodo': 'Vendas por Período',
+        async function gerarRelatório(tipo) {
+            const tiposRelatório = {
+                'vendas-período': 'Vendas por Período',
                 'comissoes': 'Relatório de Comissões',
                 'clientes': 'Análise de Clientes',
                 'produtos': 'Performance de Produtos'
             };
-            const título = tiposRelatorio[tipo] || tipo;
+            const título = tiposRelatório[tipo] || tipo;
             
             // Mostrar toast de loading
             const toast = document.createElement('div');
@@ -3227,7 +3234,7 @@ tbody tr:nth-child(even) { background: #f8fafc; }
                 let filename = '';
                 const dataHoje = new Date().toISOString().split('T')[0];
                 
-                if (tipo === 'vendas-periodo') {
+                if (tipo === 'vendas-período') {
                     // Relatório de vendas por período - buscar lista de pedidos
                     const params = new URLSearchParams({ 
                         data_inicio: dataInicio, 
@@ -3253,7 +3260,7 @@ tbody tr:nth-child(even) { background: #f8fafc; }
                             const valor = parseFloat(p.valor_total || p.valor || 0);
                             totalValor += valor;
                             if (p.status === 'faturado') totalVendas++;
-                            csvContent += `${dataFormatada};${p.número || p.id || ''};${p.cliente_nome || ''};${p.vendedor_nome || ''};${valor.toFixed(2).replace('.', ',')};${p.status || ''}\n`;
+                            csvContent += `${dataFormatada};${p.numero || p.id || ''};${p.cliente_nome || ''};${p.vendedor_nome || ''};${valor.toFixed(2).replace('.', ',')};${p.status || ''}\n`;
                         });
                         csvContent += `\nTOTAL DE PEDIDOS: ${pedidos.length}\n`;
                         csvContent += `PEDIDOS FATURADOS: ${totalVendas}\n`;
@@ -3261,7 +3268,7 @@ tbody tr:nth-child(even) { background: #f8fafc; }
                     } else {
                         csvContent += 'Nenhum registro encontrado no período\n';
                     }
-                    filename = `vendas_período_${dataInicio}_${dataFim}.csv`;
+                    filename = `vendas_periodo_${dataInicio}_${dataFim}.csv`;
                     
                 } else if (tipo === 'comissoes') {
                     // Relatório de comissões por vendedor
@@ -3275,7 +3282,7 @@ tbody tr:nth-child(even) { background: #f8fafc; }
                     
                     csvContent = 'RELATÓRIO DE COMISSÕES\n';
                     csvContent += `Período: ${dataInicio} a ${dataFim}\n\n`;
-                    csvContent += 'VENDEDOR;TOTAL VENDAS;VALOR FATURADO;COMISSÃO (5%)\n';
+                    csvContent += 'VENDEDOR;TOTAL VENDAS;VALOR FATURADO;COMISSÁO (5%)\n';
                     
                     if (vendedores && vendedores.length > 0) {
                         let totalGeral = 0;
@@ -3338,7 +3345,7 @@ tbody tr:nth-child(even) { background: #f8fafc; }
                             const valor = parseFloat(p.valor || 0);
                             totalQtd += qtd;
                             totalValor += valor;
-                            csvContent += `${p.nome || ''};${p.código || ''};${qtd};${valor.toFixed(2).replace('.', ',')}\n`;
+                            csvContent += `${p.nome || ''};${p.codigo || ''};${qtd};${valor.toFixed(2).replace('.', ',')}\n`;
                         });
                         csvContent += `\nTOTAL;;${totalQtd};${totalValor.toFixed(2).replace('.', ',')}\n`;
                     } else {
@@ -3375,7 +3382,7 @@ tbody tr:nth-child(even) { background: #f8fafc; }
             carregarDados();
         }
 
-        // ==================== INICIALIZAÇÃO ====================
+        // ==================== INICIALIZAÇÁO ====================
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('?? Inicializando página de relatórios...');
             
@@ -3392,7 +3399,7 @@ tbody tr:nth-child(even) { background: #f8fafc; }
 
                 // Verificar autenticação via API (cookies httpOnly)
                 console.log('?? Verificando autenticação...');
-                const isAutenticado = await verificarAutenticacao();
+                const isAutenticado = await verificarAutenticação();
                 
                 if (isAutenticado) {
                     console.log('?? Usuário autenticado - carregando dados reais...');
@@ -3756,10 +3763,10 @@ function getCorIntensidade(intensidade) {
     <!-- Performance Utilities -->
     <script src="/js/performance-utils.js?v=20260213"></script>
 
-    <script src="/js/auth-unified.js?v=20260301"></script>
+    <script src="/js/auth-unified.js?v=20260527"></script>
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
     <!-- Chat Widget BOB AI - DESATIVADO -->
-    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <!-- <script src="/chat/widget.js?v=20260418" defer></script> -->
     <script src="/js/user-dropdown.js?v=20260223" defer></script>
 
     <!-- Sidebar Click Animation -->
@@ -3772,5 +3779,6 @@ function getCorIntensidade(intensidade) {
     <script src="/chat-teams/chat-widget.js?v=20260319" defer></script>
 </body>
 </html>
+
 
 

@@ -264,13 +264,24 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
             const offset = (page - 1) * limit;
             let where = 'WHERE 1=1';
             const params = [];
+            const dataInicio = req.query.data_inicio || req.query.dataInicio || req.query.vencimento_inicio;
+            const dataFim = req.query.data_fim || req.query.dataFim || req.query.vencimento_fim;
 
             if (req.query.status) { where += ' AND cp.status = ?'; params.push(req.query.status); }
             if (req.query.fornecedor_id) { where += ' AND cp.fornecedor_id = ?'; params.push(req.query.fornecedor_id); }
+            if (dataInicio && dataFim) {
+                where += ' AND COALESCE(cp.data_pagamento, cp.data_vencimento, cp.vencimento, cp.data_emissao) BETWEEN ? AND ?';
+                params.push(dataInicio, dataFim);
+            }
 
             const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM contas_pagar cp ${where}`, params);
             const [rows] = await pool.query(
-                `SELECT cp.*, f.razao_social as fornecedor_nome FROM contas_pagar cp LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id ${where} ORDER BY cp.vencimento ASC LIMIT ? OFFSET ?`,
+                `SELECT cp.*, COALESCE(f.razao_social, f.nome_fantasia, f.nome, cp.fornecedor_nome) as fornecedor_nome
+                 FROM contas_pagar cp
+                 LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id
+                 ${where}
+                 ORDER BY COALESCE(cp.data_pagamento, cp.data_vencimento, cp.vencimento, cp.data_emissao) DESC
+                 LIMIT ? OFFSET ?`,
                 [...params, limit, offset]
             );
 
@@ -347,14 +358,20 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
             const offset = (page - 1) * limit;
             let where = 'WHERE 1=1';
             const params = [];
+            const dataInicio = req.query.data_inicio || req.query.dataInicio || req.query.vencimento_inicio;
+            const dataFim = req.query.data_fim || req.query.dataFim || req.query.vencimento_fim;
 
             if (req.query.status) { where += ' AND cr.status = ?'; params.push(req.query.status); }
             if (req.query.cliente_id) { where += ' AND cr.cliente_id = ?'; params.push(req.query.cliente_id); }
+            if (dataInicio && dataFim) {
+                where += ' AND COALESCE(cr.data_recebimento, cr.data_vencimento, cr.vencimento, cr.data_emissao) BETWEEN ? AND ?';
+                params.push(dataInicio, dataFim);
+            }
 
-            // Sprint 2 (P-05): JOIN com pedidos e ordens_producao para rastreabilidade
+            // Sprint 2 (P-05): JOIN com pedidos para rastreabilidade.
+            // A coluna ordem_producao_id não existe em todos os bancos multiempresa.
             const joins = `
                 LEFT JOIN pedidos p ON cr.pedido_id = p.id
-                LEFT JOIN ordens_producao op ON cr.ordem_producao_id = op.id
             `;
 
             const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM contas_receber cr ${joins} ${where}`, params);
@@ -362,10 +379,10 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
                 `SELECT cr.*,
                     p.status AS pedido_status,
                     p.cliente_nome AS pedido_cliente,
-                    p.condicao_pagamento AS pedido_condicao,
-                    op.codigo AS op_codigo,
-                    op.status AS op_status
-                FROM contas_receber cr ${joins} ${where} ORDER BY cr.vencimento ASC LIMIT ? OFFSET ?`,
+                    p.condicao_pagamento AS pedido_condicao
+                FROM contas_receber cr ${joins} ${where}
+                ORDER BY COALESCE(cr.data_recebimento, cr.data_vencimento, cr.vencimento, cr.data_emissao) DESC
+                LIMIT ? OFFSET ?`,
                 [...params, limit, offset]
             );
 

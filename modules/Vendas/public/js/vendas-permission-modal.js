@@ -174,7 +174,7 @@ window.VendasPermissionModal = (function() {
         } else if (response.status === 401) {
             showWarning('Sessão expirada', 'Por favor, faça login novamente.');
             setTimeout(() => {
-                window.location.href = '/login.html';
+                window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
             }, 2000);
             return true;
         }

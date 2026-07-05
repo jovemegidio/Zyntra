@@ -1,4 +1,4 @@
-﻿// auth.js - Middleware e rota de autenticação corrigida
+// auth.js - Middleware e rota de autenticação corrigida
 const express = require('express');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
@@ -21,28 +21,6 @@ const router = express.Router();
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutos
 const loginAttemptsCache = new Map(); // fallback in-memory
-
-// BE-003: Cache de /api/me — evitar 58+ queries redundantes por pageload
-// TTL de 90s: cobre múltiplas chamadas simultâneas sem tornar os dados obsoletos
-const _meCache = new Map();
-const ME_CACHE_TTL = 90 * 1000; // 90 segundos
-function _meCacheGet(userId) {
-    const entry = _meCache.get(userId);
-    if (!entry) return null;
-    if (Date.now() - entry.ts > ME_CACHE_TTL) { _meCache.delete(userId); return null; }
-    return entry.data;
-}
-function _meCacheSet(userId, data) {
-    _meCache.set(userId, { data, ts: Date.now() });
-    // Limpar entradas antigas a cada 200 usuários em cache
-    if (_meCache.size > 200) {
-        const cutoff = Date.now() - ME_CACHE_TTL;
-        for (const [k, v] of _meCache) { if (v.ts < cutoff) _meCache.delete(k); }
-    }
-}
-function _meCacheInvalidate(userId) { _meCache.delete(userId); }
-// Exportar invalidator para ser chamado após UPDATE de usuário
-module.exports && (module.exports._meCacheInvalidate = _meCacheInvalidate);
 
 async function getLoginAttempt(email) {
     const key = (email || '').toLowerCase().trim();
@@ -245,6 +223,149 @@ async function registerSessionActivity(userId, deviceId, context) {
     }
 }
 
+const ADMIN_AREAS = ['vendas', 'rh', 'pcp', 'financeiro', 'nfe', 'compras', 'ti'];
+
+function normalizeModuleCode(value) {
+    const code = String(value || '')
+        .toLowerCase()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9_-]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    if (!code) return '';
+    if (code === 'recursos_humanos' || code.includes('recursos_humanos') || code.includes('funcionario')) return 'rh';
+    if (code === 'financas' || code === 'financeiro_contas') return 'financeiro';
+    if (code === 'producao' || code.includes('planejamento_e_controle')) return 'pcp';
+    if (code === 'nota_fiscal_eletronica' || code === 'nf_e' || code === 'nfe') return 'nfe';
+    if (code === 'comercial') return 'vendas';
+    return code;
+}
+
+function addModuleCode(set, value) {
+    const code = normalizeModuleCode(value);
+    if (code) set.add(code);
+}
+
+function parseModuleList(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'object') return Object.keys(value);
+    if (typeof value === 'string') {
+        const text = value.trim();
+        if (!text) return [];
+        if (text.startsWith('[') || text.startsWith('{')) {
+            try { return parseModuleList(JSON.parse(text)); } catch (e) { /* fall through */ }
+        }
+        return text.split(',').map(item => item.trim()).filter(Boolean);
+    }
+    return [];
+}
+
+async function getTableColumns(tableName) {
+    try {
+        const [rows] = await safeQuery(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+            [tableName]
+        );
+        return new Set(rows.map(row => String(row.COLUMN_NAME || '').toLowerCase()));
+    } catch (e) {
+        return new Set();
+    }
+}
+
+async function loadDirectPermissionModules(userId) {
+    if (!userId) return [];
+
+    const columns = await getTableColumns('permissoes_modulos');
+    if (!columns.has('usuario_id') || !columns.has('modulo')) return [];
+
+    const where = ['usuario_id = ?'];
+    if (columns.has('visualizar')) {
+        where.push('visualizar = 1');
+    } else if (columns.has('pode_visualizar')) {
+        where.push('pode_visualizar = 1');
+    } else if (columns.has('permissao')) {
+        where.push("LOWER(COALESCE(permissao, '')) NOT IN ('0', 'false', 'bloqueado', 'negado', 'deny', 'denied')");
+    }
+
+    try {
+        const [rows] = await safeQuery(
+            `SELECT DISTINCT modulo FROM permissoes_modulos WHERE ${where.join(' AND ')}`,
+            [userId]
+        );
+        return rows.map(row => row.modulo).filter(Boolean);
+    } catch (e) {
+        return [];
+    }
+}
+
+async function loadRolePermissionModules(userId) {
+    if (!userId) return [];
+
+    try {
+        const [rows] = await safeQuery(`
+            SELECT DISTINCT m.codigo AS modulo
+            FROM usuario_roles ur
+            INNER JOIN role_modulos rm ON ur.role_id = rm.role_id
+            INNER JOIN modulos m ON rm.modulo_id = m.id
+            WHERE ur.usuario_id = ?
+              AND (ur.ativo = 1 OR ur.ativo IS NULL)
+              AND rm.pode_visualizar = 1
+              AND (m.ativo = 1 OR m.ativo IS NULL)
+        `, [userId]);
+        return rows.map(row => row.modulo).filter(Boolean);
+    } catch (e) {
+        return [];
+    }
+}
+
+function loadFallbackPermissionModules(user) {
+    const areas = [];
+    try {
+        const permServer = require('../../src/permissions-server');
+        const firstName = (user.nome || '').split(' ')[0].toLowerCase();
+        const emailPrefix = (user.email || '').split('@')[0].split('.')[0].toLowerCase();
+        const serverAreas = permServer.getUserAreas(firstName || emailPrefix);
+        if (serverAreas && serverAreas.length > 0) areas.push(...serverAreas);
+    } catch (e) { /* fallback unavailable */ }
+    return areas;
+}
+
+async function resolveUserAreas(user) {
+    const set = new Set();
+    if (!user) return [];
+
+    if (user.is_admin === 1 || user.is_admin === true || user.is_admin === '1') {
+        return ADMIN_AREAS.slice();
+    }
+
+    parseModuleList(user.areas || user.area).forEach(area => addModuleCode(set, area));
+
+    const [directModules, roleModules] = await Promise.all([
+        loadDirectPermissionModules(user.id),
+        loadRolePermissionModules(user.id)
+    ]);
+    directModules.forEach(modulo => addModuleCode(set, modulo));
+    roleModules.forEach(modulo => addModuleCode(set, modulo));
+
+    if (set.size === 0) {
+        loadFallbackPermissionModules(user).forEach(area => addModuleCode(set, area));
+    }
+
+    return Array.from(set);
+}
+
+function buildMenuPermissions(areas) {
+    const modules = {};
+    (areas || []).forEach(area => {
+        const code = normalizeModuleCode(area);
+        if (code) modules[code] = { visualizar: true, pode_visualizar: true, read: true };
+    });
+    return { modules };
+}
+
 // Rota de login corrigida (sem campo cargo)
 router.post('/login', validate(schemas.login), async (req, res) => {
     const isDevMode = process.env.NODE_ENV !== 'production';
@@ -306,9 +427,12 @@ router.post('/login', validate(schemas.login), async (req, res) => {
         // Domínios permitidos para login (configurável via .env)
         const defaultDomains = [
             '@aluforce.ind.br',
-            '@labor.com.br',
+            '@aluforce.com',
+            '@energy.com.br',
+            '@laboreletric.com.br',
             '@lumiereassesoria.com.br',
-            '@lumiereassessoria.com.br'
+            '@lumiereassessoria.com.br',
+            '@zyntra.com.br'
         ];
         const dominiosPermitidos = process.env.ALLOWED_EMAIL_DOMAINS
             ? process.env.ALLOWED_EMAIL_DOMAINS.split(',').map(d => d.trim())
@@ -317,13 +441,15 @@ router.post('/login', validate(schemas.login), async (req, res) => {
         const emailValido = dominiosPermitidos.some(dominio => email && email.endsWith(dominio));
 
         if (!isCpfLogin && (!email || !emailValido)) {
-            return res.status(401).json({ message: 'E-mail não autorizado para este sistema.' }); // BUG-006: não expor domínios internos
+            return res.status(401).json({ message: 'E-mail não autorizado. Entre em contato com o administrador.' });
         }
 
         // Mapeamento domínio → empresa_id (multiempresa)
         const dominioEmpresaMap = {
             '@aluforce.ind.br': 1,
-            '@labor.com.br': 2
+            '@aluforce.com': 1,
+            '@laboreletric.com.br': 2,
+            '@energy.com.br': 3
         };
         const emailDominio = email ? ('@' + (email.split('@')[1] || '')) : '';
         const empresaIdPorDominio = dominioEmpresaMap[emailDominio] || null;
@@ -360,15 +486,6 @@ router.post('/login', validate(schemas.login), async (req, res) => {
 
         // Seleciona o usuário (busca por email OU login)
         let [rows] = await safeQuery('SELECT * FROM usuarios WHERE email = ? OR login = ? ORDER BY id ASC LIMIT 1', [email, email.split('@')[0]]);
-
-        // Fallback: @labor.com.br é alias de @aluforce.ind.br — busca com domínio canônico
-        if (!rows.length && email.endsWith('@labor.com.br')) {
-            const canonicalEmail = email.replace('@labor.com.br', '@aluforce.ind.br');
-            [rows] = await safeQuery('SELECT * FROM usuarios WHERE email = ? ORDER BY id ASC LIMIT 1', [canonicalEmail]);
-            if (rows.length) {
-                console.log(`[AUTH/LOGIN] 🔗 Labor alias: ${email} → ${canonicalEmail}`);
-            }
-        }
 
         // ========================================
         // CPF LOGIN SYNC: Sincronizar dados quando usuario é encontrado
@@ -763,7 +880,7 @@ router.post('/login', validate(schemas.login), async (req, res) => {
 
         <!-- LOGO -->
         <tr><td bgcolor="#1a1a2e" style="padding:24px 0 28px;text-align:center;background-color:#1a1a2e;">
-          <img src="https://aluforce.api.br/images/zyntra-branco.png" alt="Zyntra" style="height:48px;width:auto;display:inline-block;" />
+          <img src="https://zyntraerp.com.br/images/zyntra-branco.png" alt="Zyntra" style="height:48px;width:auto;display:inline-block;" />
         </td></tr>
 
         <!-- CARD -->
@@ -904,7 +1021,7 @@ router.post('/login', validate(schemas.login), async (req, res) => {
             cookieOptions.sameSite = 'lax';
         }
         // Access token cookie: 15 minutos
-        const accessCookieOptions = Object.assign({}, cookieOptions, { maxAge: 1000 * 60 * 15 });
+        const accessCookieOptions = Object.assign({}, cookieOptions, { maxAge: 1000 * 60 * 60 * 8 });
         res.cookie('authToken', accessToken, accessCookieOptions);
 
         // Refresh token cookie: 7 dias (httpOnly, path / para acesso em page navigation)
@@ -927,6 +1044,7 @@ router.post('/login', validate(schemas.login), async (req, res) => {
         // SECURITY: Token is NOT included in JSON response.
         // Authentication is handled exclusively via httpOnly cookie (set above).
         // This eliminates XSS token theft via localStorage.
+        const userAreas = await resolveUserAreas(user);
         const payload = {
             success: true,
             deviceId, // 🔐 MULTI-DEVICE: ID único deste dispositivo
@@ -942,7 +1060,7 @@ router.post('/login', validate(schemas.login), async (req, res) => {
                 apelido: user.apelido || null,
                 foto: user.foto || user.avatar || null,
                 avatar: user.avatar || user.foto || null,
-                areas: (() => {
+                _legacyAreas: (() => {
                     // Parse áreas do banco de dados
                     let areas = [];
                     if (user.areas) {
@@ -966,7 +1084,10 @@ router.post('/login', validate(schemas.login), async (req, res) => {
                         areas = ['vendas', 'rh', 'pcp', 'financeiro', 'nfe', 'compras', 'ti'];
                     }
                     return areas;
-                })()
+                })(),
+                areas: userAreas,
+                modulos: userAreas,
+                permissions: buildMenuPermissions(userAreas)
             }
         };
         await registerSessionActivity(user.id, deviceId, 'LOGIN');
@@ -1143,7 +1264,7 @@ router.post('/auth/refresh', async (req, res) => {
         }
 
         // Setar novos cookies
-        res.cookie('authToken', newAccessToken, Object.assign({}, cookieOpts, { maxAge: 1000 * 60 * 15 }));
+        res.cookie('authToken', newAccessToken, Object.assign({}, cookieOpts, { maxAge: 1000 * 60 * 60 * 8 }));
         res.cookie('refreshToken', result.refreshToken, Object.assign({}, cookieOpts, {
             maxAge: 1000 * 60 * 60 * 24 * 7
         }));
@@ -1451,7 +1572,7 @@ router.post('/auth/validate-remember-token', async (req, res) => {
         }
 
         // Access token (15 min)
-        res.cookie('authToken', accessToken, Object.assign({}, cookieOptions, { maxAge: 1000 * 60 * 15 }));
+        res.cookie('authToken', accessToken, Object.assign({}, cookieOptions, { maxAge: 1000 * 60 * 60 * 8 }));
         // Refresh token (7 dias)
         res.cookie('refreshToken', tokenPair.refreshToken, Object.assign({}, cookieOptions, {
             maxAge: 1000 * 60 * 60 * 24 * 7
@@ -1600,7 +1721,7 @@ router.post('/verify-2fa', async (req, res) => {
             cookieOptions.sameSite = 'lax';
         }
         // Access token cookie: 15 minutos
-        const accessCookieOptions = Object.assign({}, cookieOptions, { maxAge: 1000 * 60 * 15 });
+        const accessCookieOptions = Object.assign({}, cookieOptions, { maxAge: 1000 * 60 * 60 * 8 });
         res.cookie('authToken', accessToken, accessCookieOptions);
         // Refresh token cookie: 7 dias
         const refreshCookieOptions = Object.assign({}, cookieOptions, { maxAge: 1000 * 60 * 60 * 24 * 7 });
@@ -1673,6 +1794,7 @@ router.post('/verify-2fa', async (req, res) => {
         }
 
         const redirectTo = '/dashboard';
+        const userAreas = await resolveUserAreas(user);
 
         // SECURITY: Token is NOT included in JSON response — delivered only via httpOnly cookie
         const payload = {
@@ -1690,7 +1812,7 @@ router.post('/verify-2fa', async (req, res) => {
                 apelido: user.apelido || null,
                 foto: user.foto || user.avatar || null,
                 avatar: user.avatar || user.foto || null,
-                areas: (() => {
+                _legacyAreas: (() => {
                     let areas = [];
                     if (user.areas) {
                         try {
@@ -1711,7 +1833,10 @@ router.post('/verify-2fa', async (req, res) => {
                         areas = ['vendas', 'rh', 'pcp', 'financeiro', 'nfe', 'compras', 'ti'];
                     }
                     return areas;
-                })()
+                })(),
+                areas: userAreas,
+                modulos: userAreas,
+                permissions: buildMenuPermissions(userAreas)
             }
         };
 
@@ -1814,7 +1939,7 @@ router.post('/resend-2fa', async (req, res) => {
     <tr><td align="center" bgcolor="#1a1a2e" style="padding:32px 16px;background-color:#1a1a2e;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="520" style="max-width:520px;width:100%;">
         <tr><td bgcolor="#1a1a2e" style="padding:24px 0 28px;text-align:center;background-color:#1a1a2e;">
-          <img src="https://aluforce.api.br/images/zyntra-branco.png" alt="Zyntra" style="height:48px;width:auto;display:inline-block;" />
+          <img src="https://zyntraerp.com.br/images/zyntra-branco.png" alt="Zyntra" style="height:48px;width:auto;display:inline-block;" />
         </td></tr>
         <tr><td bgcolor="#242442" style="background-color:#242442;border-radius:16px;overflow:hidden;">
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%" bgcolor="#242442">
@@ -2143,13 +2268,6 @@ router.get('/me', async (req, res) => {
             return res.status(401).json({ message: 'Token inválido', code: 'AUTH_INVALID' });
         }
 
-        // BE-003: Servir do cache se disponível (evita 58+ queries redundantes por pageload)
-        const cached = _meCacheGet(userId);
-        if (cached) {
-            res.setHeader('X-Cache', 'HIT');
-            return res.json(cached);
-        }
-
         const [rows] = await safeQuery(
             'SELECT id, nome, email, role, is_admin, avatar, foto, login, setor, areas FROM usuarios WHERE id = ? LIMIT 1',
             [userId]
@@ -2179,8 +2297,9 @@ router.get('/me', async (req, res) => {
         if (u.is_admin) {
             areas = ['vendas', 'rh', 'pcp', 'financeiro', 'nfe', 'compras', 'ti'];
         }
+        areas = await resolveUserAreas(u);
 
-        const response = {
+        res.json({
             id: u.id,
             nome: u.nome,
             email: u.email,
@@ -2190,13 +2309,10 @@ router.get('/me', async (req, res) => {
             foto: u.foto || u.avatar,
             login: u.login,
             setor: u.setor,
-            areas
-        };
-
-        // Salvar no cache
-        _meCacheSet(userId, response);
-        res.setHeader('X-Cache', 'MISS');
-        res.json(response);
+            areas,
+            modulos: areas,
+            permissions: buildMenuPermissions(areas)
+        });
     } catch (err) {
         if (err.name === 'TokenExpiredError') {
             return res.status(401).json({ message: 'Token expirado', code: 'AUTH_EXPIRED' });

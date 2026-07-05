@@ -51,14 +51,20 @@ router.get('/', async (req, res) => {
         params.push(safeLimitVal, safeOffset);
         
         const [pedidos] = await db.query(sql, params);
-        
-        // Buscar itens de cada pedido
-        for (let pedido of pedidos) {
+
+        // PERF: buscar itens de TODOS os pedidos em UMA query (evita N+1 — antes era 1 query por pedido)
+        if (pedidos.length) {
+            const ids = pedidos.map(p => p.id);
+            const ph = ids.map(() => '?').join(', ');
             const [itens] = await db.query(
-                'SELECT * FROM pedidos_compra_itens WHERE pedido_id = ?',
-                [pedido.id]
+                `SELECT * FROM pedidos_compra_itens WHERE pedido_id IN (${ph})`,
+                ids
             );
-            pedido.itens = itens;
+            const porPedido = new Map(pedidos.map(p => [p.id, (p.itens = [])]));
+            for (const it of itens) {
+                const arr = porPedido.get(it.pedido_id);
+                if (arr) arr.push(it);
+            }
         }
         
         const countSql = 'SELECT COUNT(*) as total FROM pedidos_compra WHERE 1=1' +
@@ -129,7 +135,7 @@ router.post('/', async (req, res) => {
             observacoes,
             itens
         } = req.body;
-        
+
         // BUG-013: Extrair ID do usuário autenticado para trilha de auditoria
         const usuario_id = req.user?.id || req.user?.user_id || req.user?.userId || null;
 
@@ -138,7 +144,7 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'Fornecedor e itens são obrigatórios' });
         }
 
-        // BUG-009: data de entrega prevista é obrigatória
+        // BUG-009: data de entrega prevista é obrigatória (rastreamento de SLA e alertas de atraso)
         if (!data_entrega_prevista) {
             await connection.rollback();
             return res.status(400).json({ error: 'Data de entrega prevista é obrigatória.' });
@@ -167,7 +173,13 @@ router.post('/', async (req, res) => {
         
         // Calcular valor total
         const valor_total = itens.reduce((sum, item) => sum + (item.quantidade * item.preco_unitario), 0);
-        
+
+        // DB-002: Bloquear pedido com valor total zero (previne dados inválidos no banco)
+        if (!Number.isFinite(valor_total) || valor_total <= 0) {
+            await connection.rollback();
+            return res.status(400).json({ error: 'Valor total do pedido deve ser maior que zero.' });
+        }
+
         // Gerar número do pedido
         const numero_pedido = 'PC-' + Date.now().toString().slice(-6);
         
@@ -189,9 +201,9 @@ router.post('/', async (req, res) => {
                 usuario_id
             ]
         );
-
+        
         const pedido_id = result.insertId;
-
+        
         // Inserir itens — BUG-006: sanitizar descricao dos itens
         for (const item of itens) {
             await connection.query(
@@ -209,7 +221,7 @@ router.post('/', async (req, res) => {
                 ]
             );
         }
-
+        
         await connection.commit();
         
         res.status(201).json({

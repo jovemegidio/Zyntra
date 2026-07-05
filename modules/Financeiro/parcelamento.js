@@ -744,7 +744,7 @@ class SistemaParcelamento {
             if (response.ok) {
                 const contas = await response.json();
                 (Array.isArray(contas) ? contas : []).forEach(c => {
-                    select.innerHTML += `<option value="${c.id}">${c.banco} - ${c.agencia || ''}/${c.conta || c.numero_conta || ''}</option>`;
+                    select.innerHTML += `<option value="${c.id}">${c.nome || c.banco || c.banco_nome || 'Conta'} - ${c.agencia || ''}/${c.conta || c.numero_conta || ''}</option>`;
                 });
             }
         } catch(err) { console.error('Erro ao carregar contas:', err); }

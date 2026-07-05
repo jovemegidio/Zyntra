@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SISTEMA DE CONTROLE DE ACESSO - MÓDULO FINANCEIRO ALUFORCE
  * 
  * Integrado com o sistema de autenticação do painel de controle
@@ -139,7 +139,7 @@ class SistemaAutenticacao {
     async carregarUsuarioLogado() {
         try {
             // SSO: Verificar autenticação via cookie httpOnly
-            console.log('🔐 [Financeiro] Verificando autenticação SSO...');
+            console.log('?? [Financeiro] Verificando autenticação SSO...');
             
             const response = await fetch('/api/me', {
                 method: 'GET',
@@ -155,7 +155,7 @@ class SistemaAutenticacao {
             }
             
             const usuarioSistema = await response.json();
-            console.log('✅ [Financeiro] SSO: Usuário autenticado:', usuarioSistema.nome || usuarioSistema.email);
+            console.log('? [Financeiro] SSO: Usuário autenticado:', usuarioSistema.nome || usuarioSistema.email);
             
             // Salvar dados localmente para compatibilidade
             localStorage.setItem('userData', JSON.stringify(usuarioSistema));
@@ -168,10 +168,10 @@ class SistemaAutenticacao {
             const permissoesUsuario = PERMISSOES_FINANCEIRO[usuarioNome];
 
             if (!permissoesUsuario) {
-                console.error(`❌ Usuário "${usuarioNome}" não tem permissões para o módulo financeiro`);
+                console.error(`? Usuário "${usuarioNome}" não tem permissões para o módulo financeiro`);
                 // Redirecionar para dashboard com mensagem
                 alert('Você não tem permissão para acessar o módulo Financeiro.');
-                window.location.href = '/dashboard';
+                window.location.href = window.__withBasePath ? window.__withBasePath('/dashboard') : '/dashboard';
                 return;
             }
 
@@ -187,7 +187,7 @@ class SistemaAutenticacao {
             // Log de acesso
             this.registrarLog('acesso_modulo', `Usuário ${this.usuarioAtual.nome} acessou o módulo financeiro`);
 
-            console.log('✅ Usuário carregado:', this.usuarioAtual.nome, '| Perfil:', this.usuarioAtual.perfil);
+            console.log('? Usuário carregado:', this.usuarioAtual.nome, '| Perfil:', this.usuarioAtual.perfil);
             
             // Atualizar UI
             if (typeof this.atualizarInterfaceUsuario === 'function') {
@@ -195,7 +195,7 @@ class SistemaAutenticacao {
             }
             
         } catch (error) {
-            console.log('❌ [Financeiro] SSO: Não autenticado - redirecionando para login...');
+            console.log('? [Financeiro] SSO: Não autenticado - redirecionando para login...');
             
             // Limpar dados locais
             localStorage.removeItem('userData');
@@ -232,7 +232,7 @@ class SistemaAutenticacao {
             credentials: 'include' 
         }).finally(() => {
             // Redirecionar para login principal
-            window.location.href = '/login.html';
+            window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
         });
     }
 
@@ -363,8 +363,8 @@ class SistemaAutenticacao {
      * Redireciona para painel de controle principal
      */
     redirecionarParaPainel() {
-        alert('⚠️ Você precisa estar logado no sistema para acessar o módulo financeiro.');
-        window.location.href = '/dashboard'; // Redirecionar para painel principal
+        alert('?? Você precisa estar logado no sistema para acessar o módulo financeiro.');
+        window.location.href = window.__withBasePath ? window.__withBasePath('/dashboard') : '/dashboard'; // Redirecionar para painel principal
     }
 
     /**
@@ -552,4 +552,4 @@ window.requerPermissao = requerPermissao;
 window.PERMISSOES_FINANCEIRO = PERMISSOES_FINANCEIRO;
 window.PERFIS = PERFIS;
 
-console.log('✅ Sistema de Controle de Acesso Financeiro carregado');
+console.log('? Sistema de Controle de Acesso Financeiro carregado');

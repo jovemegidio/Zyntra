@@ -6,11 +6,27 @@
  */
 const express = require('express');
 const { safeAddColumn, safeAddIndex } = require('../utils/safe-alter');
+const {
+    getContaMovimentacoesSistema,
+    calcularSaldoAnteriorSistema,
+} = require('./financeiro-extrato-movements');
 
 module.exports = function createFinanceiroExtendedRoutes(deps) {
     const { pool, authenticateToken, authorizeArea, writeAuditLog, jwt, JWT_SECRET, cacheMiddleware, CACHE_CONFIG, checkFinanceiroPermission } = deps;
     const router = express.Router();
     const cacheService = (() => { try { return require('../services/cache'); } catch(_) { return null; } })();
+
+    function dateOnly(value) {
+        if (!value) return null;
+        if (typeof value === 'string') return value.slice(0, 10);
+        if (value instanceof Date && !isNaN(value)) {
+            const y = value.getFullYear();
+            const m = String(value.getMonth() + 1).padStart(2, '0');
+            const d = String(value.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+        return String(value).slice(0, 10);
+    }
 
     // ============================================================
     // AUTO-MIGRAÇÃO: Coluna mes_referencia para organizar dados por mês
@@ -312,11 +328,14 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
         try {
             const [contas] = await pool.query(`
                 SELECT id, nome, banco, tipo, agencia, conta, numero_conta,
-                       COALESCE(saldo_atual, saldo, 0) as saldo_atual,
+                       COALESCE(saldo_atual, saldo, saldo_inicial, 0) as saldo_atual,
+                       COALESCE(saldo_atual, saldo, saldo_inicial, 0) as saldo,
                        COALESCE(saldo_inicial, 0) as saldo_inicial,
                        COALESCE(ativo, ativa, 1) as ativo,
-                       observacoes, created_at
+                       observacoes, created_at,
+                       limite_credito, data_saldo_inicial, conta_vinculada, nao_considerar_resumo
                 FROM contas_bancarias
+                WHERE COALESCE(ativo, ativa, 1) = 1
                 ORDER BY nome ASC
             `);
             res.json(contas);
@@ -330,12 +349,15 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
     // AUDIT-FIX HIGH-011: Direct contas_bancarias insert, no fallback
     router.post('/contas-bancarias', authenticateToken, async (req, res) => {
         try {
-            const { nome, banco, tipo, agencia, numero_conta, saldo, observacoes } = req.body;
+            const { nome, banco, tipo, agencia, numero_conta, saldo, observacoes,
+                    limite_credito, data_saldo_inicial, conta_vinculada, nao_considerar_resumo } = req.body;
 
             const [result] = await pool.query(`
-                INSERT INTO contas_bancarias (nome, banco, tipo, agencia, conta, saldo_inicial, saldo_atual, ativo, observacoes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
-            `, [nome, banco, tipo || 'corrente', agencia, numero_conta, saldo || 0, saldo || 0, observacoes]);
+                INSERT INTO contas_bancarias (nome, banco, tipo, agencia, conta, saldo_inicial, saldo_atual, ativo, observacoes,
+                    limite_credito, data_saldo_inicial, conta_vinculada, nao_considerar_resumo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+            `, [nome, banco, tipo || 'corrente', agencia, numero_conta, saldo || 0, saldo || 0, observacoes,
+                limite_credito || 0, data_saldo_inicial || null, conta_vinculada || null, nao_considerar_resumo ? 1 : 0]);
 
             res.json({ success: true, id: result.insertId, message: 'Conta criada com sucesso' });
         } catch (err) {
@@ -349,13 +371,20 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
     router.put('/contas-bancarias/:id', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
-            const { nome, banco, tipo, agencia, numero_conta, saldo, observacoes } = req.body;
+            const { nome, banco, tipo, agencia, numero_conta, saldo, observacoes,
+                    limite_credito, data_saldo_inicial, conta_vinculada, nao_considerar_resumo } = req.body;
+            const saldoInicial = Number.isFinite(parseFloat(saldo)) ? parseFloat(saldo) : 0;
 
             await pool.query(`
                 UPDATE contas_bancarias
-                SET nome = ?, banco = ?, tipo = ?, agencia = ?, conta = ?, saldo_atual = ?, observacoes = ?
+                SET nome = ?, banco = ?, tipo = ?, agencia = ?, conta = ?,
+                    saldo_inicial = ?,
+                    saldo_atual = COALESCE(saldo_atual, saldo, saldo_inicial, 0) + (? - COALESCE(saldo_inicial, 0)),
+                    observacoes = ?,
+                    limite_credito = ?, data_saldo_inicial = ?, conta_vinculada = ?, nao_considerar_resumo = ?
                 WHERE id = ?
-            `, [nome, banco, tipo, agencia, numero_conta, saldo, observacoes, id]);
+            `, [nome, banco, tipo, agencia, numero_conta, saldoInicial, saldoInicial, observacoes,
+                limite_credito || 0, data_saldo_inicial || null, conta_vinculada || null, nao_considerar_resumo ? 1 : 0, id]);
 
             res.json({ success: true, message: 'Conta atualizada com sucesso' });
         } catch (err) {
@@ -381,33 +410,85 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
     router.get('/contas-bancarias/:id/movimentacoes', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
-            const { data_inicio, data_fim, tipo } = req.query;
+            const data_inicio = req.query.data_inicio || req.query.inicio;
+            const data_fim = req.query.data_fim || req.query.fim;
+            const { tipo } = req.query;
 
             // Tabela movimentacoes_bancarias já existe com schema correto (banco_id, não conta_id)
 
-            let query = `SELECT id, banco_id, tipo, valor, cliente_fornecedor, data, created_at FROM movimentacoes_bancarias WHERE banco_id = ?`;
-            const params = [id];
+            const movimentacoes = await getContaMovimentacoesSistema(pool, id, {
+                data_inicio,
+                data_fim,
+                tipo,
+                limit: 5000,
+            });
 
             if (data_inicio) {
-                query += ` AND data >= ?`;
-                params.push(data_inicio);
-            }
-            if (data_fim) {
-                query += ` AND data <= ?`;
-                params.push(data_fim);
-            }
-            if (tipo) {
-                query += ` AND tipo = ?`;
-                params.push(tipo);
+                const [[conta]] = await pool.query(
+                    `SELECT COALESCE(saldo_inicial, 0) AS saldo_inicial, data_saldo_inicial
+                     FROM contas_bancarias WHERE id = ?`,
+                    [id]
+                );
+
+                const saldoBase = parseFloat(conta?.saldo_inicial) || 0;
+                const dataSaldoInicial = dateOnly(conta?.data_saldo_inicial);
+                const saldoAnterior = await calcularSaldoAnteriorSistema(pool, id, saldoBase, dataSaldoInicial, data_inicio);
+
+                return res.json({
+                    success: true,
+                    data: movimentacoes,
+                    movimentacoes,
+                    rows: movimentacoes,
+                    saldo_anterior: saldoAnterior,
+                    saldo_inicial_periodo: saldoAnterior,
+                    periodo: { inicio: data_inicio, fim: data_fim || null }
+                });
             }
 
-            query += ` ORDER BY data DESC, id DESC LIMIT 500`;
-
-            const [movimentacoes] = await pool.query(query, params);
             res.json(movimentacoes);
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao buscar movimentações:', err);
             res.status(500).json({ error: 'Erro ao buscar movimentações' });
+        }
+    });
+
+    // Envia o extrato de uma conta corrente por e-mail (link para o relatório HTML +
+    // resumo dos lançamentos do período no corpo do e-mail).
+    router.post('/contas-bancarias/:id/enviar-extrato-email', authenticateToken, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { destinatarios, cc, cco, assunto, texto_complementar, data_inicio, data_fim, previsoes } = req.body;
+            const para = (destinatarios || '').split(',').map(s => s.trim()).filter(Boolean);
+            if (!para.length) return res.status(400).json({ success: false, error: 'Informe ao menos um destinatário.' });
+
+            const [[conta]] = await pool.query(
+                `SELECT COALESCE(nome, banco, CONCAT('Conta ', id)) AS nome FROM contas_bancarias WHERE id = ?`, [id]
+            );
+            const contaNome = conta ? conta.nome : ('Conta ' + id);
+
+            const base = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
+            const qs = new URLSearchParams({ conta_id: id });
+            if (data_inicio) qs.set('data_inicio', data_inicio);
+            if (data_fim) qs.set('data_fim', data_fim);
+            if (previsoes === 1 || previsoes === '1' || previsoes === true) qs.set('previsoes', '1');
+            qs.set('fonte', 'sistema');
+            const linkExtrato = `${base}/api/relatorios-html/extrato-conta?${qs.toString()}`;
+
+            const { sendEmail } = require('../utils/email');
+            const html = `
+                <p>Olá,</p>
+                <p>Segue o extrato da conta <strong>${contaNome}</strong>.</p>
+                ${texto_complementar ? `<p>${texto_complementar}</p>` : ''}
+                <p><a href="${linkExtrato}" target="_blank">Clique aqui para visualizar o extrato</a></p>
+                <p style="color:#888;font-size:12px">Este e-mail foi enviado automaticamente pelo sistema Zyntra.</p>
+            `;
+            const assuntoFinal = assunto || `Extrato de ${contaNome}`;
+            const resultado = await sendEmail(para.join(','), assuntoFinal, html, null);
+            if (!resultado.success) return res.status(502).json({ success: false, error: resultado.error || 'Falha ao enviar e-mail' });
+            res.json({ success: true });
+        } catch (err) {
+            console.error('[FINANCEIRO] Erro ao enviar extrato por e-mail:', err.message);
+            res.status(500).json({ success: false, error: 'Erro ao enviar extrato por e-mail' });
         }
     });
 
@@ -417,7 +498,17 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
         try {
             await connection.beginTransaction();
             const { id } = req.params;
-            const { tipo, valor, descricao, data } = req.body;
+            const {
+                tipo,
+                valor,
+                descricao,
+                data,
+                categoria,
+                cliente_fornecedor,
+                tipo_documento,
+                numero_documento,
+                observacoes
+            } = req.body;
 
             // AUDIT-FIX ARCH-002: Removed duplicate CREATE TABLE (already in GET route with FK)
 
@@ -428,9 +519,20 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
 
             // Inserir movimentação
             await connection.query(`
-                INSERT INTO movimentacoes_bancarias (banco_id, tipo, valor, cliente_fornecedor, data)
-                VALUES (?, ?, ?, ?, ?)
-            `, [validBancoId, tipo, valor, descricao || '', data]);
+                INSERT INTO movimentacoes_bancarias
+                    (banco_id, tipo, valor, cliente_fornecedor, categoria, tipo_documento, numero_documento, observacoes, data)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+                validBancoId,
+                tipo,
+                valor,
+                cliente_fornecedor || descricao || '',
+                categoria || null,
+                tipo_documento || null,
+                numero_documento || null,
+                observacoes || null,
+                data
+            ]);
 
             // Atualizar saldo da conta na tabela contas_bancarias
             // AUDIT-FIX R2-HIGH-02: Usar transação para atomicidade INSERT+UPDATE saldo
@@ -443,6 +545,172 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             await connection.rollback();
             console.error('[FINANCEIRO] Erro ao criar movimentação:', err);
             res.status(500).json({ error: 'Erro ao criar movimentação' });
+        } finally {
+            connection.release();
+        }
+    });
+
+    // GET - Buscar uma movimentação bancária real para edição
+    router.get('/movimentacoes-bancarias/:id', authenticateToken, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const [[mov]] = await pool.query(
+                `SELECT id, banco_id, tipo, valor, cliente_fornecedor, categoria,
+                        tipo_documento, numero_documento, observacoes, data, origem
+                 FROM movimentacoes_bancarias
+                 WHERE id = ?`,
+                [id]
+            );
+            if (!mov) return res.status(404).json({ success: false, error: 'Lançamento não encontrado' });
+            res.json({ success: true, data: mov });
+        } catch (err) {
+            console.error('[FINANCEIRO] Erro ao buscar movimentação:', err);
+            res.status(500).json({ success: false, error: 'Erro ao buscar lançamento' });
+        }
+    });
+
+    // PUT - Editar movimentação bancária real e ajustar saldo pelo delta
+    router.put('/movimentacoes-bancarias/:id', authenticateToken, async (req, res) => {
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            const { id } = req.params;
+            const {
+                banco_id,
+                tipo,
+                valor,
+                data,
+                cliente_fornecedor,
+                categoria,
+                tipo_documento,
+                numero_documento,
+                observacoes
+            } = req.body || {};
+
+            if (!banco_id) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, error: 'Conta corrente é obrigatória' });
+            }
+            if (!['entrada', 'saida'].includes(tipo)) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, error: 'Tipo de lançamento inválido' });
+            }
+            const valorNum = Math.round((parseFloat(valor) || 0) * 100) / 100;
+            if (!valorNum || valorNum <= 0) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, error: 'Valor inválido' });
+            }
+            if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, error: 'Data inválida' });
+            }
+
+            const [movs] = await connection.query(
+                `SELECT id, banco_id, tipo, valor FROM movimentacoes_bancarias WHERE id = ? FOR UPDATE`,
+                [id]
+            );
+            if (!movs.length) {
+                await connection.rollback();
+                return res.status(404).json({ success: false, error: 'Lançamento não encontrado' });
+            }
+            const antigo = movs[0];
+            const [contas] = await connection.query('SELECT id FROM contas_bancarias WHERE id = ? FOR UPDATE', [banco_id]);
+            if (!contas.length) {
+                await connection.rollback();
+                return res.status(404).json({ success: false, error: 'Conta corrente não encontrada' });
+            }
+
+            function efeito(mTipo, mValor) {
+                return mTipo === 'entrada' ? Number(mValor || 0) : -Number(mValor || 0);
+            }
+            const efeitoAntigo = efeito(antigo.tipo, antigo.valor);
+            const efeitoNovo = efeito(tipo, valorNum);
+
+            if (String(antigo.banco_id) !== String(banco_id)) {
+                if (antigo.banco_id != null) {
+                    await connection.query(
+                        `UPDATE contas_bancarias SET saldo_atual = COALESCE(saldo_atual, saldo, 0) - ? WHERE id = ?`,
+                        [efeitoAntigo, antigo.banco_id]
+                    );
+                }
+                await connection.query(
+                    `UPDATE contas_bancarias SET saldo_atual = COALESCE(saldo_atual, saldo, 0) + ? WHERE id = ?`,
+                    [efeitoNovo, banco_id]
+                );
+            } else {
+                await connection.query(
+                    `UPDATE contas_bancarias SET saldo_atual = COALESCE(saldo_atual, saldo, 0) + ? WHERE id = ?`,
+                    [efeitoNovo - efeitoAntigo, banco_id]
+                );
+            }
+
+            await connection.query(
+                `UPDATE movimentacoes_bancarias
+                 SET banco_id = ?, tipo = ?, valor = ?, cliente_fornecedor = ?, categoria = ?,
+                     tipo_documento = ?, numero_documento = ?, observacoes = ?, data = ?
+                 WHERE id = ?`,
+                [
+                    banco_id,
+                    tipo,
+                    valorNum,
+                    cliente_fornecedor || '',
+                    categoria || null,
+                    tipo_documento || null,
+                    numero_documento || null,
+                    observacoes || null,
+                    data || new Date().toISOString().slice(0, 10),
+                    id
+                ]
+            );
+
+            await connection.commit();
+            res.json({ success: true, message: 'Lançamento atualizado com sucesso' });
+        } catch (err) {
+            await connection.rollback();
+            console.error('[FINANCEIRO] Erro ao editar movimentação:', err);
+            res.status(500).json({ success: false, error: 'Erro ao editar lançamento' });
+        } finally {
+            connection.release();
+        }
+    });
+
+    // DELETE em massa - movimentações bancárias (reverte saldo atomicamente)
+    router.post('/movimentacoes-bancarias/excluir-lote', authenticateToken, async (req, res) => {
+        const ids = Array.isArray(req.body && req.body.ids)
+            ? req.body.ids.map(Number).filter(n => Number.isFinite(n) && n > 0)
+            : [];
+        if (!ids.length) return res.status(400).json({ error: 'Nenhum lançamento informado' });
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            const ph = ids.map(() => '?').join(',');
+            const [movs] = await connection.query(
+                `SELECT id, banco_id, tipo, valor FROM movimentacoes_bancarias WHERE id IN (${ph}) FOR UPDATE`, ids);
+            if (movs.length !== ids.length) {
+                await connection.rollback();
+                return res.status(404).json({
+                    success: false,
+                    error: 'Um ou mais lançamentos não foram encontrados para exclusão',
+                    encontrados: movs.length,
+                    solicitados: ids.length
+                });
+            }
+            for (const m of movs) {
+                if (m.banco_id != null) {
+                    // reverter o efeito do lançamento no saldo da conta
+                    const ajuste = m.tipo === 'entrada' ? -Number(m.valor || 0) : Number(m.valor || 0);
+                    await connection.query(
+                        `UPDATE contas_bancarias SET saldo_atual = COALESCE(saldo_atual, saldo, 0) + ? WHERE id = ?`,
+                        [ajuste, m.banco_id]);
+                }
+            }
+            const [del] = await connection.query(`DELETE FROM movimentacoes_bancarias WHERE id IN (${ph})`, ids);
+            await connection.commit();
+            res.json({ success: true, deleted: del.affectedRows });
+        } catch (err) {
+            await connection.rollback();
+            console.error('[FINANCEIRO] Erro ao excluir movimentações em lote:', err);
+            res.status(500).json({ error: 'Erro ao excluir movimentações' });
         } finally {
             connection.release();
         }
@@ -625,13 +893,11 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
         }
 
         try {
-            const { cliente_id, valor, descricao, vencimento: venc, data_vencimento, categoria, categoria_id } = req.body;
-            const vencimento = venc || data_vencimento;
-            const catFinal = categoria || categoria_id;
+            const { cliente_id, valor, descricao, vencimento, categoria } = req.body;
 
             const [result] = await pool.query(
                 'INSERT INTO contas_receber (cliente_id, valor, descricao, vencimento, categoria, status, criado_por) VALUES (?, ?, ?, ?, ?, "pendente", ?)',
-                [cliente_id, valor, descricao, vencimento, catFinal, req.user.id]
+                [cliente_id, valor, descricao, vencimento, categoria, req.user.id]
             );
 
             cacheService?.cacheClear('fin_contas_rec').catch(() => {});
@@ -676,7 +942,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             const [result] = await pool.query(
                 `INSERT INTO contas_pagar (fornecedor_id, valor, descricao, data_vencimento, categoria_id, banco_id, forma_pagamento, observacoes, status)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, "pendente")`,
-                [parseInt(fornecedor_id) || null, valor, descricao, dataVenc, catId || null, banco_id || null, forma_pagamento || null, observacoes || null]
+                [fornecedor_id || null, valor, descricao, dataVenc, catId || null, banco_id || null, forma_pagamento || null, observacoes || null]
             );
 
             cacheService?.cacheClear('fin_contas_pag').catch(() => {});
@@ -1570,6 +1836,44 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
         }
     });
 
+    // Alias: /movimentacoes (usado pelo Fluxo de Caixa) -> mesmas movimentações bancárias
+    router.get('/movimentacoes', authenticateToken, async (req, res) => {
+        try {
+            const banco_id = req.query.banco_id;
+            const tipo = req.query.tipo;
+            const inicio = req.query.inicio || req.query.data_inicio;
+            const fim = req.query.fim || req.query.data_fim;
+            let sql = `SELECT m.id, m.banco_id, m.data, m.tipo, m.valor, m.saldo, m.saldo_previsto,
+                              m.cliente_fornecedor, m.categoria, m.numero_documento, m.tipo_documento,
+                              COALESCE(cb.nome, cb.banco) as banco_nome
+                       FROM movimentacoes_bancarias m
+                       LEFT JOIN contas_bancarias cb ON cb.id = m.banco_id WHERE 1=1`;
+            const params = [];
+            if (banco_id) { sql += ' AND m.banco_id = ?'; params.push(banco_id); }
+            if (tipo) { sql += ' AND m.tipo = ?'; params.push(tipo); }
+            if (inicio && fim) { sql += ' AND m.data BETWEEN ? AND ?'; params.push(inicio, fim); }
+            sql += ' ORDER BY m.data DESC, m.id DESC LIMIT 2000';
+            const [rows] = await pool.query(sql, params);
+            res.json(rows);
+        } catch (err) {
+            console.error('[FINANCEIRO] Erro GET /movimentacoes:', err.message);
+            res.status(500).json({ error: 'Erro ao buscar movimentações' });
+        }
+    });
+
+    // Lista enxuta de contas bancárias para selects/dropdowns
+    router.get('/bancos-select', authenticateToken, async (req, res) => {
+        try {
+            const [rows] = await pool.query(
+                "SELECT id, COALESCE(nome, banco, CONCAT('Conta ', id)) AS nome, banco, agencia, conta FROM contas_bancarias WHERE COALESCE(ativo, ativa, 1) = 1 ORDER BY nome"
+            );
+            res.json(rows);
+        } catch (err) {
+            console.error('[FINANCEIRO] Erro GET /bancos-select:', err.message);
+            res.status(500).json({ error: 'Erro ao listar contas bancárias' });
+        }
+    });
+
     // ============================================================
     // TRANSFERÊNCIA BANCÁRIA — POST
     // ============================================================
@@ -2420,6 +2724,33 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                      VALUES (?, 'entrada', ?, ?, ?, ?)`,
                     [bancoId, valorRecebido, conta[0].descricao || 'Recebimento conta a receber', dataRecebimento, observacoes]
                 );
+            }
+
+            // Reativar cliente bloqueado por inadimplência quando baixa é registrada
+            const clienteId = conta[0].cliente_id || null;
+            if (clienteId && status === 'recebido') {
+                try {
+                    // Verificar se ainda existem outras contas vencidas do mesmo cliente
+                    const vencimentoCol = 'data_vencimento';
+                    const [outrasContas] = await connection.query(`
+                        SELECT COUNT(*) AS total
+                        FROM contas_receber
+                        WHERE cliente_id = ?
+                          AND id != ?
+                          AND DATE(COALESCE(data_vencimento, vencimento)) < CURDATE()
+                          AND COALESCE(valor_recebido, 0) < COALESCE(valor, valor_total, 0)
+                          AND LOWER(COALESCE(status,'')) NOT IN ('pago','recebido','recebida','liquidado','liquidada','cancelado','cancelada','excluida')
+                    `, [clienteId, id]);
+                    if ((outrasContas[0]?.total || 0) === 0) {
+                        await connection.query(`
+                            UPDATE clientes
+                            SET ativo = 1, bloqueado_inadimplencia = 0, inadimplencia_motivo = NULL, inadimplencia_em = NULL
+                            WHERE id = ? AND bloqueado_inadimplencia = 1
+                        `, [clienteId]);
+                    }
+                } catch (_reactivateErr) {
+                    // Falha silenciosa — não bloqueia o commit da baixa
+                }
             }
 
             await connection.commit();

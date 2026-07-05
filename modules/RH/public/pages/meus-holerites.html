@@ -1,6 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
-<head>    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+<head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
     <meta charset="UTF-8">
     <meta name="theme-color" content="#1a1a2e">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
@@ -112,6 +115,10 @@
             display: flex;
             flex-direction: column;
             gap: 6px;
+            /* rh-pages.css aplica margin-bottom:20px no .form-group, o que empurrava os
+               selects ~20px acima dos botões (align-items:flex-end). Zera para alinhar
+               Ano/Mês/Buscar/Voltar todos na mesma linha. */
+            margin-bottom: 0;
         }
 
         .form-label {
@@ -121,6 +128,8 @@
         }
 
         .form-select {
+            height: 42px;
+            box-sizing: border-box;
             padding: 10px 16px;
             border: 1px solid #e2e8f0;
             border-radius: 10px;
@@ -138,14 +147,17 @@
         }
 
         .btn {
+            height: 42px;
+            box-sizing: border-box;
             padding: 10px 20px;
-            border: none;
+            border: 1px solid transparent;
             border-radius: 10px;
             font-size: 0.875rem;
             font-weight: 600;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
             transition: all 0.2s;
             text-decoration: none;
@@ -170,6 +182,11 @@
         .btn-outline:hover {
             background: #f8fafc;
             color: #1e293b;
+        }
+
+        /* "Voltar" alinhado à direita: separa a navegação dos filtros e equilibra a barra */
+        .controls-bar .btn-outline {
+            margin-left: auto;
         }
 
         /* Holerites Grid */
@@ -377,18 +394,53 @@
             align-items: center;
             justify-content: center;
             padding: 20px;
+            /* IMPORTANTE: o rh-pages.css aplica backdrop-filter direto no .modal de
+               forma permanente — isso deixava um "fantasma" de vidro preso na tela
+               quando o modal abria e fechava rapidamente. Aqui desligamos o blur por
+               padrão e só ligamos com .modal.show. !important vence o CSS externo. */
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
         }
-        .modal.show { display: flex; }
+        #holerite-modal,
+        #modal-consentimento {
+            z-index: 10060;
+            background: transparent;
+        }
+        .modal.show {
+            display: flex;
+            backdrop-filter: blur(4px) !important;
+            -webkit-backdrop-filter: blur(4px) !important;
+        }
+        /* Defensivo: qualquer modal SEM a classe .show fica totalmente oculto e sem
+           capturar cliques. Evita o "modal fantasma" que ficava sobre a página
+           travando os menus mesmo sem conteúdo visível. */
+        .modal:not(.show) {
+            display: none !important;
+            pointer-events: none !important;
+        }
 
         .modal-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed;
+            inset: 0;
             background: rgba(15, 23, 42, 0.7);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
+        }
+
+        /* design-system.css usa .modal como CARD (fundo branco, max-width:560px) — modelo
+           oposto ao desta página (.modal = wrapper de overlay). Como carrega depois, ele
+           jogava o modal para a esquerda como um cartão. Reforçamos o modelo da página. */
+        #holerite-modal.modal,
+        #modal-consentimento.modal {
+            background: transparent;
+            width: 100%;
+            max-width: none;
+            max-height: none;
+            box-shadow: none;
+            border-radius: 0;
+            animation: none;
+        }
+        #holerite-modal .modal-overlay,
+        #modal-consentimento .modal-overlay {
+            background: rgba(15, 23, 42, 0.7);
         }
 
         .modal-content {
@@ -401,6 +453,7 @@
             overflow: hidden;
             position: relative;
             z-index: 1001;
+            margin: 0 auto;
             transform: scale(0.95) translateY(10px);
             opacity: 0;
             transition: all 0.25s ease-out;
@@ -774,12 +827,12 @@
     <!-- Tooltips Profissionais -->
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <script src="/js/tooltips-professional.js?v=20260209" defer></script>
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260610">
     <!-- Chat Widget BOB AI -->
     <link rel="stylesheet" href="/chat/widget.css?v=20260218">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260320">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
 </head>
 <body>
     <div class="app-container">
@@ -813,9 +866,9 @@
                             <i class="fas fa-bars"></i>
                         </button>
                     <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
                         <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Meus Holerites</span>
                     </div>
@@ -917,11 +970,11 @@
 
     <!-- Modal Consentimento Digital -->
     <div class="modal" id="modal-consentimento">
-        <div class="modal-overlay"></div>
+        <div class="modal-overlay" onclick="fecharModalConsentimento()"></div>
         <div class="modal-content" style="max-width:560px;">
             <div class="modal-header">
                 <h3><i class="fas fa-file-signature"></i> Autorização Digital</h3>
-                <div></div>
+                <button class="modal-close" onclick="fecharModalConsentimento()" title="Fechar"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div class="modal-section" style="text-align:center;border:none;background:transparent;padding-bottom:0;">
@@ -1103,6 +1156,10 @@
                         document.getElementById('coming-soon-notice').style.display = 'none';
                         document.getElementById('holerites-grid').style.display = 'grid';
                         renderHolerites(holeritesData);
+                        // O modal de assinatura SÓ aparece quando há holerite disponível
+                        if (precisaAssinarConsentimento && !consentimentoVerificado && !consentimentoDispensado) {
+                            mostrarModalConsentimento();
+                        }
                     }
                 } else {
                     // Se no encontrou holerites, mostrar aviso
@@ -1321,44 +1378,62 @@
             }
         }
 
-        function fecharModal() { 
-            document.getElementById('holerite-modal').classList.remove('show'); 
+        // Esconde um modal e elimina o "fantasma" do backdrop-filter forçando um
+        // repaint da página (workaround do bug de composição do Chromium).
+        function esconderModalRH(el) {
+            if (!el) return;
+            el.classList.remove('show');
+            const b = document.body;
+            b.style.willChange = 'transform';
+            b.style.transform = 'translateZ(0)';
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    b.style.transform = '';
+                    b.style.willChange = '';
+                });
+            });
+        }
+
+        function fecharModal() {
+            esconderModalRH(document.getElementById('holerite-modal'));
+        }
+
+        // Fecha o modal de consentimento e libera a página (carrega holerites/aviso),
+        // para que o usuário nunca fique preso sem conseguir usar os menus.
+        function fecharModalConsentimento() {
+            // Usuário dispensou a assinatura — não exibir novamente nesta sessão.
+            consentimentoDispensado = true;
+            esconderModalRH(document.getElementById('modal-consentimento'));
         }
 
         // ============================================================
         // CONSENTIMENTO DIGITAL
         // ============================================================
         let consentimentoVerificado = false;
+        let precisaAssinarConsentimento = false;
+        let consentimentoDispensado = false;
 
+        // Descobre se o usuário ainda precisa assinar o consentimento, mas NÃO exibe o modal aqui.
+        // O modal de assinatura só é mostrado dentro de carregarHolerites(), e apenas quando
+        // existir holerite disponível para o usuário.
         async function verificarConsentimentoECarregar() {
             try {
                 const resp = await fetch('/api/rh/holerites/consentimento', { headers: getAuthHeaders() });
                 if (resp.ok) {
                     const data = await resp.json();
-                    if (data.consentimento || data.admin) {
-                        consentimentoVerificado = true;
-                        await carregarHolerites();
-                    } else {
-                        // Mostrar modal de consentimento
-                        mostrarModalConsentimento();
-                    }
-                } else if (resp.status === 401) {
-                    // No autenticado - carregar normalmente (auth-unified vai redirecionar)
-                    await carregarHolerites();
-                } else if (resp.status === 404) {
-                    // Endpoint não existe ainda - carregar holerites normalmente
-                    consentimentoVerificado = true;
-                    await carregarHolerites();
+                    precisaAssinarConsentimento = !(data.consentimento || data.admin);
+                    consentimentoVerificado = !precisaAssinarConsentimento;
                 } else {
-                    // Erro no servidor - mostrar modal de consentimento por segurana
-                    console.warn('Erro ao verificar consentimento, exibindo modal:', resp.status);
-                    mostrarModalConsentimento();
+                    // 401/404/400/erro do servidor: não exigir assinatura (não travar a tela)
+                    precisaAssinarConsentimento = false;
+                    consentimentoVerificado = true;
                 }
             } catch (e) {
                 console.error('Erro ao verificar consentimento:', e);
-                // Em caso de erro de rede, mostrar modal de consentimento
-                mostrarModalConsentimento();
+                precisaAssinarConsentimento = false;
+                consentimentoVerificado = true;
             }
+            await carregarHolerites();
         }
 
         function mostrarModalConsentimento() {
@@ -1367,7 +1442,7 @@
             if (nomeEl && currentUser) nomeEl.textContent = currentUser.nome || '___';
             if (cpfEl && currentUser) cpfEl.textContent = currentUser.cpf || 'no informado';
 
-            document.getElementById('modal-consentimento').classList.add('show');
+            const modalConsent = document.getElementById('modal-consentimento'); if (modalConsent) modalConsent.classList.add('show');
 
             // Habilitar/desabilitar boto de assinar
             const inputAssinatura = document.getElementById('input-assinatura');
@@ -1399,7 +1474,7 @@
                 });
 
                 if (resp.ok) {
-                    document.getElementById('modal-consentimento').classList.remove('show');
+                    esconderModalRH(document.getElementById('modal-consentimento'));
                     showToast('Autorizao registrada com sucesso!', 'success');
                     consentimentoVerificado = true;
                     await carregarHolerites();
@@ -1452,8 +1527,12 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
     <script src="/js/user-dropdown.js?v=20260319" defer></script>
+
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
 </body>
 </html>
+
+
 
 
 

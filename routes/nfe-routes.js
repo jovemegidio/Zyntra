@@ -48,25 +48,107 @@ module.exports = function createNfeRoutes(deps) {
         res.json({ valido, mensagem: valido ? 'Dados válidos.' : 'Dados inválidos.' });
     });
     
+    // BUG-002/020: Gerador de chave SEFAZ e protocolo em modo HOMOLOGAÇÃO/SIMULAÇÃO.
+    // Formato da chave (44 dígitos, NT2024.002):
+    //   UF(2) + AAMM(4) + CNPJ(14) + Modelo(2) + Série(3) + Nº NF(9) + tpEmis(1) + cNF(8) + cDV(1)
+    // O dígito verificador segue módulo 11. Marca tpEmis=2 (contingência off-line)
+    // e o protocolo recebe prefixo "SIM" para distinguir de transmissão real.
+    // Quando o ambiente SEFAZ real for ativado (certificado A1 + WSDL), substituir
+    // gerarChaveSimulada()/gerarProtocoloSimulado() pelo retorno do webservice.
+    function calcularDV(chave43) {
+        const pesos = [2, 3, 4, 5, 6, 7, 8, 9];
+        let soma = 0;
+        for (let i = chave43.length - 1, p = 0; i >= 0; i--, p++) {
+            soma += parseInt(chave43[i], 10) * pesos[p % pesos.length];
+        }
+        const resto = soma % 11;
+        const dv = (resto === 0 || resto === 1) ? 0 : 11 - resto;
+        return String(dv);
+    }
+    function gerarChaveSimulada(cnpj, numeroNf, serie = 1, modelo = 55, uf = '35') {
+        const cnpjLimpo = String(cnpj || '').replace(/\D/g, '').padStart(14, '0').slice(-14);
+        const hoje = new Date();
+        const aamm = String(hoje.getFullYear()).slice(2) + String(hoje.getMonth() + 1).padStart(2, '0');
+        const ufCode = String(uf).padStart(2, '0').slice(-2);
+        const mod = String(modelo).padStart(2, '0');
+        const ser = String(serie).padStart(3, '0');
+        const nNF = String(numeroNf || Date.now()).padStart(9, '0').slice(-9);
+        const tpEmis = '2'; // 2 = contingência off-line / simulação
+        const cNF = String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
+        const chave43 = `${ufCode}${aamm}${cnpjLimpo}${mod}${ser}${nNF}${tpEmis}${cNF}`;
+        return chave43 + calcularDV(chave43);
+    }
+    function gerarProtocoloSimulado() {
+        const ts = Date.now().toString();
+        return 'SIM' + ts.slice(-12).padStart(12, '0');
+    }
+
     // 4. Emissão de NF-e (com integração ao Financeiro e Estoque)
     router.post('/emitir', authenticateToken, async (req, res, next) => {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
-    
+
             const { cliente_id, servico_id, descricao_servico, valor, impostos, vencimento, pedido_id, itens } = req.body;
-    
+
             // Validar cliente
             const [cliente] = await connection.query('SELECT id FROM clientes WHERE id = ?', [cliente_id]);
             if (cliente.length === 0) {
                 await connection.rollback();
                 return res.status(404).json({ error: 'Cliente não encontrado' });
             }
-    
-            // Emitir NF-e
+
+            // Buscar CNPJ da empresa para chave (necessário no formato SEFAZ)
+            let cnpjEmpresa = '00000000000000';
+            try {
+                const [[cfg]] = await connection.query('SELECT cnpj FROM configuracoes_empresa LIMIT 1');
+                if (cfg && cfg.cnpj) cnpjEmpresa = cfg.cnpj;
+            } catch (_) {}
+
+            // Próximo número NF (sequencial simples). Em produção, usar serviço dedicado.
+            let proxNumero;
+            try {
+                const [[r]] = await connection.query('SELECT COALESCE(MAX(numero), 0) + 1 AS prox FROM nfe');
+                proxNumero = r.prox || 1;
+            } catch (_) {
+                proxNumero = Math.floor(Date.now() / 1000) % 999999999;
+            }
+
+            const chaveAcesso = gerarChaveSimulada(cnpjEmpresa, proxNumero);
+            const protocolo = gerarProtocoloSimulado();
+
+            // Emitir NF-e (já com chave e protocolo simulados)
+            // Verifica colunas existentes para evitar erro em schemas antigos
+            let colsNfe = new Set();
+            try {
+                const [cols] = await connection.query('SHOW COLUMNS FROM nfe');
+                colsNfe = new Set(cols.map(c => c.Field));
+            } catch (_) {}
+
+            const baseCols = ['cliente_id', 'servico_id', 'descricao_servico', 'valor', 'impostos', 'status', 'data_emissao'];
+            const baseVals = [cliente_id, servico_id, descricao_servico, valor, JSON.stringify(impostos), 'autorizada'];
+            const placeholders = baseCols.slice(0, -1).map(() => '?').concat(['NOW()']);
+            const extraCols = [];
+            const extraVals = [];
+            const extraPh = [];
+            if (colsNfe.has('chave_acesso')) { extraCols.push('chave_acesso'); extraVals.push(chaveAcesso); extraPh.push('?'); }
+            if (colsNfe.has('protocolo'))    { extraCols.push('protocolo');    extraVals.push(protocolo);   extraPh.push('?'); }
+            if (colsNfe.has('protocolo_autorizacao')) { extraCols.push('protocolo_autorizacao'); extraVals.push(protocolo); extraPh.push('?'); }
+            if (colsNfe.has('numero'))       { extraCols.push('numero');       extraVals.push(proxNumero);  extraPh.push('?'); }
+            if (colsNfe.has('serie'))        { extraCols.push('serie');        extraVals.push(1);           extraPh.push('?'); }
+            if (colsNfe.has('ambiente'))     { extraCols.push('ambiente');     extraVals.push('homologacao'); extraPh.push('?'); }
+
+            const allCols = baseCols.concat(extraCols);
+            const allPh   = placeholders.concat(extraPh);
+            const allVals = baseVals.slice(0, -1).concat(extraVals); // remove o 'autorizada' duplicado? não: base já fica c/ NOW()
+            // Re-monta corretamente: status='autorizada' está em baseVals[5]; data_emissao usa NOW()
+            const finalCols = ['cliente_id', 'servico_id', 'descricao_servico', 'valor', 'impostos', 'status'].concat(extraCols).concat(['data_emissao']);
+            const finalPh   = ['?', '?', '?', '?', '?', '?'].concat(extraPh).concat(['NOW()']);
+            const finalVals = [cliente_id, servico_id, descricao_servico, valor, JSON.stringify(impostos), 'autorizada'].concat(extraVals);
+
             const [nfeResult] = await connection.query(
-                'INSERT INTO nfe (cliente_id, servico_id, descricao_servico, valor, impostos, status, data_emissao) VALUES (?, ?, ?, ?, ?, "autorizada", NOW())',
-                [cliente_id, servico_id, descricao_servico, valor, JSON.stringify(impostos)]
+                `INSERT INTO nfe (${finalCols.join(', ')}) VALUES (${finalPh.join(', ')})`,
+                finalVals
             );
             const nfeId = nfeResult.insertId;
     
@@ -174,6 +256,425 @@ module.exports = function createNfeRoutes(deps) {
     router.post('/enviar-email', async (req, res, next) => {
         // Recebe dados da NF-e e cliente
         res.json({ message: 'E-mail enviado ao cliente com PDF/XML (simulação).' });
+    });
+
+    // ============================================================
+    // SEFAZ — consulta status do serviço usando o certificado A1
+    // GET /api/nfe/sefaz/status
+    // Smoke-test do certificado: se responder cStat=107 ('Serviço em
+    // Operação'), o cert está OK e o pipeline TLS funciona. Próxima fase:
+    // implementar gerarXmlNFe + assinarXmlNFe + autorizarNFe para
+    // transmissão real (estimativa 5-10 dias, ver sefaz.service.js).
+    // ============================================================
+    router.get('/sefaz/status', authenticateToken, async (req, res) => {
+        try {
+            const { consultarStatusSP } = require('../services/sefaz.service');
+            const empresaId = req.user?.empresa_id || 1;
+            const resp = await consultarStatusSP(pool, empresaId);
+
+            // Registrar no histórico
+            await pool.query(
+                `INSERT INTO logs_nfe (operacao, cStat, xMotivo, raw, created_at) VALUES (?, ?, ?, ?, NOW())`,
+                ['status_consulta', resp.cStat || null, resp.xMotivo || null, JSON.stringify(resp).slice(0, 8000)]
+            ).catch(() => {});
+
+            res.json(resp);
+        } catch (e) {
+            console.error('[SEFAZ/STATUS] Erro:', e.message);
+            res.status(500).json({
+                success: false,
+                message: e.message,
+                hint: e.message.includes('não configurado')
+                    ? 'Faça upload do certificado A1 em Configurações → Certificado Digital'
+                    : (e.message.includes('expirado')
+                        ? 'Renove o certificado A1 antes de continuar'
+                        : 'Verifique o certificado e tente novamente')
+            });
+        }
+    });
+
+    // GET/POST ambiente SEFAZ (homologacao | producao)
+    router.get('/sefaz/ambiente', authenticateToken, async (req, res) => {
+        try {
+            const empresaId = req.user?.empresa_id || 1;
+            const [[row]] = await pool.query(
+                'SELECT ambiente FROM nfe_configuracoes WHERE empresa_id = ? LIMIT 1', [empresaId]
+            );
+            res.json({ success: true, ambiente: row?.ambiente || 'homologacao' });
+        } catch (e) {
+            res.status(500).json({ success: false, message: e.message });
+        }
+    });
+
+    router.post('/sefaz/ambiente', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const empresaId = req.user?.empresa_id || 1;
+            const { ambiente } = req.body;
+            if (!['homologacao', 'producao'].includes(ambiente)) {
+                return res.status(400).json({ success: false, message: 'Ambiente inválido' });
+            }
+            await pool.query(
+                'UPDATE nfe_configuracoes SET ambiente = ?, updated_at = NOW() WHERE empresa_id = ?',
+                [ambiente, empresaId]
+            );
+            res.json({ success: true, ambiente });
+        } catch (e) {
+            res.status(500).json({ success: false, message: e.message });
+        }
+    });
+
+    // Espelho fiscal — retorna config emp + cert status sem o BLOB
+    router.get('/sefaz/espelho', authenticateToken, async (req, res) => {
+        try {
+            const { loadEspelhoFiscal, loadCertFromDb } = require('../services/sefaz.service');
+            const empresaId = req.user?.empresa_id || 1;
+            const espelho = await loadEspelhoFiscal(pool, empresaId);
+
+            // Tenta carregar cert para reportar status (sem incluir PEM na resposta)
+            let certStatus = { configurado: false };
+            try {
+                const cred = await loadCertFromDb(pool, empresaId);
+                certStatus = {
+                    configurado: true,
+                    cnpjCert: cred.cnpjCert,
+                    cnpjEmitente: (cred.cnpj || '').replace(/\D/g, ''),
+                    cnpjMismatch: cred.cnpjMismatch,
+                    certCN: cred.certCN,
+                    validade: cred.validade,
+                    ambiente: cred.ambiente
+                };
+            } catch (e) {
+                certStatus = { configurado: false, erro: e.message };
+            }
+
+            res.json({
+                success: true,
+                espelho: {
+                    razao_social: espelho.razao_social,
+                    cnpj: espelho.cnpj,
+                    inscricao_estadual: espelho.inscricao_estadual,
+                    endereco: `${espelho.endereco || ''}, ${espelho.numero || ''} — ${espelho.bairro || ''} | ${espelho.cidade || ''}/${espelho.uf_emitente}`,
+                    codigo_municipio: espelho.codigo_municipio,
+                    codigo_uf: espelho.codigo_uf,
+                    regime_tributario: espelho.regime_tributario,
+                    crt: espelho.crt,
+                    ambiente: espelho.ambiente,
+                    serie: espelho.serie,
+                    proximo_numero: espelho.proximo_numero,
+                    cfops: {
+                        estado: espelho.cfop_estado,
+                        fora_estado: espelho.cfop_fora_estado,
+                        exportacao: espelho.cfop_exportacao
+                    },
+                    aliquotas: {
+                        icms: espelho.icms,
+                        ipi: espelho.ipi,
+                        pis: espelho.pis,
+                        cofins: espelho.cofins
+                    }
+                },
+                certificado: certStatus
+            });
+        } catch (e) {
+            console.error('[SEFAZ/ESPELHO] Erro:', e.message);
+            res.status(500).json({ success: false, message: e.message });
+        }
+    });
+
+    // Histórico de eventos SEFAZ (últimas 20)
+    router.get('/sefaz/historico', authenticateToken, async (req, res) => {
+        try {
+            // Garantir tabela
+            await pool.query(`CREATE TABLE IF NOT EXISTS logs_nfe (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                operacao VARCHAR(50),
+                nfe_id INT,
+                cStat VARCHAR(10),
+                xMotivo VARCHAR(255),
+                raw TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX (operacao), INDEX (nfe_id), INDEX (created_at)
+            )`).catch(() => {});
+
+            const [rows] = await pool.query(
+                `SELECT id, operacao, nfe_id, cStat, xMotivo, created_at
+                 FROM logs_nfe ORDER BY id DESC LIMIT 20`
+            );
+            res.json({ success: true, eventos: rows });
+        } catch (e) {
+            res.status(500).json({ success: false, message: e.message, eventos: [] });
+        }
+    });
+
+    // ============================================================
+    // TRANSMITIR NF-e real para SEFAZ
+    // POST /api/nfe/transmitir/:pedidoId
+    // ============================================================
+    router.post('/transmitir/:pedidoId', authenticateToken, async (req, res) => {
+        try {
+            const { loadCertFromDb, loadEspelhoFiscal } = require('../services/sefaz.service');
+            const { buildXmlNFe, signXmlNFe, transmitirNFe } = require('../services/sefaz-nfe.service');
+
+            const pedidoId = parseInt(req.params.pedidoId, 10);
+            const empresaId = req.user?.empresa_id || 1;
+
+            // 1. Carregar pedido com itens
+            const [[pedido]] = await pool.query(`
+                SELECT p.*, c.nome as cliente_nome_join, c.razao_social, c.nome_fantasia,
+                       c.cnpj, c.cpf, c.endereco, c.numero as cli_numero, c.bairro, c.cidade,
+                       c.estado as uf, c.cep, c.email, c.inscricao_estadual
+                FROM pedidos p
+                LEFT JOIN clientes c ON c.id = p.cliente_id
+                WHERE p.id = ? LIMIT 1
+            `, [pedidoId]);
+            if (!pedido) return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
+
+            const [itens] = await pool.query(`
+                SELECT codigo_produto, codigo, produto, descricao, quantidade,
+                       preco_unitario, valor_unitario, unidade, ncm
+                FROM pedido_itens WHERE pedido_id = ?
+            `, [pedidoId]);
+            if (!itens.length) return res.status(400).json({ success: false, message: 'Pedido sem itens' });
+
+            // 2. Carregar espelho fiscal completo (empresa_config + config_fiscal_empresa)
+            const espelho = await loadEspelhoFiscal(pool, empresaId);
+
+            // 3. Carregar credencial (cert + key PEM) — valida CNPJ
+            const cred = await loadCertFromDb(pool, empresaId);
+
+            // Block: se CNPJ do cert não bate com CNPJ do emitente, abortar
+            if (cred.cnpjMismatch && cred.ambiente === 'producao') {
+                return res.status(400).json({
+                    success: false,
+                    message: `CNPJ do certificado (${cred.cnpjCert}) não bate com CNPJ do emitente (${(cred.cnpj || '').replace(/\D/g, '')}). Faça upload do certificado correto.`
+                });
+            }
+
+            // 4. Próximo número de NF (se ainda não tiver)
+            let numeroNF = pedido.numero_nf || pedido.nf;
+            if (!numeroNF) {
+                const [[r]] = await pool.query('SELECT COALESCE(MAX(numero_nf), 0) + 1 AS prox FROM pedidos');
+                numeroNF = r.prox || espelho.proximo_numero || 1;
+                await pool.query('UPDATE pedidos SET numero_nf = ?, nf = ? WHERE id = ?', [numeroNF, numeroNF, pedidoId]);
+                // Incrementar próximo_numero no espelho
+                await pool.query('UPDATE empresa_config SET nfe_proximo_numero = ? WHERE id = 1', [Number(numeroNF) + 1]).catch(() => {});
+            }
+
+            // 5. cfg = espelho + códigos consolidados
+            const cfg = {
+                ...espelho,
+                cod_municipio: espelho.codigo_municipio
+            };
+
+            const pedidoForXml = {
+                id: pedidoId,
+                numero_nf: numeroNF,
+                itens,
+                cliente: {
+                    razao_social: pedido.razao_social,
+                    nome: pedido.cliente_nome_join || pedido.cliente_nome || pedido.cliente,
+                    nome_fantasia: pedido.nome_fantasia,
+                    cnpj: pedido.cnpj, cpf: pedido.cpf,
+                    endereco: pedido.endereco, numero: pedido.cli_numero,
+                    bairro: pedido.bairro, cidade: pedido.cidade,
+                    uf: pedido.uf, cep: pedido.cep, email: pedido.email,
+                    inscricao_estadual: pedido.inscricao_estadual
+                }
+            };
+
+            // 6. Build + sign + transmit
+            const built = buildXmlNFe(pedidoForXml, cfg);
+            const signed = signXmlNFe(built.xml, built.infNFeId, cred);
+            const resp = await transmitirNFe(signed, cred);
+
+            // 7. Persistir resultado
+            await pool.query(
+                `INSERT INTO logs_nfe (operacao, nfe_id, cStat, xMotivo, raw, created_at) VALUES (?, ?, ?, ?, ?, NOW())`,
+                ['transmissao', pedidoId, resp.cStat, resp.xMotivo, JSON.stringify(resp).slice(0, 8000)]
+            ).catch(() => {});
+
+            if (resp.success) {
+                // Atualizar pedido com chave e protocolo
+                await pool.query(
+                    'UPDATE pedidos SET nfe_chave = ?, nfe_protocolo = ? WHERE id = ?',
+                    [resp.chave || built.chave, resp.nProt, pedidoId]
+                ).catch(async () => {
+                    // Se colunas não existem, atualizar via NFE table
+                    await pool.query(`UPDATE nfe SET chave_acesso = ?, protocolo = ? WHERE id = (SELECT nfe_id FROM pedidos WHERE id = ? LIMIT 1)`,
+                        [resp.chave || built.chave, resp.nProt, pedidoId]).catch(() => {});
+                });
+            }
+
+            res.json({
+                success: resp.success,
+                cStat: resp.cStat,
+                xMotivo: resp.xMotivo,
+                chave: resp.chave || built.chave,
+                protocolo: resp.nProt,
+                ambiente: cfg.ambiente,
+                aviso: cfg.ambiente === 'homologacao'
+                    ? '⚠️ Ambiente de HOMOLOGAÇÃO — NF-e sem validade fiscal'
+                    : '✅ Ambiente de PRODUÇÃO — NF-e com validade fiscal',
+                xml_signed: signed.slice(0, 500) + '...' // preview
+            });
+        } catch (e) {
+            console.error('[SEFAZ/TRANSMITIR] Erro:', e.message, e.stack);
+            res.status(500).json({ success: false, message: e.message });
+        }
+    });
+
+    // ============================================================
+    // EVENTO NF-e (cancelamento, CC-e, inutilização)
+    // ============================================================
+    router.post('/evento/:tipo', authenticateToken, async (req, res) => {
+        try {
+            const { loadCertFromDb } = require('../services/sefaz.service');
+            const { transmitirEvento, transmitirInutilizacao } = require('../services/sefaz-nfe.service');
+            const cred = await loadCertFromDb(pool, req.user?.empresa_id || 1);
+            const tipo = req.params.tipo;
+
+            let resp;
+            if (tipo === 'cancelamento') {
+                const { chave, motivo, nProtAutorizacao } = req.body;
+                resp = await transmitirEvento({ tipo: 'cancelamento', chave, motivo, nProtAutorizacao, cred });
+            } else if (tipo === 'cce' || tipo === 'carta-correcao') {
+                const { chave, correcao } = req.body;
+                resp = await transmitirEvento({ tipo: 'cce', chave, correcao, cred });
+            } else if (tipo === 'inutilizacao') {
+                const { ano, serie, nNFIni, nNFFim, motivo } = req.body;
+                resp = await transmitirInutilizacao({ ano, serie, nNFIni, nNFFim, motivo, cred });
+            } else {
+                return res.status(400).json({ success: false, message: 'Tipo de evento inválido' });
+            }
+
+            await pool.query(
+                `INSERT INTO logs_nfe (operacao, cStat, xMotivo, raw, created_at) VALUES (?, ?, ?, ?, NOW())`,
+                [`evento_${tipo}`, resp.cStat, resp.xMotivo, JSON.stringify(resp).slice(0, 8000)]
+            ).catch(() => {});
+
+            res.json(resp);
+        } catch (e) {
+            console.error('[SEFAZ/EVENTO] Erro:', e.message);
+            res.status(500).json({ success: false, message: e.message });
+        }
+    });
+
+    // ============================================================
+    // DANFE PDF
+    // GET /api/nfe/danfe/:pedidoId
+    // ============================================================
+    router.get('/danfe/:pedidoId', authenticateToken, async (req, res) => {
+        try {
+            const { gerarDanfePDF } = require('../services/danfe-pdf.service');
+            const pedidoId = parseInt(req.params.pedidoId, 10);
+
+            const [[pedido]] = await pool.query(`
+                SELECT p.*, c.razao_social, c.nome as nome_cliente, c.cnpj, c.cpf,
+                       c.endereco, c.numero as cli_numero, c.bairro, c.cidade,
+                       c.estado as uf, c.cep, c.inscricao_estadual
+                FROM pedidos p LEFT JOIN clientes c ON c.id = p.cliente_id
+                WHERE p.id = ? LIMIT 1
+            `, [pedidoId]);
+            if (!pedido) return res.status(404).send('Pedido não encontrado');
+
+            const [itens] = await pool.query('SELECT * FROM pedido_itens WHERE pedido_id = ?', [pedidoId]);
+            const [[cfg]] = await pool.query('SELECT * FROM configuracoes_empresa LIMIT 1');
+
+            const nfeData = {
+                chave: pedido.nfe_chave,
+                protocolo: pedido.nfe_protocolo,
+                dhEmissao: pedido.data_faturamento || pedido.created_at,
+                numero: pedido.numero_nf || pedido.nf,
+                serie: 1
+            };
+
+            const pdf = await gerarDanfePDF({
+                nfeData,
+                pedido: {
+                    id: pedidoId,
+                    valor: pedido.valor,
+                    cliente: {
+                        razao_social: pedido.razao_social,
+                        nome: pedido.nome_cliente || pedido.cliente_nome || pedido.cliente,
+                        cnpj: pedido.cnpj, cpf: pedido.cpf,
+                        endereco: pedido.endereco, numero: pedido.cli_numero,
+                        bairro: pedido.bairro, cidade: pedido.cidade, uf: pedido.uf,
+                        cep: pedido.cep, inscricao_estadual: pedido.inscricao_estadual
+                    },
+                    itens
+                },
+                cfg: cfg || {}
+            });
+
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="danfe-${pedidoId}.pdf"`);
+            res.send(pdf);
+        } catch (e) {
+            console.error('[DANFE] Erro:', e.message, e.stack);
+            res.status(500).send('Erro ao gerar DANFE: ' + e.message);
+        }
+    });
+
+    // BUG-002/020: Backfill — gera chave de acesso e protocolo simulados para
+    // NF-es já emitidas que não possuem esses campos. Apenas modo homologação.
+    router.post('/backfill-chave', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            // Garante que as colunas existam
+            let colsNfe = new Set();
+            try {
+                const [cols] = await pool.query('SHOW COLUMNS FROM nfe');
+                colsNfe = new Set(cols.map(c => c.Field));
+            } catch (_) {}
+
+            if (!colsNfe.has('chave_acesso')) {
+                try { await pool.query("ALTER TABLE nfe ADD COLUMN chave_acesso VARCHAR(44)"); colsNfe.add('chave_acesso'); } catch (_) {}
+            }
+            if (!colsNfe.has('protocolo')) {
+                try { await pool.query("ALTER TABLE nfe ADD COLUMN protocolo VARCHAR(30)"); colsNfe.add('protocolo'); } catch (_) {}
+            }
+
+            // CNPJ da empresa para a chave
+            let cnpjEmpresa = '00000000000000';
+            try {
+                const [[cfg]] = await pool.query('SELECT cnpj FROM configuracoes_empresa LIMIT 1');
+                if (cfg && cfg.cnpj) cnpjEmpresa = cfg.cnpj;
+            } catch (_) {}
+
+            const [pendentes] = await pool.query(`
+                SELECT id, numero, serie, data_emissao
+                FROM nfe
+                WHERE status NOT IN ('cancelada', 'denegada')
+                  AND (chave_acesso IS NULL OR chave_acesso = '' OR LENGTH(chave_acesso) < 44)
+            `);
+
+            let atualizadas = 0;
+            for (const n of pendentes) {
+                try {
+                    const chave = gerarChaveSimulada(cnpjEmpresa, n.numero || n.id, n.serie || 1);
+                    const proto = gerarProtocoloSimulado();
+                    await pool.query(
+                        `UPDATE nfe SET chave_acesso = ?${colsNfe.has('protocolo') ? ', protocolo = ?' : ''}${colsNfe.has('protocolo_autorizacao') ? ', protocolo_autorizacao = ?' : ''} WHERE id = ?`,
+                        colsNfe.has('protocolo_autorizacao')
+                            ? (colsNfe.has('protocolo') ? [chave, proto, proto, n.id] : [chave, proto, n.id])
+                            : (colsNfe.has('protocolo') ? [chave, proto, n.id] : [chave, n.id])
+                    );
+                    atualizadas++;
+                } catch (e) {
+                    console.error('[NFE-BACKFILL] Erro NFe', n.id, ':', e.message);
+                }
+            }
+
+            res.json({
+                success: true,
+                modo: 'homologacao_simulado',
+                total_encontradas: pendentes.length,
+                atualizadas,
+                aviso: 'Chaves/protocolos gerados em modo simulação. NÃO têm validade fiscal real. Para validade SEFAZ, configurar certificado A1 e WSDL.'
+            });
+        } catch (e) {
+            console.error('[NFE-BACKFILL] Erro:', e.message);
+            res.status(500).json({ success: false, message: e.message });
+        }
     });
     
     // 6. Cancelamento e Carta de Correção

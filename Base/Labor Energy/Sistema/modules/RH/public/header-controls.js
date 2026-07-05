@@ -1,4 +1,4 @@
-﻿/* ============================================= */
+/* ============================================= */
 /* FUNCIONALIDADES DOS BOTÕES DO CABEÇALHO     */
 /* ============================================= */
 
@@ -18,9 +18,9 @@ class HeaderControls {
         console.log('✅ Botões do cabeçalho inicializados');
     }
 
-    // Botáo de visualizaçáo em Grid
+    // Botão de visualização em Grid
     setupGridButton() {
-        const gridButton = document.querySelector('.header-icon[title="Visualizaçáo em Grid"]');
+        const gridButton = document.querySelector('.header-icon[title="Visualização em Grid"]');
         if (gridButton) {
             gridButton.addEventListener('click', () => {
                 this.switchToGridView();
@@ -28,9 +28,9 @@ class HeaderControls {
         }
     }
 
-    // Botáo de visualizaçáo em Lista
+    // Botão de visualização em Lista
     setupListButton() {
-        const listButton = document.querySelector('.header-icon[title="Visualizaçáo em Lista"]');
+        const listButton = document.querySelector('.header-icon[title="Visualização em Lista"]');
         if (listButton) {
             listButton.addEventListener('click', () => {
                 this.switchToListView();
@@ -38,7 +38,7 @@ class HeaderControls {
         }
     }
 
-    // Botáo de atualizar
+    // Botão de atualizar
     setupRefreshButton() {
         const refreshButton = document.querySelector('.header-icon[title="Atualizar"]');
         if (refreshButton) {
@@ -48,7 +48,7 @@ class HeaderControls {
         }
     }
 
-    // Botáo de voltar
+    // Botão de voltar
     setupBackButton() {
         const backButton = document.querySelector('.header-icon[title="Voltar"]');
         if (backButton) {
@@ -58,9 +58,9 @@ class HeaderControls {
         }
     }
 
-    // Alternar para visualizaçáo em Grid
+    // Alternar para visualização em Grid
     switchToGridView() {
-        console.log('🔲 Alternando para visualizaçáo em Grid');
+        console.log('🔲 Alternando para visualização em Grid');
         
         this.currentView = 'grid';
         this.updateViewButtons();
@@ -71,17 +71,17 @@ class HeaderControls {
             activeSection.classList.remove('list-view');
             activeSection.classList.add('grid-view');
             
-            // Atualizar visualizaçáo específica da seçáo
+            // Atualizar visualização específica da seção
             this.updateSectionView(activeSection, 'grid');
         }
         
-        // Náo mostrar notificaçáo automática
+        // Não mostrar notificação automática
         console.log('✅ Modo Grid ativado');
     }
 
-    // Alternar para visualizaçáo em Lista
+    // Alternar para visualização em Lista
     switchToListView() {
-        console.log('📋 Alternando para visualizaçáo em Lista');
+        console.log('📋 Alternando para visualização em Lista');
         
         this.currentView = 'list';
         this.updateViewButtons();
@@ -92,25 +92,25 @@ class HeaderControls {
             activeSection.classList.remove('grid-view');
             activeSection.classList.add('list-view');
             
-            // Atualizar visualizaçáo específica da seçáo
+            // Atualizar visualização específica da seção
             this.updateSectionView(activeSection, 'list');
         }
         
-        // Náo mostrar notificaçáo automática
+        // Não mostrar notificação automática
         console.log('✅ Modo Lista ativado');
     }
 
     // Atualizar estado visual dos botões
     updateViewButtons() {
-        const gridButton = document.querySelector('.header-icon[title="Visualizaçáo em Grid"]');
-        const listButton = document.querySelector('.header-icon[title="Visualizaçáo em Lista"]');
+        const gridButton = document.querySelector('.header-icon[title="Visualização em Grid"]');
+        const listButton = document.querySelector('.header-icon[title="Visualização em Lista"]');
         
         if (gridButton && listButton) {
             // Remover active de ambos
             gridButton.classList.remove('active');
             listButton.classList.remove('active');
             
-            // Adicionar active no botáo atual
+            // Adicionar active no botão atual
             if (this.currentView === 'grid') {
                 gridButton.classList.add('active');
             } else {
@@ -119,7 +119,7 @@ class HeaderControls {
         }
     }
 
-    // Atualizar visualizaçáo da seçáo específica
+    // Atualizar visualização da seção específica
     updateSectionView(section, view) {
         // Identificar tipo de página atual pelos elementos presentes
         const grid = document.querySelector('.items-grid, #funcionarios-grid, .stats-row');
@@ -129,7 +129,7 @@ class HeaderControls {
         }
     }
     
-    // Atualizar visualizaçáo genérica para páginas carregadas dinamicamente
+    // Atualizar visualização genérica para páginas carregadas dinamicamente
     updateGenericPageView(view) {
         const itemsGrids = document.querySelectorAll('.items-grid');
         const statsRows = document.querySelectorAll('.stats-row');
@@ -158,7 +158,7 @@ class HeaderControls {
         });
     }
 
-    // Atualizar visualizaçáo de Funcionários
+    // Atualizar visualização de Funcionários
     updateFuncionariosView(view) {
         const grid = document.getElementById('funcionarios-grid');
         const table = document.getElementById('funcionarios-table');
@@ -174,13 +174,13 @@ class HeaderControls {
             if (grid) grid.style.display = 'none';
             if (table) {
                 table.style.display = 'block';
-                // Criar tabela se náo existir
+                // Criar tabela se não existir
                 this.createFuncionariosTable();
             }
         }
     }
 
-    // Atualizar visualizaçáo de Holerites
+    // Atualizar visualização de Holerites
     updateHoleritesView(view) {
         const container = document.querySelector('#holerites-section .holerites-content');
         
@@ -195,7 +195,7 @@ class HeaderControls {
         }
     }
 
-    // Atualizar visualizaçáo de Relatórios
+    // Atualizar visualização de Relatórios
     updateRelatoriosView(view) {
         const container = document.querySelector('#relatórios-section .relatórios-content');
         
@@ -212,7 +212,7 @@ class HeaderControls {
         }
     }
 
-    // Atualizar visualizaçáo do Dashboard
+    // Atualizar visualização do Dashboard
     updateDashboardView(view) {
         const widgets = document.querySelector('.widgets-grid');
         
@@ -288,19 +288,19 @@ class HeaderControls {
         `;
     }
 
-    // Atualizar seçáo atual
+    // Atualizar seção atual
     refreshCurrentSection() {
-        console.log('🔄 Atualizando seçáo atual...');
+        console.log('🔄 Atualizando seção atual...');
         
         const activeSection = document.querySelector('.content-section.active');
         if (!activeSection) {
-            this.showToast('Nenhuma seçáo ativa para atualizar', 'warning');
+            this.showToast('Nenhuma seção ativa para atualizar', 'warning');
             return;
         }
 
         const sectionId = activeSection.id;
         
-        // Animaçáo de refresh
+        // Animação de refresh
         const refreshButton = document.querySelector('.header-icon[title="Atualizar"]');
         if (refreshButton) {
             refreshButton.style.transform = 'rotate(360deg)';
@@ -311,7 +311,7 @@ class HeaderControls {
             }, 500);
         }
 
-        // Recarregar dados da seçáo específica
+        // Recarregar dados da seção específica
         switch(sectionId) {
             case 'funcionarios-section':
                 this.refreshFuncionarios();
@@ -391,11 +391,11 @@ class HeaderControls {
         }, 1200);
     }
 
-    // Voltar para seçáo anterior
+    // Voltar para seção anterior
     goBack() {
         console.log('⬅️ Voltando...');
         
-        // Se está em uma seçáo, voltar para dashboard
+        // Se está em uma seção, voltar para dashboard
         const activeSection = document.querySelector('.content-section.active');
         if (activeSection && activeSection.id !== 'dashboard-home') {
             if (typeof window.navigateToSection === 'function') {
@@ -407,7 +407,7 @@ class HeaderControls {
         }
     }
 
-    // Obter nome da seçáo
+    // Obter nome da seção
     getSectionName(sectionId) {
         const names = {
             'funcionarios-section': 'Funcionários',
@@ -415,10 +415,10 @@ class HeaderControls {
             'relatórios-section': 'Relatórios',
             'dashboard-home': 'Dashboard'
         };
-        return names[sectionId] || 'Seçáo';
+        return names[sectionId] || 'Seção';
     }
 
-    // Mostrar notificaçáo no sino (SEM toast automático)
+    // Mostrar notificação no sino (SEM toast automático)
     showToast(message, type = 'info') {
         // Apenas adicionar à lista de notificações, SEM mostrar toast
         this.addNotification(message, type);
@@ -429,7 +429,7 @@ class HeaderControls {
         this.showTemporaryToast(message, type);
     }
 
-    // Adicionar notificaçáo ao painel do sino
+    // Adicionar notificação ao painel do sino
     addNotification(message, type = 'info') {
         const notificationsList = document.getElementById('notifications-list');
         const notificationCount = document.getElementById('notification-count');
@@ -450,7 +450,7 @@ class HeaderControls {
             minute: '2-digit' 
         });
 
-        // Criar elemento de notificaçáo
+        // Criar elemento de notificação
         const notification = document.createElement('div');
         notification.className = 'notification-item';
         notification.innerHTML = `
@@ -763,7 +763,7 @@ function addToastStyles() {
     document.head.appendChild(style);
 }
 
-// Inicializaçáo
+// Inicialização
 function initializeHeaderControls() {
     console.log('🚀 Inicializando controles do cabeçalho...');
     
@@ -777,7 +777,7 @@ function initializeHeaderControls() {
         addToastStyles();
         window.headerControls = new HeaderControls();
         
-        // Definir visualizaçáo inicial como grid
+        // Definir visualização inicial como grid
         window.headerControls.switchToGridView();
         
         console.log('✅ Controles do cabeçalho inicializados');
@@ -786,7 +786,7 @@ function initializeHeaderControls() {
 
 // Funções globais para o painel de notificações
 function toggleNotifications() {
-    // Primeiro, ocultar qualquer outro painel de notificaçáo que náo seja do sino
+    // Primeiro, ocultar qualquer outro painel de notificação que não seja do sino
     if (window.showOnlyBellNotifications) {
         window.showOnlyBellNotifications();
     }
@@ -794,7 +794,7 @@ function toggleNotifications() {
     const panel = document.getElementById('notifications-panel');
     if (!panel) return;
     
-    // Adicionar uma notificaçáo de exemplo quando abrir o painel pela primeira vez
+    // Adicionar uma notificação de exemplo quando abrir o painel pela primeira vez
     if (panel.style.display === 'none' || !panel.style.display || panel.style.visibility === 'hidden') {
         // Mostrar painel
         panel.style.display = 'block';
@@ -817,9 +817,9 @@ function toggleNotifications() {
 }
 
 function toggleMessages() {
-    console.log('📧 Botáo de mensagens clicado');
+    console.log('📧 Botão de mensagens clicado');
     
-    // Primeiro mostrar o painel de notificações (se náo estiver visível)
+    // Primeiro mostrar o painel de notificações (se não estiver visível)
     const panel = document.getElementById('notifications-panel');
     if (!panel) return;
     
@@ -830,9 +830,9 @@ function toggleMessages() {
     
     // Adicionar mensagens de exemplo
     if (window.headerControls) {
-        window.headerControls.addNotification('📧 Nova mensagem de Joáo Silva', 'info');
+        window.headerControls.addNotification('📧 Nova mensagem de João Silva', 'info');
         window.headerControls.addNotification('📧 Resposta: Relatório aprovado', 'success');
-        window.headerControls.addNotification('📧 3 mensagens náo lidas', 'warning');
+        window.headerControls.addNotification('📧 3 mensagens não lidas', 'warning');
     }
     
     // Mostrar painel se estiver oculto

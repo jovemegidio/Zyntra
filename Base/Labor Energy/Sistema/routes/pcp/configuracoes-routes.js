@@ -1387,10 +1387,30 @@ module.exports = function registerConfiguracoesRoutes(router, deps) {
 
     router.put('/api/configuracoes/condicoes-pagamento/:id', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
-            const { nome, parcelas, prazo, acrescimo, descricao } = req.body;
+            // O front envia "dias" (ex.: "21,28,35"); versoes antigas enviavam "prazo".
+            // Fazemos merge com a linha atual para nao zerar campos que nao vieram no body.
+            const { nome, parcelas, prazo, dias, acrescimo, descricao } = req.body;
+            const [[atual]] = await pool.query('SELECT * FROM condicoes_pagamento WHERE id = ?', [req.params.id]);
+            if (!atual) return res.status(404).json({ success: false, error: 'Condição não encontrada' });
+
+            const diasFinal = (dias !== undefined && dias !== null && String(dias).trim() !== '')
+                ? String(dias).trim()
+                : (prazo !== undefined && prazo !== null && String(prazo).trim() !== '' ? String(prazo).trim() : atual.dias);
+
+            let parcelasFinal = parcelas;
+            if (parcelasFinal === undefined || parcelasFinal === null || parcelasFinal === '') {
+                const qtd = String(diasFinal || '').split(/[/,;]/).map(s => s.trim()).filter(Boolean).length;
+                parcelasFinal = qtd > 0 ? qtd : (atual.parcelas || 1);
+            }
+
+            const acrescimoFinal = (acrescimo !== undefined && acrescimo !== null && acrescimo !== '')
+                ? acrescimo : (atual.acrescimo || 0);
+            const nomeFinal = (nome !== undefined && nome !== null && String(nome).trim() !== '') ? nome : atual.nome;
+            const descricaoFinal = descricao !== undefined ? descricao : atual.descricao;
+
             await pool.query(
                 'UPDATE condicoes_pagamento SET nome = ?, parcelas = ?, dias = ?, acrescimo = ?, descricao = ? WHERE id = ?',
-                [nome, parcelas || 1, prazo || null, acrescimo || 0, descricao || null, req.params.id]
+                [nomeFinal, parcelasFinal, diasFinal, acrescimoFinal, descricaoFinal, req.params.id]
             );
             res.json({ success: true });
         } catch (error) {

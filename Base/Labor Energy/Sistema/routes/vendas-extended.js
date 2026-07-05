@@ -1133,6 +1133,14 @@ module.exports = function createVendasExtendedRoutes(deps) {
                 if (vRows.length > 0) vendedorNome = vRows[0].nome;
             } catch (e) { /* nomes opcionais */ }
 
+            // Normalização: padroniza variantes de "à vista" → 'a_vista' (preserva demais valores)
+            const normalizarCondPag = (val) => {
+                if (!val) return val;
+                const s = String(val).trim().toLowerCase().replace(/\s+/g, ' ');
+                if (['a vista', 'a_vista', 'à vista', 'à_vista', 'avista', 'a-vista'].includes(s)) return 'a_vista';
+                return val;
+            };
+
             const [result] = await connection.query(`
                 INSERT INTO pedidos
                 (cliente_id, empresa_id, vendedor_id, valor, descricao, status,
@@ -1150,7 +1158,7 @@ module.exports = function createVendasExtendedRoutes(deps) {
                 status, sanitizeNum(frete) || 0, prioridade, JSON.stringify(produtosData),
                 sanitize(prazo_entrega), sanitize(endereco_entrega), sanitize(municipio_entrega), sanitize(metodo_envio),
                 parcelas ? (typeof parcelas === 'string' ? parcelas : JSON.stringify(parcelas)) : null,
-                sanitize(condicao_pagamento), sanitize(cenario_fiscal), sanitize(observacao),
+                normalizarCondPag(sanitize(condicao_pagamento)), sanitize(cenario_fiscal), sanitize(observacao),
                 clienteNome, vendedorNome,
                 sanitize(transportadora), sanitize(transportadora), sanitize(tipo_frete),
                 sanitize(placa_veiculo), sanitize(veiculo_uf), sanitize(rntrc),

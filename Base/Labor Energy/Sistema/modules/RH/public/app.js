@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Script unificado para o Portal do Funcionário e para a Área Administrativa.
  * Detecta a página (admin ou funcionário) e inicializa as funcionalidades relevantes.
  */
@@ -128,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Track first user interaction to avoid auto-opening modals before user intent
     function markUserInteracted() { 
         window._userInteracted = true; 
-        window._modalAllowed = true; // Adicional: permitir modais após interaçáo
+        window._modalAllowed = true; // Adicional: permitir modais após interação
         ['click','keydown','touchstart'].forEach(ev => document.removeEventListener(ev, markUserInteracted)); 
     }
     ['click','keydown','touchstart'].forEach(ev => document.addEventListener(ev, markUserInteracted, { once: true }));
@@ -137,14 +137,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window._modalAllowed = false;
     window._modalExplicitlyRequested = false;
     
-    // Garantir que todos os modais estejam fechados na inicializaçáo
+    // Garantir que todos os modais estejam fechados na inicialização
     setTimeout(() => {
         const allModals = document.querySelectorAll('.modal');
         allModals.forEach(modal => {
             modal.classList.remove('open');
             modal.style.display = 'none';
         });
-        console.log('🔒 Todos os modais forçadamente fechados na inicializaçáo');
+        console.log('🔒 Todos os modais forçadamente fechados na inicialização');
     }, 100);
 
     if (isAdminPage) {
@@ -173,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         }
 
-        // Desabilitar/ocultar holerite e ponto se náo houver arquivos anexados
+        // Desabilitar/ocultar holerite e ponto se não houver arquivos anexados
         if (isEmployeePage) {
             try {
                 const user = JSON.parse(localStorage.getItem('userData') || 'null') || {}
@@ -377,9 +377,9 @@ function safeRedirectToLogin() {
                 // SSO: Preservar URL atual para retornar após login
                 const returnTo = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
                 window.location.href = `/login.html?returnTo=${returnTo}`;
-            } catch (e) { try { notifyRedirectAttempt('safeRedirectToLogin', 'catch-fallback'); window.location.href = '/login.html'; } catch (_) {} }
+            } catch (e) { try { notifyRedirectAttempt('safeRedirectToLogin', 'catch-fallback'); window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html'; } catch (_) {} }
         });
-    } catch (e) { try { notifyRedirectAttempt('safeRedirectToLogin', 'outer-catch'); window.location.href = '/login.html'; } catch (_) {} }
+    } catch (e) { try { notifyRedirectAttempt('safeRedirectToLogin', 'outer-catch'); window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html'; } catch (_) {} }
 }
 
 // Consistent control disabling helper: accepts an Element or id and marks it disabled for anchors/buttons
@@ -529,7 +529,7 @@ function showToast(message, type = 'success', timeout = 4000) {
     // close button for manual dismissal
     const closeBtn = document.createElement('button');
     closeBtn.className = 'toast-close';
-    closeBtn.setAttribute('aria-label', 'Fechar notificaçáo');
+    closeBtn.setAttribute('aria-label', 'Fechar notificação');
     closeBtn.innerHTML = '&times;';
     closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -560,7 +560,7 @@ function showToast(message, type = 'success', timeout = 4000) {
 
 // Accessible confirm modal helper that returns a Promise<boolean>
 function showConfirm(message) {
-    // Prevenir modais de confirmaçáo automáticos sem interaçáo do usuário
+    // Prevenir modais de confirmação automáticos sem interação do usuário
     if (!window._userInteracted) {
         console.warn('showConfirm: blocked auto-confirm, waiting for user interaction');
         return Promise.resolve(false); // Cancelar automaticamente
@@ -611,7 +611,7 @@ function showConfirm(message) {
             modal.setAttribute('aria-hidden', 'false');
             modal.innerHTML = `
                 <div class="modal-dialog" role="document">
-                    <div class="modal-header"><div class="modal-title">Confirmaçáo</div><button class="close-button" aria-label="Fechar">&times;</button></div>
+                    <div class="modal-header"><div class="modal-title">Confirmação</div><button class="close-button" aria-label="Fechar">&times;</button></div>
                     <div class="modal-content"><p id="${id}-msg" class="modal-confirm-text">${String(message)}</p></div>
                     <div class="modal-footer"><button class="btn" id="${id}-ok">OK</button><button class="btn btn-secondary" id="${id}-cancel">Cancelar</button></div>
                 </div>`;
@@ -689,7 +689,7 @@ function closeModal(modal) {
     if (!anyOpen) {
         try { unlockBodyScroll(); } catch (e) { /* ignore */ }
         document.body.classList.remove('modal-open');
-        // Resetar todas as permissões de modal quando náo há mais modais abertos
+        // Resetar todas as permissões de modal quando não há mais modais abertos
         window._modalExplicitlyRequested = false;
     }
     try { deactivateModalFocus(modal); } catch (e) { /* ignore */ }
@@ -735,7 +735,7 @@ function unlockBodyScroll() {
 // == ÁREA DO ADMINISTRADOR
 // ===================================================================================
 function initAdminPage() {
-    // --- Validaçáo de Acesso ---
+    // --- Validação de Acesso ---
     const localUserData = JSON.parse(localStorage.getItem('userData'));
     
     // Debug: mostrar informações detalhadas do usuário
@@ -758,7 +758,7 @@ function initAdminPage() {
         }
         
         showToast("Acesso negado. Apenas administradores podem aceder a está página.", 'error');
-        window.location.href = '/login.html';
+        window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
         return;
     }
     
@@ -783,7 +783,7 @@ function initAdminPage() {
     async function preencherHeaderUsuario() {
         try {
             const resp = await fetch('/api/me', { headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
-            if (!resp.ok) return; // náo bloqueante
+            if (!resp.ok) return; // não bloqueante
             const me = await resp.json();
             const avatar = document.getElementById('header-avatar-img');
             const greeting = document.getElementById('header-greeting');
@@ -794,7 +794,7 @@ function initAdminPage() {
                 greeting.textContent = `Olá, ${first}`;
             }
         } catch (err) {
-            console.warn('Náo foi possível preencher header com /api/me', err);
+            console.warn('Não foi possível preencher header com /api/me', err);
         }
     }
 
@@ -806,7 +806,7 @@ function initAdminPage() {
             const response = await fetch(url, { headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
             if (response.status === 401) {
                 // token expirado ou inválido
-                showToast('Sessáo expirada. Faça login novamente.', 'error');
+                showToast('Sessão expirada. Faça login novamente.', 'error');
                 localStorage.clear();
                 safeRedirectToLogin();
                 return;
@@ -1008,7 +1008,7 @@ function initAdminPage() {
             // Verificar se estamos no dashboard antes de carregar
             const dashboardSection = document.getElementById('dashboard-home');
             if (!dashboardSection || !dashboardSection.classList.contains('active')) {
-                return; // Náo carregar se náo estivermos no dashboard
+                return; // Não carregar se não estivermos no dashboard
             }
             
             // Use dedicated endpoint for aniversariantes (server provides /api/aniversariantes)
@@ -1052,13 +1052,13 @@ function initAdminPage() {
         }
     }
 
-    // --- Novo: Carregar dados para a nova aba Dashboard (náo altera a aba Funcionários) ---
+    // --- Novo: Carregar dados para a nova aba Dashboard (não altera a aba Funcionários) ---
     async function carregarDashboard() {
         try {
             // Verificar se estamos no dashboard antes de carregar
             const dashboardSection = document.getElementById('dashboard-home');
             if (!dashboardSection || !dashboardSection.classList.contains('active')) {
-                return; // Náo carregar se náo estivermos no dashboard
+                return; // Não carregar se não estivermos no dashboard
             }
             
             // usa endpoint agregado para dashboard
@@ -1188,7 +1188,7 @@ function initAdminPage() {
                         }
                         let tempoStr = t.dias !== null && t.dias !== undefined
                             ? `${anos > 0 ? anos + 'a ' : ''}${meses > 0 ? meses + 'm ' : ''}${dias > 0 ? dias + 'd' : ''}`.trim() || '0d'
-                            : 'Data adm. náo informada';
+                            : 'Data adm. não informada';
                         item.innerHTML = `<span class="medalha">${medalhas[idx] || ''}</span> <strong>${t.nome}</strong><div>${tempoStr}</div>`;
                         tempoDiv.appendChild(item);
                     });
@@ -1224,7 +1224,7 @@ function initAdminPage() {
     async function abrirModalDetalhes(id, forceOpen = false) {
         console.log(`🔍 abrirModalDetalhes chamado: id=${id}, forceOpen=${forceOpen}, _userInteracted=${window._userInteracted}, _modalExplicitlyRequested=${window._modalExplicitlyRequested}`);
         
-        // PROTEÇÁO ABSOLUTA: Modal só deve abrir com interaçáo EXPLÍCITA do usuário
+        // PROTEÇÁO ABSOLUTA: Modal só deve abrir com interação EXPLÍCITA do usuário
         if (!forceOpen && (!window._userInteracted || !window._modalExplicitlyRequested)) {
             console.warn('🚫 abrirModalDetalhes: BLOCKED - modal requires explicit user request');
             return;
@@ -1245,7 +1245,7 @@ function initAdminPage() {
         
         try {
             const response = await fetch(`${API_URL}/${id}`, { headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
-            if (!response.ok) throw new Error('Náo foi possível buscar os detalhes.');
+            if (!response.ok) throw new Error('Não foi possível buscar os detalhes.');
             const func = await response.json();
             
             fotoPreview.src = func.foto_url || func.foto_perfil_url || 'Interativo-Aluforce.jpg';
@@ -1321,15 +1321,15 @@ function initAdminPage() {
                 listaHolerites.innerHTML = '<li>Nenhum holerite anexado.</li>';
             }
 
-            // Preenche data de nascimento (ediçáo rápida pelo admin)
+            // Preenche data de nascimento (edição rápida pelo admin)
             const modalNascimento = document.getElementById('modal-data-nascimento');
             if (modalNascimento) modalNascimento.value = func.data_nascimento ? func.data_nascimento.substring(0,10) : '';
 
-            // preencher exibiçáo legível de data de nascimento (ex: "05 de agosto")
+            // preencher exibição legível de data de nascimento (ex: "05 de agosto")
             const dobDisplay = document.getElementById('modal-dob-display');
             if (dobDisplay) dobDisplay.textContent = func.data_nascimento ? formatDayMonth(func.data_nascimento) : '—';
 
-            // foco no primeiro campo do formulário para ediçáo rápida
+            // foco no primeiro campo do formulário para edição rápida
             setTimeout(() => {
                 const first = document.getElementById('modal-nome'); if (first) first.focus();
             }, 40);
@@ -1342,7 +1342,7 @@ function initAdminPage() {
 
             } catch (error) {
             console.error('Erro ao carregar funcionários:', error);
-            tabelaCorpo.innerHTML = `<tr><td colspan="5" style="color: red;">Náo foi possível carregar os dados. Verifique se a API está online.</td></tr>`;
+            tabelaCorpo.innerHTML = `<tr><td colspan="5" style="color: red;">Não foi possível carregar os dados. Verifique se a API está online.</td></tr>`;
         }
     }
 
@@ -1385,7 +1385,7 @@ function initAdminPage() {
         });
     });
 
-    // Novo colaborador via botáo do header
+    // Novo colaborador via botão do header
     const btnNewCol = document.getElementById('btn-new-collaborator');
     if (btnNewCol) {
         btnNewCol.addEventListener('click', (e) => {
@@ -1407,7 +1407,7 @@ function initAdminPage() {
             if (e.target && e.target.classList && e.target.classList.contains('btn-detalhes')) {
                 // Marcar que o modal foi EXPLICITAMENTE solicitado pelo usuário
                 window._modalExplicitlyRequested = true;
-                console.log('✅ Modal explicitamente solicitado pelo usuário via botáo Detalhes');
+                console.log('✅ Modal explicitamente solicitado pelo usuário via botão Detalhes');
                 abrirModalDetalhes(e.target.dataset.id, true); // forceOpen = true
             }
         });
@@ -1600,13 +1600,13 @@ function initAdminPage() {
         });
     }
 
-    // Form de ediçáo rápida de data_nascimento dentro do modal
+    // Form de edição rápida de data_nascimento dentro do modal
     const modalNascimentoForm = document.getElementById('modal-nascimento-form');
     if (modalNascimentoForm) {
         modalNascimentoForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const input = document.getElementById('modal-data-nascimento');
-            if (!input) return showToast('Campo de data náo encontrado.', 'error');
+            if (!input) return showToast('Campo de data não encontrado.', 'error');
             const val = input.value || null;
             try {
                 const resp = await fetch(`${API_URL}/${currentFuncionarioId}`, { credentials: 'include', method: 'PUT',
@@ -1634,11 +1634,11 @@ function initAdminPage() {
             // Verificar se estamos no dashboard antes de carregar
             const dashboardSection = document.getElementById('dashboard-home');
             if (!dashboardSection || !dashboardSection.classList.contains('active')) {
-                return; // Náo carregar se náo estivermos no dashboard
+                return; // Não carregar se não estivermos no dashboard
             }
             
             const res = await fetch('/api/avisos', { headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
-            if (!res.ok) throw new Error('Náo foi possível carregar avisos.');
+            if (!res.ok) throw new Error('Não foi possível carregar avisos.');
             const avisos = await res.json();
             const div = dashboardSection.querySelector('#avisos-list');
             if (!div) return;
@@ -1719,7 +1719,7 @@ function initAdminPage() {
     // Modal-based avisos management
     function openAvisosModal() {
         const modal = document.getElementById('modal-avisos');
-    if (!modal) return showToast('Modal de avisos náo encontrado.', 'error');
+    if (!modal) return showToast('Modal de avisos não encontrado.', 'error');
     openModal(modal);
         // ensure tab default
         document.querySelectorAll('#modal-avisos .tab-content').forEach(t => t.style.display = 'none');
@@ -1958,8 +1958,8 @@ async function initEmployeePage() {
                     overlay.style.display = 'flex'; overlay.style.alignItems = 'center'; overlay.style.justifyContent = 'center';
                     overlay.style.zIndex = '99999';
                     overlay.innerHTML = `<div style="background:#fff;padding:20px;border-radius:6px;max-width:420px;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.2);">
-                        <h3 style="margin:0 0 8px 0">Sessáo náo encontrada</h3>
-                        <p style="margin:0 0 12px 0;color:#555">Aguardo token de autenticaçáo. Se náo houver açáo, clique para ir ao login.</p>
+                        <h3 style="margin:0 0 8px 0">Sessão não encontrada</h3>
+                        <p style="margin:0 0 12px 0;color:#555">Aguardo token de autenticação. Se não houver ação, clique para ir ao login.</p>
                         <div style="display:flex;gap:8px;justify-content:center;margin-top:8px;">
                           <button id="auth-overlay-wait" class="btn btn-secondary">Aguardar</button>
                           <a id="auth-overlay-login" class="btn btn-primary" href="/login.html">Ir ao Login</a>
@@ -2001,8 +2001,8 @@ async function initEmployeePage() {
                     if (o) {
                         o.innerHTML = `
                             <div style="background:#fff;padding:20px;border-radius:6px;max-width:520px;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.2);">
-                                <h3 style="margin:0 0 8px 0">Sessáo náo encontrada</h3>
-                                <p style="margin:0 0 12px 0;color:#555">Náo detectei um token de autenticaçáo. Você pode tentar novamente ou ir para a tela de login.</p>
+                                <h3 style="margin:0 0 8px 0">Sessão não encontrada</h3>
+                                <p style="margin:0 0 12px 0;color:#555">Não detectei um token de autenticação. Você pode tentar novamente ou ir para a tela de login.</p>
                                 <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;">
                                     <button id="auth-overlay-wait" class="btn btn-secondary">Tentar novamente</button>
                                     <a id="auth-overlay-login" class="btn btn-primary" href="/login.html">Ir ao Login</a>
@@ -2028,7 +2028,7 @@ async function initEmployeePage() {
                                         try { initEmployeePage(); } catch(e) { console.warn('retry initEmployeePage failed', e); }
                                     } else {
                                         // leave message in place; user may click login
-                                        try { showToast('Ainda náo há token detectado. Você pode ir ao login.', 'error'); } catch (e) {}
+                                        try { showToast('Ainda não há token detectado. Você pode ir ao login.', 'error'); } catch (e) {}
                                     }
                                 } catch(e) { console.warn('rePoll failed', e); }
                             })();
@@ -2055,7 +2055,7 @@ async function initEmployeePage() {
                                             try {
                                                 const text = JSON.stringify(diagObj, null, 2);
                                                 if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
-                                                    navigator.clipboard.writeText(text).then(function(){ showToast('Diagnóstico copiado para a área de transferência.', 'success'); }, function(){ showToast('Náo foi possível copiar automaticamente. Abra o console.', 'error'); });
+                                                    navigator.clipboard.writeText(text).then(function(){ showToast('Diagnóstico copiado para a área de transferência.', 'success'); }, function(){ showToast('Não foi possível copiar automaticamente. Abra o console.', 'error'); });
                                                 } else {
                                                     // fallback: select and prompt
                                                     const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); showToast('Diagnóstico copiado.', 'success'); } catch(e){ showToast('Cópia automática falhou.', 'error'); } ta.remove();
@@ -2063,7 +2063,7 @@ async function initEmployeePage() {
                                             } catch(e) { showToast('Erro ao copiar diagnóstico.', 'error'); }
                                         });
                                         const openLoginBtn = document.getElementById('auth-open-login');
-                                        if (openLoginBtn) openLoginBtn.addEventListener('click', function(){ window.location.href = '/login.html'; });
+                                        if (openLoginBtn) openLoginBtn.addEventListener('click', function(){ window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html'; });
                                     } catch(e) {}
                                 } catch (e) { diag.textContent = 'Diagnostics indisponível'; }
                             }
@@ -2093,7 +2093,7 @@ async function initEmployeePage() {
 
     try {
         const response = await fetch(`/api/funcionarios/${localUserData.id}`, { headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
-        if (!response.ok) throw new Error("Náo foi possível carregar os seus dados.");
+        if (!response.ok) throw new Error("Não foi possível carregar os seus dados.");
         
         const freshUserData = await response.json();
         localStorage.setItem('userData', JSON.stringify(freshUserData));
@@ -2241,7 +2241,7 @@ async function carregarEmployeeDashboard(userData) {
                 if (pontoP) pontoP.textContent = 'Fechamento: ' + summary.tempoCasa.fechamento;
                 if (pontoLink) enableControl(pontoLink);
             } else {
-                if (pontoP) pontoP.textContent = 'Status do ponto náo disponível.';
+                if (pontoP) pontoP.textContent = 'Status do ponto não disponível.';
             }
         } catch (e) { /* ignore */ }
 
@@ -2466,7 +2466,7 @@ document.addEventListener('click', (e) => {
     const target = e.target.closest && e.target.closest('.widget-link.disabled, button.disabled, .btn.disabled');
     if (!target) return;
     e.preventDefault();
-    const title = target.getAttribute('title') || target.getAttribute('aria-disabled') || 'Açáo indisponível no momento.';
+    const title = target.getAttribute('title') || target.getAttribute('aria-disabled') || 'Ação indisponível no momento.';
     showToast(title, 'error', 3000);
 });
 
@@ -2501,11 +2501,11 @@ function populateUserData(userData) {
     });
 
     const bancoEl = document.getElementById('banco');
-    if (bancoEl) bancoEl.textContent = userData.banco || 'Náo informado';
+    if (bancoEl) bancoEl.textContent = userData.banco || 'Não informado';
     const agenciaEl = document.getElementById('agencia');
-    if (agenciaEl) agenciaEl.textContent = userData.agencia || 'Náo informado';
+    if (agenciaEl) agenciaEl.textContent = userData.agencia || 'Não informado';
     const contaEl = document.getElementById('conta_corrente');
-    if (contaEl) contaEl.textContent = userData.conta_corrente || 'Náo informado';
+    if (contaEl) contaEl.textContent = userData.conta_corrente || 'Não informado';
 
     // Preenche o seletor de holerites
     const holeriteSelect = document.getElementById('holerite-mes');
@@ -2616,7 +2616,7 @@ function setupEmployeeEventListeners(userData) {
             dependentes: dependentesVal
         };
 
-        // Mostrar confirmaçáo ao utilizador antes de qualquer alteraçáo
+        // Mostrar confirmação ao utilizador antes de qualquer alteração
         const summaryLines = [
             `Telefone: ${dadosParaSalvar.telefone || '(vazio)'}`,
             `Estado civil: ${dadosParaSalvar.estado_civil || '(vazio)'}`,
@@ -2664,8 +2664,8 @@ function setupEmployeeEventListeners(userData) {
             const formData = new FormData();
             formData.append('atéstado', fileInput.files[0]);
             // append optional description if provided
-            const descEl = document.getElementById('atéstado-descriçáo');
-            if (descEl && descEl.value && descEl.value.trim()) formData.append('descriçáo', descEl.value.trim());
+            const descEl = document.getElementById('atéstado-descrição');
+            if (descEl && descEl.value && descEl.value.trim()) formData.append('descrição', descEl.value.trim());
             statusDiv.textContent = 'A enviar...';
             try {
                 const response = await fetch(`/api/funcionarios/${userData.id}/atéstado`, { credentials: 'include', method: 'POST',
@@ -2676,7 +2676,7 @@ function setupEmployeeEventListeners(userData) {
                 statusDiv.textContent = result.message;
                 showToast(result.message, 'success');
                 atéstadoForm.reset();
-                const desc = document.getElementById('atéstado-descriçáo'); if (desc) desc.value = '';
+                const desc = document.getElementById('atéstado-descrição'); if (desc) desc.value = '';
             } catch (error) {
                 statusDiv.textContent = `Erro: ${error.message}`;
                 showToast(`Erro ao enviar atéstado: ${error.message}`, 'error');
@@ -2684,7 +2684,7 @@ function setupEmployeeEventListeners(userData) {
         });
     }
 
-    // Event listener para o botáo de visualizar holerite
+    // Event listener para o botão de visualizar holerite
     const viewHoleriteBtn = document.getElementById('view-holerite');
     const holeriteViewer = document.getElementById('holerite-viewer');
     if(viewHoleriteBtn) {
@@ -2704,7 +2704,7 @@ function setupEmployeeEventListeners(userData) {
     if (viewPontoBtn) {
         viewPontoBtn.addEventListener('click', () => {
             const url = viewPontoBtn.getAttribute('data-url');
-            if (!url) { showToast('Nenhum espelho de ponto disponível para visualizaçáo.', 'error'); return; }
+            if (!url) { showToast('Nenhum espelho de ponto disponível para visualização.', 'error'); return; }
             // decide embed strategy by extension
             if (url.toLowerCase().endsWith('.pdf')) {
                 pontoViewer.innerHTML = `<iframe src="${url}" width="100%" height="700px" title="Espelho de Ponto"></iframe>`;
@@ -2742,7 +2742,7 @@ function setupEmployeeEventListeners(userData) {
     }
 
     /* 
-    // Integraçáo com Omie Layout (métodos comentados devido a erro de sintaxe)
+    // Integração com Omie Layout (métodos comentados devido a erro de sintaxe)
     // TODO: Reorganizar em classe ou objeto apropriado
     
     updateViewMode(mode) {
@@ -2779,13 +2779,13 @@ function setupEmployeeEventListeners(userData) {
     }
 
     displayEmployeesTable() {
-        // Usar a funçáo existente displayFuncionarios com ajustes
+        // Usar a função existente displayFuncionarios com ajustes
         if (this.funcionarios) {
             this.displayFuncionarios(this.funcionarios);
         }
     }
 
-    // Métodos para integraçáo com omie-layout.js
+    // Métodos para integração com omie-layout.js
     viewEmployee(id) {
         this.visualizarFuncionario(id);
     }
@@ -2798,7 +2798,7 @@ function setupEmployeeEventListeners(userData) {
         this.excluirFuncionario(id);
     }
     
-    // Funçáo para recarregar dados do usuário
+    // Função para recarregar dados do usuário
     reloadUserData() {
         const userData = JSON.parse(localStorage.getItem('userData') || 'null');
         if (!userData) {
@@ -2850,7 +2850,7 @@ function setupEmployeeEventListeners(userData) {
     */
 }
 
-// Funçáo para inicializar dados do dashboard
+// Função para inicializar dados do dashboard
 function initializeDashboard() {
     // Atualizar data atual
     const currentDateEl = document.getElementById('current-date');
@@ -2858,7 +2858,7 @@ function initializeDashboard() {
         currentDateEl.textContent = new Date().toLocaleDateString('pt-BR');
     }
     
-    // Carregar último acesso do localStorage ou usar padráo
+    // Carregar último acesso do localStorage ou usar padrão
     const lastAccess = localStorage.getItem('lastAccess');
     const lastAccessEl = document.getElementById('last-access-time');
     if (lastAccessEl) {
@@ -2885,7 +2885,7 @@ function initializeDashboard() {
         window.omieLayout.updateNotificationsCount();
     }
     
-    // Atualizar último acesso para está sessáo
+    // Atualizar último acesso para está sessão
     if (window.app && window.app.updateLastAccess) {
         window.app.updateLastAccess();
     }

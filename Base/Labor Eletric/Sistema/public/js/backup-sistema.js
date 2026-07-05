@@ -42,7 +42,6 @@ const BackupSistema = {
     async carregarBackups() {
         try {
             const response = await fetch('/api/backup/listar');
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const result = await response.json();
             
             if (result.success) {
@@ -134,7 +133,7 @@ const BackupSistema = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ descricao: 'Backup manual' })
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
             const result = await response.json();
             
             if (result.success) {
@@ -178,7 +177,7 @@ const BackupSistema = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ confirmar: 'RESTAURAR' })
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
             const result = await response.json();
             
             if (result.success) {
@@ -205,7 +204,7 @@ const BackupSistema = {
             const response = await fetch(`/api/backup/excluir/${encodeURIComponent(arquivo)}`, {
                 method: 'DELETE'
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
             const result = await response.json();
             
             if (result.success) {
@@ -225,7 +224,6 @@ const BackupSistema = {
     async carregarConfiguracao() {
         try {
             const response = await fetch('/api/backup/configuracao');
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const result = await response.json();
             
             if (result.success) {
@@ -284,7 +282,7 @@ const BackupSistema = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config)
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
             const result = await response.json();
             
             if (result.success) {
@@ -316,7 +314,7 @@ const BackupSistema = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ dias })
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
             const result = await response.json();
             
             if (result.success) {

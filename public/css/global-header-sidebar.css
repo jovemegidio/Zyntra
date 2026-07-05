@@ -6,827 +6,995 @@
 html, body, input, select, textarea, button, table, th, td, label, div, p, a, li, ul, ol, h1, h2, h3, h4, h5, h6, blockquote {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
 }
-/* Preservar fontes de ícones (Font Awesome) */
 .fas, .far, .fal, .fad, .fa-solid, .fa-regular, .fa-light, .fa-duotone,
 [class^="fa-"]:not(.fa-brands):not(.fab), [class*=" fa-"]:not(.fa-brands):not(.fab),
 .material-icons, .material-icons-outlined, .material-icons-round, .material-symbols-outlined {
     font-family: 'Font Awesome 6 Free' !important;
+    font-weight: 900 !important;
 }
-.fab, .fa-brands {
-    font-family: 'Font Awesome 6 Brands' !important;
-}
-/* Preservar fontes monospace para código */
+.fab, .fa-brands { font-family: 'Font Awesome 6 Brands' !important; }
 pre code, code, .monospace, .code, kbd, samp {
     font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace !important;
 }
 
 /* ============================================================
-   GLOBAL HEADER & SIDEBAR — Design Institucional ALUFORCE
-   Padrão unificado para todos os módulos
-   Sidebar 48px cinza + Header 42px com logos ALUFORCE | Zyntra
-   v2.1 — 2026-02-16 — Fix content offset + Professional Tooltips
+   GLOBAL HEADER & SIDEBAR — Zyntra v3 (Cabeçalho-e-Sidebar)
+   Light theme + rail 64px + painel submenu sobreposto via hover
+   Portado de Projeto/cabecalho-e-sidebar/ (Next.js + Tailwind)
+   2026-06-08 — ajustado em 2026-06-21 para funcionar também em
+   páginas que ainda usam sidebar estática (sem global-sidebar-submenu.js)
    ============================================================ */
 
 /* ============================================================
-   1. DESIGN TOKENS
+   1. DESIGN TOKENS — TEMA LIGHT
    ============================================================ */
 :root {
-    /* Sidebar — Light Mode (default) */
-    --sidebar-w: 48px;
+    /* Sidebar — branca com borda cinza */
+    --sidebar-w: 64px !important;
     --sidebar-bg: #ffffff;
-    --sidebar-hover: rgba(30,58,138,0.07);
-    --sidebar-active-bg: rgba(30,58,138,0.12);
-    --sidebar-active-text: #1e3a8a;
-    --sidebar-icon-color: #64748b;
-    --sidebar-icon-hover: #1e3a8a;
+    --sidebar-fg: #1e293b;
+    --sidebar-fg-muted: #64748b;
+    --sidebar-fg-faint: #94a3b8;
+    --sidebar-border: #e5e7eb;
+    --sidebar-accent: #f3f4f6;
+    --sidebar-accent-strong: #e5e7eb;
 
-    /* Header — Dark (logos brancas visíveis no fundo escuro) */
-    --header-h: 42px;
-    --header-bg: #1e293b;
-    --header-text: rgba(255,255,255,0.72);
-    --header-text-bold: #ffffff;
-    --header-border: rgba(255,255,255,0.08);
+    /* Primary — azul institucional */
+    --gs-primary: #2563eb;
+    --gs-primary-hover: #1d4ed8;
+    --gs-primary-soft: rgba(37,99,235,0.10);
+    --gs-primary-fg: #ffffff;
 
-    /* Accent — Blue */
-    --accent: #1e3a8a;
-    --accent-hover: #1e40af;
-    --accent-soft: rgba(30,58,138,0.08);
+    /* Header */
+    --header-h: 64px !important;
+    --header-bg: #ffffff;
+    --header-text: #475569 !important;
+    --header-text-bold: #0f172a !important;
+    --header-border: #e5e7eb !important;
 
-    /* Tooltip — Professional (mantém escuro para legibilidade) */
-    --tooltip-bg: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-    --tooltip-bg-solid: #1e293b;
-    --tooltip-text: #ffffff;
-    --tooltip-shadow: 0 10px 25px -5px rgba(0,0,0,0.25), 0 8px 10px -6px rgba(0,0,0,0.1);
-    --tooltip-border: 1px solid rgba(255,255,255,0.1);
+    /* Submenu painel */
+    --submenu-w: 240px;
 
-    /* Override legacy variables */
-    --sidebar-width: 48px !important;
-    --header-height: 42px !important;
-    --primary-dark: #1e293b !important;
+    /* Destructive */
+    --gs-destructive: #ef4444;
+
+    /* Tooltip */
+    --tooltip-bg: #0f172a;
+    --tooltip-bg-solid: #0f172a;
+    --tooltip-text: #f1f5f9;
+
+    /* Overrides legados — mantidos para compatibilidade */
+    --sidebar-width: 64px !important;
+    --header-height: 64px !important;
+    --primary-dark: #0f172a !important;
+    --accent: var(--gs-primary);
+    --accent-hover: var(--gs-primary-hover);
+    --accent-soft: var(--gs-primary-soft);
+    --sidebar-hover: var(--sidebar-accent);
+    --sidebar-active-bg: var(--sidebar-accent);
+    --sidebar-active-text: var(--gs-primary);
+    --sidebar-icon-color: var(--sidebar-fg-faint);
+    --sidebar-icon-hover: var(--sidebar-fg);
+}
+
+/* Dark-mode desabilitado para sidebar/header — design sempre LIGHT
+   (o restante da app pode usar dark-mode normalmente). */
+body.dark-mode .sidebar,
+body.dark-mode .header,
+body.dark-mode .gs-submenu-panel {
+    background: #ffffff !important;
+    color: var(--sidebar-fg) !important;
+    border-color: var(--sidebar-border) !important;
+}
+body.dark-mode .sidebar-btn,
+body.dark-mode .header-btn {
+    color: var(--sidebar-fg-faint) !important;
+}
+body.dark-mode .sidebar-btn:hover,
+body.dark-mode .header-btn:hover {
+    background: var(--sidebar-accent) !important;
+    color: var(--sidebar-fg) !important;
+}
+body.dark-mode .sidebar-btn.active {
+    background: var(--sidebar-accent) !important;
+    color: var(--gs-primary) !important;
+}
+body.dark-mode .gs-submenu-item {
+    color: var(--sidebar-fg-muted) !important;
+}
+body.dark-mode .gs-submenu-item:hover {
+    background: var(--sidebar-accent) !important;
+    color: var(--sidebar-fg) !important;
+}
+body.dark-mode .gs-submenu-item.active {
+    background: var(--gs-primary) !important;
+    color: var(--gs-primary-fg) !important;
+}
+body.dark-mode .gs-submenu-header-title,
+body.dark-mode .header-brand .page-title {
+    color: var(--sidebar-fg) !important;
+}
+/* Texto/ícones no header dark-mode → escuro para legibilidade no header branco */
+body.dark-mode .header,
+body.dark-mode .header *,
+body.dark-mode .header-brand,
+body.dark-mode .header-brand * {
+    color: var(--header-text) !important;
+}
+body.dark-mode .header-brand .page-title,
+body.dark-mode .header-brand > span:last-child {
+    color: var(--header-text-bold) !important;
+}
+body.dark-mode .header-brand > span:not(.page-title):not([id]) {
+    color: #cbd5e1 !important;
+}
+body.dark-mode .gs-submenu-header-sub,
+body.dark-mode .gs-submenu-group-label {
+    color: var(--sidebar-fg-faint) !important;
 }
 
 /* ============================================================
-   DARK MODE — body.dark-mode
-   ============================================================ */
-body.dark-mode {
-    --sidebar-bg: #1e1e1e;
-    --sidebar-hover: rgba(255,255,255,0.08);
-    --sidebar-active-bg: #3b3b3b;
-    --sidebar-active-text: #fff;
-    --sidebar-icon-color: #8b8b8b;
-    --sidebar-icon-hover: #d4d4d4;
-
-    --header-bg: #1e1e1e;
-    --header-text: #a1a1a1;
-    --header-text-bold: #f1f5f9;
-    --header-border: rgba(255,255,255,0.08);
-
-    --accent: #ffffff;
-    --accent-hover: #d4d4d4;
-    --accent-soft: rgba(255,255,255,0.10);
-
-    --primary-dark: #1e1e1e !important;
-}
-
-/* ============================================================
-   2. SIDEBAR
+   2. SIDEBAR — Rail de ícones (módulos)
+   Todas propriedades posicionais com !important para vencer
+   CSS anteriores de modulo que estavam quebrando o layout.
    ============================================================ */
 .sidebar {
     position: fixed !important;
-    left: 0;
-    top: 0;
+    left: 0 !important;
+    top: 0 !important;
     width: var(--sidebar-w) !important;
-    height: 100vh;
-    background: var(--sidebar-bg) !important;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 8px 0 10px;
-    z-index: 1000;
-    border-right: 1px solid var(--header-border);
+    height: 100vh !important;
+    background: #ffffff !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    padding: 12px 0 !important;
+    z-index: 1000 !important;
+    border-right: 1px solid var(--sidebar-border) !important;
     overflow: visible !important;
+    margin: 0 !important;
 }
 
 .sidebar-logo {
-    width: 30px !important;
-    height: 30px !important;
-    background: #3b3b3b !important;
-    border-radius: 7px !important;
+    width: 40px !important;
+    height: 40px !important;
+    background: transparent !important;
+    color: var(--sidebar-fg-muted) !important;
+    border-radius: 12px !important;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
     cursor: pointer;
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
     text-decoration: none;
     flex-shrink: 0;
+    box-shadow: none !important;
 }
-
 .sidebar-logo:hover {
-    transform: scale(1.08);
-    box-shadow: 0 2px 10px rgba(255,255,255,0.15);
+    background: var(--sidebar-accent) !important;
+    color: var(--sidebar-fg) !important;
 }
+.sidebar-logo i { color: inherit !important; font-size: 16px; line-height: 1; }
 
-.sidebar-logo i {
-    color: #fff;
-    font-size: 13px;
-    line-height: 1;
+.sidebar > .sidebar-divider,
+.sidebar-divider {
+    width: 32px;
+    height: 1px;
+    background: var(--sidebar-border);
+    margin: 4px auto 8px;
+    flex-shrink: 0;
 }
 
 .sidebar-nav {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 6px;
     flex: 1;
     width: 100%;
-    padding: 0 6px;
-    overflow: visible !important;
+    padding: 0;
+    align-items: center;
+    overflow-y: auto;
+    overflow-x: visible !important;
     scrollbar-width: none;
 }
 .sidebar-nav::-webkit-scrollbar { display: none; }
 
 .sidebar-btn {
-    width: 34px !important;
-    height: 34px !important;
-    min-height: 34px !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
     border: none;
     background: transparent;
-    color: var(--sidebar-icon-color);
-    border-radius: 8px !important;
+    color: var(--sidebar-fg-faint);
+    border-radius: 12px !important;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px !important;
-    transition: all 0.15s ease;
+    font-size: 16px !important;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
     position: relative;
     margin: 0 auto;
     text-decoration: none;
     outline: none;
     padding: 0;
 }
-
 .sidebar-btn:hover {
-    background: var(--sidebar-hover);
-    color: var(--sidebar-icon-hover);
+    background: var(--sidebar-accent);
+    color: var(--sidebar-fg);
 }
-
-/* Click/press animation — pulse visual feedback */
-.sidebar-btn:active {
-    transform: scale(0.90);
-    transition: transform 0.08s ease;
-}
+.sidebar-btn:active { transform: scale(0.94); }
 
 .sidebar-btn.active {
-    background: var(--accent-soft);
-    color: var(--accent);
+    background: var(--module-accent-soft, var(--sidebar-accent)) !important;
+    color: var(--module-accent, var(--gs-primary)) !important;
+    box-shadow: none !important;
 }
-
-/* Transição animada do indicador ativo */
-.sidebar-btn.active::before {
+.sidebar-btn.active::after {
     content: '';
     position: absolute;
-    left: 0;
+    left: -10px;
     top: 50%;
     transform: translateY(-50%);
-    width: 3px;
-    height: 60%;
-    background: var(--accent);
-    border-radius: 0 3px 3px 0;
-    animation: sidebarIndicatorIn 0.2s ease forwards;
+    width: 4px;
+    height: 24px;
+    background: var(--module-accent, var(--gs-primary)) !important;
+    border-radius: 0 4px 4px 0;
 }
 
-@keyframes sidebarIndicatorIn {
-    from { height: 0%; opacity: 0; }
-    to   { height: 60%; opacity: 1; }
-}
-
-/* Click ripple effect */
-@keyframes sidebarClickPulse {
-    0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.25); }
-    100% { box-shadow: 0 0 0 10px rgba(255,255,255,0); }
-}
-
-.sidebar-btn.click-pulse {
-    animation: sidebarClickPulse 0.35s ease-out;
-}
-
-/* Override: no botão ativo, ::before mostra o indicador (barra lateral), NÃO a seta do tooltip.
-   No hover, a seta do tooltip aparece normalmente via as regras de hover abaixo. */
-.sidebar-btn.active[data-title]::before,
-.sidebar-btn.active[title]::before {
-    content: '' !important;
-    position: absolute !important;
-    left: 0 !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    width: 3px !important;
-    height: 60% !important;
-    background: var(--accent) !important;
-    border-radius: 0 3px 3px 0 !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    border: none !important;
-    filter: none !important;
-    border-color: transparent !important;
-    pointer-events: none !important;
-    z-index: 1 !important;
-}
-
-/* No hover do botão ativo, ::before vira a seta do tooltip (restaura comportamento de tooltip) */
-.sidebar-btn.active[data-title]:hover::before,
-.sidebar-btn.active[title]:hover::before {
-    left: calc(100% + 5px) !important;
-    width: auto !important;
-    height: auto !important;
-    background: none !important;
-    border: 6px solid transparent !important;
-    border-right-color: var(--tooltip-bg-solid, #1e293b) !important;
-    border-radius: 0 !important;
-    z-index: 10001 !important;
-}
-
-/* ============================================================
-   2.1 SIDEBAR — PROFESSIONAL TOOLTIP
-   Tooltip profissional com seta, gradiente e animação suave.
-   Funciona com title OU data-title (JS converte title→data-title).
-   ============================================================ */
-
-/* Seta (triângulo) do tooltip — ::before */
+/* Tooltip ao hover (escondido quando submenu aberto) */
 .sidebar-btn[data-title]::before,
-.sidebar-btn[title]::before {
-    content: '' !important;
-    position: absolute !important;
-    left: calc(100% + 5px) !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    border: 6px solid transparent !important;
-    border-right-color: var(--tooltip-bg-solid) !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
-    transition: opacity 0.2s cubic-bezier(0.4,0,0.2,1), visibility 0.2s !important;
-    z-index: 10001 !important;
-    /* filter: drop-shadow removido — causa erro GpuShader quando GPU compositing está desabilitado */
-    background: none !important;
-    width: auto !important;
-    height: auto !important;
-    border-radius: 0 !important;
+.sidebar-btn[title]:not([data-title])::before {
+    content: attr(data-title);
+    position: absolute;
+    left: calc(100% + 14px);
+    top: 50%;
+    transform: translateY(-50%) translateX(-6px);
+    background: var(--tooltip-bg-solid);
+    color: var(--tooltip-text);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+    z-index: 10001;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
-
-/* Corpo do tooltip — ::after */
-.sidebar-btn[data-title]::after {
-    content: attr(data-title) !important;
-}
-.sidebar-btn:not([data-title])[title]::after {
-    content: attr(title) !important;
-}
-
-.sidebar-btn[data-title]::after,
-.sidebar-btn[title]::after {
-    position: absolute !important;
-    left: calc(100% + 16px) !important;
-    top: 50% !important;
-    transform: translateY(-50%) translateX(-6px) !important;
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
-    color: #fff !important;
-    padding: 7px 13px !important;
-    border-radius: 8px !important;
-    font-size: 12px !important;
-    font-weight: 500 !important;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
-    letter-spacing: 0.01em !important;
-    white-space: nowrap !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
-    transition: opacity 0.2s cubic-bezier(0.4,0,0.2,1),
-                visibility 0.2s,
-                transform 0.2s cubic-bezier(0.4,0,0.2,1) !important;
-    z-index: 10000 !important;
-    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25),
-                0 8px 10px -6px rgba(0,0,0,0.1) !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    line-height: 1.3 !important;
-}
-
-/* Hover — mostra seta + tooltip com slide-in */
-.sidebar-btn[data-title]:hover::before,
-.sidebar-btn[title]:hover::before {
-    opacity: 1 !important;
-    visibility: visible !important;
-}
-
-.sidebar-btn[data-title]:hover::after,
-.sidebar-btn[title]:hover::after {
-    opacity: 1 !important;
-    visibility: visible !important;
-    transform: translateY(-50%) translateX(0) !important;
-}
-
-/* Tooltip permanece funcional no botão ativo */
-
-.sidebar-divider {
-    width: 24px;
-    height: 1px;
-    background: rgba(255,255,255,0.06);
-    margin: 6px auto;
-    flex-shrink: 0;
+.sidebar-btn[title]:not([data-title])::before { content: attr(title); }
+body:not(.gs-submenu-open) .sidebar-btn:hover::before {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) translateX(0);
 }
 
 .sidebar-bottom {
     margin-top: auto;
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 0 6px;
+    gap: 6px;
     padding-top: 8px;
-    border-top: 1px solid rgba(255,255,255,0.06);
+    border-top: 1px solid var(--sidebar-border);
+    width: 100%;
+    align-items: center;
 }
 
 /* ============================================================
-   3. HEADER
+   3. SUBMENU PANEL — Sobreposto à direita do rail (hover)
+   Usado apenas em páginas com global-sidebar-submenu.js.
+   ============================================================ */
+.gs-submenu-panel {
+    position: fixed;
+    left: var(--sidebar-w);
+    top: 0;
+    height: 100vh;
+    width: var(--submenu-w);
+    background: #ffffff !important;
+    color: var(--sidebar-fg);
+    border-right: 1px solid var(--sidebar-border);
+    box-shadow: 8px 0 24px -8px rgba(0,0,0,0.08);
+    z-index: 1001;
+    display: none;
+    flex-direction: column;
+    animation: gsSubmenuIn 0.15s cubic-bezier(0.4,0,0.2,1);
+}
+.gs-submenu-panel * { color: inherit; }
+.gs-submenu-panel.open { display: flex; }
+
+@keyframes gsSubmenuIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+.gs-submenu-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 16px;
+    border-bottom: 1px solid var(--sidebar-border);
+    height: 64px;
+    box-sizing: border-box;
+}
+.gs-submenu-header-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--sidebar-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+.gs-submenu-header-text { display: flex; flex-direction: column; min-width: 0; }
+.gs-submenu-header-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--sidebar-fg);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+}
+.gs-submenu-header-sub {
+    font-size: 11px;
+    color: var(--sidebar-fg-faint);
+    line-height: 1.4;
+    margin-top: 2px;
+}
+
+.gs-submenu-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+.gs-submenu-group { display: flex; flex-direction: column; gap: 2px; }
+.gs-submenu-group-label {
+    padding: 4px 12px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--sidebar-fg-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.gs-submenu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--sidebar-fg-muted);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+.gs-submenu-item:hover {
+    background: var(--sidebar-accent);
+    color: var(--sidebar-fg);
+}
+.gs-submenu-item.active {
+    background: var(--gs-primary);
+    color: var(--gs-primary-fg);
+    box-shadow: 0 1px 2px rgba(37,99,235,0.20);
+}
+.gs-submenu-item-icon {
+    width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+.gs-submenu-item-label {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gs-submenu-item-badge {
+    margin-left: auto;
+    min-width: 20px; height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--sidebar-accent-strong);
+    color: var(--sidebar-fg);
+    font-size: 11px;
+    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+}
+.gs-submenu-item.active .gs-submenu-item-badge {
+    background: rgba(255,255,255,0.25);
+    color: var(--gs-primary-fg);
+}
+
+/* ============================================================
+   3b. MEGA-MENU (estilo Omie) — só o módulo Vendas usa
+   ============================================================ */
+.gs-submenu-panel.gs-mega {
+    width: min(960px, calc(100vw - var(--sidebar-w)));
+    border-right: 1px solid var(--sidebar-border);
+}
+.gs-mega-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 20px 24px;
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    gap: 22px;
+    align-items: start;
+}
+.gs-mega-panels {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 20px;
+    border-right: 1px solid var(--sidebar-border);
+}
+.gs-mega-panels-label,
+.gs-mega-card-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--sidebar-fg);
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* Destaque visual: sublinhado na cor de destaque do módulo (verde/laranja/azul…),
+       separando cada grupo de ações (NF-e, Eventos, Relatórios, Fornecedores, etc.).
+       Fallback transparente (não cinza): se um cabeçalho não tiver cor de destaque,
+       não exibe borda cinza nenhuma. */
+    border-bottom: 2px solid var(--gs-mega-accent, transparent);
+}
+.gs-mega-card-icon { font-size: 14px; }
+.gs-mega-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(186px, 1fr));
+    gap: 18px 22px;
+}
+.gs-mega-card { display: flex; flex-direction: column; gap: 1px; }
+.gs-mega-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--sidebar-fg-muted);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+a.gs-mega-link:hover {
+    background: var(--sidebar-accent);
+    color: var(--gs-mega-accent, var(--sidebar-fg));
+}
+.gs-mega-link.active {
+    color: var(--gs-mega-accent, var(--gs-primary));
+    font-weight: 600;
+}
+.gs-mega-link-icon { width: 16px; text-align: center; font-size: 13px; flex-shrink: 0; }
+.gs-mega-link-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gs-mega-add {
+    color: var(--gs-mega-accent, var(--gs-primary));
+    font-weight: 700;
+    font-size: 14px;
+    width: 12px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.gs-mega-link.is-soon { cursor: default; color: var(--sidebar-fg-faint); }
+.gs-mega-link.is-soon .gs-mega-add { color: var(--sidebar-fg-faint); }
+.gs-mega-soon {
+    margin-left: auto;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sidebar-fg-faint);
+    background: var(--sidebar-accent);
+    padding: 1px 6px;
+    border-radius: 999px;
+}
+
+/* ============================================================
+   4. HEADER — branco, com Zyntra × Brand + busca + ações
    ============================================================ */
 .header {
     position: fixed !important;
-    top: 0;
+    top: 0 !important;
     left: var(--sidebar-w) !important;
-    right: 0;
+    right: 0 !important;
     height: var(--header-h) !important;
-    background: var(--header-bg) !important;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 16px;
-    z-index: 999;
-    border-bottom: 1px solid var(--header-border);
+    background: #ffffff !important;
+    color: var(--header-text) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 0 20px !important;
+    z-index: 999 !important;
+    border-bottom: 1px solid var(--header-border) !important;
+    gap: 12px !important;
+    margin: 0 !important;
 }
 
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex: 1;
-    min-width: 0;
+/* Força header SEMPRE branco — também por id (vence #financeiro-header inline) */
+header.header,
+header#financeiro-header,
+header#financeiro-header.header {
+    background: #ffffff !important;
+    color: var(--header-text) !important;
 }
 
-/* Quando user-greeting está dentro de header-left (HTML legado),
-   empurra para a direita automaticamente */
-.header-left > .user-greeting {
-    margin-left: auto;
-}
+.header-left { display: flex; align-items: center; gap: 16px; flex: 0 0 auto; min-width: 0; }
+.header-left > .user-greeting { margin-left: auto; }
 
 .header-brand {
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
 }
-
 .header-brand img {
     height: 28px;
     object-fit: contain;
+    max-width: 140px;
 }
 
-.header-brand .page-title {
-    color: rgba(255,255,255,0.85);
+/* Separadores "|" e "—" e título: força cores escuras no header branco
+   (vence estilos inline antigos como style="color:rgba(255,255,255,...)") */
+.header-brand > span:not(.page-title):not([id]) {
+    color: #cbd5e1 !important;
+    font-weight: 300 !important;
+}
+.header-brand > span:last-child:not(.brand-sep) {
+    color: var(--header-text-bold) !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0 !important;
+}
+.header-brand .brand-sep {
+    color: #cbd5e1 !important;
+    font-weight: 300;
+    font-size: 18px;
+    user-select: none;
+}
+.header-brand .page-title,
+.header-brand > span#page-title,
+.header-module {
+    color: var(--header-text-bold) !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0;
+}
+.header-divider {
+    color: #cbd5e1 !important;
+}
+
+/* Logos brancas/monocromáticas — inverte para escuro no header claro.
+   Case-insensitive (i) e cobre variações com espaço/hífen e maiúsculas:
+   "-branco.png", "Branco.png", "Logo Monocromatico - Branco - Aluforce.png" etc. */
+.header-brand img[src*="branco" i],
+.header-brand img[src*="branca" i],
+.header-logo img[src*="branco" i],
+.header-logo img[src*="branca" i] {
+    filter: brightness(0) saturate(100%);
+    opacity: 0.9;
+}
+body.dark-mode .header-brand img[src*="branco" i],
+body.dark-mode .header-brand img[src*="branca" i],
+body.dark-mode .header-logo img[src*="branco" i],
+body.dark-mode .header-logo img[src*="branca" i] {
+    filter: none;
+    opacity: 1;
+}
+
+.header-search {
+    flex: 1;
+    max-width: 420px;
+    margin: 0 auto;
+    position: relative;
+}
+.header-search input {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px 0 36px;
+    background: #f9fafb;
+    border: 1px solid var(--sidebar-border);
+    border-radius: 8px;
     font-size: 13px;
-    font-weight: 500;
-    letter-spacing: 0.3px;
+    color: var(--sidebar-fg);
+    outline: none;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.header-search input::placeholder { color: var(--sidebar-fg-faint); }
+.header-search input:focus { border-color: var(--gs-primary); background: #fff; }
+.header-search::before {
+    content: '\f002';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--sidebar-fg-faint);
+    font-size: 13px;
 }
 
-.header-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
+.header-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 
 .header-btn {
-    width: 30px;
-    height: 30px;
+    width: 36px;
+    height: 36px;
     border: none;
     background: transparent;
     color: var(--header-text);
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
-    transition: all 0.15s ease;
+    font-size: 14px;
+    transition: background-color 0.15s ease, color 0.15s ease;
     position: relative;
 }
-
-.header-btn:hover {
-    background: rgba(255,255,255,0.07);
-    color: var(--header-text-bold);
-}
+.header-btn:hover { background: var(--sidebar-accent); color: var(--header-text-bold); }
 
 .header-btn .notification-badge {
     position: absolute;
-    top: 3px; right: 3px;
-    min-width: 14px; height: 14px;
-    background: #ef4444; color: #fff;
-    font-size: 9px; font-weight: 700;
-    border-radius: 99px;
-    display: flex; align-items: center; justify-content: center;
-    padding: 0 3px; line-height: 1;
+    top: 6px; right: 6px;
+    min-width: 8px; height: 8px;
+    background: var(--gs-destructive); color: #fff;
+    font-size: 0; border-radius: 99px;
+    box-shadow: 0 0 0 2px #ffffff;
 }
 
 .user-greeting {
     display: flex;
     align-items: center;
-    gap: 5px;
-    font-size: 12px;
-    color: var(--header-text);
+    gap: 8px;
+    font-size: 13px;
+    color: var(--header-text) !important;
+    font-weight: 500;
     margin-left: 8px;
-    padding-left: 10px;
-    border-left: 1px solid rgba(255,255,255,0.08);
+    padding-left: 12px;
+    border-left: 1px solid var(--sidebar-border);
 }
-
-.user-greeting strong {
-    color: var(--header-text-bold);
-    font-weight: 600;
+.user-greeting #greeting-text { color: var(--header-text) !important; }
+.user-greeting strong,
+.user-greeting #user-name {
+    color: var(--header-text-bold) !important;
+    font-weight: 700 !important;
 }
 
 .user-avatar {
-    width: 26px;
-    height: 26px;
+    width: 32px; height: 32px;
     border-radius: 50%;
-    background: #3b3b3b;
+    background: var(--gs-primary);
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
     margin-left: 8px;
     flex-shrink: 0;
+    border: 1px solid var(--sidebar-border);
 }
-
-.user-avatar img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-}
-
-.user-avatar span {
-    color: #fff;
-    font-weight: 600;
-    font-size: 11px;
-    line-height: 1;
-}
+.user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.user-avatar span { color: #fff; font-weight: 600; font-size: 12px; line-height: 1; }
+.user-greeting > .user-avatar { margin-left: 0; }
 
 /* ============================================================
-   4. MAIN AREA — Content Offset Fix
-   Garante que o conteúdo nunca fique atrás do header fixo.
+   5. MAIN AREA
    ============================================================ */
-
-/* Container raiz — permitir que .main-area preencha corretamente */
 .app-container {
     display: flex !important;
     min-height: 100vh !important;
+    height: 100vh !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    overflow: hidden !important;
 }
-
 .main-area {
-    flex: 1;
+    flex: 1 !important;
     display: flex !important;
     flex-direction: column !important;
     margin-left: var(--sidebar-w) !important;
+    margin-top: 0 !important;
     min-height: 100vh !important;
+    height: 100vh !important;
+    width: calc(100vw - var(--sidebar-w)) !important;
+    max-width: calc(100vw - var(--sidebar-w)) !important;
+    min-width: 0 !important;
     padding-top: var(--header-h) !important;
-    /* Forçar overflow correto — impede que inline `overflow: hidden` corte scroll vertical */
     overflow-x: hidden !important;
     overflow-y: auto !important;
-    overflow: hidden auto !important; /* shorthand: x=hidden, y=auto — vence qualquer inline */
+    overflow: hidden auto !important;
+    background: #f9fafb;
+    box-sizing: border-box !important;
 }
-
-/* Reset margin-top em todos os wrappers de conteúdo —
-   o padding-top do .main-area já posiciona abaixo do header fixo */
-.main-content,
-.content-area,
-.page-content,
-.dashboard-content {
+.main-area > .main-content,
+.app-container > .main-content {
     margin-top: 0 !important;
+    margin-left: 0 !important;
 }
-
-/* Wrappers de conteúdo devem preencher o espaço restante e rolar */
+.main-content, .content-area, .page-content, .dashboard-content { margin-top: 0 !important; }
 .main-area > .content-area,
 .main-area > .page-content,
 .main-area > .main-content,
 .main-area > .dashboard-content {
     flex: 1 !important;
     overflow-y: auto !important;
-    min-height: 0 !important; /* Essencial para flex-child shrink */
+    min-height: 0 !important;
 }
-
-/* Quando há conteúdo direto sem wrapper dedicado
-   (e.g. kanban-container, filters-bar), garantir que .main-area rola */
 .main-area:not(:has(> .content-area)):not(:has(> .page-content)):not(:has(> .main-content)) {
     overflow-y: auto !important;
 }
+.main-content { flex: 1; overflow-y: auto; background: #f9fafb; min-height: 0; }
+.content-area { flex: 1; min-height: 0; }
 
-.main-content {
-    flex: 1;
-    overflow-y: auto;
-    background: var(--gray-50, #f9fafb);
-    min-height: 0; /* flex-child shrink fix */
+/* Guard rail contra CSS legados carregados depois/antes do layout global.
+   O conteudo nunca deve ficar sob a sidebar fixa nem sob o header fixo. */
+body:has(.app-container > .sidebar):has(.app-container .header) {
+    overflow: hidden !important;
+}
+.app-container:has(> .sidebar):has(.header) > .main-area,
+.app-container:has(> aside.sidebar):has(.header) > main.main-area {
+    margin-left: var(--sidebar-w) !important;
+    padding-top: var(--header-h) !important;
+    width: calc(100vw - var(--sidebar-w)) !important;
+    max-width: calc(100vw - var(--sidebar-w)) !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+}
+.main-area > .header ~ *,
+.main-area > .content-area,
+.main-area > .page-content,
+.main-area > .main-content,
+.main-area > .dashboard-content,
+.main-area > [id$="-view"],
+.main-area > [class*="-view"] {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
 }
 
-/* Fix para .content-area dentro de .main-area que usa overflow: hidden inline */
-.content-area {
-    flex: 1;
-    min-height: 0;
+/* Compatibilidade para paginas antigas que nao usam .main-area. */
+body:has(> .sidebar):has(> .header) > .main-content,
+body:has(> .sidebar):has(> .header) > .page-content,
+.container-principal:has(> .sidebar):has(> .header) > .main-content,
+.container-principal:has(> .sidebar):has(> .header) > .page-content {
+    margin-left: var(--sidebar-w) !important;
+    margin-top: 0 !important;
+    padding-top: var(--header-h) !important;
+    width: calc(100vw - var(--sidebar-w)) !important;
+    max-width: calc(100vw - var(--sidebar-w)) !important;
+    min-height: 100vh !important;
+    box-sizing: border-box !important;
 }
-
-/* Fix height calc para elementos que usam calc(100vh - var(--header-height) ...) —
-   Como o --header-height agora é 42px via !important, os cálculos se ajustam automaticamente */
 
 /* ============================================================
-   5. MOBILE RESPONSIVE
+   6. MOBILE
    ============================================================ */
-.mobile-menu-btn,
-.mobile-menu-toggle {
+.mobile-menu-btn, .mobile-menu-toggle {
     display: none;
-    width: 34px; height: 34px;
+    width: 36px; height: 36px;
     border: none; background: transparent;
-    color: #fff; border-radius: 6px;
+    color: var(--header-text); border-radius: 8px;
     cursor: pointer;
     align-items: center; justify-content: center;
     font-size: 16px;
 }
-
 .sidebar-overlay {
     display: none;
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.5);
+    background: rgba(15,23,42,0.45);
     z-index: 999;
 }
 .sidebar-overlay.active { display: block; }
 
 @media (max-width: 768px) {
-    .mobile-menu-btn,
-    .mobile-menu-toggle { display: flex; }
-
+    .mobile-menu-btn, .mobile-menu-toggle { display: flex; }
     .sidebar {
-        width: 210px !important;
+        width: 240px !important;
         transform: translateX(-100%);
         transition: transform 0.25s ease;
         z-index: 1001;
+        align-items: stretch;
+        padding: 12px 8px;
     }
     .sidebar.open { transform: translateX(0); }
-
     .sidebar-btn {
         width: 100% !important;
         justify-content: flex-start !important;
         padding-left: 14px !important;
-        gap: 10px;
-        font-size: 13px !important;
-    }
-    /* No mobile expandido, mostra label ao lado do ícone */
-    .sidebar-btn[data-title]::after,
-    .sidebar-btn[title]::after {
-        position: relative !important;
-        left: 0 !important;
-        top: 0 !important;
-        transform: none !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-        background: none !important;
-        box-shadow: none !important;
-        border: none !important;
-        padding: 0 !important;
-        font-size: 12px !important;
-        color: inherit !important;
-        pointer-events: auto !important;
+        gap: 12px;
+        font-size: 14px !important;
     }
     .sidebar-btn[data-title]::before,
     .sidebar-btn[title]::before {
-        display: none !important; /* Esconde seta no mobile */
+        position: relative;
+        left: 0; top: 0;
+        transform: none;
+        opacity: 1; visibility: visible;
+        background: none;
+        box-shadow: none;
+        padding: 0;
+        font-size: 13px;
+        color: inherit;
+        font-weight: 500;
     }
-    /* Active indicator no mobile — via ::before */
-    .sidebar-btn.active::before {
-        left: 0;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 3px;
-        height: 60%;
-        background: var(--accent);
-        border-radius: 0 3px 3px 0;
-        opacity: 1 !important;
-        visibility: visible !important;
-        border: none !important;
-        filter: none !important;
-        display: block !important;
-    }
-    .sidebar-nav { padding: 0 8px; }
-
-    .header { left: 0 !important; }
+    .header { left: 0 !important; padding: 0 16px; }
     .main-area { margin-left: 0 !important; padding-top: var(--header-h) !important; }
+    .app-container:has(> .sidebar):has(.header) > .main-area,
+    .app-container:has(> aside.sidebar):has(.header) > main.main-area {
+        margin-left: 0 !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+    }
+    body:has(> .sidebar):has(> .header) > .main-content,
+    body:has(> .sidebar):has(> .header) > .page-content,
+    .container-principal:has(> .sidebar):has(> .header) > .main-content,
+    .container-principal:has(> .sidebar):has(> .header) > .page-content {
+        margin-left: 0 !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+    }
     .user-greeting { display: none; }
-    .header-right { gap: 2px; }
-    .header-brand .page-title { display: none; }
+    .header-right { gap: 0; }
+    .header-search { display: none; }
+    .gs-submenu-panel { display: none !important; }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
     .user-greeting span:first-child { display: none; }
+    .header-search { max-width: 280px; }
 }
 
 /* ============================================================
-   6. PRINT
+   7. PRINT
    ============================================================ */
 @media print {
     .sidebar, .header, .sidebar-overlay,
-    .mobile-menu-btn, .mobile-menu-toggle { display: none !important; }
-    .main-area { margin-left: 0 !important; padding-top: 0 !important; }
-    .main-content, .content-area, .page-content { margin-top: 0 !important; }
+    .mobile-menu-btn, .mobile-menu-toggle,
+    .gs-submenu-panel { display: none !important; }
+    .app-container { height: auto !important; }
+    .main-area { margin-left: 0 !important; padding-top: 0 !important; height: auto !important; overflow: visible !important; }
 }
 
 /* ============================================================
-   7. HEADER-BTN TOOLTIP (botões do header)
+   8. MODAL LAYERING
    ============================================================ */
-
-/* ============================================================
-   7.1 COMPAT — Layout sem .app-container / .main-area
-   Para páginas que usam: body > .sidebar + .header + main.page-content
-   ============================================================ */
-body > main.page-content,
-body > main:not(.main-area) {
-    margin-left: var(--sidebar-w, 48px);
-    padding-top: calc(var(--header-h, 42px) + 2rem);
-    min-height: 100vh;
+.modal-overlay,
+.modal-overlay-omie,
+.modal-backdrop,
+.modal-bg,
+[class*="modal-overlay"] {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 99990 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+.modal-overlay > *,
+.modal-overlay-omie > *,
+[class*="modal-overlay"] > * {
+    margin-top: auto;
+    margin-bottom: auto;
 }
 
-/* Sidebar botões SEM classe .sidebar-btn */
+/* ============================================================
+   9. COMPAT — sidebar buttons sem .sidebar-btn (legado)
+   ============================================================ */
 .sidebar-nav > button:not(.sidebar-btn),
 .sidebar-bottom > button:not(.sidebar-btn) {
-    width: 34px !important;
-    height: 34px !important;
-    min-height: 34px !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
     border: none;
     background: transparent;
-    color: var(--sidebar-icon-color);
-    border-radius: 8px !important;
+    color: var(--sidebar-fg-faint);
+    border-radius: 12px !important;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px !important;
-    transition: all 0.15s ease;
+    font-size: 16px !important;
+    transition: background-color 0.15s ease, color 0.15s ease;
     position: relative;
     margin: 0 auto;
     text-decoration: none;
     outline: none;
     padding: 0;
 }
-
 .sidebar-nav > button:not(.sidebar-btn):hover,
 .sidebar-bottom > button:not(.sidebar-btn):hover {
-    background: var(--sidebar-hover);
-    color: var(--sidebar-icon-hover);
+    background: var(--sidebar-accent);
+    color: var(--sidebar-fg);
 }
-
 .sidebar-nav > button:not(.sidebar-btn).active,
 .sidebar-bottom > button:not(.sidebar-btn).active {
-    background: var(--accent-soft);
-    color: var(--accent);
+    background: var(--sidebar-accent);
+    color: var(--gs-primary);
 }
 
-.sidebar-nav > button:not(.sidebar-btn).active::before,
-.sidebar-bottom > button:not(.sidebar-btn).active::before {
-    content: '';
+/* ============================================================
+   10. NOTIFICATION DROPDOWN (removido 2026-06-16 — oculto por CSS antes do JS rodar)
+   ============================================================ */
+.notification-container { display: none !important; }
+
+.notification-badge.hidden { display: none !important; }
+
+.notification-panel {
+    display: none;
     position: absolute;
-    left: -6px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 3px;
-    height: 18px;
-    background: var(--accent);
-    border-radius: 0 3px 3px 0;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 320px;
+    max-width: 92vw;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.05);
+    z-index: 10002;
+    overflow: hidden;
 }
-
-/* Tooltip para sidebar buttons sem .sidebar-btn */
-.sidebar-nav > button:not(.sidebar-btn)[title]::after,
-.sidebar-bottom > button:not(.sidebar-btn)[title]::after {
-    content: attr(title);
-    position: absolute;
-    left: calc(100% + 16px);
-    top: 50%;
-    transform: translateY(-50%) translateX(-6px);
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-    color: #fff;
-    padding: 7px 13px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 500;
-    font-family: 'Inter', system-ui, sans-serif;
-    white-space: nowrap;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: opacity 0.2s ease, visibility 0.2s, transform 0.2s ease;
-    z-index: 10000;
-    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25);
-    border: 1px solid rgba(255,255,255,0.1);
+.notification-panel.active {
+    display: block;
+    animation: notifDropIn 0.18s cubic-bezier(0.16,1,0.3,1);
 }
-
-.sidebar-nav > button:not(.sidebar-btn)[title]:hover::after,
-.sidebar-bottom > button:not(.sidebar-btn)[title]:hover::after {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(-50%) translateX(0);
+@keyframes notifDropIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
-
-/* Header .header-logo structure (alternativa a .header-brand) */
-.header-logo {
+.notification-header {
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #1e40af, #3b82f6);
+}
+.notification-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ffffff;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
-
-.header-logo img {
-    height: 28px;
-    object-fit: contain;
+.notification-header h3 i { color: rgba(255,255,255,0.85); }
+.notification-list {
+    padding: 8px 0;
+    max-height: 300px;
+    overflow-y: auto;
 }
-
-.header-divider {
-    color: rgba(255,255,255,0.2);
-    font-weight: 300;
-    font-size: 18px;
-    user-select: none;
-}
-
-.header-module {
+.notification-empty {
+    text-align: center;
+    padding: 24px 16px;
+    color: #94a3b8;
     font-size: 13px;
-    font-weight: 500;
-    color: rgba(255,255,255,0.85);
-    letter-spacing: 0.3px;
 }
 
-/* Notification indicator simples */
-.notification-indicator {
-    width: 30px;
-    height: 30px;
-    border: none;
-    background: transparent;
-    color: var(--header-text);
-    border-radius: 6px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    transition: all 0.15s ease;
-}
+/* Ícone de notificações removido globalmente (16/jun/2026) — sem quebrar handlers */
+.notification-container,
+.header-btn.notification-btn,
+.notification-btn,
+#notification-panel,
+.notification-panel { display: none !important; }
 
-.notification-indicator:hover {
-    background: rgba(255,255,255,0.07);
-    color: var(--header-text-bold);
-}
-
-/* Mobile fix para layout sem wrapper */
-@media (max-width: 768px) {
-    body > main.page-content,
-    body > main:not(.main-area) {
-        margin-left: 0;
-        padding-top: calc(var(--header-h, 42px) + 1rem);
-    }
-    .sidebar-nav > button:not(.sidebar-btn)[title]::after,
-    .sidebar-bottom > button:not(.sidebar-btn)[title]::after {
-        display: none;
-    }
-}
-
-.header-btn[data-title]::after,
-.header-btn[title]::after {
-    content: attr(data-title);
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%) translateY(4px);
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-    color: #fff;
-    padding: 6px 12px;
-    border-radius: 7px;
-    font-size: 11px;
-    font-weight: 500;
-    font-family: 'Inter', system-ui, sans-serif;
-    white-space: nowrap;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: opacity 0.2s cubic-bezier(0.4,0,0.2,1),
-                visibility 0.2s,
-                transform 0.2s cubic-bezier(0.4,0,0.2,1);
-    z-index: 10000;
-    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25);
-    border: 1px solid rgba(255,255,255,0.1);
-}
-.header-btn:not([data-title])[title]::after {
-    content: attr(title);
-}
-.header-btn[data-title]:hover::after,
-.header-btn[title]:hover::after {
-    opacity: 1;
-    visibility: visible;
-    transform: translateX(-50%) translateY(0);
-}
+/* REMOVE-BELL-DASHBOARD: sino de notificações do dashboard principal e variantes globais (jun/2026) */
+.header-notifications-wrapper,
+#notifications-btn,
+#global-notification-panel,
+#global-notification-btn,
+.zc-notification-btn { display: none !important; }
 
 /* ============================================================
    MODAL VISUAL STANDARD — Padronização Visual Global v1.0
@@ -836,9 +1004,9 @@ body > main:not(.main-area) {
 
 /* --- Overlay backdrop --- */
 .modal-overlay {
-    background: rgba(0, 0, 0, 0.75) !important;
-    backdrop-filter: blur(6px) !important;
-    -webkit-backdrop-filter: blur(6px) !important;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
 }
 
 /* --- Container principal --- */
@@ -1014,129 +1182,35 @@ body > main:not(.main-area) {
 }
 
 /* ============================================================
-   LIGHT MODE specific overrides (default state, no class needed)
+   PAGE TITLE CARD — removido (pedido do cliente, 2026-06-21)
+   O nome do módulo já aparece no header global; o cartão com
+   ícone+título+subtítulo de cada página fica redundante.
+   Os botões de ação (.page-actions) são preservados e alinhados
+   à direita, já que o título ao lado deles foi removido.
    ============================================================ */
-.sidebar {
-    box-shadow: 2px 0 8px rgba(0,0,0,0.06);
+.page-title-wrapper {
+    display: none !important;
+}
+.page-header-top .page-actions {
+    margin-left: auto !important;
 }
 
-.sidebar-logo {
-    background: #1e3a8a !important;
+/* ═══════════════════════════════════════════════════════════════════
+   MODAL-CENTER-FIX (PDF Correções V/VI) — modais centralizados na tela
+   Cobre modais Bootstrap legados que abriam no topo. Os overlays custom
+   (.finm-overlay, .modal-overlay, .modal-overlay-padrao, .modal-saas-overlay)
+   já centralizam; esta regra só atinge os .modal/.modal-dialog do Bootstrap.
+   ═══════════════════════════════════════════════════════════════════ */
+.modal.show,
+.modal.in {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
-
-.header {
-    box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-}
-
-/* Separador e borda inferior da nav visíveis no fundo branco */
-.sidebar-divider {
-    background: #e2e8f0;
-}
-
-.sidebar-bottom {
-    border-top-color: #e2e8f0;
-}
-
-/* Ícones com leve cor individual em modo claro para distinção visual */
-.sidebar-nav .sidebar-btn i.fa-chart-line,
-.sidebar-nav .sidebar-btn i.fa-chart-pie,
-.sidebar-nav .sidebar-btn i.fa-chart-bar,
-.sidebar-nav .sidebar-btn i.fa-chart-area { color: #3b82f6; }
-
-.sidebar-nav .sidebar-btn i.fa-file-invoice-dollar,
-.sidebar-nav .sidebar-btn i.fa-hand-holding-usd,
-.sidebar-nav .sidebar-btn i.fa-money-bill-wave { color: #10b981; }
-
-.sidebar-nav .sidebar-btn i.fa-university,
-.sidebar-nav .sidebar-btn i.fa-building,
-.sidebar-nav .sidebar-btn i.fa-landmark { color: #6366f1; }
-
-.sidebar-nav .sidebar-btn i.fa-list-alt,
-.sidebar-nav .sidebar-btn i.fa-clipboard-list,
-.sidebar-nav .sidebar-btn i.fa-list { color: #64748b; }
-
-.sidebar-nav .sidebar-btn i.fa-calculator,
-.sidebar-nav .sidebar-btn i.fa-file-invoice { color: #f59e0b; }
-
-.sidebar-nav .sidebar-btn i.fa-balance-scale { color: #8b5cf6; }
-
-.sidebar-nav .sidebar-btn i.fa-columns,
-.sidebar-nav .sidebar-btn i.fa-shopping-cart,
-.sidebar-nav .sidebar-btn i.fa-shopping-bag { color: #0ea5e9; }
-
-.sidebar-nav .sidebar-btn i.fa-users,
-.sidebar-nav .sidebar-btn i.fa-user { color: #ec4899; }
-
-.sidebar-nav .sidebar-btn i.fa-truck { color: #f97316; }
-
-.sidebar-nav .sidebar-btn i.fa-industry,
-.sidebar-nav .sidebar-btn i.fa-cogs { color: #64748b; }
-
-.sidebar-nav .sidebar-btn i.fa-crosshairs { color: #ef4444; }
-
-.sidebar-nav .sidebar-btn i.fa-boxes-stacked,
-.sidebar-nav .sidebar-btn i.fa-box { color: #f97316; }
-
-.sidebar-nav .sidebar-btn i.fa-percentage,
-.sidebar-nav .sidebar-btn i.fa-percent { color: #10b981; }
-
-.sidebar-nav .sidebar-btn i.fa-search,
-.sidebar-nav .sidebar-btn i.fa-magnifying-glass { color: #64748b; }
-
-.sidebar-nav .sidebar-btn i.fa-clock { color: #f59e0b; }
-
-.sidebar-nav .sidebar-btn i.fa-gift { color: #ec4899; }
-
-.sidebar-nav .sidebar-btn i.fa-shield-alt { color: #6366f1; }
-
-.sidebar-nav .sidebar-btn i.fa-database { color: #64748b; }
-
-.sidebar-nav .sidebar-btn i.fa-users-cog { color: #8b5cf6; }
-
-/* Ícones do sidebar-bottom */
-.sidebar-bottom .sidebar-btn i.fa-percent { color: #ef4444; }
-.sidebar-bottom .sidebar-btn i.fa-cog { color: #64748b; }
-.sidebar-bottom .sidebar-btn i.fa-sitemap { color: #8b5cf6; }
-
-/* No hover e no estado ativo, cor sobe para o accent do módulo */
-.sidebar-nav .sidebar-btn:hover i,
-.sidebar-bottom .sidebar-btn:hover i,
-.sidebar-nav .sidebar-btn.active i,
-.sidebar-bottom .sidebar-btn.active i { color: var(--sidebar-active-text); }
-
-/* DARK MODE specific overrides */
-body.dark-mode .sidebar {
-    box-shadow: none;
-}
-
-body.dark-mode .sidebar-logo {
-    background: #3b3b3b !important;
-}
-
-body.dark-mode .header {
-    box-shadow: none;
-}
-
-body.dark-mode .user-avatar {
-    background: #3b3b3b !important;
-}
-
-body.dark-mode .user-role-badge {
-    background: rgba(255,255,255,0.1) !important;
-    color: #d4d4d4 !important;
-}
-
-/* Restaurar cores escuras do divider e borda em dark mode */
-body.dark-mode .sidebar-divider {
-    background: rgba(255,255,255,0.06);
-}
-
-body.dark-mode .sidebar-bottom {
-    border-top-color: rgba(255,255,255,0.06);
-}
-
-/* Restaurar ícones para cor neutra do dark mode */
-body.dark-mode .sidebar-nav .sidebar-btn i,
-body.dark-mode .sidebar-bottom .sidebar-btn i {
-    color: inherit;
+.modal.show > .modal-dialog,
+.modal.in > .modal-dialog {
+    margin-top: auto !important;
+    margin-bottom: auto !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
 }

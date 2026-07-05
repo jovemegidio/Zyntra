@@ -1405,6 +1405,10 @@ module.exports = function createAuthSectionRoutes(deps) {
 
     // Servir /dashboard apenas para usuários autenticados
     router.get('/dashboard', requireAuthPage, (req, res) => {
+        const _emailLow = (req.user?.email || '').toLowerCase();
+        if (_emailLow.endsWith('@labor.com.br')) {
+            return res.redirect(302, '/Zyntra-SGE/Empresas/dashboard.html');
+        }
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
@@ -1450,7 +1454,7 @@ module.exports = function createAuthSectionRoutes(deps) {
         if (req.user && req.user.nome) {
             const firstName = req.user.nome.split(' ')[0].toLowerCase();
             if (userPermissions.hasAccess(firstName, 'financeiro')) {
-                res.sendFile(path.join(__dirname, '..', 'modules', 'Financeiro', 'public', 'index.html'));
+                res.sendFile(path.join(__dirname, '..', 'modules', 'Financeiro', 'index.html'));
             } else {
                 res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo Financeiro.</p>');
             }
@@ -1463,7 +1467,7 @@ module.exports = function createAuthSectionRoutes(deps) {
         if (req.user && req.user.nome) {
             const firstName = req.user.nome.split(' ')[0].toLowerCase();
             if (userPermissions.hasAccess(firstName, 'financeiro')) {
-                res.sendFile(path.join(__dirname, '..', 'modules', 'Financeiro', 'public', 'index.html'));
+                res.sendFile(path.join(__dirname, '..', 'modules', 'Financeiro', 'index.html'));
             } else {
                 res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo Financeiro.</p>');
             }

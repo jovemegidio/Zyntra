@@ -18,17 +18,23 @@ const customFormat = winston.format.combine(
     winston.format.splat(),
     winston.format.printf(({ timestamp, level, message, stack, ...meta }) => {
         let log = `${timestamp} [${level.toUpperCase()}]: ${message}`;
-        
+
         // Adicionar stack trace se houver erro
         if (stack) {
             log += `${stack}`;
         }
-        
-        // Adicionar metadata se houver
-        if (Object.keys(meta).length > 0) {
-            log += `${JSON.stringify(meta, null, 2)}`;
+
+        // FIX 13/05/2026: Object.keys() conta keys com valor undefined,
+        // mas JSON.stringify omite, gerando "{}" sem contexto nos logs.
+        // Filtrar entries undefined/null antes de serializar.
+        const cleanMeta = {};
+        for (const k of Object.keys(meta)) {
+            if (meta[k] !== undefined && meta[k] !== null && meta[k] !== '') cleanMeta[k] = meta[k];
         }
-        
+        if (Object.keys(cleanMeta).length > 0) {
+            log += ` ${JSON.stringify(cleanMeta, null, 2)}`;
+        }
+
         return log;
     })
 );

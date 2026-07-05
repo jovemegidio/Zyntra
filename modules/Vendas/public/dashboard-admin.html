@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/jpeg" href="/favicon-zyntra.jpg">
@@ -21,8 +21,7 @@
     <script src="/js/csp-fix.js" defer></script>
     
     <!-- CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
-    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260213">
+<link rel="stylesheet" href="/css/skeleton-loader.css?v=20260213">
     <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
     <style>
         :root {
@@ -998,13 +997,15 @@
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <script src="/js/tooltips-professional.js?v=20260209" defer></script>
     <script src="/js/modal-title.js?v=20260210" defer></script>
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260625a">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
 
     <!-- Chat Widget BOB AI - DESATIVADO -->
     <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260326">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
 </head>
 <body>
     <div class="app-container">
@@ -1061,9 +1062,9 @@
                             <i class="fas fa-bars"></i>
                         </button>
                     <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
                         <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Gestão de Vendas</span>
                     </div>
@@ -1294,28 +1295,6 @@
                         </div>
                     </div>
 
-                    <!-- Relatório de Ligações (Ramais) -->
-                    <div class="section-card full-width-section">
-                        <div class="section-header">
-                            <h3><i class="fas fa-phone-alt"></i> Relatório de Ligações (Ramais)</h3>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span class="ligações-online-badge" id="ligacoesOnlineBadge" style="display:none;">
-                                    <span class="pulse"></span>
-                                    <span id="ligacoesOnlineCount">0</span> em andamento
-                                </span>
-                                <button class="btn-secondary" onclick="carregarLigações()" title="Atualizar">
-                                    <i class="fas fa-sync-alt"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="section-content" id="ligacoesContent">
-                            <!-- Carregado via JS -->
-                            <div class="ligações-api-msg" id="ligacoesLoading">
-                                <i class="fas fa-spinner fa-spin"></i>
-                                <p>Verificando conexão com PABX...</p>
-                            </div>
-                        </div>
-                    </div>
 
                 </div>
             </div>
@@ -2110,452 +2089,10 @@
             }
         }
 
-        // ====================================
-        // RELATÓRIO DE LIGAÇÕES (RAMAIS)
-        // ====================================
-
-        function formatarDuração(segundos) {
-            const s = parseInt(segundos) || 0;
-            if (s < 60) return `${s}s`;
-            const min = Math.floor(s / 60);
-            const sec = s % 60;
-            if (min < 60) return `${min}m ${sec > 0 ? sec + 's' : ''}`.trim();
-            const hrs = Math.floor(min / 60);
-            const remMin = min % 60;
-            return `${hrs}h ${remMin > 0 ? remMin + 'm' : ''}`.trim();
-        }
-
-        function formatarDuraçãoTabela(segundos) {
-            const s = parseInt(segundos) || 0;
-            const min = Math.floor(s / 60);
-            const sec = s % 60;
-            return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-        }
-
-        async function carregarLigações() {
-            const container = document.getElementById('ligacoesContent');
-            
-            try {
-                // Verificar status da API
-                const statusRes = await fetch('/api/vendas/ligacoes/status', { credentials: 'include' });
-                const status = await statusRes.json();
-                
-                if (!status.configurado) {
-                    container.innerHTML = `
-                        <div class="ligações-api-msg">
-                            <i class="fas fa-plug" style="color: #cbd5e1;"></i>
-                            <p><strong>PABX não configurado</strong></p>
-                            <p style="font-size: 13px; margin-top: 4px;">As credenciais de acesso ao painel CDR não estão configuradas no servidor.</p>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                // Datas padrão: hoje
-                const hoje = new Date().toISOString().split('T')[0];
-                const semanaAtras = hoje; // CDR scraper funciona melhor com período curto
-                
-                // Mostrar layout com filtros
-                container.innerHTML = `
-                    <div class="ligações-filtros" id="ligacoesFiltros">
-                        <input type="date" id="ligDataInicio" value="${semanaAtras}" title="Data início">
-                        <input type="date" id="ligDataFim" value="${hoje}" title="Data fim">
-                        <select id="ligTipo" title="Tipo de chamada">
-                            <option value="">Todas</option>
-                            <option value="movel">Móvel</option>
-                            <option value="fixo">Fixo</option>
-                        </select>
-                        <select id="ligRamal" title="Ramal">
-                            <option value="">Todos os ramais</option>
-                        </select>
-                        <button class="btn-filtrar" onclick="filtrarLigações()">
-                            <i class="fas fa-search"></i> Filtrar
-                        </button>
-                    </div>
-                    
-                    <div class="ligações-stats" id="ligacoesStats">
-                        <div class="ligação-metric-card card-total">
-                            <div class="metric-icon-wrapper"><i class="fas fa-phone"></i></div>
-                            <div class="metric-content">
-                                <div class="stat-number" id="ligTotal">-</div>
-                                <div class="metric-label">Total de Ligações</div>
-                            </div>
-                        </div>
-                        <div class="ligação-metric-card card-realizadas">
-                            <div class="metric-icon-wrapper"><i class="fas fa-phone-alt"></i></div>
-                            <div class="metric-content">
-                                <div class="stat-number" id="ligRealizadas">-</div>
-                                <div class="metric-label">Realizadas</div>
-                            </div>
-                        </div>
-                        <div class="ligação-metric-card card-atendidas">
-                            <div class="metric-icon-wrapper"><i class="fas fa-check-circle"></i></div>
-                            <div class="metric-content">
-                                <div class="stat-number" id="ligAtendidas">-</div>
-                                <div class="metric-label">Atendidas</div>
-                            </div>
-                        </div>
-                        <div class="ligação-metric-card card-duração">
-                            <div class="metric-icon-wrapper"><i class="fas fa-clock"></i></div>
-                            <div class="metric-content">
-                                <div class="stat-number" id="ligDuracao">-</div>
-                                <div class="metric-label">Duração Total</div>
-                            </div>
-                        </div>
-                        <div class="ligação-metric-card card-meta">
-                            <div class="metric-icon-wrapper"><i class="fas fa-bullseye"></i></div>
-                            <div class="metric-content">
-                                <div class="stat-number" id="ligMetaPercent">-</div>
-                                <div class="metric-label">Meta do Mês</div>
-                                <div style="font-size:11px;color:#94a3b8;margin-top:2px;" id="ligMetaLabel">-</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="ligacoesRamaisChart" style="margin-bottom: 20px;"></div>
-                    
-                    <div class="ligações-table-wrapper">
-                        <table class="ligações-table">
-                            <thead>
-                                <tr>
-                                    <th>Data/Hora</th>
-                                    <th>Ramal</th>
-                                    <th>Destino</th>
-                                    <th>Cidade / Região</th>
-                                    <th>Duração</th>
-                                    <th>Valor</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ligacoesTableBody">
-                                <tr>
-                                    <td colspan="6" style="text-align: center; padding: 30px; color: #94a3b8;">
-                                        <i class="fas fa-spinner fa-spin"></i> Carregando...
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <div class="ligações-pagination" id="ligacoesPagination" style="display:none;"></div>
-                    </div>
-                `;
-                
-                // Carregar dispositivos/ramais para o select
-                carregarRamaisSelect();
-                
-                // Carregar dados iniciais
-                filtrarLigações();
-                
-                // Verificar chamadas online
-                verificarChamadasOnline();
-                
-            } catch (error) {
-                console.error('Erro ao carregar ligações:', error);
-                container.innerHTML = `
-                    <div class="ligações-api-msg">
-                        <i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i>
-                        <p><strong>Erro ao conectar com PABX</strong></p>
-                        <p style="font-size: 13px;">${error.message}</p>
-                    </div>
-                `;
-            }
-        }
-
-        async function carregarRamaisSelect() {
-            const select = document.getElementById('ligRamal');
-            if (!select) return;
-
-            // Sempre popular com RAMAL_NOMES para garantir todos os ramais
-            const ramaisAdicionados = new Set();
-            Object.entries(RAMAL_NOMES).forEach(([ramalId, nome]) => {
-                if (!ramaisAdicionados.has(ramalId)) {
-                    const opt = document.createElement('option');
-                    opt.value = ramalId;
-                    opt.textContent = `${nome} (${ramalId})`;
-                    select.appendChild(opt);
-                    ramaisAdicionados.add(ramalId);
-                }
-            });
-
-            // Tentar carregar ramais extras da API
-            try {
-                const res = await fetch('/api/vendas/ligacoes/dispositivos', { credentials: 'include' });
-                if (res.ok) {
-                    const devices = await res.json();
-                    if (Array.isArray(devices)) {
-                        devices.forEach(d => {
-                            const val = d.username || d.name || d.id || '';
-                            if (val && !ramaisAdicionados.has(val)) {
-                                const opt = document.createElement('option');
-                                opt.value = val;
-                                opt.textContent = d.callerid || d.name || d.username || d.id || 'Ramal';
-                                select.appendChild(opt);
-                                ramaisAdicionados.add(val);
-                            }
-                        });
-                    }
-                }
-            } catch (e) {
-                console.warn('Não foi possível carregar ramais extras:', e.message);
-            }
-        }
-
-        async function filtrarLigações() {
-            const dataInicio = document.getElementById('ligDataInicio')?.value || '';
-            const dataFim = document.getElementById('ligDataFim')?.value || '';
-            const tipo = document.getElementById('ligTipo')?.value || '';
-            const ramal = document.getElementById('ligRamal')?.value || '';
-            
-            const tbody = document.getElementById('ligacoesTableBody');
-            if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i> Carregando...</td></tr>';
-            }
-            
-            try {
-                // Buscar resumo e CDR em paralelo
-                const params = new URLSearchParams();
-                if (dataInicio) params.append('data_inicio', dataInicio);
-                if (dataFim) params.append('data_fim', dataFim);
-                if (ramal) params.append('ramal', ramal);
-                if (tipo) params.append('tipo', tipo);
-                
-                const [resumoRes, cdrRes] = await Promise.all([
-                    fetch(`/api/vendas/ligacoes/resumo?${params.toString()}`, { credentials: 'include' }),
-                    fetch(`/api/vendas/ligacoes/cdr?${params.toString()}`, { credentials: 'include' })
-                ]);
-                
-                const resumo = resumoRes.ok ? await resumoRes.json() : {};
-                const cdrData = cdrRes.ok ? await cdrRes.json() : { chamadas: [] };
-                
-                // Atualizar cards de estatísticas
-                const elTotal = document.getElementById('ligTotal');
-                const elRealizadas = document.getElementById('ligRealizadas');
-                const elAtendidas = document.getElementById('ligAtendidas');
-                const elDuracao = document.getElementById('ligDuracao');
-                
-                if (elTotal) elTotal.textContent = resumo.total || 0;
-                if (elRealizadas) elRealizadas.textContent = resumo.realizadas || 0;
-                if (elAtendidas) elAtendidas.textContent = resumo.atendidas || 0;
-                if (elDuracao) elDuracao.textContent = formatarDuração(resumo.duracao_total || 0);
-                
-                // Meta do Mês (ligações)
-                const metaLig = resumo.meta_mensal || 0;
-                const totalLig = resumo.total || 0;
-                const elMetaPercent = document.getElementById('ligMetaPercent');
-                const elMetaLabel = document.getElementById('ligMetaLabel');
-                if (elMetaPercent) {
-                    if (metaLig > 0) {
-                        const pct = Math.min(100, Math.round((totalLig / metaLig) * 100));
-                        elMetaPercent.textContent = pct + '%';
-                        elMetaPercent.style.color = pct >= 100 ? '#22c55e' : pct >= 70 ? '#f59e0b' : '#ef4444';
-                        if (elMetaLabel) elMetaLabel.textContent = totalLig + ' / ' + metaLig + ' ligações';
-                    } else {
-                        elMetaPercent.textContent = totalLig > 0 ? totalLig : '-';
-                        if (elMetaLabel) elMetaLabel.textContent = 'Meta não definida';
-                    }
-                }
-                
-                // Renderizar gráfico por ramal
-                renderizarGraficoRamais(resumo.por_ramal || {});
-                
-                // Renderizar tabela de chamadas
-                renderizarTabelaChamadas(cdrData.chamadas || []);
-                
-            } catch (error) {
-                console.error('Erro ao filtrar ligações:', error);
-                if (tbody) {
-                    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Erro: ${error.message}</td></tr>`;
-                }
-            }
-        }
-
-        // Mapeamento de ramais para nomes (espelha backend)
-        const RAMAL_NOMES = {
-            'Labor_4207': 'Augusto',
-            'Labor_4202': 'Renata',
-            'Labor_4203': 'Fabíola',
-            'Labor_1428': 'Márcia',
-            'Labor_4206': 'João Vitor',
-            'Labor_4205': 'Ronaldo Torres',
-            'Labor_4201': 'Fabiano Marques'
-        };
-        function getNomeRamal(ramalId) {
-            return RAMAL_NOMES[ramalId] || ramalId;
-        }
-
-        function renderizarGraficoRamais(porRamal) {
-            const container = document.getElementById('ligacoesRamaisChart');
-            if (!container) return;
-            
-            const ramais = Object.entries(porRamal);
-            if (ramais.length === 0) {
-                container.innerHTML = '';
-                return;
-            }
-            
-            // Ordenar por total desc
-            ramais.sort((a, b) => ((b[1].realizadas||0) + (b[1].recebidas||0)) - ((a[1].realizadas||0) + (a[1].recebidas||0)));
-            const maxTotal = Math.max(...ramais.map(([, v]) => (v.realizadas || 0) + (v.recebidas || 0)));
-            
-            container.innerHTML = `
-                <div style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-                    <i class="fas fa-chart-bar" style="color: var(--primary-orange);"></i> Ligações por Ramal
-                </div>
-                ${ramais.slice(0, 10).map(([ramal, dados]) => {
-                    const nomeOp = dados.nome || getNomeRamal(ramal);
-                    const total = (dados.realizadas || 0) + (dados.recebidas || 0);
-                    const pctRealizadas = maxTotal > 0 ? ((dados.realizadas || 0) / maxTotal * 100) : 0;
-                    const pctRecebidas = maxTotal > 0 ? ((dados.recebidas || 0) / maxTotal * 100) : 0;
-                    return `
-                        <div class="ramal-chart-bar">
-                            <span class="ramal-label">${nomeOp} <span class="ramal-id">${ramal !== nomeOp ? ramal.replace('Labor_','') : ''}</span></span>
-                            <div class="bar-bg">
-                                <div class="bar-fill realizadas" style="width: ${pctRealizadas}%">${dados.realizadas || 0}</div>
-                                <div class="bar-fill recebidas" style="width: ${pctRecebidas > 0 ? pctRecebidas : 0}%">${dados.recebidas > 0 ? dados.recebidas : ''}</div>
-                            </div>
-                            <span class="bar-total">${total}</span>
-                        </div>
-                    `;
-                }).join('')}
-                <div style="display: flex; gap: 16px; margin-top: 10px; font-size: 11px; color: #6b7280;">
-                    <span><span style="display:inline-block;width:10px;height:10px;background:linear-gradient(90deg,#3b82f6,#60a5fa);border-radius:3px;margin-right:4px;"></span>Realizadas</span>
-                    <span><span style="display:inline-block;width:10px;height:10px;background:linear-gradient(90deg,#22c55e,#4ade80);border-radius:3px;margin-right:4px;"></span>Recebidas</span>
-                </div>
-            `;
-        }
-
-        // Variáveis globais para paginação
-        let ligaçõesPaginaAtual = 1;
-        const LIGACOES_POR_PAGINA = 10;
-        let todasChamadas = [];
-
-        function renderizarTabelaChamadas(chamadas) {
-            todasChamadas = chamadas || [];
-            ligaçõesPaginaAtual = 1;
-            renderizarPagina();
-        }
-
-        function renderizarPagina() {
-            const tbody = document.getElementById('ligacoesTableBody');
-            const pagDiv = document.getElementById('ligacoesPagination');
-            if (!tbody) return;
-            
-            if (todasChamadas.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="6" style="text-align: center; padding: 40px; color: #94a3b8;">
-                            <i class="fas fa-phone-slash" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>
-                            Nenhuma ligação encontrada no período
-                        </td>
-                    </tr>
-                `;
-                if (pagDiv) pagDiv.style.display = 'none';
-                return;
-            }
-            
-            const totalPaginas = Math.ceil(todasChamadas.length / LIGACOES_POR_PAGINA);
-            if (ligaçõesPaginaAtual > totalPaginas) ligaçõesPaginaAtual = totalPaginas;
-            const inicio = (ligaçõesPaginaAtual - 1) * LIGACOES_POR_PAGINA;
-            const fim = Math.min(inicio + LIGACOES_POR_PAGINA, todasChamadas.length);
-            const paginaChamadas = todasChamadas.slice(inicio, fim);
-            
-            tbody.innerHTML = paginaChamadas.map(c => {
-                const dataFormatada = c.data || '-';
-                const ramalId = c.ramal || c.origem || '-';
-                const nomeOp = c.nomeOperador || getNomeRamal(ramalId);
-                const mostrarNome = nomeOp !== ramalId;
-                const destino = c.destino || '-';
-                const cidade = c.cidade || '-';
-                const duração = c.tempo || formatarDuraçãoTabela(c.duração || 0);
-                const valor = typeof c.valor === 'number' ? c.valor.toFixed(5).replace('.', ',') : (c.valor || '0,00');
-                
-                const valorFloat = typeof c.valor === 'number' ? c.valor : parseFloat((c.valor || '0').replace(',', '.'));
-                const valorClass = valorFloat > 0 ? 'color: #16a34a; font-weight: 600;' : 'color: #cbd5e1;';
-                const duraçãoStyle = c.duração > 0 ? 'color: #3b82f6; font-weight: 600;' : 'color: #ef4444; font-weight: 600;';
-                
-                return `
-                    <tr>
-                        <td style="white-space:nowrap;">${dataFormatada}</td>
-                        <td>
-                            <div style="font-weight:700; color:#1e293b;">${mostrarNome ? nomeOp : ramalId}</div>
-                            ${mostrarNome ? '<div style="font-size:11px; color:#94a3b8;">' + ramalId + '</div>' : ''}
-                        </td>
-                        <td style="font-weight:500;">${destino}</td>
-                        <td style="font-size:12px; color:#64748b; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${cidade}</td>
-                        <td style="${duraçãoStyle} white-space:nowrap;">${duração}</td>
-                        <td style="${valorClass} white-space:nowrap;">${valor}</td>
-                    </tr>
-                `;
-            }).join('');
-            
-            // Paginação
-            if (pagDiv) {
-                if (todasChamadas.length <= LIGACOES_POR_PAGINA) {
-                    pagDiv.style.display = 'flex';
-                    pagDiv.innerHTML = `<span class="pag-info">Exibindo ${todasChamadas.length} de ${todasChamadas.length} registros</span><span></span>`;
-                } else {
-                    pagDiv.style.display = 'flex';
-                    let botoesHTML = '';
-                    botoesHTML += `<button onclick="irParaPagina(1)" ${ligaçõesPaginaAtual === 1 ? 'disabled' : ''} title="Primeira"><i class="fas fa-angle-double-left"></i></button>`;
-                    botoesHTML += `<button onclick="irParaPagina(${ligaçõesPaginaAtual - 1})" ${ligaçõesPaginaAtual === 1 ? 'disabled' : ''} title="Anterior"><i class="fas fa-angle-left"></i></button>`;
-                    
-                    const maxBotoes = 5;
-                    let inicioBtn = Math.max(1, ligaçõesPaginaAtual - Math.floor(maxBotoes / 2));
-                    let fimBtn = Math.min(totalPaginas, inicioBtn + maxBotoes - 1);
-                    if (fimBtn - inicioBtn < maxBotoes - 1) inicioBtn = Math.max(1, fimBtn - maxBotoes + 1);
-                    
-                    if (inicioBtn > 1) botoesHTML += '<span class="pag-ellipsis">...</span>';
-                    for (let i = inicioBtn; i <= fimBtn; i++) {
-                        botoesHTML += `<button onclick="irParaPagina(${i})" class="${i === ligaçõesPaginaAtual ? 'active' : ''}">${i}</button>`;
-                    }
-                    if (fimBtn < totalPaginas) botoesHTML += '<span class="pag-ellipsis">...</span>';
-                    
-                    botoesHTML += `<button onclick="irParaPagina(${ligaçõesPaginaAtual + 1})" ${ligaçõesPaginaAtual === totalPaginas ? 'disabled' : ''} title="Próxima"><i class="fas fa-angle-right"></i></button>`;
-                    botoesHTML += `<button onclick="irParaPagina(${totalPaginas})" ${ligaçõesPaginaAtual === totalPaginas ? 'disabled' : ''} title="Última"><i class="fas fa-angle-double-right"></i></button>`;
-                    
-                    pagDiv.innerHTML = `
-                        <span class="pag-info">Exibindo ${inicio + 1} a ${fim} de ${todasChamadas.length} registros</span>
-                        <div class="pag-buttons">${botoesHTML}</div>
-                    `;
-                }
-            }
-        }
-
-        function irParaPagina(pagina) {
-            const totalPaginas = Math.ceil(todasChamadas.length / LIGACOES_POR_PAGINA);
-            if (pagina < 1 || pagina > totalPaginas) return;
-            ligaçõesPaginaAtual = pagina;
-            renderizarPagina();
-            // Scroll para o topo da tabela
-            const tableEl = document.querySelector('.ligações-table-wrapper');
-            if (tableEl) tableEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-
-        async function verificarChamadasOnline() {
-            try {
-                const res = await fetch('/api/vendas/ligacoes/online', { credentials: 'include' });
-                if (res.ok) {
-                    const data = await res.json();
-                    const badge = document.getElementById('ligacoesOnlineBadge');
-                    const count = document.getElementById('ligacoesOnlineCount');
-                    if (badge && data.total > 0) {
-                        badge.style.display = 'inline-flex';
-                        if (count) count.textContent = data.total;
-                    } else if (badge) {
-                        badge.style.display = 'none';
-                    }
-                }
-            } catch (e) {
-                // silencioso
-            }
-        }
-
-        // Atualizar chamadas online a cada 30s
-        setInterval(verificarChamadasOnline, 30000);
 
         document.addEventListener('DOMContentLoaded', () => {
             carregarUsuario();
             iniciarAtualizaçãoAutomatica();
-            // Carregar relatório de ligações
-            setTimeout(carregarLigações, 1500);
         });
         
         // Toggle Sidebar Mobile

@@ -1,4 +1,4 @@
-﻿// ================================================= 
+// ================================================= 
 // DASHBOARD VISUAL MODERNO - APLICAÇÁO DINMICA
 // ================================================= 
 
@@ -75,7 +75,7 @@ class ModernDashboardVisuals {
         const statsContainer = this.findStatsContainer();
         
         if (statsContainer) {
-            // Se náo tem a classe moderna, aplica
+            // Se não tem a classe moderna, aplica
             if (!statsContainer.classList.contains('stats-row')) {
                 statsContainer.classList.add('stats-row');
                 
@@ -165,11 +165,11 @@ class ModernDashboardVisuals {
     }
 
     createModernStatsFromData() {
-        // Cria um container de stats moderno se náo existir
+        // Cria um container de stats moderno se não existir
         let statsContainer = document.createElement('div');
         statsContainer.className = 'stats-row';
         
-        // Dados padráo baseados na imagem
+        // Dados padrão baseados na imagem
         const statsData = [
             {
                 title: 'Total Funcionários',
@@ -300,14 +300,14 @@ class ModernDashboardVisuals {
             
             // Parse do conteúdo para extrair informações
             let name = 'Nome do Item';
-            let description = 'Descriçáo';
+            let description = 'Descrição';
             let status = 'active';
             let avatar = 'https://via.placeholder.com/55/667eea/ffffff?text=U';
             
             // Lógica inteligente para extrair dados
             if (textContent.includes('Andreia Silva')) {
                 name = 'Andreia Silva';
-                description = 'Nova contrataçáo - Há 2 horas';
+                description = 'Nova contratação - Há 2 horas';
                 status = 'active';
             } else if (textContent.includes('Douglas Santos')) {
                 name = 'Douglas Santos';
@@ -386,7 +386,7 @@ class ModernDashboardVisuals {
             });
         });
 
-        // Observa elementos para animaçáo
+        // Observa elementos para animação
         const elementsToAnimate = document.querySelectorAll('.stat-card, .item-card, .section-header-organized');
         elementsToAnimate.forEach(element => {
             element.style.opacity = '0';
@@ -397,7 +397,7 @@ class ModernDashboardVisuals {
     }
 
     enhanceInteractions() {
-        // Adiciona efeitos de hover e interaçáo
+        // Adiciona efeitos de hover e interação
         document.addEventListener('mouseover', (e) => {
             if (e.target.classList.contains('stat-card')) {
                 e.target.style.transform = 'translateY(-8px)';
@@ -479,7 +479,7 @@ class ModernDashboardVisuals {
     }
 
     showNotification(message, type = 'info') {
-        // Cria notificaçáo moderna
+        // Cria notificação moderna
         const notification = document.createElement('div');
         notification.className = `modern-notification ${type}`;
         notification.textContent = message;
@@ -539,7 +539,7 @@ class ModernDashboardVisuals {
             min-height: 100vh;
         `;
 
-        // Adiciona FontAwesome se náo existir
+        // Adiciona FontAwesome se não existir
         if (!document.querySelector('link[href*="font-awesome"]')) {
             const faLink = document.createElement('link');
             faLink.rel = 'stylesheet';

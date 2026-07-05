@@ -1,45 +1,118 @@
-#!/bin/bash
-# ============================================
-# ALUFORCE — Backup Automatizado MySQL
-# Executa diariamente via cron
-# Retém últimos 7 backups diários + 4 semanais
-# ============================================
+#!/usr/bin/env bash
+# Daily MySQL backup for the three production instances.
 
-set -euo pipefail
+set -uo pipefail
+umask 077
+shopt -s nullglob
 
-# ── Configuração ──────────────────────────────
-BACKUP_DIR="/var/backups/aluforce/mysql"
-DB_USER="aluforce"
-DB_PASS="CHANGE_ME_DB_PASSWORD"
-DB_HOST="127.0.0.1"
-DATABASES="aluforce_vendas zyntra_demo"
-RETENTION_DAILY=7    # manter últimos 7 backups diários
-RETENTION_WEEKLY=4   # manter últimos 4 backups semanais (domingos)
-LOG_FILE="/var/log/aluforce/backup-mysql.log"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-DAY_OF_WEEK=$(date +%u)  # 1=segunda, 7=domingo
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/aluforce/mysql}"
+LOG_FILE="${LOG_FILE:-/var/log/aluforce/backup-mysql.log}"
+RETENTION_DAILY="${RETENTION_DAILY:-7}"
+RETENTION_WEEKLY="${RETENTION_WEEKLY:-4}"
+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+DAY_OF_WEEK="$(date +%u)"
 
-# ── Funções auxiliares ────────────────────────
+ENV_FILES=(
+    "/var/www/aluforce/.env"
+    "/var/www/labor-energy/.env"
+    "/var/www/labor-eletric/.env"
+)
+
+mkdir -p "$BACKUP_DIR/daily" "$BACKUP_DIR/weekly" "$(dirname "$LOG_FILE")"
+exec >>"$LOG_FILE" 2>&1
+
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+    printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"
 }
 
-# ── Criar diretórios ─────────────────────────
-mkdir -p "$BACKUP_DIR/daily"
-mkdir -p "$BACKUP_DIR/weekly"
-mkdir -p "$(dirname "$LOG_FILE")"
+read_env_value() {
+    local env_file="$1"
+    local key="$2"
+    local value
 
-log "=== BACKUP MySQL INICIADO ==="
+    value="$(sed -n "s/^${key}=//p" "$env_file" | tail -1 | tr -d '\r')"
+    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+        value="${value:1:${#value}-2}"
+    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+        value="${value:1:${#value}-2}"
+    fi
+    printf '%s' "$value"
+}
 
-TOTAL_SIZE=0
-ERRORS=0
+write_mysql_config() {
+    local config_file="$1"
+    local host="$2"
+    local port="$3"
+    local user="$4"
+    local password="$5"
+    local escaped_password
 
-for DB in $DATABASES; do
-    DUMP_FILE="$BACKUP_DIR/daily/${DB}_${TIMESTAMP}.sql.gz"
-    
-    log "  Exportando $DB..."
-    
-    if mysqldump -u "$DB_USER" -p"$DB_PASS" -h "$DB_HOST" \
+    escaped_password="${password//\\/\\\\}"
+    escaped_password="${escaped_password//\"/\\\"}"
+
+    {
+        printf '[client]\n'
+        printf 'host=%s\n' "$host"
+        printf 'port=%s\n' "$port"
+        printf 'user=%s\n' "$user"
+        printf 'password="%s"\n' "$escaped_password"
+        printf 'protocol=tcp\n'
+    } >"$config_file"
+    chmod 600 "$config_file"
+}
+
+trim_backups() {
+    local directory="$1"
+    local database="$2"
+    local keep="$3"
+    local files
+    local remove_count
+
+    files=("$directory/${database}_"*.sql.gz)
+    remove_count=$((${#files[@]} - keep))
+    if ((remove_count <= 0)); then
+        return
+    fi
+
+    for ((i = 0; i < remove_count; i++)); do
+        rm -f -- "${files[$i]}"
+    done
+    log "Removed $remove_count old backup(s) for $database"
+}
+
+log "=== MySQL backup started ==="
+
+errors=0
+backed_up_databases=()
+
+for env_file in "${ENV_FILES[@]}"; do
+    if [[ ! -r "$env_file" ]]; then
+        log "ERROR: environment file not found: $env_file"
+        errors=$((errors + 1))
+        continue
+    fi
+
+    db_host="$(read_env_value "$env_file" DB_HOST)"
+    db_port="$(read_env_value "$env_file" DB_PORT)"
+    db_user="$(read_env_value "$env_file" DB_USER)"
+    db_password="$(read_env_value "$env_file" DB_PASSWORD)"
+    db_name="$(read_env_value "$env_file" DB_NAME)"
+    [[ -z "$db_name" ]] && db_name="$(read_env_value "$env_file" DB_DATABASE)"
+    [[ -z "$db_host" ]] && db_host="127.0.0.1"
+    [[ -z "$db_port" ]] && db_port="3306"
+
+    if [[ -z "$db_user" || -z "$db_password" || -z "$db_name" ]]; then
+        log "ERROR: incomplete database configuration in $env_file"
+        errors=$((errors + 1))
+        continue
+    fi
+
+    mysql_config="$(mktemp)"
+    write_mysql_config "$mysql_config" "$db_host" "$db_port" "$db_user" "$db_password"
+    dump_file="$BACKUP_DIR/daily/${db_name}_${TIMESTAMP}.sql.gz"
+
+    log "Exporting $db_name..."
+    if mysqldump --defaults-extra-file="$mysql_config" \
         --single-transaction \
         --routines \
         --triggers \
@@ -47,58 +120,41 @@ for DB in $DATABASES; do
         --add-drop-table \
         --no-tablespaces \
         --set-gtid-purged=OFF \
-        "$DB" 2>>"$LOG_FILE" | gzip > "$DUMP_FILE"; then
-        
-        SIZE=$(du -h "$DUMP_FILE" | cut -f1)
-        log "  ✅ $DB → $DUMP_FILE ($SIZE)"
-        
-        # Se é domingo, copiar para weekly
-        if [ "$DAY_OF_WEEK" -eq 7 ]; then
-            WEEKLY_FILE="$BACKUP_DIR/weekly/${DB}_${TIMESTAMP}.sql.gz"
-            cp "$DUMP_FILE" "$WEEKLY_FILE"
-            log "  📦 Cópia semanal: $WEEKLY_FILE"
+        "$db_name" | gzip -c >"$dump_file" &&
+        gzip -t "$dump_file"; then
+        size="$(du -h "$dump_file" | cut -f1)"
+        log "OK: $db_name -> $dump_file ($size)"
+        backed_up_databases+=("$db_name")
+
+        if [[ "$DAY_OF_WEEK" -eq 7 ]]; then
+            weekly_file="$BACKUP_DIR/weekly/${db_name}_${TIMESTAMP}.sql.gz"
+            cp "$dump_file" "$weekly_file"
+            log "Weekly copy: $weekly_file"
         fi
     else
-        log "  ❌ ERRO ao exportar $DB"
-        ERRORS=$((ERRORS + 1))
-        rm -f "$DUMP_FILE"
+        log "ERROR: failed to export $db_name"
+        rm -f "$dump_file"
+        errors=$((errors + 1))
     fi
+
+    rm -f "$mysql_config"
 done
 
-# ── Limpeza — rotação de backups ──────────────
-log "  Limpando backups antigos..."
-
-# Diários: manter últimos N
-for DB in $DATABASES; do
-    DAILY_COUNT=$(ls -1 "$BACKUP_DIR/daily/${DB}_"*.sql.gz 2>/dev/null | wc -l)
-    if [ "$DAILY_COUNT" -gt "$RETENTION_DAILY" ]; then
-        REMOVE=$((DAILY_COUNT - RETENTION_DAILY))
-        ls -1t "$BACKUP_DIR/daily/${DB}_"*.sql.gz | tail -"$REMOVE" | xargs rm -f
-        log "  🧹 Removidos $REMOVE backups diários antigos de $DB"
-    fi
+for database in "${backed_up_databases[@]}"; do
+    trim_backups "$BACKUP_DIR/daily" "$database" "$RETENTION_DAILY"
+    trim_backups "$BACKUP_DIR/weekly" "$database" "$RETENTION_WEEKLY"
 done
 
-# Semanais: manter últimos N
-for DB in $DATABASES; do
-    WEEKLY_COUNT=$(ls -1 "$BACKUP_DIR/weekly/${DB}_"*.sql.gz 2>/dev/null | wc -l)
-    if [ "$WEEKLY_COUNT" -gt "$RETENTION_WEEKLY" ]; then
-        REMOVE=$((WEEKLY_COUNT - RETENTION_WEEKLY))
-        ls -1t "$BACKUP_DIR/weekly/${DB}_"*.sql.gz | tail -"$REMOVE" | xargs rm -f
-        log "  🧹 Removidos $REMOVE backups semanais antigos de $DB"
-    fi
-done
+daily_size="$(du -sh "$BACKUP_DIR/daily" 2>/dev/null | cut -f1)"
+weekly_size="$(du -sh "$BACKUP_DIR/weekly" 2>/dev/null | cut -f1)"
+disk_free="$(df -h / | awk 'NR == 2 {print $4}')"
 
-# ── Resumo ────────────────────────────────────
-TOTAL_DAILY=$(du -sh "$BACKUP_DIR/daily/" 2>/dev/null | cut -f1)
-TOTAL_WEEKLY=$(du -sh "$BACKUP_DIR/weekly/" 2>/dev/null | cut -f1)
-DISK_FREE=$(df -h / | tail -1 | awk '{print $4}')
+log "=== MySQL backup finished ==="
+log "Daily: ${daily_size:-0} | Weekly: ${weekly_size:-0} | Free disk: ${disk_free:-unknown}"
 
-log "=== BACKUP CONCLUÍDO ==="
-log "  Diários: $TOTAL_DAILY | Semanais: $TOTAL_WEEKLY | Disco livre: $DISK_FREE"
-
-if [ "$ERRORS" -gt 0 ]; then
-    log "  ⚠️ $ERRORS erro(s) durante o backup!"
+if ((errors > 0)); then
+    log "ERROR: $errors database backup(s) failed"
     exit 1
 fi
 
-exit 0
+log "OK: ${#backed_up_databases[@]} database(s) backed up"

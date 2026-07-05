@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 
 <head>
@@ -10,7 +10,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Zyntra: Dashboard</title>
+    <title>Zyntra: Financeiro</title>
 <script>if(location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){console.log=function(){}}</script>
 
     <!-- Autenticação -->
@@ -1454,12 +1454,13 @@
 
     <!-- Header & Sidebar refinado -->
     <!-- Global Header & Sidebar — override final unificado -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <!-- Chat Widget BOB AI -->
     <link rel="stylesheet" href="/chat/widget.css?v=20260218">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260414">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260614">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 
 <body>
@@ -1555,7 +1556,14 @@
 
                     <!-- Page Actions -->
                     <div class="page-header">
-                        <div class="page-header-top" style="justify-content: flex-end; width: 100%;">
+                        <div class="page-header-top" style="justify-content: space-between; width: 100%;">
+                            <div class="page-title-wrapper" style="display:flex;align-items:center;gap:14px;">
+                                <div class="page-icon" style="width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;background:linear-gradient(135deg,#6366f1,#4f46e5);flex-shrink:0;"><i class="fas fa-coins"></i></div>
+                                <div>
+                                    <h1 class="page-title" style="margin:0;font-size:20px;font-weight:700;color:#1e293b;line-height:1.2;">Financeiro</h1>
+                                    <p class="page-subtitle" style="margin:2px 0 0;font-size:13px;color:#64748b;">Contas a pagar, a receber e fluxo de caixa</p>
+                                </div>
+                            </div>
                             <div class="page-actions">
                                 <button class="btn btn-secondary" onclick="abrirModalClienteFornecedor()"><i
                                         class="fas fa-user-plus"></i> Incluir Cliente/Fornecedor</button>
@@ -1859,7 +1867,7 @@
                     fetchJsonSeguro(`/api/financeiro/contas-receber?dataInicio=${períodoAnterior.inicio}&dataFim=${períodoAnterior.fim}`, { data: [] }),
                     fetchJsonSeguro(`/api/financeiro/contas-pagar?dataInicio=${períodoAnterior.inicio}&dataFim=${períodoAnterior.fim}`, { data: [] }),
                     fetchJsonSeguro('/api/financeiro/fluxo-caixa-resumo?período=mes', { saldoInicial: 0, fluxoDiario: [] }),
-                    fetchJsonSeguro('/api/financeiro/próximos-vencimentos?limite=30', { data: [] }),
+                    fetchJsonSeguro('/api/financeiro/proximos-vencimentos?limite=30', { data: [] }),
                     fetchJsonSeguro('/api/financeiro/ultimos-lancamentos?limite=50', { data: [] }),
                     fetchJsonSeguro('/api/financeiro/resumo-kpis', { data: { vencidos: 0 } })
                 ]);
@@ -2139,10 +2147,10 @@
             const data = new Date(`${String(dataVencimento).slice(0, 10)}T00:00:00`);
             const diferencaDias = Math.round((data - hoje) / 86400000);
 
-            if (diferencaDias < 0) return `Vencido há ${Math.abs(diferencaDias)} dia(s)`;
+            if (diferencaDias < 0) { const d = Math.abs(diferencaDias); return `Vencido há ${d} ${d === 1 ? 'dia' : 'dias'}`; }
             if (diferencaDias === 0) return 'Vence hoje';
             if (diferencaDias === 1) return 'Vence amanhã';
-            return `Vence em ${diferencaDias} dia(s)`;
+            return `Vence em ${diferencaDias} dias`;
         }
 
         // ======== Estado de Paginação ========

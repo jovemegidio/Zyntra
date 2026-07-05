@@ -87,9 +87,9 @@ function setupStaticRoutes(app, baseDir) {
         lastModified: true
     }));
 
-    // Rota antiga do dashboard: redireciona para o painel atual
+    // Rota para /public/index.html - redireciona para dashboard
     app.get('/public/index.html', (req, res) => {
-        res.redirect('/dashboard');
+        res.redirect('/');
     });
 
     // Servir Socket.io client library
@@ -153,16 +153,9 @@ function setupStaticRoutes(app, baseDir) {
     app.use('/Financeiro', express.static(path.join(baseDir, 'modules', 'Financeiro', 'public'), {
         setHeaders: (res, filePath) => setTextHeaders(res, filePath)
     }));
-    // CRIT-04: Redirect /Financeiro (sem index.html) para index
-    app.get('/Financeiro', (req, res) => res.redirect('/Financeiro/index.html'));
-
-    app.use('/Logistica', express.static(path.join(baseDir, 'modules', 'Logistica', 'public'), {
+    app.use('/Qualidade', express.static(path.join(baseDir, 'modules', 'Qualidade', 'public'), {
         setHeaders: (res, filePath) => setTextHeaders(res, filePath)
     }));
-    // CRIT-04: Redirect /Logistica (sem index.html) para index — inclui barra final (FUNC-04)
-    app.get('/Logistica', (req, res) => res.redirect('/Logistica/index.html'));
-    app.get('/Logistica/', (req, res) => res.redirect('/Logistica/index.html'));
-
     app.use('/Compras', express.static(path.join(baseDir, 'modules', 'Compras'), {
         setHeaders: (res, filePath) => setTextHeaders(res, filePath)
     }));

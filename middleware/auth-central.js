@@ -228,6 +228,137 @@ function requireAdminOrRH(req, res, next) {
 // ============================================================
 
 /**
+ * Guarda de PÁGINA (HTML/estático) por módulo — não confundir com requireModule (API/JSON).
+ * SECURITY FIX 2026-06-29: os módulos eram servidos via express.static sem nenhuma
+ * verificação de login OU de área — um usuário sem acesso ao setor (ou até deslogado,
+ * dependendo do navegador) conseguia abrir a página inteira só por ter o link, pois
+ * o gate de permissão só existia nas chamadas de API feitas DEPOIS da página carregar.
+ * Usa o mesmo permissionService (DB permissoes_modulos + fallback) das APIs, mas responde
+ * com redirect/HTML em vez de JSON, já que é consumido por navegação direta de página.
+ *
+ * @param {string|string[]} moduleNames - Código(s) do módulo (financeiro, compras, pcp, rh, nfe...)
+ */
+function requirePageAccess(moduleNames) {
+    const modules = Array.isArray(moduleNames) ? moduleNames : [moduleNames];
+    return (req, res, next) => {
+        const authHeader = req.headers['authorization'];
+        let token = null;
+        if (authHeader && authHeader.startsWith('Bearer ')) token = authHeader.split(' ')[1];
+        if (!token) token = req.cookies?.authToken || req.cookies?.token;
+
+        if (!token) {
+            return res.redirect('/login.html?returnTo=' + encodeURIComponent(req.originalUrl));
+        }
+
+        jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, async (err, user) => {
+            if (err) {
+                return res.redirect('/login.html?returnTo=' + encodeURIComponent(req.originalUrl));
+            }
+            req.user = user;
+            try {
+                if (await permissionService.isAdmin(user)) return next();
+                if (permissionService.isConsultoria(user)) {
+                    permissionService.applyConsultoriaFlags(req);
+                    return next();
+                }
+                const pool = req.app?.locals?.pool;
+                for (const m of modules) {
+                    if (await permissionService.hasModuleAccess(pool, user.id, m, user)) return next();
+                }
+            } catch (e) {
+                console.error('[AUTH-CENTRAL] Erro ao verificar acesso de página:', e.message);
+            }
+            return res.status(403).send(
+                '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">' +
+                '<title>Acesso Negado</title></head>' +
+                '<body style="font-family:Arial,sans-serif;text-align:center;padding:80px 20px;color:#333">' +
+                '<h1 style="font-size:48px;margin-bottom:8px">403</h1>' +
+                '<p style="font-size:18px">Você não tem permissão para acessar este módulo.</p>' +
+                '<p><a href="/dashboard" style="color:#6254e8">Voltar ao painel</a></p>' +
+                '</body></html>'
+            );
+        });
+    };
+}
+
+// ============================================================
+// Guard específico do módulo VENDAS
+// ------------------------------------------------------------
+// Regra de negócio: quem tem acesso a Vendas mas NÃO é vendedor
+// (permissoes_vendas.kanban=true, sem pedidos/clientes/gestão) só
+// pode usar o Kanban (index.html). Também destrava o acesso ao
+// módulo para esses usuários mesmo sem linha 'vendas' em
+// permissoes_modulos (data-driven por permissoes_vendas).
+// ============================================================
+const VENDAS_KANBAN_PAGES = new Set(['', 'index.html', 'index']);
+function _parsePermVendas(raw) {
+    if (raw == null || raw === '') return null;
+    if (typeof raw === 'object') return raw;
+    try { return JSON.parse(raw); } catch (e) { return null; }
+}
+// "kanban-only" = tem kanban mas não é vendedor (sem pedidos/clientes/gestão)
+function _isVendasKanbanOnly(pv) {
+    return !!(pv && pv.kanban === true && pv.pedidos !== true && pv.clientes !== true && pv.gestao !== true);
+}
+function _vendas403(res) {
+    return res.status(403).send(
+        '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Acesso Negado</title></head>' +
+        '<body style="font-family:Arial,sans-serif;text-align:center;padding:80px 20px;color:#333">' +
+        '<h1 style="font-size:48px;margin-bottom:8px">403</h1>' +
+        '<p style="font-size:18px">Você não tem permissão para acessar este módulo.</p>' +
+        '<p><a href="/dashboard" style="color:#6254e8">Voltar ao painel</a></p></body></html>'
+    );
+}
+function requireVendasPage() {
+    return (req, res, next) => {
+        const parts = (req.path || '').split('/');
+        const pageName = (parts[parts.length - 1] || '').toLowerCase();
+        if (pageName === 'login.html' || pageName === 'login') return res.redirect('/login.html');
+
+        const authHeader = req.headers['authorization'];
+        let token = null;
+        if (authHeader && authHeader.startsWith('Bearer ')) token = authHeader.split(' ')[1];
+        if (!token) token = req.cookies?.authToken || req.cookies?.token;
+        if (!token) return res.redirect('/login.html?returnTo=' + encodeURIComponent(req.originalUrl));
+
+        jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, async (err, user) => {
+            if (err) return res.redirect('/login.html?returnTo=' + encodeURIComponent(req.originalUrl));
+            req.user = user;
+            try {
+                if (await permissionService.isAdmin(user)) return next();
+                if (permissionService.isConsultoria(user)) {
+                    permissionService.applyConsultoriaFlags(req);
+                    return next();
+                }
+                const pool = req.app?.locals?.pool;
+                let pv = null;
+                if (pool) {
+                    try {
+                        const [rows] = await pool.query('SELECT permissoes_vendas FROM usuarios WHERE id = ? LIMIT 1', [user.id]);
+                        if (rows && rows[0]) pv = _parsePermVendas(rows[0].permissoes_vendas);
+                    } catch (e) { /* ignora — cai no hasModuleAccess */ }
+                }
+                const hasModule = pool ? await permissionService.hasModuleAccess(pool, user.id, 'vendas', user) : false;
+                const kanbanOnly = _isVendasKanbanOnly(pv);
+                const hasAnyVendas = hasModule || kanbanOnly ||
+                    !!(pv && (pv.pedidos || pv.clientes || pv.gestao || pv.dashboard || pv.relatorios || pv.estoque));
+
+                if (!hasAnyVendas) return _vendas403(res);
+
+                // Não-vendedor (kanban-only) → somente o Kanban (index.html)
+                if (kanbanOnly && !VENDAS_KANBAN_PAGES.has(pageName)) {
+                    return res.redirect('/Vendas/index.html');
+                }
+                return next();
+            } catch (e) {
+                console.error('[AUTH-CENTRAL] Erro no guard de Vendas:', e.message);
+                return _vendas403(res);
+            }
+        });
+    };
+}
+
+/**
  * Middleware de autorização por módulo.
  * DB-first com fallback hardcoded (período de transição).
  * Aplica flags de consultoria automaticamente.
@@ -235,6 +366,10 @@ function requireAdminOrRH(req, res, next) {
  * @param {string} module - Código do módulo (vendas, rh, pcp, financeiro, etc)
  */
 function requireModule(module) {
+    // Aceita um módulo (string) ou uma lista (array). Com lista, concede acesso
+    // se o usuário tiver QUALQUER um dos módulos — ex.: ['vendas','pcp'] permite
+    // que o PCP veja/movimente o Kanban de Vendas sem dar acesso a Vendas a todos.
+    const modules = Array.isArray(module) ? module : [module];
     return async (req, res, next) => {
         if (!req.user) {
             return res.status(401).json({ message: 'Não autenticado.', code: 'AUTH_REQUIRED' });
@@ -251,14 +386,16 @@ function requireModule(module) {
             return next();
         }
 
-        // Verificar módulo via permission.service
+        // Verificar módulo via permission.service (basta ter acesso a um dos módulos)
         const pool = req.app?.locals?.pool;
-        const hasAccess = await permissionService.hasModuleAccess(pool, req.user.id, module, req.user);
-
-        if (hasAccess) return next();
+        for (const m of modules) {
+            if (await permissionService.hasModuleAccess(pool, req.user.id, m, req.user)) {
+                return next();
+            }
+        }
 
         return res.status(403).json({
-            message: `Acesso negado ao módulo ${module}. Você não tem permissão.`,
+            message: `Acesso negado ao módulo ${modules.join('/')}. Você não tem permissão.`,
             code: 'MODULE_DENIED'
         });
     };
@@ -453,6 +590,8 @@ module.exports = {
     requireAdminOrRH,
     // Módulo
     requireModule,
+    requirePageAccess,
+    requireVendasPage,
     // Ação granular
     requireAction,
     // Compat auth-rbac.js

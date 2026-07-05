@@ -546,7 +546,7 @@ document.querySelectorAll('.quick-action').forEach(btn => {
 
         switch (action) {
             case 'novo-pedido':
-                window.location.href = '/Vendas/?novo=true';
+                window.location.href = window.__withBasePath ? window.__withBasePath('/Vendas/?novo=true') : '/Vendas/?novo=true';
                 break;
             case 'novo-cliente':
                 window.location.href = '/clientes/?novo=true';

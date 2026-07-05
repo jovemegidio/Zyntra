@@ -80,6 +80,13 @@ function authorizeFinanceiro(section) {
                 return next();
             }
 
+            // Usuários da equipe Financeiro (role 'financeiro', 'financeiro2', 'financeiro3', ...)
+            // têm acesso total ao módulo, independentemente do domínio (aluforce.ind.br / labor.com.br).
+            if (/^financeiro\d*$/.test(String(userRole || '').toLowerCase())) {
+                req.userAccess = 'admin';
+                return next();
+            }
+
             // Consultoria tem acesso de visualização a todos os módulos
             if (userRole === 'consultoria') {
                 req.userAccess = 'consultoria';
@@ -1679,6 +1686,7 @@ router.get('/contas-bancarias', authenticateToken, authorizeFinanceiro('bancos')
             SELECT id, nome, banco, tipo, agencia, conta as numero_conta,
                    saldo_atual as saldo, observacoes, ativo as ativa, created_at
             FROM contas_bancarias
+            WHERE COALESCE(ativo, 1) = 1
             ORDER BY nome
         `);
 
@@ -1935,12 +1943,20 @@ router.post('/contas-pagar/:id/baixa', authenticateToken, authorizeFinanceiro('p
             [novoValorPago, novoStatus, data_pagamento || new Date(), forma_pagamento, conta_bancaria_id, observacoes || '', id]
         );
 
-        // Registrar movimentação bancária se tiver conta (dentro da transação)
+        // Registrar movimentação bancária (saldo + linha no extrato) se tiver conta
         if (conta_bancaria_id) {
-            await connection.execute(
-                `UPDATE contas_bancarias SET saldo_atual = saldo_atual - ? WHERE id = ?`,
-                [valorBaixa, conta_bancaria_id]
-            );
+            await registrarMovimentacaoBancaria(connection, {
+                conta_id: conta_bancaria_id,
+                tipo: 'saida',
+                valor: valorBaixa,
+                data: data_pagamento || new Date().toISOString().slice(0, 10),
+                cliente_fornecedor: contaAtual.fornecedor_nome || contaAtual.descricao,
+                categoria: contaAtual.categoria_nome,
+                numero_documento: contaAtual.numero_documento,
+                nota_fiscal: contaAtual.nota_fiscal,
+                observacoes: `Baixa CP #${id}${observacoes ? ' - ' + observacoes : ''}`,
+                origem: 'baixa_pagar'
+            });
         }
 
         // Commit da transação - todas as operações são atômicas
@@ -2013,12 +2029,20 @@ router.post('/contas-receber/:id/baixa', authenticateToken, authorizeFinanceiro(
             [novoValorRecebido, novoStatus, data_recebimento || new Date(), forma_recebimento, conta_bancaria_id, observacoes || '', id]
         );
 
-        // Registrar movimentação bancária se tiver conta (dentro da transação)
+        // Registrar movimentação bancária (saldo + linha no extrato) se tiver conta
         if (conta_bancaria_id) {
-            await connection.execute(
-                `UPDATE contas_bancarias SET saldo_atual = saldo_atual + ? WHERE id = ?`,
-                [valorBaixa, conta_bancaria_id]
-            );
+            await registrarMovimentacaoBancaria(connection, {
+                conta_id: conta_bancaria_id,
+                tipo: 'entrada',
+                valor: valorBaixa,
+                data: data_recebimento || new Date().toISOString().slice(0, 10),
+                cliente_fornecedor: contaAtual.cliente_nome || contaAtual.descricao,
+                categoria: contaAtual.categoria_nome,
+                numero_documento: contaAtual.numero_documento,
+                nota_fiscal: contaAtual.nota_fiscal,
+                observacoes: `Baixa CR #${id}${observacoes ? ' - ' + observacoes : ''}`,
+                origem: 'baixa_receber'
+            });
         }
 
         // Commit da transação
@@ -2153,107 +2177,88 @@ router.post('/contas-receber/:id/estornar', authenticateToken, authorizeFinancei
  */
 router.get('/fluxo-caixa', authenticateToken, async (req, res) => {
     try {
-        const { dataInicio, dataFim, tipo } = req.query;
-
-        // Data padrão: próximos 30 dias
-        const inicio = dataInicio || new Date().toISOString().split('T')[0];
-        const fim = dataFim || new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
         const corte = req.financeiroCorteTemporal;
+        // Aceita inicio/fim (frontend) ou dataInicio/dataFim; janela padrão -30d..+90d
+        const inicio = req.query.inicio || req.query.dataInicio
+            || new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
+        const fim = req.query.fim || req.query.dataFim
+            || new Date(Date.now() + 90*24*60*60*1000).toISOString().split('T')[0];
 
         // Saldo inicial das contas bancárias
         const [saldoInicial] = await pool.execute(
             'SELECT COALESCE(SUM(saldo_atual), 0) as saldo FROM contas_bancarias WHERE ativo = 1'
         );
 
-        // Contas a receber projetadas
+        // RECEBER: realizados na data de recebimento, pendentes na data de vencimento.
+        // Inclui TODOS os status não-cancelados (pendente/vencido/atrasado/aberto/recebido...).
         const [receber] = await pool.execute(`
             SELECT
-                DATE(COALESCE(data_vencimento, vencimento)) as data,
-                SUM(valor - COALESCE(valor_recebido, 0)) as valor,
-                'receber' as tipo,
-                COUNT(*) as quantidade
+                DATE(CASE WHEN cr.status IN ('recebido','pago','liquidado','parcial') AND cr.data_recebimento IS NOT NULL
+                          THEN cr.data_recebimento ELSE cr.data_vencimento END) AS data,
+                'entrada' AS tipo,
+                CASE WHEN cr.status IN ('recebido','pago','liquidado')
+                     THEN COALESCE(NULLIF(cr.valor_recebido,0), cr.valor)
+                     ELSE (cr.valor - COALESCE(cr.valor_recebido,0)) END AS valor,
+                cr.cliente_nome AS origem_destino, cr.descricao, cr.categoria_nome AS categoria, cr.status
             FROM contas_receber cr
-            WHERE status IN ('pendente', 'parcial')
-              AND COALESCE(data_vencimento, vencimento) BETWEEN ? AND ?
+            WHERE (cr.status IS NULL OR cr.status NOT IN ('cancelado','cancelada'))
+              AND DATE(CASE WHEN cr.status IN ('recebido','pago','liquidado','parcial') AND cr.data_recebimento IS NOT NULL
+                            THEN cr.data_recebimento ELSE cr.data_vencimento END) BETWEEN ? AND ?
               ${corte.crClause('cr')}
-            GROUP BY DATE(COALESCE(data_vencimento, vencimento))
-            ORDER BY data
         `, [inicio, fim]);
 
-        // Contas a pagar projetadas
+        // PAGAR: realizados na data de pagamento, pendentes na data de vencimento.
         const [pagar] = await pool.execute(`
             SELECT
-                DATE(COALESCE(data_vencimento, vencimento)) as data,
-                SUM(valor - COALESCE(valor_pago, 0)) as valor,
-                'pagar' as tipo,
-                COUNT(*) as quantidade
+                DATE(CASE WHEN cp.status = 'pago' AND cp.data_pagamento IS NOT NULL
+                          THEN cp.data_pagamento ELSE cp.data_vencimento END) AS data,
+                'saida' AS tipo,
+                CASE WHEN cp.status = 'pago'
+                     THEN COALESCE(NULLIF(cp.valor_pago,0), cp.valor)
+                     ELSE (cp.valor - COALESCE(cp.valor_pago,0)) END AS valor,
+                cp.fornecedor_nome AS origem_destino, cp.descricao, cp.categoria_nome AS categoria, cp.status
             FROM contas_pagar cp
-            WHERE status IN ('pendente', 'parcial')
-              AND COALESCE(data_vencimento, vencimento) BETWEEN ? AND ?
+            WHERE (cp.status IS NULL OR cp.status NOT IN ('cancelado','cancelada'))
+              AND DATE(CASE WHEN cp.status = 'pago' AND cp.data_pagamento IS NOT NULL
+                            THEN cp.data_pagamento ELSE cp.data_vencimento END) BETWEEN ? AND ?
               ${corte.cpClause('cp')}
-            GROUP BY DATE(COALESCE(data_vencimento, vencimento))
-            ORDER BY data
         `, [inicio, fim]);
 
-        // Movimentações realizadas (baixas)
-        const [realizadoReceber] = await pool.execute(`
-            SELECT
-                DATE(data_recebimento) as data,
-                SUM(valor_recebido) as valor,
-                'recebido' as tipo
-            FROM contas_receber cr
-            WHERE status IN ('pago', 'parcial')
-              AND data_recebimento BETWEEN ? AND ?
-              ${corte.crClause('cr')}
-            GROUP BY DATE(data_recebimento)
-        `, [inicio, fim]);
+        // Array plano de movimentos (contrato consumido pela página de Fluxo de Caixa)
+        const toISO = (d) => (d instanceof Date ? d.toISOString().split('T')[0] : String(d || '').split('T')[0]);
+        const data = [...receber, ...pagar]
+            .map(m => ({
+                data: toISO(m.data),
+                tipo: m.tipo,
+                valor: parseFloat(m.valor) || 0,
+                origem_destino: m.origem_destino,
+                descricao: m.descricao,
+                categoria: m.categoria,
+                status: m.status
+            }))
+            .sort((a, b) => String(a.data).localeCompare(String(b.data)));
 
-        const [realizadoPagar] = await pool.execute(`
-            SELECT
-                DATE(data_recebimento) as data,
-                SUM(valor_pago) as valor,
-                'pago' as tipo
-            FROM contas_pagar cp
-            WHERE status IN ('pago', 'parcial')
-              AND data_recebimento BETWEEN ? AND ?
-              ${corte.cpClause('cp')}
-            GROUP BY DATE(data_recebimento)
-        `, [inicio, fim]);
+        // Resumo diário + saldo acumulado (compatibilidade)
+        const saldoIni = parseFloat(saldoInicial[0]?.saldo) || 0;
+        const porDia = {};
+        for (const m of data) {
+            if (!porDia[m.data]) porDia[m.data] = { data: m.data, entradas: 0, saidas: 0, saldo: 0 };
+            if (m.tipo === 'entrada') porDia[m.data].entradas += m.valor; else porDia[m.data].saidas += m.valor;
+        }
+        let saldoAcumulado = saldoIni;
+        const fluxoArray = Object.values(porDia).sort((a, b) => a.data.localeCompare(b.data));
+        for (const dia of fluxoArray) { saldoAcumulado += dia.entradas - dia.saidas; dia.saldo = saldoAcumulado; }
 
-        // Montar fluxo de caixa diário
-        const fluxoDiario = {};
-        let saldoAcumulado = parseFloat(saldoInicial[0]?.saldo) || 0;
-
-        // Processar projetados
-        receber.forEach(r => {
-            const data = r.data.toISOString().split('T')[0];
-            if (!fluxoDiario[data]) fluxoDiario[data] = { data, entradas: 0, saidas: 0, saldo: 0 };
-            fluxoDiario[data].entradas += parseFloat(r.valor) || 0;
-        });
-
-        pagar.forEach(p => {
-            const data = p.data.toISOString().split('T')[0];
-            if (!fluxoDiario[data]) fluxoDiario[data] = { data, entradas: 0, saidas: 0, saldo: 0 };
-            fluxoDiario[data].saidas += parseFloat(p.valor) || 0;
-        });
-
-        // Ordenar e calcular saldo acumulado
-        const fluxoArray = Object.values(fluxoDiario).sort((a, b) => a.data.localeCompare(b.data));
-        fluxoArray.forEach(dia => {
-            saldoAcumulado += dia.entradas - dia.saidas;
-            dia.saldo = saldoAcumulado;
-        });
-
-        // Totais
         const totalReceber = receber.reduce((acc, r) => acc + (parseFloat(r.valor) || 0), 0);
         const totalPagar = pagar.reduce((acc, p) => acc + (parseFloat(p.valor) || 0), 0);
 
         res.json({
             success: true,
-            saldoInicial: parseFloat(saldoInicial[0]?.saldo) || 0,
+            data,
+            saldoInicial: saldoIni,
             totalReceber,
             totalPagar,
-            saldoProjetado: (parseFloat(saldoInicial[0]?.saldo) || 0) + totalReceber - totalPagar,
+            saldoProjetado: saldoIni + totalReceber - totalPagar,
             fluxoDiario: fluxoArray,
             periodo: { inicio, fim }
         });
@@ -2530,11 +2535,23 @@ router.get('/relatorios/por-cliente', authenticateToken, async (req, res) => {
  */
 router.get('/categorias', authenticateToken, async (req, res) => {
     try {
-        const [categorias] = await pool.execute(`
-            SELECT id, nome, tipo
-            FROM categorias_financeiro
-            ORDER BY tipo, nome
-        `);
+        let categorias;
+        try {
+            const [rows] = await pool.execute(`
+                SELECT id, nome, tipo, cor, icone, descricao, pai_id, ativo
+                FROM categorias_financeiras
+                WHERE ativo = 1
+                ORDER BY tipo, COALESCE(pai_id, id), CASE WHEN pai_id IS NULL THEN 0 ELSE 1 END, nome
+            `);
+            categorias = rows;
+        } catch (err) {
+            const [rows] = await pool.execute(`
+                SELECT id, nome, tipo
+                FROM categorias_financeiro
+                ORDER BY tipo, nome
+            `);
+            categorias = rows;
+        }
         res.json({ success: true, data: categorias });
     } catch (error) {
         console.error('[Financeiro] Erro ao listar categorias:', error);
@@ -3190,6 +3207,119 @@ router.post('/transferencia-bancaria', authenticateToken, async (req, res) => {
 });
 
 // =====================================================
+// HELPERS — Movimentações bancárias (extrato + saldo)
+// Schema real de movimentacoes_bancarias: (banco_id, tipo['entrada'|'saida'|'transferencia'],
+// valor, saldo[running], data, cliente_fornecedor, categoria, numero_documento, nota_fiscal,
+// observacoes, origem, ...). O saldo corrente vive em contas_bancarias.saldo_atual.
+// =====================================================
+
+/**
+ * Resolve o id de uma conta bancária a partir do nome (match exato → parcial).
+ * @returns {number|null} id da conta ou null se não encontrar.
+ */
+async function resolverContaBancariaId(conn, nome) {
+    if (!nome) return null;
+    const n = String(nome).trim();
+    if (!n) return null;
+    const [rows] = await conn.query(
+        `SELECT id FROM contas_bancarias
+         WHERE ativo = 1 AND (nome = ? OR nome LIKE ?)
+         ORDER BY (nome = ?) DESC, id ASC LIMIT 1`,
+        [n, `%${n}%`, n]
+    );
+    return rows.length ? rows[0].id : null;
+}
+
+/**
+ * Registra uma movimentação bancária de forma atômica: atualiza contas_bancarias.saldo_atual
+ * e insere a linha em movimentacoes_bancarias com o saldo corrente (running balance).
+ * DEVE ser chamada dentro de uma transação (usa FOR UPDATE na conta).
+ * @returns {number|null} novo saldo, ou null se a conta não existir/params inválidos.
+ */
+async function registrarMovimentacaoBancaria(conn, opts) {
+    const { conta_id, tipo, valor, data, cliente_fornecedor, categoria,
+            numero_documento, nota_fiscal, observacoes, origem } = opts;
+    const valorNum = parseFloat(valor) || 0;
+    if (!conta_id || valorNum <= 0 || !['entrada', 'saida'].includes(tipo)) return null;
+
+    const [rows] = await conn.query(
+        'SELECT id, saldo_atual FROM contas_bancarias WHERE id = ? AND ativo = 1 FOR UPDATE',
+        [conta_id]
+    );
+    if (!rows.length) return null;
+
+    const saldoAtual = parseFloat(rows[0].saldo_atual) || 0;
+    const novoSaldo = tipo === 'entrada' ? saldoAtual + valorNum : saldoAtual - valorNum;
+
+    await conn.query(
+        'UPDATE contas_bancarias SET saldo_atual = ?, updated_at = NOW() WHERE id = ?',
+        [novoSaldo, conta_id]
+    );
+    await conn.query(
+        `INSERT INTO movimentacoes_bancarias
+            (banco_id, tipo, valor, saldo, data, cliente_fornecedor, categoria,
+             numero_documento, nota_fiscal, observacoes, origem, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [conta_id, tipo, valorNum, novoSaldo, data || new Date().toISOString().slice(0, 10),
+         cliente_fornecedor || null, categoria || null,
+         numero_documento || null, nota_fiscal || null, observacoes || null, origem || 'manual']
+    );
+    return novoSaldo;
+}
+
+/**
+ * Idempotência: evita duplicar a mesma movimentação quando a planilha é reimportada.
+ * Chave natural: banco_id + tipo + valor + data + origem + documento (num/nf/cliente).
+ */
+async function movimentacaoJaExiste(conn, { conta_id, tipo, valor, data, origem, chaveDoc }) {
+    const [rows] = await conn.query(
+        `SELECT id FROM movimentacoes_bancarias
+         WHERE banco_id = ? AND tipo = ? AND valor = ? AND data = ? AND origem = ?
+           AND COALESCE(numero_documento, nota_fiscal, cliente_fornecedor, '') = ?
+         LIMIT 1`,
+        [conta_id, tipo, parseFloat(valor) || 0, data, origem, chaveDoc || '']
+    );
+    return rows.length > 0;
+}
+
+/**
+ * Gera (fora da transação-mãe) a movimentação bancária de uma conta paga/recebida importada.
+ * Abre sua própria conexão/transação, é idempotente e nunca lança — só retorna se gerou.
+ * @returns {boolean} true se uma nova movimentação foi criada.
+ */
+async function gerarMovimentacaoDeImportacao({ contaNome, tipo, valor, data, cliente_fornecedor,
+                                               categoria, numero_documento, origem }) {
+    if (!contaNome) return false;
+    const valorNum = parseFloat(valor) || 0;
+    if (valorNum <= 0 || !data) return false;
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+        const contaId = await resolverContaBancariaId(conn, contaNome);
+        if (!contaId) { await conn.rollback(); return false; }
+        const chaveDoc = numero_documento || cliente_fornecedor || '';
+        const jaExiste = await movimentacaoJaExiste(conn, {
+            conta_id: contaId, tipo, valor: valorNum, data, origem, chaveDoc
+        });
+        if (jaExiste) { await conn.rollback(); return false; }
+        await registrarMovimentacaoBancaria(conn, {
+            conta_id: contaId, tipo, valor: valorNum, data,
+            cliente_fornecedor, categoria,
+            numero_documento, nota_fiscal: null, // mantém a chave de idempotência determinística
+            observacoes: cliente_fornecedor, origem
+        });
+        await conn.commit();
+        return true;
+    } catch (e) {
+        try { await conn.rollback(); } catch (_) { /* noop */ }
+        console.error('[Financeiro] gerarMovimentacaoDeImportacao:', e.message);
+        return false;
+    } finally {
+        conn.release();
+    }
+}
+
+// =====================================================
 // IMPORTAÇÃO EM LOTE - Contas a Pagar
 // =====================================================
 router.post('/importar/contas-pagar', authenticateToken, authorizeFinanceiro('pagar'), async (req, res) => {
@@ -3200,7 +3330,13 @@ router.post('/importar/contas-pagar', authenticateToken, authorizeFinanceiro('pa
         }
 
         let importados = 0;
+        let movimentacoes = 0;
         const erros = [];
+        const parseDataSimples = (d) => {
+            if (!d) return null;
+            const dt = new Date(d);
+            return isNaN(dt.getTime()) ? null : dt.toISOString().split('T')[0];
+        };
 
         for (let i = 0; i < dados.length; i++) {
             const item = dados[i];
@@ -3215,6 +3351,8 @@ router.post('/importar/contas-pagar', authenticateToken, authorizeFinanceiro('pa
                 const numero_documento = sanitizeString(item.numero_documento || item.nota_fiscal || '');
                 const forma_pagamento = sanitizeString(item.forma_pagamento || '');
                 const status = sanitizeString(item.status || 'pendente').toLowerCase();
+                const contaNome = sanitizeString(item.conta_corrente_nome || item.conta_bancaria || '');
+                const mesRef = sanitizeString(item.mes_referencia || '');
 
                 if (!valor || valor <= 0) {
                     erros.push({ linha: i + 2, erro: 'Valor inválido ou zero' });
@@ -3233,18 +3371,46 @@ router.post('/importar/contas-pagar', authenticateToken, authorizeFinanceiro('pa
                     continue;
                 }
 
+                const dataPagamento = parseDataSimples(item.data_pagamento);
+                const valorPago = parseFloat(item.valor_pagamento || item.valor_pago || 0) || null;
+                const pago = ['pago', 'liquidada', 'liquidado', 'quitado'].includes(status) || !!dataPagamento;
+                const descricaoFinal = fornecedor + (descricao && descricao !== fornecedor ? ' - ' + descricao : '');
+
                 await pool.execute(
-                    `INSERT INTO contas_pagar (descricao, valor, data_vencimento, data_vencimento_original, categoria_nome, forma_pagamento, observacoes, numero_documento, status)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [fornecedor + (descricao && descricao !== fornecedor ? ' - ' + descricao : ''), valor, dataVenc, dataVenc, categoria, forma_pagamento, (empresa + ' ' + observacoes).trim(), numero_documento, status]
+                    `INSERT INTO contas_pagar
+                        (descricao, valor, data_vencimento, data_vencimento_original, categoria_nome,
+                         forma_pagamento, observacoes, numero_documento, status,
+                         fornecedor_nome, conta_corrente_nome, data_pagamento, valor_pago,
+                         data_emissao, mes_referencia, origem)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'importacao')`,
+                    [descricaoFinal, valor, dataVenc, dataVenc, categoria,
+                     forma_pagamento, (empresa + ' ' + observacoes).trim(), numero_documento,
+                     pago ? 'pago' : status,
+                     fornecedor || null, contaNome || null, dataPagamento, valorPago,
+                     parseDataSimples(item.data_emissao), mesRef || null]
                 );
                 importados++;
+
+                // Conta paga com conta bancária identificável → gera a saída no extrato bancário
+                if (pago && contaNome) {
+                    const gerou = await gerarMovimentacaoDeImportacao({
+                        contaNome,
+                        tipo: 'saida',
+                        valor: valorPago || valor,
+                        data: dataPagamento || dataVenc,
+                        cliente_fornecedor: fornecedor,
+                        categoria,
+                        numero_documento,
+                        origem: 'importacao_pagar'
+                    });
+                    if (gerou) movimentacoes++;
+                }
             } catch (err) {
                 erros.push({ linha: i + 2, erro: err.message });
             }
         }
 
-        res.json({ success: true, importados, total: dados.length, erros });
+        res.json({ success: true, importados, movimentacoes, total: dados.length, erros });
     } catch (error) {
         console.error('[Financeiro] Erro na importação contas-pagar:', error);
         res.status(500).json({ error: 'Erro na importação de contas a pagar' });
@@ -3469,7 +3635,13 @@ router.post('/importar/contas-receber', authenticateToken, authorizeFinanceiro('
         }
 
         let importados = 0;
+        let movimentacoes = 0;
         const erros = [];
+        const parseDate = (d) => {
+            if (!d) return null;
+            const dt = new Date(d);
+            return isNaN(dt.getTime()) ? null : dt.toISOString().split('T')[0];
+        };
 
         for (let i = 0; i < dados.length; i++) {
             const item = dados[i];
@@ -3487,14 +3659,21 @@ router.post('/importar/contas-receber', authenticateToken, authorizeFinanceiro('
                 const observacoes  = sanitizeString(item.observacoes || '');
                 const diasVencido  = parseInt(item.dias_vencido) || null;
                 const posicao      = sanitizeString(item.posicao || '');
-                const dataOperacao = item.data_operacao || null;
-                const dataEmissao  = item.data_emissao || null;
+                const categoria    = sanitizeString(item.categoria_nome || item.categoria || item.conta_financeira || '');
+                const contaNome    = sanitizeString(item.conta_corrente_nome || item.conta_bancaria || '');
+                const mesRef       = sanitizeString(item.mes_referencia || '');
                 const diaRecomprado    = item.dia_recomprado || item.dt_recompra || null;
                 const dataParaCartorio = item.data_para_cartorio || item.dt_cartorio || null;
                 const dataProtestado   = item.data_protestado || item.dt_protesto || null;
 
+                // Recebimento (planilha "Recebimentos" traz DT ENTRADA / VALOR BRUTO / CONTA BANCÁRIA)
+                const rawStatus = sanitizeString(item.status || '').toLowerCase();
+                const dataRecebimento = parseDate(item.data_recebimento || item.dt_entrada);
+                const valorRecebido = parseFloat(item.valor_recebido || 0) || null;
+                const recebido = ['recebido', 'liquidado', 'liquidada', 'pago'].includes(rawStatus) || !!dataRecebimento;
+
                 // Normalize status (novo domínio + compat legado)
-                let status = sanitizeString(item.status || 'a_vencer').toLowerCase();
+                let status = (rawStatus || 'a_vencer');
                 const statusMap = {
                     'pendente': 'a_vencer', 'a vencer': 'a_vencer', 'a_vencer': 'a_vencer',
                     'vencido': 'vencida', 'vencida': 'vencida',
@@ -3509,12 +3688,6 @@ router.post('/importar/contas-receber', authenticateToken, authorizeFinanceiro('
                     continue;
                 }
 
-                const parseDate = (d) => {
-                    if (!d) return null;
-                    const dt = new Date(d);
-                    return isNaN(dt.getTime()) ? null : dt.toISOString().split('T')[0];
-                };
-
                 const dataVenc = parseDate(vencimento);
                 if (!dataVenc) {
                     erros.push({ linha: i + 2, erro: 'Data de vencimento inválida' });
@@ -3526,20 +3699,37 @@ router.post('/importar/contas-receber', authenticateToken, authorizeFinanceiro('
                      (empresa, cliente_nome, descricao, cnpj_cliente, nota_fiscal, parcela_info,
                       valor, vencimento, data_vencimento, status, situacao, portador,
                       dias_vencido, posicao, observacoes, origem_importacao,
-                      dia_recomprado, data_para_cartorio, data_protestado)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'excel', ?, ?, ?)`,
+                      dia_recomprado, data_para_cartorio, data_protestado,
+                      categoria_nome, conta_corrente_nome, data_recebimento, valor_recebido, mes_referencia)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'excel', ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [empresa, clienteNome || descricao, descricao, cnpjCliente, notaFiscal, parcelaInfo,
                      valor, dataVenc, dataVenc, status, situacao, portador,
                      diasVencido, posicao, observacoes,
-                     parseDate(diaRecomprado), parseDate(dataParaCartorio), parseDate(dataProtestado)]
+                     parseDate(diaRecomprado), parseDate(dataParaCartorio), parseDate(dataProtestado),
+                     categoria || null, contaNome || null, dataRecebimento, valorRecebido, mesRef || null]
                 );
                 importados++;
+
+                // Conta recebida com conta bancária identificável → gera a entrada no extrato bancário
+                if (recebido && contaNome) {
+                    const gerou = await gerarMovimentacaoDeImportacao({
+                        contaNome,
+                        tipo: 'entrada',
+                        valor: valorRecebido || valor,
+                        data: dataRecebimento || dataVenc,
+                        cliente_fornecedor: clienteNome,
+                        categoria,
+                        numero_documento: notaFiscal,
+                        origem: 'importacao_receber'
+                    });
+                    if (gerou) movimentacoes++;
+                }
             } catch (err) {
                 erros.push({ linha: i + 2, erro: err.message });
             }
         }
 
-        res.json({ success: true, importados, total: dados.length, erros });
+        res.json({ success: true, importados, movimentacoes, total: dados.length, erros });
     } catch (error) {
         console.error('[Financeiro] Erro na importação contas-receber:', error);
         res.status(500).json({ error: 'Erro na importação de contas a receber' });
@@ -3582,6 +3772,164 @@ router.post('/importar/fluxo-caixa', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('[Financeiro] Erro importação fluxo-caixa:', error);
         res.status(500).json({ error: 'Erro na importação' });
+    }
+});
+
+// =====================================================
+// IMPORTAÇÃO EM LOTE - Movimentações bancárias (extrato)
+// Template: template_movimentacoes.xlsx (Data / Conta Bancária / Tipo / Valor /
+// Cliente-Fornecedor / Categoria / Número Documento / Nota Fiscal / Parcela / Observações)
+// Cada linha vira uma entrada/saída real no extrato + ajusta o saldo da conta.
+// =====================================================
+router.post('/importar/movimentacoes', authenticateToken, async (req, res) => {
+    try {
+        const { dados } = req.body;
+        if (!Array.isArray(dados) || dados.length === 0) {
+            return res.status(400).json({ error: 'Nenhum dado recebido para importação' });
+        }
+
+        const parseDate = (d) => {
+            if (!d) return null;
+            const dt = new Date(d);
+            return isNaN(dt.getTime()) ? null : dt.toISOString().split('T')[0];
+        };
+        const normalizarTipo = (t) => {
+            const s = sanitizeString(t || '').toLowerCase();
+            if (['entrada', 'crédito', 'credito', 'c', 'receita', 'recebimento'].includes(s)) return 'entrada';
+            if (['saida', 'saída', 'débito', 'debito', 'd', 'despesa', 'pagamento'].includes(s)) return 'saida';
+            return null;
+        };
+
+        let importados = 0;
+        let duplicados = 0;
+        const erros = [];
+
+        for (let i = 0; i < dados.length; i++) {
+            const item = dados[i];
+            const conn = await pool.getConnection();
+            try {
+                const tipo = normalizarTipo(item.tipo);
+                const valor = parseFloat(item.valor || 0);
+                const data = parseDate(item.data || item.data_prevista);
+                const contaNome = sanitizeString(item.conta_bancaria || item.conta_corrente_nome || '');
+                const clienteFornecedor = sanitizeString(item.cliente_fornecedor || '');
+                const categoria = sanitizeString(item.categoria || '');
+                const numeroDoc = sanitizeString(item.numero_documento || '');
+                const notaFiscal = sanitizeString(item.nota_fiscal || '');
+                const observacoes = sanitizeString(item.observacoes || '');
+
+                // Validações (o finally libera a conexão em qualquer caminho, inclusive continue)
+                if (!tipo) { erros.push({ linha: i + 2, erro: 'Tipo inválido (use Entrada/Saída)' }); continue; }
+                if (!valor || valor <= 0) { erros.push({ linha: i + 2, erro: 'Valor inválido ou zero' }); continue; }
+                if (!data) { erros.push({ linha: i + 2, erro: 'Data inválida' }); continue; }
+                if (!contaNome) { erros.push({ linha: i + 2, erro: 'Conta bancária não informada' }); continue; }
+
+                await conn.beginTransaction();
+                const contaId = await resolverContaBancariaId(conn, contaNome);
+                if (!contaId) {
+                    await conn.rollback();
+                    erros.push({ linha: i + 2, erro: `Conta bancária "${contaNome}" não encontrada` });
+                    continue;
+                }
+
+                const chaveDoc = numeroDoc || notaFiscal || clienteFornecedor || '';
+                const jaExiste = await movimentacaoJaExiste(conn, {
+                    conta_id: contaId, tipo, valor, data, origem: 'importacao_mov', chaveDoc
+                });
+                if (jaExiste) {
+                    await conn.rollback();
+                    duplicados++;
+                    continue;
+                }
+
+                await registrarMovimentacaoBancaria(conn, {
+                    conta_id: contaId, tipo, valor, data,
+                    cliente_fornecedor: clienteFornecedor,
+                    categoria,
+                    numero_documento: numeroDoc,
+                    nota_fiscal: notaFiscal,
+                    observacoes,
+                    origem: 'importacao_mov'
+                });
+                await conn.commit();
+                importados++;
+            } catch (err) {
+                try { await conn.rollback(); } catch (_) { /* noop */ }
+                erros.push({ linha: i + 2, erro: err.message });
+            } finally {
+                conn.release();
+            }
+        }
+
+        res.json({ success: true, importados, duplicados, total: dados.length, erros });
+    } catch (error) {
+        console.error('[Financeiro] Erro na importação de movimentações:', error);
+        res.status(500).json({ error: 'Erro na importação de movimentações bancárias' });
+    }
+});
+
+// =====================================================
+// IMPORTAÇÃO EM LOTE - Contas bancárias
+// Template: template_bancos.xlsx. Upsert por nome (não sobrescreve saldo de conta existente).
+// =====================================================
+router.post('/importar/bancos', authenticateToken, async (req, res) => {
+    try {
+        const { dados } = req.body;
+        if (!Array.isArray(dados) || dados.length === 0) {
+            return res.status(400).json({ error: 'Nenhum dado recebido para importação' });
+        }
+
+        const toBool = (v) => {
+            const s = sanitizeString(v || '').toLowerCase();
+            return ['sim', 's', 'true', '1', 'x', 'yes'].includes(s) ? 1 : 0;
+        };
+        const toNum = (v) => {
+            if (v === undefined || v === null || v === '') return 0;
+            if (typeof v === 'number') return v;
+            const s = String(v).replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
+            return parseFloat(s) || 0;
+        };
+
+        let importados = 0;
+        let duplicados = 0;
+        const erros = [];
+
+        for (let i = 0; i < dados.length; i++) {
+            const item = dados[i];
+            try {
+                const nome = sanitizeString(item.nome || '');
+                if (!nome) { erros.push({ linha: i + 2, erro: 'Nome da conta obrigatório' }); continue; }
+
+                const [existe] = await pool.query('SELECT id FROM contas_bancarias WHERE nome = ? LIMIT 1', [nome]);
+                if (existe.length) { duplicados++; continue; }
+
+                const saldoInicial = toNum(item.saldo_inicial);
+                await pool.execute(
+                    `INSERT INTO contas_bancarias
+                        (nome, banco, agencia, numero_conta, tipo, saldo_inicial, saldo_atual,
+                         limite_credito, considera_fluxo, emite_boletos, observacoes, ativo, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())`,
+                    [nome,
+                     sanitizeString(item.banco || ''),
+                     sanitizeString(item.agencia || ''),
+                     sanitizeString(item.numero_conta || ''),
+                     sanitizeString(item.tipo || 'corrente'),
+                     saldoInicial, saldoInicial,
+                     toNum(item.limite_credito),
+                     toBool(item.considera_fluxo),
+                     toBool(item.emite_boletos),
+                     sanitizeString(item.observacoes || '')]
+                );
+                importados++;
+            } catch (err) {
+                erros.push({ linha: i + 2, erro: err.message });
+            }
+        }
+
+        res.json({ success: true, importados, duplicados, total: dados.length, erros });
+    } catch (error) {
+        console.error('[Financeiro] Erro na importação de contas bancárias:', error);
+        res.status(500).json({ error: 'Erro na importação de contas bancárias' });
     }
 });
 

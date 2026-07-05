@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -16,7 +16,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
     <!-- CSS PCP Padrão - Mesmo layout das outras páginas -->
     <link rel="stylesheet" href="css/pcp-layout.css">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260711">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <link rel="stylesheet" href="css/pcp-components.css">
 
     <style>
@@ -229,7 +230,7 @@
         .btn-new-card {
             width: 100%;
             padding: 10px;
-            background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+            background: var(--primary-500);
             color: white;
             border: none;
             border-radius: 8px;
@@ -241,17 +242,15 @@
             justify-content: center;
             gap: 6px;
             transition: all 0.2s;
-            box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
         }
 
         .btn-new-card:hover {
-            background: linear-gradient(135deg, var(--primary-600), var(--primary-700));
-            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-            transform: translateY(-1px);
+            background: var(--primary-600);
         }
 
         /* ========================================
-           KANBAN CARDS
+           KANBAN CARDS — visual idêntico ao kanban de Vendas: sem borda lateral
+           colorida nem gradiente de fundo por etapa (removidos em 2026-06-28).
            ======================================== */
         .kanban-card {
             background: white;
@@ -261,7 +260,6 @@
             cursor: grab;
             transition: all 0.2s;
             position: relative;
-            border-left: 4px solid #64748b;
         }
 
         .kanban-card:hover {
@@ -275,36 +273,6 @@
             cursor: grabbing;
         }
 
-        /* Cores por etapa do Kanban */
-        .kanban-card.status-fila {
-            border-left-color: #3b82f6; /* Azul - A Produzir */
-            background: linear-gradient(to right, rgba(59, 130, 246, 0.05), white);
-        }
-        .kanban-card.status-producao {
-            border-left-color: #f59e0b; /* Amarelo - Produzindo */
-            background: linear-gradient(to right, rgba(245, 158, 11, 0.05), white);
-        }
-        .kanban-card.status-qualidade {
-            border-left-color: #8b5cf6; /* Roxo - Qualidade */
-            background: linear-gradient(to right, rgba(139, 92, 246, 0.05), white);
-        }
-        .kanban-card.status-conferido {
-            border-left-color: #06b6d4; /* Ciano - Conferido */
-            background: linear-gradient(to right, rgba(6, 182, 212, 0.05), white);
-        }
-        .kanban-card.status-concluido {
-            border-left-color: #22c55e; /* Verde - Concluído */
-            background: linear-gradient(to right, rgba(34, 197, 94, 0.05), white);
-        }
-        .kanban-card.status-armazenado {
-            border-left-color: #64748b; /* Cinza - Armazenado */
-            background: linear-gradient(to right, rgba(100, 116, 139, 0.05), white);
-        }
-
-        .kanban-card.concluida {
-            border-left-color: #22c55e;
-        }
-
         .card-header {
             display: flex;
             justify-content: space-between;
@@ -312,32 +280,33 @@
             margin-bottom: 8px;
         }
 
-        .card-op-number {
+        .card-number {
             font-size: 12px;
-            font-weight: 600;
             color: var(--text-secondary);
         }
 
-        .card-status-badge {
+        /* .card-status — mesmo padrão visual do kanban de Vendas: pílula abaixo do
+           título, sem fundo para etapas intermediárias, cor só nos status terminais. */
+        .card-status {
             display: inline-block;
-            padding: 2px 8px;
+            padding: 4px 8px;
             border-radius: 4px;
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
+            font-size: 11px;
+            font-weight: 500;
+            margin-bottom: 10px;
         }
 
-        .card-status-badge.atrasada {
+        .card-status.atrasada {
             background: #fef2f2;
             color: #dc2626;
         }
 
-        .card-status-badge.concluida {
-            background: #f0fdf4;
-            color: #16a34a;
+        .card-status.concluida {
+            background: #f3e8ff;
+            color: #7c3aed;
         }
 
-        .card-status-badge.em-dia {
+        .card-status.em-dia {
             background: #eff6ff;
             color: #2563eb;
         }
@@ -480,6 +449,91 @@
 
         .empty-column p {
             font-size: 13px;
+        }
+
+        /* ========================================
+           VIEW TOGGLE BUTTONS
+           ======================================== */
+        .btn-view {
+            width: 34px; height: 34px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: white;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 14px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .btn-view:hover { background: var(--gray-100); }
+        .btn-view.active { background: var(--primary-500); color: white; border-color: var(--primary-500); }
+
+        .periodo-inline {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            background: white;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .periodo-inline:focus { border-color: var(--primary-500); }
+
+        /* ========================================
+           LIST VIEW
+           ======================================== */
+        .view-lista-container {
+            flex: 1;
+            overflow: auto;
+            padding: 16px;
+            background: var(--gray-50);
+            display: none;
+        }
+        .lista-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+        .lista-table th {
+            padding: 11px 16px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .lista-table td {
+            padding: 11px 16px;
+            font-size: 13px;
+            border-bottom: 1px solid #f5f5f5;
+            vertical-align: middle;
+        }
+        .lista-table tr:last-child td { border-bottom: none; }
+        .lista-table tbody tr:hover td { background: #fafafa; cursor: pointer; }
+
+        /* ========================================
+           GRADE VIEW
+           ======================================== */
+        .view-grade-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            background: var(--gray-50);
+            display: none;
+        }
+        .grade-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 14px;
         }
 
         /* ========================================
@@ -1617,7 +1671,8 @@
     <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260320">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
+    <link rel="stylesheet" href="/css/kanban-vendas-parity.css?v=20260702">
 </head>
 <body>
     <div class="app-container">
@@ -1710,8 +1765,25 @@
                     <i class="fas fa-search"></i>
                     <input type="text" placeholder="Digite o que deseja pesquisar" id="searchOrdens">
                 </div>
+                <select class="periodo-inline" id="filtro-periodo-inline" onchange="alterarPeriodoInline(this.value)" title="Filtrar por período">
+                    <option value="todos">Todos os períodos</option>
+                    <option value="hoje">Hoje</option>
+                    <option value="semana">Esta semana</option>
+                    <option value="mes_atual">Mês Atual</option>
+                    <option value="mes_passado">Mês Passado</option>
+                    <option value="ano_atual">Ano Atual</option>
+                </select>
                 <span class="filter-link" id="filterInfo" onclick="abrirModalFiltros()" style="cursor: pointer;">Exibindo Ordens de Produção de todos os períodos</span>
-                <div style="margin-left: auto; display: flex; gap: 12px;">
+                <div style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
+                    <button class="btn-view active" id="btn-pipeline" onclick="setView('pipeline')" title="Pipeline">
+                        <i class="fas fa-columns"></i>
+                    </button>
+                    <button class="btn-view" id="btn-grade" onclick="setView('grade')" title="Grade">
+                        <i class="fas fa-th"></i>
+                    </button>
+                    <button class="btn-view" id="btn-lista" onclick="setView('lista')" title="Lista">
+                        <i class="fas fa-list"></i>
+                    </button>
                 </div>
             </div>
 
@@ -1889,6 +1961,33 @@
                     </div>
                 </div>
             </div>
+
+            <!-- List View Container -->
+            <div class="view-lista-container" id="view-lista-container">
+                <table class="lista-table">
+                    <thead>
+                        <tr>
+                            <th style="width:36px;">#</th>
+                            <th>Número</th>
+                            <th>Produto</th>
+                            <th>Quantidade</th>
+                            <th>Etapa</th>
+                            <th>Conclusão Prevista</th>
+                            <th>Situação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-tbody">
+                        <tr><td colspan="7" style="text-align:center;padding:40px;color:#94a3b8;">Carregando…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Grade View Container -->
+            <div class="view-grade-container" id="view-grade-container">
+                <div class="grade-grid" id="gradeGrid">
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -2423,6 +2522,7 @@
         // ========================================
         let ordensProdução = [];
         let draggedCard = null;
+        window.viewAtual = 'pipeline';
         const API_BASE = '/api';
 
         // ========================================
@@ -2725,6 +2825,8 @@
                 checkboxDiv.innerHTML = '<i class="fas fa-check" style="color: white; font-size: 11px;"></i>';
             });
             document.getElementById('filtro-periodo').value = 'todos';
+            const inlineSelect = document.getElementById('filtro-periodo-inline');
+            if (inlineSelect) inlineSelect.value = 'todos';
         }
 
         function confirmarFiltros() {
@@ -2754,6 +2856,9 @@
             }
 
             document.getElementById('filterInfo').textContent = textoFiltro;
+            // Sync inline period select
+            const inlineSelect = document.getElementById('filtro-periodo-inline');
+            if (inlineSelect) inlineSelect.value = período;
             fecharModalFiltros();
 
             // Recarregar ordens com filtros
@@ -2811,6 +2916,7 @@
             });
 
             // Renderizar apenas as ordens filtradas
+            window._ordensFiltradas = ordensFiltradas;
             renderizarKanbanFiltrado(ordensFiltradas);
         }
 
@@ -2849,7 +2955,7 @@
                     `;
                 } else {
                     grupos[status].forEach(ordem => {
-                        container.innerHTML += criarCardOrdem(ordem);
+                        container.appendChild(criarCardOrdem(ordem));
                     });
                 }
 
@@ -2859,6 +2965,98 @@
                     contador.textContent = `${grupos[status].length} ordem(s)`;
                 }
             });
+
+            // Sync other views
+            renderizarLista(ordens);
+            renderizarGrade(ordens);
+        }
+
+        // ========================================
+        // VIEW TOGGLE (pipeline / grade / lista)
+        // ========================================
+        function setView(mode) {
+            window.viewAtual = mode;
+            const kanbanEl = document.getElementById('kanbanBoard').closest('.kanban-container');
+            const listaEl  = document.getElementById('view-lista-container');
+            const gradeEl  = document.getElementById('view-grade-container');
+            if (kanbanEl) kanbanEl.style.display = mode === 'pipeline' ? 'block' : 'none';
+            if (listaEl)  listaEl.style.display  = mode === 'lista'    ? 'block' : 'none';
+            if (gradeEl)  gradeEl.style.display  = mode === 'grade'    ? 'block' : 'none';
+            ['pipeline', 'grade', 'lista'].forEach(v => {
+                const btn = document.getElementById(`btn-${v}`);
+                if (btn) btn.classList.toggle('active', v === mode);
+            });
+            // Re-render in the newly active view using current filtered set
+            const ordens = window._ordensFiltradas || ordensProdução;
+            if (mode === 'lista')  renderizarLista(ordens);
+            if (mode === 'grade')  renderizarGrade(ordens);
+        }
+
+        function alterarPeriodoInline(periodo) {
+            const modalSelect = document.getElementById('filtro-periodo');
+            if (modalSelect) modalSelect.value = periodo;
+            if (!window.filtrosAtivos) {
+                window.filtrosAtivos = { pendentes: true, atrasadas: true, concluidas: true, período: periodo };
+            } else {
+                window.filtrosAtivos.período = periodo;
+            }
+            const labels = { todos: 'todos os períodos', hoje: 'Hoje', semana: 'Esta semana', mes_atual: 'Mês Atual', mes_passado: 'Mês Passado', ano_atual: 'Ano Atual' };
+            document.getElementById('filterInfo').textContent = 'Exibindo Ordens de Produção — ' + (labels[periodo] || 'todos os períodos');
+            aplicarFiltrosKanban();
+        }
+
+        function renderizarLista(ordens) {
+            const tbody = document.getElementById('lista-tbody');
+            if (!tbody) return;
+            if (!ordens || ordens.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#94a3b8;">Nenhuma ordem de produção encontrada</td></tr>';
+                return;
+            }
+            const statusLabels = { a_produzir: 'A Produzir', produzindo: 'Produzindo', qualidade: 'Em Qualidade', conferido: 'Conferido', concluido: 'Concluído', armazenado: 'Armazenado' };
+            const statusColors = { a_produzir: '#3b82f6', produzindo: '#f59e0b', qualidade: '#8b5cf6', conferido: '#06b6d4', concluido: '#22c55e', armazenado: '#64748b' };
+            tbody.innerHTML = ordens.map((ordem, i) => {
+                const statusLabel = statusLabels[ordem.status] || ordem.status;
+                const statusColor = statusColors[ordem.status] || '#94a3b8';
+                const dataConclusao = ordem.dataConclusao ? new Date(ordem.dataConclusao).toLocaleDateString('pt-BR') : '-';
+                const situacao = ordem.statusTexto || '';
+                const situacaoClass = situacao === 'Atrasada' ? 'atrasada' : situacao === 'Concluída' ? 'concluida' : 'em-dia';
+                return `<tr onclick="abrirModalOrdem(${ordem.id})">
+                    <td style="color:#94a3b8;font-size:12px;">${i + 1}</td>
+                    <td style="font-weight:600;">${ordem.numero || '-'}</td>
+                    <td>${ordem.produto || '-'}${ordem.codigo ? `<br><span style="font-size:11px;color:#94a3b8;font-family:monospace;">${ordem.codigo}</span>` : ''}</td>
+                    <td>${(ordem.quantidade || 0).toLocaleString('pt-BR')} ${ordem.unidade || ''}</td>
+                    <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${statusColor}22;color:${statusColor};">${statusLabel}</span></td>
+                    <td style="white-space:nowrap;">${dataConclusao}</td>
+                    <td><span class="card-status ${situacaoClass}">${situacao}</span></td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderizarGrade(ordens) {
+            const grid = document.getElementById('gradeGrid');
+            if (!grid) return;
+            if (!ordens || ordens.length === 0) {
+                grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:#94a3b8;"><i class="fas fa-inbox" style="font-size:32px;margin-bottom:12px;display:block;opacity:0.3;"></i><p>Nenhuma ordem de produção encontrada</p></div>';
+                return;
+            }
+            grid.innerHTML = ordens.map(ordem => {
+                const badgeStatusClass = ordem.statusTexto === 'Atrasada' ? 'atrasada' : ordem.statusTexto === 'Concluída' ? 'concluida' : 'em-dia';
+                const dataConclusao = ordem.dataConclusao ? new Date(ordem.dataConclusao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', weekday: 'short' }).replace('.', '') : '-';
+                return `<div class="kanban-card" onclick="abrirModalOrdem(${ordem.id})" style="cursor:pointer;">
+                    <div class="card-header">
+                        <span class="card-number">${ordem.numero}</span>
+                    </div>
+                    <div class="card-title">${ordem.produto}</div>
+                    <span class="card-status ${badgeStatusClass}">${ordem.statusTexto}</span>
+                    ${ordem.codigo ? `<div class="card-product-code">${ordem.codigo}</div>` : ''}
+                    <div class="card-meta"><i class="fas fa-calendar"></i> Conclusão: ${dataConclusao}</div>
+                    <div class="card-quantity">
+                        <i class="fas fa-bolt"></i>
+                        <span class="card-quantity-text"><strong>${(ordem.quantidade || 0).toLocaleString('pt-BR')} ${ordem.unidade}</strong></span>
+                        <span class="card-produced">(${ordem.produzido > 0 ? ordem.produzido.toLocaleString('pt-BR') + ' produzidos' : 'nenhum ainda'})</span>
+                    </div>
+                </div>`;
+            }).join('');
         }
 
         // ========================================
@@ -3207,13 +3405,16 @@
                                          `${count} ordens de produção`;
                 }
             });
+
+            // Sync other views
+            window._ordensFiltradas = ordensProdução;
+            renderizarLista(ordensProdução);
+            renderizarGrade(ordensProdução);
         }
 
         function criarCardOrdem(ordem) {
             const card = document.createElement('div');
-            const statusClass = `status-${ordem.status || 'fila'}`;
-            const concluidaClass = ordem.status === 'concluido' || ordem.status === 'armazenado' ? 'concluida' : '';
-            card.className = `kanban-card ${statusClass} ${concluidaClass}`.trim();
+            card.className = 'kanban-card';
             card.draggable = true;
             card.dataset.id = ordem.id;
 
@@ -3264,14 +3465,13 @@
 
             card.innerHTML = `
                 <div class="card-header">
-                    <div>
-                        <div class="card-op-number">${ordem.numero} <span class="card-status-badge ${badgeStatusClass}">(${ordem.statusTexto})</span></div>
-                    </div>
+                    <span class="card-number">${ordem.numero}</span>
                     <button class="card-menu" onclick="event.stopPropagation(); showCardMenu(${ordem.id})">
                         <i class="fas fa-ellipsis-v"></i>
                     </button>
                 </div>
                 <div class="card-title">${ordem.produto}</div>
+                <span class="card-status ${badgeStatusClass}">${ordem.statusTexto}</span>
                 ${ordem.descricao ? `<div class="card-product-code">${ordem.descricao}</div>` : ''}
                 <div class="card-product-code">${ordem.codigo || ''}</div>
                 <div class="card-meta">
@@ -3349,10 +3549,18 @@
             const searchInput = document.getElementById('searchOrdens');
             searchInput.addEventListener('input', (e) => {
                 const termo = e.target.value.toLowerCase();
-
-                document.querySelectorAll('.kanban-card').forEach(card => {
+                // Kanban pipeline cards
+                document.querySelectorAll('#kanbanBoard .kanban-card').forEach(card => {
                     const texto = card.textContent.toLowerCase();
                     card.style.display = texto.includes(termo) ? 'block' : 'none';
+                });
+                // Lista rows
+                document.querySelectorAll('#lista-tbody tr').forEach(row => {
+                    row.style.display = row.textContent.toLowerCase().includes(termo) ? '' : 'none';
+                });
+                // Grade cards
+                document.querySelectorAll('#gradeGrid .kanban-card').forEach(card => {
+                    card.style.display = card.textContent.toLowerCase().includes(termo) ? 'block' : 'none';
                 });
             });
         }
@@ -4249,12 +4457,9 @@
             const ordem = ordensProdução.find(o => o.id === ordemAtualId);
             if (!ordem) return;
 
-            // Buscar itens da API (mesmo padrão de visualizarOrdemProdução)
             let itens = [];
             try {
-                const response = await fetch(`/api/pcp/ordens-producao/${ordem.id}/itens`, {
-                    credentials: 'include'
-                });
+                const response = await fetch(`/api/pcp/ordens-producao/${ordem.id}/itens`, { credentials: 'include' });
                 if (response.ok) {
                     const result = await response.json();
                     itens = (result.success && result.data) ? result.data : [];
@@ -4263,232 +4468,186 @@
                 console.error('[PCP] Erro ao buscar itens para impressão:', error);
             }
 
-            // Pre-flight: validar se há itens antes de gerar o documento
             if (!itens || itens.length === 0) {
                 showNotification('Atenção: Esta ordem não possui itens/materiais cadastrados. Verifique a estrutura do produto ou o pedido original no módulo de Vendas.', 'warning');
                 return;
             }
 
-            // Paleta de cores VERMELHA igual ao PCP (baseado no template de Vendas)
-            const cores = {
-                vermelhoPrimario: '#7f1d1d',      // Vermelho escuro elegante
-                vermelhoSecundario: '#991b1b',   // Vermelho médio
-                vermelhoHeader: '#b91c1c',       // Vermelho do header
-                vermelhoClaro: '#dc2626',        // Vermelho claro
-                cinzaEscuro: '#2d3748',
-                cinzaMedio: '#718096',
-                cinzaClaro: '#f7fafc',
-                cinzaBorda: '#e2e8f0',
-                branco: '#ffffff',
-                verde: '#38a169'
+            const empresa = _dadosEmpresaPCP || {
+                razaoSocial: 'ALUFORCE', cnpj: '', ie: '', endereço: '', cidadeEstado: '', cep: '', telefone: ''
             };
 
-            // Dados da empresa (dinâmico via API)
-            const empresa = _dadosEmpresaPCP || {
-                razaoSocial: 'ALUFORCE',
-                cnpj: '', ie: '', endereço: '', cidadeEstado: '', cep: '', telefone: ''
-            };
+            const itensHtml = itens.length > 0
+                ? itens.map((item, idx) => `
+                    <tr style="background:${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+                        <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#1e40af;">${item.codigo_material || item.codigo || '-'}</td>
+                        <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;">${item.descricao_material || item.descricao || '-'}</td>
+                        <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;text-align:center;">${parseFloat(item.quantidade_necessaria || item.quantidade || 0).toLocaleString('pt-BR', {minimumFractionDigits:3})}</td>
+                        <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;text-align:center;">${item.unidade_medida || item.unidade || 'UN'}</td>
+                        <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;">${item.tipo_item || item.tipo || '-'}</td>
+                    </tr>`).join('')
+                : '<tr><td colspan="5" style="padding:20px;text-align:center;color:#94a3b8;font-style:italic;">Nenhum item cadastrado nesta ordem</td></tr>';
 
             const printWindow = window.open('', '_blank', 'width=900,height=700');
-            let itensHtml = itens.map((item, idx) => `
-                <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#fef2f2'};">
-                    <td style="padding: 8px 10px; border-bottom: 1px solid #fecaca; font-weight: 600; color: ${cores.vermelhoPrimario};">${item.codigo_material || item.codigo || '-'}</td>
-                    <td style="padding: 8px 10px; border-bottom: 1px solid #fecaca;">${item.descricao_material || item.descricao || '-'}</td>
-                    <td style="padding: 8px 10px; border-bottom: 1px solid #fecaca; text-align: center;">${parseFloat(item.quantidade_necessaria || item.quantidade || 0).toLocaleString('pt-BR')}</td>
-                    <td style="padding: 8px 10px; border-bottom: 1px solid #fecaca; text-align: center;">${item.unidade_medida || item.unidade || 'UN'}</td>
-                    <td style="padding: 8px 10px; border-bottom: 1px solid #fecaca;">${item.tipo_item || item.tipo || '-'}</td>
-                </tr>
-            `).join('');
+            printWindow.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Ordem de Producao - ${ordem.numero || ordem.codigo}</title>
+<style>
+  @page { margin: 14mm 12mm; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size:11px; color:#1e293b; background:#fff; }
 
-            if (!itensHtml) {
-                itensHtml = '<tr><td colspan="5" style="padding: 25px; text-align: center; color: #718096; font-style: italic;">Nenhum item cadastrado nesta ordem</td></tr>';
-            }
+  /* ── Cabeçalho ── */
+  .doc-header { display:flex; justify-content:space-between; align-items:flex-start; padding:14px 0 12px; border-bottom:3px solid #1e40af; margin-bottom:0; }
+  .logo-wrap img { height:46px; }
+  .logo-fallback { font-size:22px; font-weight:800; color:#1e40af; letter-spacing:-0.5px; }
+  .empresa-info { text-align:right; font-size:8.5px; color:#475569; line-height:1.55; }
+  .empresa-info strong { font-size:10px; color:#1e293b; }
 
-            printWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Ordem de Produção - ${ordem.numero || ordem.codigo}</title>
-                    <style>
-                        @page { margin: 15mm; }
-                        * { margin: 0; padding: 0; box-sizing: border-box; }
-                        body { font-family: Arial, Helvetica, sans-serif; padding: 20px; color: #2d3748; background: #fff; font-size: 11px; }
+  /* ── Faixa título ── */
+  .doc-title-bar { background:#1e40af; color:#fff; padding:10px 16px; display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .doc-title-bar h1 { font-size:13px; font-weight:700; letter-spacing:1.2px; }
+  .doc-title-bar .doc-num { font-size:11px; opacity:0.85; }
 
-                        .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; margin-bottom: 15px; }
-                        .header-left { }
-                        .logo-text { font-size: 26px; font-weight: 800; color: ${cores.vermelhoClaro}; letter-spacing: -1px; margin-bottom: 4px; }
-                        .empresa-info { font-size: 9px; color: #718096; line-height: 1.4; }
-                        .header-right { text-align: right; }
-                        .empresa-dados { font-size: 8px; color: #718096; line-height: 1.5; text-align: right; }
+  /* ── Produto destaque ── */
+  .produto-bar { background:#f1f5f9; border-left:4px solid #1e40af; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .produto-bar h2 { font-size:13px; font-weight:700; color:#0f172a; margin-bottom:3px; }
+  .produto-bar .status-badge { display:inline-block; background:#dbeafe; color:#1d4ed8; padding:2px 9px; border-radius:10px; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; }
+  .produto-bar .qtd-bloco { text-align:right; }
+  .produto-bar .qtd-num { font-size:26px; font-weight:800; color:#1e40af; line-height:1; }
+  .produto-bar .qtd-un { font-size:10px; color:#64748b; }
 
-                        .linha-dupla { margin: 12px 0; }
-                        .linha-dupla .l1 { height: 2.5px; background: ${cores.vermelhoClaro}; margin-bottom: 2px; }
-                        .linha-dupla .l2 { height: 0.5px; background: ${cores.vermelhoSecundario}; }
+  /* ── Seções info ── */
+  .section { margin-bottom:12px; }
+  .section-title { background:#334155; color:#fff; padding:5px 12px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; }
+  .section-body { border:1px solid #e2e8f0; border-top:none; padding:10px 12px; background:#fff; }
+  .info-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px 16px; }
+  .info-label { font-size:7.5px; color:#64748b; text-transform:uppercase; font-weight:700; letter-spacing:0.4px; margin-bottom:2px; }
+  .info-value { font-size:11px; color:#0f172a; font-weight:500; }
 
-                        .titulo-doc { background: ${cores.vermelhoPrimario}; padding: 12px 15px; text-align: center; margin-bottom: 15px; }
-                        .titulo-doc h1 { color: white; font-size: 14px; font-weight: 700; letter-spacing: 1px; margin-bottom: 3px; }
-                        .titulo-doc .numero { color: #fca5a5; font-size: 12px; }
+  /* ── Tabela materiais ── */
+  table { width:100%; border-collapse:collapse; }
+  thead tr { background:#334155; }
+  th { padding:7px 10px; color:#fff; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; text-align:left; }
 
-                        .section { margin-bottom: 12px; }
-                        .section-header { background: ${cores.vermelhoSecundario}; color: white; padding: 6px 12px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-                        .section-content { background: #fef2f2; padding: 12px; border: 1px solid #fecaca; border-top: none; }
+  /* ── Observações ── */
+  .obs-box { background:#fffbeb; border:1px solid #fde68a; border-left:3px solid #f59e0b; padding:10px 12px; margin-bottom:12px; }
+  .obs-box .obs-label { font-size:8px; font-weight:700; text-transform:uppercase; color:#92400e; margin-bottom:4px; }
+  .obs-box p { font-size:10px; color:#78350f; line-height:1.5; }
 
-                        .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-                        .info-item .label { font-size: 8px; color: #718096; text-transform: uppercase; font-weight: 600; letter-spacing: 0.3px; margin-bottom: 2px; }
-                        .info-item .value { font-size: 11px; color: #2d3748; font-weight: 500; }
+  /* ── Assinaturas ── */
+  .assinaturas { display:flex; justify-content:space-around; margin-top:36px; padding:0 10px; }
+  .assinatura { width:170px; text-align:center; }
+  .assinatura-linha { border-top:1px solid #334155; margin-top:46px; padding-top:5px; font-size:8.5px; color:#475569; font-weight:600; }
 
-                        .produto-destaque { background: linear-gradient(135deg, ${cores.vermelhoPrimario} 0%, ${cores.vermelhoSecundario} 100%); color: white; padding: 15px 20px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
-                        .produto-destaque h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
-                        .produto-destaque .status { display: inline-block; background: rgba(255,255,255,0.2); padding: 3px 10px; border-radius: 12px; font-size: 9px; font-weight: 600; text-transform: uppercase; }
-                        .produto-destaque .qtd { text-align: right; }
-                        .produto-destaque .qtd .numero { font-size: 28px; font-weight: 800; }
-                        .produto-destaque .qtd .unidade { font-size: 10px; opacity: 0.8; }
+  /* ── Rodapé ── */
+  .doc-footer { margin-top:18px; padding-top:8px; border-top:2px solid #e2e8f0; display:flex; justify-content:space-between; font-size:7.5px; color:#94a3b8; }
 
-                        table { width: 100%; border-collapse: collapse; }
-                        thead tr { background: ${cores.vermelhoPrimario}; }
-                        th { padding: 8px 10px; text-align: left; color: white; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
-
-                        .obs-box { margin-top: 12px; padding: 10px; background: #fffbeb; border: 1px solid #f6e05e; border-left: 3px solid #d69e2e; }
-                        .obs-box strong { color: #744210; font-size: 9px; text-transform: uppercase; }
-                        .obs-box p { color: #744210; font-size: 10px; margin-top: 4px; }
-
-                        .assinaturas { margin-top: 40px; display: flex; justify-content: space-between; padding: 0 20px; }
-                        .assinatura { width: 160px; text-align: center; }
-                        .assinatura-linha { border-top: 1px solid #2d3748; margin-top: 50px; padding-top: 6px; font-size: 9px; color: #718096; }
-
-                        .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 8px; color: #a0aec0; }
-
-                        @media print {
-                            body { padding: 10px; }
-                            .no-print { display: none !important; }
-                            .titulo-doc, .produto-destaque, thead tr, .section-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        }
-                    </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+  /* ── Botão impressão (some no print) ── */
+  .btn-print { display:block; margin:22px auto 0; padding:11px 36px; background:#1e40af; color:#fff; border:none; border-radius:7px; font-size:14px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(30,64,175,0.3); }
+  .btn-print:hover { background:#1d4ed8; }
+  @media print {
+    .no-print { display:none !important; }
+    .doc-title-bar, .produto-bar, thead tr, .section-title { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
+    </style>
 </head>
-                <body>
-                    <!-- Cabeçalho Institucional -->
-                    <div class="header">
-                        <div class="header-left">
-                            <img src="/images/Logo%20Monocromatico%20-%20Azul%20-%20Aluforce.png" alt="ALUFORCE" style="height: 50px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                            <div class="logo-text" style="display: none;">ALUFORCE</div>
-                        </div>
-                        <div class="header-right">
-                            <div class="empresa-dados">
-                                <strong>${empresa.razaoSocial}</strong><br>
-                                CNPJ: ${empresa.cnpj} | IE: ${empresa.ie}<br>
-                                ${empresa.endereço}<br>
-                                ${empresa.cidadeEstado} | CEP: ${empresa.cep}<br>
-                                Tel: ${empresa.telefone}
-                            </div>
-                        </div>
-                    </div>
+<body>
+  <!-- Cabeçalho -->
+  <div class="doc-header">
+    <div class="logo-wrap">
+      <img src="/images/Logo%20Monocromatico%20-%20Azul%20-%20Aluforce.png" alt="ALUFORCE"
+           onerror="this.style.display='none';document.getElementById('logo-txt').style.display='block'">
+      <div id="logo-txt" class="logo-fallback" style="display:none;">ALUFORCE</div>
+    </div>
+    <div class="empresa-info">
+      <strong>${empresa.razaoSocial || 'ALUFORCE'}</strong><br>
+      CNPJ: ${empresa.cnpj || '-'} &nbsp;|&nbsp; IE: ${empresa.ie || '-'}<br>
+      ${empresa.endereço || ''}<br>
+      ${empresa.cidadeEstado || ''} &nbsp;CEP: ${empresa.cep || '-'}<br>
+      Tel: ${empresa.telefone || '-'}
+    </div>
+  </div>
 
-                    <div class="linha-dupla"><div class="l1"></div><div class="l2"></div></div>
+  <!-- Faixa título -->
+  <div class="doc-title-bar">
+    <h1>ORDEM DE PRODUÇÃO</h1>
+    <span class="doc-num">Nº ${ordem.numero || ordem.codigo || String(ordem.id).padStart(5,'0')}</span>
+  </div>
 
-                    <!-- Título do Documento -->
-                    <div class="título-doc">
-                        <h1>ORDEM DE PRODUÇÁO</h1>
-                        <div class="número">Nº ${String(ordem.numero || ordem.codigo || ordem.id).padStart(5, '0')}</div>
-                    </div>
+  <!-- Produto em destaque -->
+  <div class="produto-bar">
+    <div>
+      <h2>${ordem.produto || 'Produto não especificado'}</h2>
+      <span class="status-badge">${ordem.statusTexto || ordem.status || 'Em andamento'}</span>
+    </div>
+    <div class="qtd-bloco">
+      <div class="qtd-num">${parseFloat(ordem.quantidade || 0).toLocaleString('pt-BR')}</div>
+      <div class="qtd-un">${ordem.unidade || 'UN'}</div>
+    </div>
+  </div>
 
-                    <!-- Produto em Destaque -->
-                    <div class="produto-destaque">
-                        <div>
-                            <h3>${ordem.produto || 'Produto não especificado'}</h3>
-                            <span class="status">${ordem.statusTexto || ordem.status || 'Em Andamento'}</span>
-                        </div>
-                        <div class="qtd">
-                            <div class="número">${parseFloat(ordem.quantidade || 0).toLocaleString('pt-BR')}</div>
-                            <div class="unidade">${ordem.unidade || 'UN'}</div>
-                        </div>
-                    </div>
+  <!-- Informações da Ordem -->
+  <div class="section">
+    <div class="section-title">Informações da Ordem</div>
+    <div class="section-body">
+      <div class="info-grid">
+        <div><div class="info-label">Previsão de Conclusão</div><div class="info-value">${ordem.dataConclusao ? new Date(ordem.dataConclusao).toLocaleDateString('pt-BR') : 'Não definida'}</div></div>
+        <div><div class="info-label">Responsável</div><div class="info-value">${ordem.responsavel || ordem.operador || '-'}</div></div>
+        <div><div class="info-label">Prioridade</div><div class="info-value">${ordem.prioridade || 'Normal'}</div></div>
+        <div><div class="info-label">Data de Criação</div><div class="info-value">${ordem.dataCriacao ? new Date(ordem.dataCriacao).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}</div></div>
+        <div><div class="info-label">Setor</div><div class="info-value">${ordem.setor || 'Produção'}</div></div>
+        <div><div class="info-label">Código Interno</div><div class="info-value">${ordem.codigo || ordem.id || '-'}</div></div>
+      </div>
+    </div>
+  </div>
 
-                    <!-- Informações da Ordem -->
-                    <div class="section">
-                        <div class="section-header">Informações da Ordem</div>
-                        <div class="section-content">
-                            <div class="info-grid">
-                                <div class="info-item">
-                                    <div class="label">Previsão de Conclusão</div>
-                                    <div class="value">${ordem.dataConclusao ? new Date(ordem.dataConclusao).toLocaleDateString('pt-BR') : 'Não definida'}</div>
-                                </div>
-                                <div class="info-item">
-                                    <div class="label">Responsável</div>
-                                    <div class="value">Clemerson Leandro</div>
-                                </div>
-                                <div class="info-item">
-                                    <div class="label">Prioridade</div>
-                                    <div class="value">${ordem.prioridade || 'Normal'}</div>
-                                </div>
-                                <div class="info-item">
-                                    <div class="label">Data de Criação</div>
-                                    <div class="value">${ordem.dataCriacao ? new Date(ordem.dataCriacao).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}</div>
-                                </div>
-                                <div class="info-item">
-                                    <div class="label">Setor</div>
-                                    <div class="value">Produção</div>
-                                </div>
-                                <div class="info-item">
-                                    <div class="label">Código Interno</div>
-                                    <div class="value">${ordem.codigo || ordem.id || '-'}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+  <!-- Materiais / Componentes -->
+  <div class="section">
+    <div class="section-title">Materiais / Componentes</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:12%">Código</th>
+          <th style="width:43%">Descrição</th>
+          <th style="width:15%;text-align:center">Qtd</th>
+          <th style="width:10%;text-align:center">Un</th>
+          <th style="width:20%">Tipo</th>
+        </tr>
+      </thead>
+      <tbody>${itensHtml}</tbody>
+    </table>
+  </div>
 
-                    <!-- Materiais / Componentes -->
-                    <div class="section">
-                        <div class="section-header">Materiais / Componentes</div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width: 12%;">Código</th>
-                                    <th style="width: 43%;">Descrição</th>
-                                    <th style="width: 15%; text-align: center;">Qtd</th>
-                                    <th style="width: 15%; text-align: center;">Un</th>
-                                    <th style="width: 15%;">Tipo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${itensHtml}
-                            </tbody>
-                        </table>
-                    </div>
+  <!-- Observações -->
+  ${(ordem.observações || ordem.observacoes) ? `
+  <div class="obs-box">
+    <div class="obs-label">Observações</div>
+    <p>${ordem.observações || ordem.observacoes}</p>
+  </div>` : ''}
 
-                    <!-- Observações -->
-                    ${ordem.observações ? `
-                    <div class="obs-box">
-                        <strong>Observações</strong>
-                        <p>${ordem.observações}</p>
-                    </div>
-                    ` : ''}
+  <!-- Assinaturas -->
+  <div class="assinaturas">
+    <div class="assinatura"><div class="assinatura-linha">Responsável Produção</div></div>
+    <div class="assinatura"><div class="assinatura-linha">Controle de Qualidade</div></div>
+    <div class="assinatura"><div class="assinatura-linha">Expedição</div></div>
+  </div>
 
-                    <!-- Assinaturas -->
-                    <div class="assinaturas">
-                        <div class="assinatura"><div class="assinatura-linha">Responsável Produção</div></div>
-                        <div class="assinatura"><div class="assinatura-linha">Controle de Qualidade</div></div>
-                        <div class="assinatura"><div class="assinatura-linha">Expedição</div></div>
-                    </div>
+  <!-- Rodapé -->
+  <div class="doc-footer">
+    <span>Emitido em: ${new Date().toLocaleString('pt-BR')}</span>
+    <span>${empresa.razaoSocial || 'ALUFORCE'} — Sistema de Gestão Industrial</span>
+    <span>Válido por 30 dias</span>
+  </div>
 
-                    <!-- Rodapé -->
-                    <div class="footer">
-                        Documento gerado em ${new Date().toLocaleString('pt-BR')} | ALUFORCE - Sistema de Gestão Industrial | Este documento tem validade de 30 dias.
-                    </div>
-
-                    <div class="no-print" style="text-align: center; margin-top: 25px;">
-                        <button onclick="window.print()" style="padding: 12px 35px; background: linear-gradient(135deg, #dc2626, #991b1b); color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(220,38,38,0.3);">
-                            ??? Imprimir Documento
-                        </button>
-                    </div>
-
-    <!-- Chat Corporativo (Teams) -->
-    <script src="/socket.io/socket.io.js"><\/script>
-    <script src="/chat-teams/chat-widget.js?v=20260615" defer><\/script>
-<\/body>
-                </html>
-            `);
-
+  <!-- Botão imprimir (some no PDF) -->
+  <div class="no-print">
+    <button class="btn-print" onclick="window.print()">Imprimir Documento</button>
+  </div>
+</body>
+</html>`);
             printWindow.document.close();
             showNotification('Ordem de produção aberta para impressão', 'success');
         }
@@ -4498,12 +4657,9 @@
             const ordem = ordensProdução.find(o => o.id === ordemAtualId);
             if (!ordem) return;
 
-            // Buscar itens da API (mesmo padrão de visualizarOrdemProdução)
             let itens = [];
             try {
-                const response = await fetch(`/api/pcp/ordens-producao/${ordem.id}/itens`, {
-                    credentials: 'include'
-                });
+                const response = await fetch(`/api/pcp/ordens-producao/${ordem.id}/itens`, { credentials: 'include' });
                 if (response.ok) {
                     const result = await response.json();
                     itens = (result.success && result.data) ? result.data : [];
@@ -4512,251 +4668,167 @@
                 console.error('[PCP] Erro ao buscar itens para mapa de custo:', error);
             }
 
-            // Pre-flight: validar se há itens antes de gerar o documento
             if (!itens || itens.length === 0) {
                 showNotification('Atenção: Esta ordem não possui itens/materiais cadastrados. Verifique a estrutura do produto ou o pedido original no módulo de Vendas.', 'warning');
                 return;
             }
 
-            // Paleta de cores VERMELHA igual ao PCP (baseado no template de Vendas)
-            const cores = {
-                vermelhoPrimario: '#7f1d1d',      // Vermelho escuro elegante
-                vermelhoSecundario: '#991b1b',   // Vermelho médio
-                vermelhoHeader: '#b91c1c',       // Vermelho do header
-                vermelhoClaro: '#dc2626',        // Vermelho claro
-                cinzaEscuro: '#2d3748',
-                cinzaMedio: '#718096',
-                cinzaClaro: '#f7fafc',
-                cinzaBorda: '#e2e8f0',
-                branco: '#ffffff',
-                verde: '#38a169'
-            };
-
-            // Dados da empresa (dinâmico via API)
             const empresa = _dadosEmpresaPCP || {
-                razaoSocial: 'ALUFORCE',
-                cnpj: '', ie: '', endereço: '', cidadeEstado: '', cep: '', telefone: ''
+                razaoSocial: 'ALUFORCE', cnpj: '', ie: '', endereço: '', cidadeEstado: '', cep: '', telefone: ''
             };
 
-            const printWindow = window.open('', '_blank', 'width=900,height=700');
-            let custoMateriais = 0;
-            let custoMaoObra = 0;
-            let custoIndireto = 0;
+            let custoMateriais = 0, custoMaoObra = 0, custoIndireto = 0;
 
-            let itensHtml = itens.map((item, idx) => {
+            const itensHtml = itens.map((item, idx) => {
                 const custoUnit = parseFloat(item.custo_unitario || item.valor_unitario || 0);
                 const qtd = parseFloat(item.quantidade_necessaria || item.quantidade || 0);
                 const custoItem = custoUnit * qtd;
-
                 const tipo = (item.tipo_item || item.tipo || '').toLowerCase();
-                if (tipo.includes('mao') || tipo.includes('mão') || tipo.includes('obra')) {
-                    custoMaoObra += custoItem;
-                } else if (tipo.includes('indireto') || tipo.includes('overhead')) {
-                    custoIndireto += custoItem;
-                } else {
-                    custoMateriais += custoItem;
-                }
-
-                return `
-                    <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#fef2f2'};">
-                        <td style="padding: 8px 10px; border-bottom: 1px solid #fecaca; font-weight: 600; color: ${cores.vermelhoPrimario};">${item.codigo_material || item.codigo || '-'}</td>
-                        <td style="padding: 8px 10px; border-bottom: 1px solid #fecaca;">${item.descricao_material || item.descricao || '-'}</td>
-                        <td style="padding: 8px 10px; border-bottom: 1px solid #fecaca; text-align: center;">${qtd.toLocaleString('pt-BR')}</td>
-                        <td style="padding: 8px 10px; border-bottom: 1px solid #fecaca; text-align: right;">R$ ${custoUnit.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                        <td style="padding: 8px 10px; border-bottom: 1px solid #fecaca; text-align: right; font-weight: 600; color: ${cores.vermelhoPrimario};">R$ ${custoItem.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                    </tr>
-                `;
-            }).join('');
-
-            if (!itensHtml) {
-                itensHtml = '<tr><td colspan="5" style="padding: 25px; text-align: center; color: #718096; font-style: italic;">Nenhum item com custo cadastrado</td></tr>';
-            }
+                if (tipo.includes('mao') || tipo.includes('mão') || tipo.includes('obra')) custoMaoObra += custoItem;
+                else if (tipo.includes('indireto') || tipo.includes('overhead')) custoIndireto += custoItem;
+                else custoMateriais += custoItem;
+                return `<tr style="background:${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+                    <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#1e40af;">${item.codigo_material || item.codigo || '-'}</td>
+                    <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;">${item.descricao_material || item.descricao || '-'}</td>
+                    <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;text-align:center;">${qtd.toLocaleString('pt-BR', {minimumFractionDigits:3})}</td>
+                    <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;text-align:right;">R$ ${custoUnit.toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+                    <td style="padding:7px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:600;color:#0f172a;">R$ ${custoItem.toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="5" style="padding:20px;text-align:center;color:#94a3b8;font-style:italic;">Nenhum item com custo cadastrado</td></tr>';
 
             const custoTotal = custoMateriais + custoMaoObra + custoIndireto;
             const custoUnitario = custoTotal / (parseFloat(ordem.quantidade) || 1);
 
-            printWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Mapa de Custo - ${ordem.numero || ordem.codigo}</title>
-                    <style>
-                        @page { margin: 15mm; }
-                        * { margin: 0; padding: 0; box-sizing: border-box; }
-                        body { font-family: Arial, Helvetica, sans-serif; padding: 20px; color: #2d3748; background: #fff; font-size: 11px; }
+            const printWindow = window.open('', '_blank', 'width=900,height=700');
+            printWindow.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Mapa de Custo - ${ordem.numero || ordem.codigo}</title>
+<style>
+  @page { margin: 14mm 12mm; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size:11px; color:#1e293b; background:#fff; }
 
-                        .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; margin-bottom: 15px; }
-                        .header-left { }
-                        .logo-text { font-size: 26px; font-weight: 800; color: ${cores.vermelhoClaro}; letter-spacing: -1px; margin-bottom: 4px; }
-                        .empresa-info { font-size: 9px; color: #718096; line-height: 1.4; }
-                        .header-right { text-align: right; }
-                        .empresa-dados { font-size: 8px; color: #718096; line-height: 1.5; text-align: right; }
+  .doc-header { display:flex; justify-content:space-between; align-items:flex-start; padding:14px 0 12px; border-bottom:3px solid #1e40af; margin-bottom:0; }
+  .logo-wrap img { height:46px; }
+  .logo-fallback { font-size:22px; font-weight:800; color:#1e40af; letter-spacing:-0.5px; }
+  .empresa-info { text-align:right; font-size:8.5px; color:#475569; line-height:1.55; }
+  .empresa-info strong { font-size:10px; color:#1e293b; }
 
-                        .linha-dupla { margin: 12px 0; }
-                        .linha-dupla .l1 { height: 2.5px; background: ${cores.vermelhoClaro}; margin-bottom: 2px; }
-                        .linha-dupla .l2 { height: 0.5px; background: ${cores.vermelhoSecundario}; }
+  .doc-title-bar { background:#1e40af; color:#fff; padding:10px 16px; display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .doc-title-bar h1 { font-size:13px; font-weight:700; letter-spacing:1.2px; }
+  .doc-title-bar .doc-num { font-size:11px; opacity:0.85; }
 
-                        .titulo-doc { background: ${cores.vermelhoPrimario}; padding: 12px 15px; text-align: center; margin-bottom: 15px; }
-                        .titulo-doc h1 { color: white; font-size: 14px; font-weight: 700; letter-spacing: 1px; margin-bottom: 3px; }
-                        .titulo-doc .numero { color: #fca5a5; font-size: 12px; }
+  .produto-bar { background:#f1f5f9; border-left:4px solid #1e40af; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .produto-bar h2 { font-size:13px; font-weight:700; color:#0f172a; margin-bottom:3px; }
+  .produto-bar .sub { font-size:10px; color:#64748b; }
+  .produto-bar .qtd-bloco { text-align:right; }
+  .produto-bar .qtd-num { font-size:26px; font-weight:800; color:#1e40af; line-height:1; }
+  .produto-bar .qtd-un { font-size:10px; color:#64748b; }
 
-                        .section { margin-bottom: 12px; }
-                        .section-header { background: ${cores.vermelhoSecundario}; color: white; padding: 6px 12px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-                        .section-content { background: #fef2f2; padding: 12px; border: 1px solid #fecaca; border-top: none; }
+  .resumo-cards { display:flex; gap:10px; margin-bottom:14px; }
+  .resumo-card { flex:1; border:1px solid #e2e8f0; padding:10px 12px; text-align:center; background:#f8fafc; }
+  .resumo-card .label { font-size:7.5px; color:#64748b; text-transform:uppercase; font-weight:700; letter-spacing:0.4px; margin-bottom:4px; }
+  .resumo-card .valor { font-size:15px; font-weight:700; color:#0f172a; }
+  .resumo-card .valor.green { color:#15803d; }
 
-                        .produto-destaque { background: linear-gradient(135deg, ${cores.vermelhoPrimario} 0%, ${cores.vermelhoSecundario} 100%); color: white; padding: 15px 20px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
-                        .produto-destaque h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
-                        .produto-destaque .info { font-size: 11px; opacity: 0.9; }
-                        .produto-destaque .qtd { text-align: right; }
-                        .produto-destaque .qtd .numero { font-size: 28px; font-weight: 800; }
-                        .produto-destaque .qtd .unidade { font-size: 10px; opacity: 0.8; }
+  .section-title { background:#334155; color:#fff; padding:5px 12px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:0; }
+  table { width:100%; border-collapse:collapse; }
+  thead tr { background:#334155; }
+  th { padding:7px 10px; color:#fff; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; text-align:left; }
 
-                        .resumo-cards { display: flex; gap: 12px; margin-bottom: 15px; }
-                        .resumo-card { flex: 1; background: #fef2f2; border: 1px solid #fecaca; padding: 12px; text-align: center; }
-                        .resumo-card .label { font-size: 8px; color: #718096; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
-                        .resumo-card .valor { font-size: 16px; font-weight: 700; color: ${cores.vermelhoPrimario}; }
-                        .resumo-card .valor.verde { color: ${cores.verde}; }
+  .totais-container { display:flex; justify-content:flex-end; margin-top:14px; }
+  .totais-box { border:2px solid #1e40af; padding:14px 16px; width:280px; background:#f8fafc; }
+  .totais-box h4 { font-size:9px; color:#1e40af; text-transform:uppercase; font-weight:700; letter-spacing:0.5px; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #bfdbfe; }
+  .total-linha { display:flex; justify-content:space-between; padding:4px 0; font-size:11px; color:#475569; }
+  .total-linha.highlight { font-size:13px; font-weight:700; color:#0f172a; margin-top:8px; padding-top:8px; border-top:2px solid #1e40af; }
+  .total-linha.unit { font-size:11px; font-weight:600; color:#15803d; background:#f0fdf4; margin:8px -8px -6px; padding:8px 8px; }
 
-                        table { width: 100%; border-collapse: collapse; }
-                        thead tr { background: ${cores.vermelhoPrimario}; }
-                        th { padding: 8px 10px; text-align: left; color: white; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+  .doc-footer { margin-top:18px; padding-top:8px; border-top:2px solid #e2e8f0; display:flex; justify-content:space-between; font-size:7.5px; color:#94a3b8; }
 
-                        .totais-container { display: flex; justify-content: flex-end; margin-top: 15px; }
-                        .totais-box { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border: 2px solid ${cores.vermelhoClaro}; padding: 15px; width: 280px; }
-                        .totais-box h4 { font-size: 10px; color: ${cores.vermelhoClaro}; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #fecaca; }
-                        .total-linha { display: flex; justify-content: space-between; padding: 5px 0; font-size: 11px; }
-                        .total-linha.subtotal { color: #718096; }
-                        .total-linha.destaque { font-size: 14px; font-weight: 700; color: ${cores.vermelhoClaro}; margin-top: 8px; padding-top: 8px; border-top: 2px solid ${cores.vermelhoClaro}; }
-                        .total-linha.unitario { font-size: 12px; font-weight: 600; color: ${cores.verde}; background: #f0fff4; margin: 8px -8px -8px; padding: 10px 8px; }
-
-                        .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 8px; color: #a0aec0; }
-
-                        @media print {
-                            body { padding: 10px; }
-                            .no-print { display: none !important; }
-                            .titulo-doc, .produto-destaque, thead tr, .section-header, .totais-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        }
-                    </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+  .btn-print { display:block; margin:22px auto 0; padding:11px 36px; background:#1e40af; color:#fff; border:none; border-radius:7px; font-size:14px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(30,64,175,0.3); }
+  .btn-print:hover { background:#1d4ed8; }
+  @media print {
+    .no-print { display:none !important; }
+    .doc-title-bar, .produto-bar, thead tr, .section-title, .totais-box { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
+</style>
 </head>
-                <body>
-                    <!-- Cabeçalho Institucional -->
-                    <div class="header">
-                        <div class="header-left">
-                            <img src="/images/Logo%20Monocromatico%20-%20Azul%20-%20Aluforce.png" alt="ALUFORCE" style="height: 50px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                            <div class="logo-text" style="display: none;">ALUFORCE</div>
-                        </div>
-                        <div class="header-right">
-                            <div class="empresa-dados">
-                                <strong>${empresa.razaoSocial}</strong><br>
-                                CNPJ: ${empresa.cnpj} | IE: ${empresa.ie}<br>
-                                ${empresa.endereço}<br>
-                                ${empresa.cidadeEstado} | CEP: ${empresa.cep}<br>
-                                Tel: ${empresa.telefone}
-                            </div>
-                        </div>
-                    </div>
+<body>
+  <div class="doc-header">
+    <div class="logo-wrap">
+      <img src="/images/Logo%20Monocromatico%20-%20Azul%20-%20Aluforce.png" alt="ALUFORCE"
+           onerror="this.style.display='none';document.getElementById('logo-txt2').style.display='block'">
+      <div id="logo-txt2" class="logo-fallback" style="display:none;">ALUFORCE</div>
+    </div>
+    <div class="empresa-info">
+      <strong>${empresa.razaoSocial || 'ALUFORCE'}</strong><br>
+      CNPJ: ${empresa.cnpj || '-'} &nbsp;|&nbsp; IE: ${empresa.ie || '-'}<br>
+      ${empresa.endereço || ''}<br>
+      ${empresa.cidadeEstado || ''} &nbsp;CEP: ${empresa.cep || '-'}<br>
+      Tel: ${empresa.telefone || '-'}
+    </div>
+  </div>
 
-                    <div class="linha-dupla"><div class="l1"></div><div class="l2"></div></div>
+  <div class="doc-title-bar">
+    <h1>MAPA DE CUSTO DE PRODUÇÃO</h1>
+    <span class="doc-num">Nº ${ordem.numero || ordem.codigo || String(ordem.id).padStart(5,'0')}</span>
+  </div>
 
-                    <!-- Título do Documento -->
-                    <div class="título-doc">
-                        <h1>MAPA DE CUSTO</h1>
-                        <div class="número">Nº ${String(ordem.numero || ordem.codigo || ordem.id).padStart(5, '0')}</div>
-                    </div>
+  <div class="produto-bar">
+    <div>
+      <h2>${ordem.produto || 'Produto não especificado'}</h2>
+      <span class="sub">Ordem de Produção: ${ordem.numero || ordem.codigo}</span>
+    </div>
+    <div class="qtd-bloco">
+      <div class="qtd-num">${parseFloat(ordem.quantidade || 0).toLocaleString('pt-BR')}</div>
+      <div class="qtd-un">${ordem.unidade || 'UN'}</div>
+    </div>
+  </div>
 
-                    <!-- Produto em Destaque -->
-                    <div class="produto-destaque">
-                        <div>
-                            <h3>${ordem.produto || 'Produto não especificado'}</h3>
-                            <div class="info">Ordem de Produção: ${ordem.numero || ordem.codigo}</div>
-                        </div>
-                        <div class="qtd">
-                            <div class="número">${parseFloat(ordem.quantidade || 0).toLocaleString('pt-BR')}</div>
-                            <div class="unidade">${ordem.unidade || 'UN'}</div>
-                        </div>
-                    </div>
+  <div class="resumo-cards">
+    <div class="resumo-card"><div class="label">Custo Total</div><div class="valor green">R$ ${custoTotal.toLocaleString('pt-BR', {minimumFractionDigits:2})}</div></div>
+    <div class="resumo-card"><div class="label">Custo Unitário</div><div class="valor">R$ ${custoUnitario.toLocaleString('pt-BR', {minimumFractionDigits:2})}</div></div>
+    <div class="resumo-card"><div class="label">Qtd. Itens</div><div class="valor">${itens.length}</div></div>
+  </div>
 
-                    <!-- Resumo de Custos -->
-                    <div class="resumo-cards">
-                        <div class="resumo-card">
-                            <div class="label">Custo Total</div>
-                            <div class="valor verde">R$ ${custoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-                        </div>
-                        <div class="resumo-card">
-                            <div class="label">Custo Unitário</div>
-                            <div class="valor">R$ ${custoUnitario.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-                        </div>
-                        <div class="resumo-card">
-                            <div class="label">Qtd. Itens</div>
-                            <div class="valor">${itens.length}</div>
-                        </div>
-                    </div>
+  <div class="section-title">Composição de Custos</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:12%">Código</th>
+        <th style="width:40%">Material / Componente</th>
+        <th style="width:12%;text-align:center">Qtd</th>
+        <th style="width:18%;text-align:right">Custo Unit.</th>
+        <th style="width:18%;text-align:right">Custo Total</th>
+      </tr>
+    </thead>
+    <tbody>${itensHtml}</tbody>
+  </table>
 
-                    <!-- Composição de Custos -->
-                    <div class="section">
-                        <div class="section-header">Composição de Custos</div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width: 12%;">Código</th>
-                                    <th style="width: 40%;">Material / Componente</th>
-                                    <th style="width: 12%; text-align: center;">Qtd</th>
-                                    <th style="width: 18%; text-align: right;">Custo Unit.</th>
-                                    <th style="width: 18%; text-align: right;">Custo Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${itensHtml}
-                            </tbody>
-                        </table>
-                    </div>
+  <div class="totais-container">
+    <div class="totais-box">
+      <h4>Resumo Financeiro</h4>
+      <div class="total-linha"><span>Materiais</span><span>R$ ${custoMateriais.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></div>
+      <div class="total-linha"><span>Mão de Obra</span><span>R$ ${custoMaoObra.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></div>
+      <div class="total-linha"><span>Custos Indiretos</span><span>R$ ${custoIndireto.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></div>
+      <div class="total-linha highlight"><span>CUSTO TOTAL</span><span>R$ ${custoTotal.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></div>
+      <div class="total-linha unit"><span>Custo Unitário</span><span>R$ ${custoUnitario.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></div>
+    </div>
+  </div>
 
-                    <!-- Box de Totais à direita -->
-                    <div class="totais-container">
-                        <div class="totais-box">
-                            <h4>Resumo Financeiro</h4>
-                            <div class="total-linha subtotal">
-                                <span>Materiais</span>
-                                <span>R$ ${custoMateriais.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-                            </div>
-                            <div class="total-linha subtotal">
-                                <span>Mão de Obra</span>
-                                <span>R$ ${custoMaoObra.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-                            </div>
-                            <div class="total-linha subtotal">
-                                <span>Custos Indiretos</span>
-                                <span>R$ ${custoIndireto.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-                            </div>
-                            <div class="total-linha destaque">
-                                <span>CUSTO TOTAL</span>
-                                <span>R$ ${custoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-                            </div>
-                            <div class="total-linha unitario">
-                                <span>Custo Unitário</span>
-                                <span>R$ ${custoUnitario.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-                            </div>
-                        </div>
-                    </div>
+  <div class="doc-footer">
+    <span>Emitido em: ${new Date().toLocaleString('pt-BR')}</span>
+    <span>${empresa.razaoSocial || 'ALUFORCE'} — Sistema de Gestão Industrial</span>
+    <span>Documento para uso interno</span>
+  </div>
 
-                    <!-- Rodapé -->
-                    <div class="footer">
-                        Documento gerado em ${new Date().toLocaleString('pt-BR')} | ALUFORCE - Sistema de Gestão Industrial | Este documento é para uso interno.
-                    </div>
-
-                    <div class="no-print" style="text-align: center; margin-top: 25px;">
-                        <button onclick="window.print()" style="padding: 12px 35px; background: linear-gradient(135deg, #dc2626, #991b1b); color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(220,38,38,0.3);">
-                            ??? Imprimir Documento
-                        </button>
-                    </div>
-
-    <!-- Chat Corporativo (Teams) -->
-    <script src="/socket.io/socket.io.js"><\/script>
-    <script src="/chat-teams/chat-widget.js?v=20260615" defer><\/script>
-<\/body>
-                </html>
-            `);
-
+  <div class="no-print">
+    <button class="btn-print" onclick="window.print()">Imprimir Documento</button>
+  </div>
+</body>
+</html>`);
             printWindow.document.close();
             showNotification('Mapa de custo aberto para impressão', 'success');
         }
@@ -6037,7 +6109,7 @@
                         .print-signatures .sig-block { text-align: center; min-width: 180px; }
                         .print-signatures .sig-line { border-top: 1px solid #334155; margin-top: 50px; padding-top: 8px; font-size: 12px; color: #475569; font-weight: 600; }
                     </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
                 </head>
                 <body>
                     <div class="print-header">
@@ -6297,7 +6369,7 @@
                         .print-header h1 { font-size: 14px; color: #065f46; margin: 4px 0 0; letter-spacing: 2px; text-transform: uppercase; }
                         .print-footer { text-align: center; padding: 12px 0; border-top: 2px solid #e2e8f0; margin-top: 20px; font-size: 10px; color: #94a3b8; }
                     </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
                 </head>
                 <body>
                     <div class="print-header">
@@ -6908,7 +6980,7 @@
                             .etiquetas-grid { gap: 4px; padding: 0; }
                         }
                     </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
                 </head>
                 <body>
                     <div class="etiquetas-grid">${etiquetasHtml}</div>
@@ -7094,14 +7166,32 @@
             if (menu) menu.remove();
         }
 
-        function duplicarOrdem(ordemId) {
-            const ordem = ordensProdução.find(o => o.id == ordemId);
-            if (!ordem) return;
-            const nova = { ...ordem, id: Date.now(), número: 'NOVA-' + (ordem.numero || ''), status: 'a_produzir', statusKanban: 'a_produzir', produzido: 0 };
-            ordensProdução.push(nova);
-            salvarOrdensLocais();
-            renderizarKanban();
-            showNotification('Ordem duplicada com sucesso', 'success');
+        async function duplicarOrdem(ordemId) {
+            // BUG FIX 2026-06-30: duplicava só em memória/localStorage (Date.now() como id),
+            // nunca persistia no banco — a "cópia" sumia ao recarregar a página e nunca
+            // existia pra ninguém além de quem clicou. A API /duplicar já existe e
+            // funciona (copia a ordem + itens no banco); só não estava sendo chamada.
+            const isLocalOrder = ordemId > 1000000000;
+            if (isLocalOrder) {
+                showNotification('Esta ordem ainda não foi salva no servidor — não é possível duplicá-la.', 'warning');
+                return;
+            }
+            try {
+                const response = await fetch(`/api/pcp/ordens-producao/${ordemId}/duplicar`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Falha ao duplicar ordem');
+                }
+                await carregarOrdensProdução();
+                showNotification(`Ordem duplicada com sucesso (${data.data?.codigo || ''})`, 'success');
+            } catch (e) {
+                console.error('[PCP] Erro ao duplicar ordem:', e);
+                showNotification('Erro ao duplicar ordem: ' + e.message, 'error');
+            }
         }
 
         function imprimirOrdemCard(ordemId) {
@@ -7109,12 +7199,36 @@
             setTimeout(() => imprimirOrdem(), 300);
         }
 
-        function excluirOrdem(ordemId) {
-            if (!confirm('Tem certeza que deseja excluir esta ordem de produção?')) return;
-            ordensProdução = ordensProdução.filter(o => o.id != ordemId);
-            salvarOrdensLocais();
-            renderizarKanban();
-            showNotification('Ordem excluída', 'success');
+        async function excluirOrdem(ordemId) {
+            const ordem = ordensProdução.find(o => o.id == ordemId);
+            const numOrdem = ordem ? (ordem.numero || ordem.codigo || `#${ordemId}`) : `#${ordemId}`;
+
+            if (!confirm(`Tem certeza que deseja excluir a ordem ${numOrdem}?\nEsta ação não pode ser desfeita.`)) return;
+
+            try {
+                const isLocalOrder = ordemId > 1000000000 || (ordem && ordem.isLocal === true);
+
+                if (!isLocalOrder) {
+                    const response = await fetch(`/api/pcp/ordens-producao/${ordemId}`, {
+                        credentials: 'include',
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+
+                    if (response.status !== 404 && !response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error || errorData.message || 'Erro ao excluir ordem de produção');
+                    }
+                }
+
+                ordensProdução = ordensProdução.filter(o => o.id != ordemId);
+                salvarOrdensLocais();
+                renderizarKanban();
+                showNotification(`Ordem ${numOrdem} excluída com sucesso.`, 'success');
+            } catch (error) {
+                console.error('Erro ao excluir ordem:', error);
+                showNotification(error.message || 'Erro ao excluir ordem de produção', 'error');
+            }
         }
 
         function showNotification(message, type = 'info') {

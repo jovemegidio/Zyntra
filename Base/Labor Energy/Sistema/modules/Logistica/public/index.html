@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 
 <head>
@@ -12,7 +12,8 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/modules/Faturamento/css/faturamento-layout.css?v=20260401">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260621b" defer></script>
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <!-- Chat Widget BOB AI - DESATIVADO 23/02/2026 -->
     <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
@@ -28,7 +29,7 @@
         <aside class="sidebar" id="mobile-sidebar">
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
             <nav class="sidebar-nav">
-                <a href="index.html" class="sidebar-btn active" title="Logística & Expedição"><i class="fas fa-truck"></i></a>
+                <a href="/Logistica" class="sidebar-btn active" title="Logística & Expedição"><i class="fas fa-truck"></i></a>
             </nav>
             <div class="sidebar-bottom">
             </div>
@@ -44,14 +45,13 @@
                             style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
                         <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Logística</span>
                     </div>
                 </div>
                 <div class="header-right">
-                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i
-                            class="fas fa-sync-alt"></i></button>
+                    <button class="header-btn" title="Atualizar" aria-label="Atualizar página" onclick="location.reload()"><i
+                            class="fas fa-sync-alt" aria-hidden="true"></i></button>
                     <div class="user-greeting">
-                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <span><span id="greeting-text">Bom dia</span><span id="user-name-separator">, </span><strong id="user-name">Usuário</strong></span>
 </div>
                 </div>
             </header>
@@ -69,8 +69,8 @@
                         <div class="page-actions">
                             <button class="btn btn-primary" onclick="openModal('modal-nova-expedicao')"><i
                                     class="fas fa-plus"></i> Nova Expedição</button>
-                            <button class="btn btn-secondary" onclick="openModal('modal-transportadoras')"><i
-                                    class="fas fa-truck-moving"></i> Transportadoras</button>
+                            <button class="btn btn-secondary" onclick="adicionarTransportadora()"><i
+                                    class="fas fa-truck-moving"></i> Nova Transportadora</button>
                         </div>
                     </div>
                 </div>
@@ -78,6 +78,8 @@
                 <!-- KPIs -->
                 <div class="metrics-grid">
                     <div class="metric-card orange" onclick="filtrarPorCard('pendente')"
+                        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();filtrarPorCard('pendente');}"
+                        role="button" tabindex="0" aria-label="Filtrar por Aguardando"
                         style="cursor:pointer;" title="Filtrar por Aguardando">
                         <div class="metric-header">
                             <div class="metric-icon orange"><i class="fas fa-clock"></i></div>
@@ -87,48 +89,64 @@
                         <div class="metric-label">Aguardando</div>
                     </div>
                     <div class="metric-card blue" onclick="filtrarPorCard('em_separacao')"
-                        style="cursor:pointer;" title="Filtrar por Em Separação">
+                        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();filtrarPorCard('em_separacao');}"
+                        role="button" tabindex="0" aria-label="Filtrar por Em separação"
+                        style="cursor:pointer;" title="Filtrar por Em separação">
                         <div class="metric-header">
                             <div class="metric-icon blue"><i class="fas fa-box-open"></i></div>
                             <span class="metric-trend" id="trend-separacao">&mdash;</span>
                         </div>
                         <div class="metric-value" id="count-separacao">0</div>
-                        <div class="metric-label">Separação</div>
+                        <div class="metric-label">Em separação</div>
                     </div>
                     <div class="metric-card blue" onclick="filtrarPorCard('em_expedicao')"
-                        style="cursor:pointer;" title="Filtrar por Em Expedição">
+                        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();filtrarPorCard('em_expedicao');}"
+                        role="button" tabindex="0" aria-label="Filtrar por Em expedição"
+                        style="cursor:pointer;" title="Filtrar por Em expedição">
                         <div class="metric-header">
                             <div class="metric-icon blue"><i class="fas fa-dolly"></i></div>
                             <span class="metric-trend" id="trend-expedicao">&mdash;</span>
                         </div>
                         <div class="metric-value" id="count-expedicao">0</div>
-                        <div class="metric-label">Expedição</div>
+                        <div class="metric-label">Em expedição</div>
                     </div>
                     <div class="metric-card purple" onclick="filtrarPorCard('em_transporte')"
-                        style="cursor:pointer;" title="Filtrar por Em Transporte">
+                        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();filtrarPorCard('em_transporte');}"
+                        role="button" tabindex="0" aria-label="Filtrar por Em transporte"
+                        style="cursor:pointer;" title="Filtrar por Em transporte">
                         <div class="metric-header">
                             <div class="metric-icon purple"><i class="fas fa-truck"></i></div>
                             <span class="metric-trend" id="trend-transporte">&mdash;</span>
                         </div>
                         <div class="metric-value" id="count-transporte">0</div>
-                        <div class="metric-label">Em Transporte</div>
+                        <div class="metric-label">Em transporte</div>
                     </div>
-                    <div class="metric-card green" onclick="filtrarPorCard('entregue')" style="cursor:pointer;"
-                        title="Filtrar por Entregues">
+                    <div class="metric-card green" onclick="filtrarPorCard('entregue')"
+                        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();filtrarPorCard('entregue');}"
+                        role="button" tabindex="0" aria-label="Filtrar por Entregue"
+                        style="cursor:pointer;" title="Filtrar por Entregue">
                         <div class="metric-header">
                             <div class="metric-icon green"><i class="fas fa-check-circle"></i></div>
                             <span class="metric-trend" id="trend-entregues">&mdash;</span>
                         </div>
                         <div class="metric-value" id="count-entregues">0</div>
-                        <div class="metric-label">Entregues</div>
+                        <div class="metric-label">Entregue</div>
                     </div>
+                </div>
+
+                <!-- Empty state global de Logística -->
+                <div id="logistica-empty-state" style="display:none;background:#f9fafb;border:1px dashed #d1d5db;border-radius:12px;padding:24px;text-align:center;margin:16px 0;">
+                    <i class="fas fa-truck" style="font-size:32px;color:#9ca3af;"></i>
+                    <h3 style="margin:8px 0 4px;font-size:16px;color:#374151;">Nenhuma expedição cadastrada</h3>
+                    <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">Comece criando sua primeira expedição para acompanhar entregas e transportadoras.</p>
+                    <button class="btn btn-primary btn-sm" onclick="openModal('modal-nova-expedicao')"><i class="fas fa-plus"></i> Nova Expedição</button>
                 </div>
 
                 <!-- Tabs -->
                 <div class="tabs-bar">
                     <button class="tab-btn active" onclick="mostrarTab('pedidos',this)"><i class="fas fa-list"></i>
                         Pedidos</button>
-                    <button class="tab-btn" onclick="mostrarTab('transportadoras',this)"><i
+                    <button class="tab-btn" onclick="mostrarTab('transportadoras',this); carregarTransportadoras()"><i
                             class="fas fa-truck-moving"></i> Transportadoras</button>
                     <button class="tab-btn" onclick="mostrarTab('cotacao',this)"><i
                             class="fas fa-calculator"></i> Cotação Frete</button>
@@ -151,9 +169,9 @@
                         <select class="filter-btn" id="filtro-status" onchange="aplicarFiltros()">
                             <option value="">Todos os Status</option>
                             <option value="pendente">Aguardando</option>
-                            <option value="em_separacao">Em Separação</option>
-                            <option value="em_expedicao">Expedição</option>
-                            <option value="em_transporte">Em Transporte</option>
+                            <option value="em_separacao">Em separação</option>
+                            <option value="em_expedicao">Em expedição</option>
+                            <option value="em_transporte">Em transporte</option>
                             <option value="entregue">Entregue</option>
                         </select>
                         <select class="filter-btn" id="filtro-transportadora" onchange="aplicarFiltros()">
@@ -161,8 +179,8 @@
                         </select>
                         <input type="date" class="filter-btn" id="filtro-data-inicio" onchange="aplicarFiltros()">
                         <input type="date" class="filter-btn" id="filtro-data-fim" onchange="aplicarFiltros()">
-                        <button class="btn btn-outline btn-sm" onclick="exportarExcel()"><i
-                                class="fas fa-file-excel"></i> Exportar</button>
+                        <button class="btn btn-outline btn-sm" onclick="exportarExcel()" title="Exportar em formato CSV (compatível com Excel)" aria-label="Exportar pedidos em CSV"><i
+                                class="fas fa-file-csv"></i> Exportar CSV</button>
                     </div>
 
                     <div class="card">
@@ -291,6 +309,7 @@
                                 <div class="form-group" style="display:flex;align-items:flex-end;gap:8px;">
                                     <button class="btn btn-primary" onclick="rastrearPedido()"><i class="fas fa-search-location"></i> Rastrear</button>
                                     <button class="btn btn-secondary" onclick="consultarApiTransportadora()"><i class="fas fa-satellite-dish"></i> Consultar API</button>
+                                    <button class="btn btn-secondary" onclick="limparRastreamento()" title="Limpar consulta" aria-label="Limpar consulta de rastreamento"><i class="fas fa-eraser"></i> Limpar</button>
                                 </div>
                             </div>
                             <div id="rastreamento-resultado"></div>
@@ -303,7 +322,7 @@
                     <div class="card">
                         <div class="card-header">
                             <h3 class="card-title"><i class="fas fa-file-invoice"></i> Conhecimento de Transporte Eletrônico (CT-e)</h3>
-                            <button class="btn btn-primary btn-sm" onclick="openModal('modal-novo-cte')"><i class="fas fa-plus"></i> Novo CT-e</button>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="abrirNovoCTe()"><i class="fas fa-plus"></i> Novo CT-e</button>
                         </div>
                         <div class="card-body" style="padding:0;">
                             <div class="filters-bar" style="padding:12px 16px;">
@@ -343,7 +362,7 @@
                     <div class="card">
                         <div class="card-header">
                             <h3 class="card-title"><i class="fas fa-file-alt"></i> Manifesto de Documentos Fiscais (MDF-e)</h3>
-                            <button class="btn btn-primary btn-sm" onclick="openModal('modal-novo-mdfe')"><i class="fas fa-plus"></i> Novo MDF-e</button>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="abrirNovoMDFe()"><i class="fas fa-plus"></i> Novo MDF-e</button>
                         </div>
                         <div class="card-body" style="padding:0;">
                             <div class="filters-bar" style="padding:12px 16px;">
@@ -405,12 +424,13 @@
                                 id="exp-transportadora">
                                 <option value="">Selecione</option>
                             </select></div>
-                        <div class="form-group"><label>Status</label><select class="form-control" id="exp-status">
-                                <option value="pendente">Aguardando</option>
-                                <option value="em_separacao">Em Separação</option>
-                                <option value="em_expedicao">Expedição</option>
-                                <option value="em_transporte">Em Transporte</option>
-                            </select></div>
+                        <div class="form-group"><label>Status</label>
+                            <div style="display:flex;align-items:center;height:38px;">
+                                <span class="badge pendente" style="font-size:12px;padding:6px 12px;">Aguardando</span>
+                                <input type="hidden" id="exp-status" value="pendente">
+                                <small style="margin-left:10px;color:#6b7280;font-size:11px;">Status inicial — altere no fluxo</small>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>Previsão de Entrega</label><input type="date"
@@ -460,7 +480,7 @@
                         id="transp-endereco"></div>
                 <div class="form-row">
                     <div class="form-group"><label>Cidade</label><input type="text" class="form-control" id="transp-cidade"></div>
-                    <div class="form-group"><label>Estado</label><input type="text" class="form-control" id="transp-estado" maxlength="2" placeholder="SP"></div>
+                    <div class="form-group"><label>Estado</label><select class="form-control uf-select" id="transp-estado"><option value="">UF</option><option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option><option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option><option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option><option value="PR">PR</option><option value="PE">PE</option><option value="PI">PI</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option><option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option><option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option></select></div>
                     <div class="form-group"><label>CEP</label><input type="text" class="form-control" id="transp-cep" placeholder="00000-000"></div>
                 </div>
                 <hr style="margin:16px 0;border-color:var(--border-color);">
@@ -669,7 +689,7 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>Município Origem</label><input type="text" class="form-control" id="cte-mun-origem"></div>
-                        <div class="form-group"><label>UF Origem</label><input type="text" class="form-control" id="cte-uf-origem" maxlength="2" placeholder="SP"></div>
+                        <div class="form-group"><label>UF Origem</label><select class="form-control uf-select" id="cte-uf-origem"></select></div>
                     </div>
                     <hr style="margin:12px 0;border-color:var(--border-color);">
                     <h4 style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:12px;">Destinatário</h4>
@@ -679,12 +699,12 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>Município Destino</label><input type="text" class="form-control" id="cte-mun-destino"></div>
-                        <div class="form-group"><label>UF Destino</label><input type="text" class="form-control" id="cte-uf-destino" maxlength="2" placeholder="RJ"></div>
+                        <div class="form-group"><label>UF Destino</label><select class="form-control uf-select" id="cte-uf-destino"></select></div>
                     </div>
                     <hr style="margin:12px 0;border-color:var(--border-color);">
                     <h4 style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:12px;">Carga e Valores</h4>
                     <div class="form-row">
-                        <div class="form-group"><label>Produto Predominante</label><input type="text" class="form-control" id="cte-produto" placeholder="Ex: Esquadrias de alumínio"></div>
+                        <div class="form-group"><label>Produto Predominante</label><input type="text" class="form-control" id="cte-produto" placeholder="Ex: Mercadorias diversas"></div>
                         <div class="form-group"><label>Peso Bruto (kg)</label><input type="number" step="0.001" class="form-control" id="cte-peso" placeholder="0.000"></div>
                         <div class="form-group"><label>Qtd Volumes</label><input type="number" class="form-control" id="cte-volumes" placeholder="0"></div>
                     </div>
@@ -697,8 +717,8 @@
                 <input type="hidden" id="cte-edit-id" value="">
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('modal-novo-cte')">Cancelar</button>
-                <button class="btn btn-primary" onclick="salvarCTe()"><i class="fas fa-save"></i> Salvar</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-novo-cte')">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-salvar-cte" onclick="salvarCTe()"><i class="fas fa-save"></i> Salvar</button>
             </div>
         </div>
     </div>
@@ -717,8 +737,8 @@
                         <div class="form-group"><label>Transportadora *</label>
                             <select class="form-control" id="mdfe-transportadora" required><option value="">Selecione</option></select>
                         </div>
-                        <div class="form-group"><label>UF Início *</label><input type="text" class="form-control" id="mdfe-uf-inicio" maxlength="2" placeholder="SP" required></div>
-                        <div class="form-group"><label>UF Fim *</label><input type="text" class="form-control" id="mdfe-uf-fim" maxlength="2" placeholder="RJ" required></div>
+                        <div class="form-group"><label>UF Início *</label><select class="form-control uf-select" id="mdfe-uf-inicio" required></select></div>
+                        <div class="form-group"><label>UF Fim *</label><select class="form-control uf-select" id="mdfe-uf-fim" required></select></div>
                     </div>
                     <hr style="margin:12px 0;border-color:var(--border-color);">
                     <h4 style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:12px;">Condutor</h4>
@@ -730,7 +750,7 @@
                     <h4 style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:12px;">Veículo</h4>
                     <div class="form-row">
                         <div class="form-group"><label>Placa</label><input type="text" class="form-control" id="mdfe-placa" placeholder="ABC1D23" maxlength="8"></div>
-                        <div class="form-group"><label>UF</label><input type="text" class="form-control" id="mdfe-veiculo-uf" maxlength="2" placeholder="SP"></div>
+                        <div class="form-group"><label>UF</label><select class="form-control uf-select" id="mdfe-veiculo-uf"></select></div>
                         <div class="form-group"><label>RNTRC</label><input type="text" class="form-control" id="mdfe-rntrc"></div>
                     </div>
                     <hr style="margin:12px 0;border-color:var(--border-color);">
@@ -755,7 +775,7 @@
                     <h4 style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:12px;">Percurso (UFs intermediárias)</h4>
                     <div id="mdfe-percursos-lista"></div>
                     <div class="form-row" style="margin-top:8px;">
-                        <div class="form-group"><label>UF</label><input type="text" class="form-control" id="mdfe-percurso-uf" maxlength="2" placeholder="MG"></div>
+                        <div class="form-group"><label>UF</label><select class="form-control uf-select" id="mdfe-percurso-uf"></select></div>
                         <div class="form-group" style="display:flex;align-items:flex-end;">
                             <button type="button" class="btn btn-secondary btn-sm" onclick="adicionarPercursoMdfe()"><i class="fas fa-plus"></i> Add</button>
                         </div>
@@ -763,8 +783,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('modal-novo-mdfe')">Cancelar</button>
-                <button class="btn btn-primary" onclick="salvarMDFe()"><i class="fas fa-save"></i> Salvar</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-novo-mdfe')">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-salvar-mdfe" onclick="salvarMDFe()"><i class="fas fa-save"></i> Salvar</button>
             </div>
         </div>
     </div>
@@ -780,11 +800,14 @@
                 <div class="form-group"><label>Descrição *</label><input type="text" class="form-control" id="rastr-desc" placeholder="Ex: Mercadoria saiu para entrega"></div>
                 <div class="form-row">
                     <div class="form-group"><label>Cidade</label><input type="text" class="form-control" id="rastr-cidade"></div>
-                    <div class="form-group"><label>UF</label><input type="text" class="form-control" id="rastr-uf" maxlength="2" placeholder="SP"></div>
+                    <div class="form-group"><label>UF</label><select class="form-control uf-select" id="rastr-uf"></select></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label>Latitude</label><input type="number" step="0.00000001" class="form-control" id="rastr-lat" placeholder="-23.550520"></div>
-                    <div class="form-group"><label>Longitude</label><input type="number" step="0.00000001" class="form-control" id="rastr-lng" placeholder="-46.633308"></div>
+                    <div class="form-group"><label>Latitude</label><input type="number" step="0.00000001" min="-90" max="90" class="form-control" id="rastr-lat" placeholder="-23.550520"></div>
+                    <div class="form-group"><label>Longitude</label><input type="number" step="0.00000001" min="-180" max="180" class="form-control" id="rastr-lng" placeholder="-46.633308"></div>
+                </div>
+                <div style="margin:-10px 0 12px;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="capturarLocalizacao()" title="Usar minha localização atual" aria-label="Capturar localização atual via GPS"><i class="fas fa-location-arrow"></i> Capturar minha localização</button>
                 </div>
                 <div class="form-group"><label>Unidade/CD</label><input type="text" class="form-control" id="rastr-unidade" placeholder="Centro de Distribuição X"></div>
                 <input type="hidden" id="rastr-add-pedido-id" value="">
@@ -818,15 +841,10 @@
             modal.classList.add('active');
             modal.style.display = '';
             modal.removeAttribute('aria-hidden');
-            if (window.ZyntraUI?.refreshUi) window.ZyntraUI.refreshUi(modal);
         }
         function closeModal(id) {
             const modal = document.getElementById(id);
             if (!modal) return;
-            if (window.ZyntraUI?.closeModal) {
-                window.ZyntraUI.closeModal(modal);
-                return;
-            }
             modal.classList.remove('active');
             modal.setAttribute('aria-hidden', 'true');
         }
@@ -878,21 +896,57 @@
                 const r = await fetch('/api/logistica/dashboard', { credentials: 'include' });
                 if (r.ok) {
                     const d = await r.json();
-                    // BUG-024: API retorna sem acento (aguardando_separacao, em_separacao)
-                    document.getElementById('count-aguardando').textContent = d.pendente || d.aguardando_separacao || d.aguardando_separação || d.aguardando || 0;
-                    document.getElementById('count-separacao').textContent = d.em_separacao || d.em_separação || d.separação || 0;
-                    document.getElementById('count-expedicao').textContent = d.em_expedicao || d.expedicao || 0;
-                    document.getElementById('count-transporte').textContent = d.em_transporte || d.transporte || 0;
-                    document.getElementById('count-entregues').textContent = d.entregues || 0;
+                    const _set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+                    // BUG-024: API retorna chaves sem acento — pendente = status NULL/pendente/""
+                    const aguardando = d.pendente || 0;
+                    const separacao = d.em_separacao || 0;
+                    const expedicao = d.em_expedicao || 0;
+                    const transporte = d.em_transporte || 0;
+                    const entregues = d.entregues || 0;
+                    _set('count-aguardando', aguardando);
+                    _set('count-separacao', separacao);
+                    _set('count-expedicao', expedicao);
+                    _set('count-transporte', transporte);
+                    _set('count-entregues', entregues);
+                    // UX-001: Empty state global somente quando dados carregados e total é zero
+                    const total = aguardando + separacao + expedicao + transporte + entregues;
+                    const empty = document.getElementById('logistica-empty-state');
+                    if (empty) empty.style.display = total === 0 ? 'block' : 'none';
+                } else {
+                    // UX-001: ocultar empty state quando houver erro (não confundir erro com "sem dados")
+                    const empty = document.getElementById('logistica-empty-state');
+                    if (empty) empty.style.display = 'none';
+                    if (r.status === 401) {
+                        console.warn('[Logistica] Dashboard: sessão expirada (401)');
+                    } else {
+                        console.error(`[Logistica] Dashboard: HTTP ${r.status}`);
+                    }
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error('[Logistica] carregarDashboard:', e); }
         }
 
         async function carregarPedidos() {
             try {
                 const r = await fetch('/api/logistica/pedidos', { credentials: 'include' });
-                if (r.ok) { pedidos = await r.json(); pedidos = Array.isArray(pedidos) ? pedidos : pedidos.data || []; renderizarPedidos(pedidos); }
-            } catch (e) { console.error(e); }
+                if (r.ok) {
+                    pedidos = await r.json();
+                    pedidos = Array.isArray(pedidos) ? pedidos : pedidos.data || [];
+                    renderizarPedidos(pedidos);
+                } else {
+                    // UX-001: diferenciar erro de API de "sem dados"
+                    const tbody = document.querySelector('#tabela-logistica tbody');
+                    if (tbody) {
+                        const msg = r.status === 401
+                            ? 'Sessão expirada. <a href="/login.html" style="color:#2563eb">Fazer login novamente</a>'
+                            : `Erro ao carregar expedições (HTTP ${r.status}). <button onclick="carregarPedidos()" style="color:#2563eb;background:none;border:none;cursor:pointer;text-decoration:underline">Tentar novamente</button>`;
+                        tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state" style="color:#dc2626;"><i class="fas fa-exclamation-triangle"></i><p>${msg}</p></div></td></tr>`;
+                    }
+                }
+            } catch (e) {
+                console.error('[Logistica] carregarPedidos:', e);
+                const tbody = document.querySelector('#tabela-logistica tbody');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state" style="color:#dc2626;"><i class="fas fa-wifi"></i><p>Sem conexão com o servidor. <button onclick="carregarPedidos()" style="color:#2563eb;background:none;border:none;cursor:pointer;text-decoration:underline">Tentar novamente</button></p></div></td></tr>`;
+            }
         }
 
         function renderizarPedidos(lista) {
@@ -966,7 +1020,7 @@
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ status_logistica: novoStatus, observação: obs })
+                    body: JSON.stringify({ status_logistica: novoStatus, observacao: obs })
                 });
                 if (r.ok) {
                     closeModal('modal-status');
@@ -983,7 +1037,7 @@
         function verDetalhes(id) {
             const p = pedidos.find(x => x.id === id);
             if (!p) { showToast('Pedido não encontrado', 'error'); return; }
-            const statusLabel = { pendente: 'Aguardando', em_separação: 'Em Separação', em_expedicao: 'Em Expedição', em_transporte: 'Em Transporte', entregue: 'Entregue' };
+            const statusLabel = { pendente: 'Aguardando', em_separacao: 'Em separação', em_separação: 'Em separação', em_expedicao: 'Em expedição', em_transporte: 'Em transporte', entregue: 'Entregue' };
             document.getElementById('modal-detalhes-body').innerHTML = `
         <div style="display:flex;flex-direction:column;gap:20px;">
             <!-- Seção: Identificação -->
@@ -1250,7 +1304,7 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
         // ========== Exportar Excel ==========
         function exportarExcel() {
             if (!pedidos.length) { showToast('Nenhum pedido para exportar', 'warning'); return; }
-            const statusLabel = { pendente: 'Aguardando', em_separação: 'Em Separação', em_expedicao: 'Em Expedição', em_transporte: 'Em Transporte', entregue: 'Entregue' };
+            const statusLabel = { pendente: 'Aguardando', em_separacao: 'Em separação', em_separação: 'Em separação', em_expedicao: 'Em expedição', em_transporte: 'Em transporte', entregue: 'Entregue' };
             const headers = ['Pedido', 'NF-e', 'Cliente', 'Cidade/UF', 'Transportadora', 'Previsão', 'Status', 'Prioridade', 'Valor'];
             const rows = pedidos.map(p => [
                 p.pedido_id || p.id,
@@ -1574,9 +1628,37 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
             div.innerHTML = '<p style="color:var(--text-secondary);"><i class="fas fa-spinner fa-spin"></i> Buscando rastreamento...</p>';
             try {
                 const r = await fetch(`/api/logistica/pedidos/${encodeURIComponent(pedidoId)}/rastreamento`, { credentials: 'include' });
+                // Diferenciar 404 (pedido não encontrado) de 200 com lista vazia (sem eventos)
+                if (r.status === 404) {
+                    div.innerHTML = `<div class="empty-state" style="padding:24px;border-left:4px solid var(--warning);background:#fffbeb;border-radius:8px;">
+                        <i class="fas fa-exclamation-triangle" style="color:var(--warning);"></i>
+                        <p style="font-weight:600;margin-top:8px;">Pedido #${esc(pedidoId)} não encontrado</p>
+                        <p style="font-size:12px;color:var(--text-secondary);">Verifique o ID informado e tente novamente.</p>
+                        <button class="btn btn-secondary btn-sm" style="margin-top:12px;" onclick="limparRastreamento()"><i class="fas fa-redo"></i> Nova consulta</button>
+                    </div>`;
+                    return;
+                }
+                if (r.status >= 500) {
+                    showToast('Erro do servidor ao consultar rastreamento', 'error');
+                    div.innerHTML = `<div class="empty-state" style="padding:24px;border-left:4px solid var(--danger);background:#fef2f2;border-radius:8px;">
+                        <i class="fas fa-times-circle" style="color:var(--danger);"></i>
+                        <p style="font-weight:600;margin-top:8px;">Erro ao consultar rastreamento</p>
+                        <p style="font-size:12px;color:var(--text-secondary);">Tente novamente em instantes.</p>
+                    </div>`;
+                    return;
+                }
+                if (!r.ok) {
+                    const errData = await r.json().catch(() => ({}));
+                    div.innerHTML = `<p style="color:var(--danger);">Erro: ${esc(errData.error || errData.message || 'Falha na consulta')}</p>`;
+                    return;
+                }
                 const data = await r.json();
                 if (!data.eventos || !data.eventos.length) {
-                    div.innerHTML = '<div class="empty-state" style="padding:24px;"><i class="fas fa-map-marker-alt"></i><p>Nenhum evento de rastreamento encontrado</p></div>';
+                    div.innerHTML = `<div class="empty-state" style="padding:24px;">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <p>Pedido #${esc(pedidoId)} encontrado, mas sem eventos de rastreamento ainda.</p>
+                        <button class="btn btn-secondary btn-sm" style="margin-top:12px;" onclick="abrirAddRastreamento(${parseInt(pedidoId, 10) || 0})"><i class="fas fa-plus"></i> Adicionar primeiro evento</button>
+                    </div>`;
                     return;
                 }
                 div.innerHTML = `
@@ -1612,6 +1694,14 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
             } catch (e) { div.innerHTML = '<p style="color:var(--danger);">Erro: ' + esc(e.message) + '</p>'; }
         }
 
+        function limparRastreamento() {
+            const inp = document.getElementById('rastr-pedido-id');
+            if (inp) inp.value = '';
+            const div = document.getElementById('rastreamento-resultado');
+            if (div) div.innerHTML = '';
+            if (inp) inp.focus();
+        }
+
         async function consultarApiTransportadora() {
             const pedidoId = document.getElementById('rastr-pedido-id').value;
             if (!pedidoId) { showToast('Informe o ID do pedido', 'warning'); return; }
@@ -1642,10 +1732,34 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
             openModal('modal-rastreamento-add');
         }
 
+        function capturarLocalizacao() {
+            if (!navigator.geolocation) { showToast('Geolocalização não suportada neste navegador', 'warning'); return; }
+            showToast('Obtendo localização...', 'info');
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    document.getElementById('rastr-lat').value = pos.coords.latitude.toFixed(8);
+                    document.getElementById('rastr-lng').value = pos.coords.longitude.toFixed(8);
+                    showToast('Localização capturada', 'success');
+                },
+                (err) => { showToast('Não foi possível obter a localização: ' + err.message, 'error'); },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+
         async function salvarEventoRastreamento() {
             const pedidoId = document.getElementById('rastr-add-pedido-id').value;
-            const descrição = document.getElementById('rastr-desc').value.trim();
-            if (!descrição) { showToast('Descrição é obrigatória', 'warning'); return; }
+            const descricao = document.getElementById('rastr-desc').value.trim();
+            if (!descricao) { showToast('Descrição é obrigatória', 'warning'); return; }
+            const latStr = document.getElementById('rastr-lat').value;
+            const lngStr = document.getElementById('rastr-lng').value;
+            if (latStr) {
+                const lat = parseFloat(latStr);
+                if (!Number.isFinite(lat) || lat < -90 || lat > 90) { showToast('Latitude inválida (deve estar entre -90 e 90)', 'warning'); return; }
+            }
+            if (lngStr) {
+                const lng = parseFloat(lngStr);
+                if (!Number.isFinite(lng) || lng < -180 || lng > 180) { showToast('Longitude inválida (deve estar entre -180 e 180)', 'warning'); return; }
+            }
             if (window._guardSalvarRastreamento) return;
             window._guardSalvarRastreamento = true;
             const actionButton = getModalPrimaryActionButton('modal-rastreamento-add');
@@ -1654,10 +1768,10 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
                 const r = await fetch(`/api/logistica/pedidos/${encodeURIComponent(pedidoId)}/rastreamento`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
                     body: JSON.stringify({
-                        descrição, cidade: document.getElementById('rastr-cidade').value || null,
+                        descricao, cidade: document.getElementById('rastr-cidade').value || null,
                         uf: document.getElementById('rastr-uf').value || null,
-                        latitude: document.getElementById('rastr-lat').value || null,
-                        longitude: document.getElementById('rastr-lng').value || null,
+                        latitude: latStr || null,
+                        longitude: lngStr || null,
                         unidade_rastreio: document.getElementById('rastr-unidade').value || null
                     })
                 });
@@ -1668,6 +1782,17 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
 
         // ========== CT-e ==========
         let ctesData = [];
+
+        function abrirNovoCTe() {
+            window._guardSalvarCTe = false;
+            document.getElementById('cte-edit-id').value = '';
+            document.getElementById('form-novo-cte').reset();
+            // Recarregar transportadoras se select estiver vazio
+            const sel = document.getElementById('cte-transportadora');
+            if (sel && sel.options.length <= 1) carregarTransportadoras();
+            openModal('modal-novo-cte');
+        }
+
         async function carregarCTes() {
             const status = document.getElementById('cte-filtro-status')?.value || '';
             try {
@@ -1707,76 +1832,57 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
             `).join('');
         }
 
-        // ============================================================
-        // BE-006: Funções de validação fiscal (CNPJ, CPF, Placa, Chave NF-e)
-        // ============================================================
-        function validarCNPJ(cnpj) {
-            cnpj = cnpj.replace(/\D/g, '');
-            if (cnpj.length !== 14) return false;
-            if (/^(\d)\1+$/.test(cnpj)) return false;
-            let soma = 0, peso = 5;
-            for (let i = 0; i < 12; i++) { soma += parseInt(cnpj[i]) * peso; peso = peso === 2 ? 9 : peso - 1; }
-            let r = soma % 11;
-            if ((r < 2 ? 0 : 11 - r) !== parseInt(cnpj[12])) return false;
-            soma = 0; peso = 6;
-            for (let i = 0; i < 13; i++) { soma += parseInt(cnpj[i]) * peso; peso = peso === 2 ? 9 : peso - 1; }
-            r = soma % 11;
-            return (r < 2 ? 0 : 11 - r) === parseInt(cnpj[13]);
-        }
-        function validarCPF(cpf) {
-            cpf = cpf.replace(/\D/g, '');
-            if (cpf.length !== 11) return false;
-            if (/^(\d)\1+$/.test(cpf)) return false;
-            let soma = 0;
-            for (let i = 0; i < 9; i++) soma += parseInt(cpf[i]) * (10 - i);
-            let r = soma % 11;
-            if ((r < 2 ? 0 : 11 - r) !== parseInt(cpf[9])) return false;
-            soma = 0;
-            for (let i = 0; i < 10; i++) soma += parseInt(cpf[i]) * (11 - i);
-            r = soma % 11;
-            return (r < 2 ? 0 : 11 - r) === parseInt(cpf[10]);
-        }
-        function validarPlaca(placa) {
-            const limpa = placa.replace(/[-\s]/g, '').toUpperCase();
-            return /^[A-Z]{3}[0-9]{4}$/.test(limpa) || /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(limpa);
-        }
-        function validarChaveAcesso(chave) {
-            chave = chave.replace(/\D/g, '');
-            if (chave.length !== 44) return false;
-            let soma = 0, peso = 2;
-            for (let i = 42; i >= 0; i--) {
-                soma += parseInt(chave[i]) * peso;
-                peso = peso === 9 ? 2 : peso + 1;
-            }
-            const resto = soma % 11;
-            const dv = resto < 2 ? 0 : 11 - resto;
-            return dv === parseInt(chave[43]);
-        }
-
         async function salvarCTe() {
             const transportadora_id = document.getElementById('cte-transportadora').value;
             const valor_frete = document.getElementById('cte-valor-frete').value;
-            if (!transportadora_id || !valor_frete) { showToast('Transportadora e valor do frete são obrigatórios', 'warning'); return; }
+            if (!transportadora_id) {
+                showToast('Selecione uma transportadora', 'warning');
+                document.getElementById('cte-transportadora').focus();
+                return;
+            }
+            if (!valor_frete || parseFloat(valor_frete) <= 0) {
+                showToast('Informe o valor do frete', 'warning');
+                document.getElementById('cte-valor-frete').focus();
+                return;
+            }
 
             // BE-006: Validações fiscais CT-e
             const remCnpj = (document.getElementById('cte-rem-cnpj').value || '').replace(/\D/g, '');
+            if (remCnpj.length > 0 && remCnpj.length !== 14 && remCnpj.length !== 11) {
+                showToast('CNPJ/CPF do remetente inválido (deve ter 14 dígitos para CNPJ ou 11 para CPF)', 'error');
+                document.getElementById('cte-rem-cnpj').focus();
+                return;
+            }
             if (remCnpj.length === 14 && !validarCNPJ(remCnpj)) {
                 showToast('CNPJ do remetente inválido (dígito verificador incorreto)', 'error');
-                document.getElementById('cte-rem-cnpj').focus(); return;
+                document.getElementById('cte-rem-cnpj').focus();
+                return;
             }
             if (remCnpj.length === 11 && !validarCPF(remCnpj)) {
-                showToast('CPF do remetente inválido', 'error');
-                document.getElementById('cte-rem-cnpj').focus(); return;
+                showToast('CPF do remetente inválido (dígito verificador incorreto)', 'error');
+                document.getElementById('cte-rem-cnpj').focus();
+                return;
             }
             const destCnpj = (document.getElementById('cte-dest-cnpj').value || '').replace(/\D/g, '');
             if (destCnpj.length === 14 && !validarCNPJ(destCnpj)) {
-                showToast('CNPJ do destinatário inválido', 'error');
-                document.getElementById('cte-dest-cnpj').focus(); return;
+                showToast('CNPJ do destinatário inválido (dígito verificador incorreto)', 'error');
+                document.getElementById('cte-dest-cnpj').focus();
+                return;
             }
-
+            if (destCnpj.length === 11 && !validarCPF(destCnpj)) {
+                showToast('CPF do destinatário inválido (dígito verificador incorreto)', 'error');
+                document.getElementById('cte-dest-cnpj').focus();
+                return;
+            }
+            const valorCarga = parseFloat(document.getElementById('cte-valor-carga').value || 0);
+            if (valorCarga < 0) {
+                showToast('Valor da carga não pode ser negativo', 'error');
+                document.getElementById('cte-valor-carga').focus();
+                return;
+            }
             if (window._guardSalvarCTe) return;
             window._guardSalvarCTe = true;
-            const actionButton = getModalPrimaryActionButton('modal-novo-cte');
+            const actionButton = document.getElementById('btn-salvar-cte') || getModalPrimaryActionButton('modal-novo-cte');
             setModalButtonBusy(actionButton, true);
             const editId = document.getElementById('cte-edit-id').value;
             const payload = {
@@ -1841,6 +1947,15 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
         // ========== MDF-e ==========
         let mdfesData = [], mdfeDocumentos = [], mdfePercursos = [];
 
+        function abrirNovoMDFe() {
+            window._guardSalvarMDFe = false;
+            mdfeDocumentos = []; mdfePercursos = [];
+            document.getElementById('form-novo-mdfe')?.reset();
+            const sel = document.getElementById('mdfe-transportadora');
+            if (sel && sel.options.length <= 1) carregarTransportadoras();
+            openModal('modal-novo-mdfe');
+        }
+
         async function carregarMDFes() {
             const status = document.getElementById('mdfe-filtro-status')?.value || '';
             try {
@@ -1881,10 +1996,73 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
             `).join('');
         }
 
+        // ============================================================
+        // BE-006: Funções de validação fiscal (CNPJ, CPF, Placa, Chave NF-e)
+        // ============================================================
+
+        /** Valida CNPJ com algoritmo módulo 11 */
+        function validarCNPJ(cnpj) {
+            cnpj = cnpj.replace(/\D/g, '');
+            if (cnpj.length !== 14) return false;
+            if (/^(\d)\1+$/.test(cnpj)) return false; // todos dígitos iguais
+            let soma = 0, peso = 5;
+            for (let i = 0; i < 12; i++) { soma += parseInt(cnpj[i]) * peso; peso = peso === 2 ? 9 : peso - 1; }
+            let r = soma % 11;
+            if ((r < 2 ? 0 : 11 - r) !== parseInt(cnpj[12])) return false;
+            soma = 0; peso = 6;
+            for (let i = 0; i < 13; i++) { soma += parseInt(cnpj[i]) * peso; peso = peso === 2 ? 9 : peso - 1; }
+            r = soma % 11;
+            return (r < 2 ? 0 : 11 - r) === parseInt(cnpj[13]);
+        }
+
+        /** Valida CPF com algoritmo módulo 11 */
+        function validarCPF(cpf) {
+            cpf = cpf.replace(/\D/g, '');
+            if (cpf.length !== 11) return false;
+            if (/^(\d)\1+$/.test(cpf)) return false;
+            let soma = 0;
+            for (let i = 0; i < 9; i++) soma += parseInt(cpf[i]) * (10 - i);
+            let r = soma % 11;
+            if ((r < 2 ? 0 : 11 - r) !== parseInt(cpf[9])) return false;
+            soma = 0;
+            for (let i = 0; i < 10; i++) soma += parseInt(cpf[i]) * (11 - i);
+            r = soma % 11;
+            return (r < 2 ? 0 : 11 - r) === parseInt(cpf[10]);
+        }
+
+        /** Valida placa no formato antigo (ABC-1234) ou Mercosul (ABC1D23) */
+        function validarPlaca(placa) {
+            const limpa = placa.replace(/[-\s]/g, '').toUpperCase();
+            return /^[A-Z]{3}[0-9]{4}$/.test(limpa) || /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(limpa);
+        }
+
+        // LA-004: Validação de Chave de Acesso NF-e/CT-e (44 dígitos + dígito verificador módulo-11)
+        function validarChaveAcesso(chave) {
+            chave = chave.replace(/\D/g, '');
+            if (chave.length !== 44) return false;
+            let soma = 0, peso = 2;
+            for (let i = 42; i >= 0; i--) {
+                soma += parseInt(chave[i]) * peso;
+                peso = peso === 9 ? 2 : peso + 1;
+            }
+            const resto = soma % 11;
+            const dv = resto < 2 ? 0 : 11 - resto;
+            return dv === parseInt(chave[43]);
+        }
+
         function adicionarDocMdfe() {
             const tipo = document.getElementById('mdfe-doc-tipo').value;
-            const chave = document.getElementById('mdfe-doc-chave').value.trim();
-            if (!chave || chave.length !== 44) { showToast('Chave de acesso deve ter 44 dígitos', 'warning'); return; }
+            const chave = document.getElementById('mdfe-doc-chave').value.trim().replace(/\D/g, '');
+            if (!chave || chave.length !== 44) {
+                showToast('Chave de acesso deve ter 44 dígitos', 'warning');
+                document.getElementById('mdfe-doc-chave').focus();
+                return;
+            }
+            if (!validarChaveAcesso(chave)) {
+                showToast('Chave de acesso inválida (dígito verificador incorreto)', 'error');
+                document.getElementById('mdfe-doc-chave').focus();
+                return;
+            }
             mdfeDocumentos.push({ tipo, chave_acesso: chave });
             document.getElementById('mdfe-doc-chave').value = '';
             renderizarDocsMdfe();
@@ -1926,23 +2104,26 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
             const transportadora_id = document.getElementById('mdfe-transportadora').value;
             const uf_inicio = document.getElementById('mdfe-uf-inicio').value.trim().toUpperCase();
             const uf_fim = document.getElementById('mdfe-uf-fim').value.trim().toUpperCase();
-            if (!transportadora_id || !uf_inicio || !uf_fim) { showToast('Transportadora, UF início e UF fim são obrigatórios', 'warning'); return; }
+            if (!transportadora_id) { showToast('Selecione uma transportadora', 'warning'); return; }
+            if (!uf_inicio || !uf_fim) { showToast('UF início e UF fim são obrigatórios', 'warning'); return; }
 
             // BE-006: Validações fiscais MDF-e
             const condCpf = (document.getElementById('mdfe-condutor-cpf').value || '').replace(/\D/g, '');
             if (condCpf.length > 0 && !validarCPF(condCpf)) {
-                showToast('CPF do condutor inválido', 'error');
-                document.getElementById('mdfe-condutor-cpf').focus(); return;
+                showToast('CPF do condutor inválido (dígito verificador incorreto)', 'error');
+                document.getElementById('mdfe-condutor-cpf').focus();
+                return;
             }
             const placa = (document.getElementById('mdfe-placa').value || '').trim();
             if (placa.length > 0 && !validarPlaca(placa)) {
-                showToast('Placa inválida. Use formato antigo (ABC-1234) ou Mercosul (ABC1D23)', 'error');
-                document.getElementById('mdfe-placa').focus(); return;
+                showToast('Placa inválida. Use o formato antigo (ABC-1234) ou Mercosul (ABC1D23)', 'error');
+                document.getElementById('mdfe-placa').focus();
+                return;
             }
 
             if (window._guardSalvarMDFe) return;
             window._guardSalvarMDFe = true;
-            const actionButton = getModalPrimaryActionButton('modal-novo-mdfe');
+            const actionButton = document.getElementById('btn-salvar-mdfe') || getModalPrimaryActionButton('modal-novo-mdfe');
             setModalButtonBusy(actionButton, true);
             try {
                 const r = await fetch('/api/logistica/mdfes', {
@@ -1952,7 +2133,7 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
                         condutor_nome: document.getElementById('mdfe-condutor-nome').value,
                         condutor_cpf: document.getElementById('mdfe-condutor-cpf').value,
                         veiculo_placa: document.getElementById('mdfe-placa').value,
-                        veiculo_uf: document.getElementById('mdfe-veículo-uf').value,
+                        veiculo_uf: document.getElementById('mdfe-veiculo-uf').value,
                         veiculo_rntrc: document.getElementById('mdfe-rntrc').value,
                         peso_bruto: document.getElementById('mdfe-peso').value || 0,
                         valor_carga: document.getElementById('mdfe-valor-carga').value || 0,
@@ -2000,19 +2181,44 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
 
         function carregarDadosUsuario() {
             const h = new Date().getHours();
-            document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+            const _set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+            _set('greeting-text', h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite');
             fetch('/api/me', { credentials: 'include' }).then(r => r.json()).then(u => {
-                document.getElementById('user-name').textContent = (u.nome || u.name || 'Usuário').split(' ')[0];
-                document.getElementById('user-initials').textContent = (u.nome || u.name || 'U').substring(0, 2).toUpperCase();
-                if (u.foto || u.avatar) { document.getElementById('user-photo').src = u.foto || u.avatar; document.getElementById('user-photo').style.display = 'block'; document.getElementById('user-initials').style.display = 'none'; }
+                const nomeRaw = u.nome || u.name || 'Usuário';
+                const cargo = (u.cargo || u.role || '').trim();
+                _set('user-name', nomeRaw.split(' ')[0]);
+                _set('user-initials', nomeRaw.substring(0, 2).toUpperCase());
+                // Remove vírgula órfã quando não há cargo (3.1)
+                const sep = document.getElementById('user-name-separator');
+                if (sep) sep.textContent = cargo ? `, ` : ' ';
+                if (u.foto || u.avatar) {
+                    const photo = document.getElementById('user-photo');
+                    const initials = document.getElementById('user-initials');
+                    if (photo) { photo.src = u.foto || u.avatar; photo.style.display = 'block'; }
+                    if (initials) initials.style.display = 'none';
+                }
             }).catch(() => { });
         }
 
+        // 3.4: Popular selects de UF (27 estados brasileiros)
+        function popularSelectsUF() {
+            const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+            document.querySelectorAll('select.uf-select').forEach(sel => {
+                if (sel.options.length > 1) return; // já populado
+                const placeholder = '<option value="">UF</option>';
+                sel.innerHTML = placeholder + UFS.map(uf => `<option value="${uf}">${uf}</option>`).join('');
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
+            popularSelectsUF();
             carregarDadosUsuario();
             carregarDashboard();
             carregarPedidos();
             carregarTransportadoras();
+            // 2.13: Validação min na Previsão de Entrega (data atual)
+            const previsao = document.getElementById('exp-previsao');
+            if (previsao) previsao.min = new Date().toISOString().split('T')[0];
         });
     </script>
     <script src="/js/tooltips-professional.js?v=20260209"></script>
@@ -2033,3 +2239,4 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
 </body>
 
 </html>
+

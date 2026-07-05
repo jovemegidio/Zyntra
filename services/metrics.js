@@ -105,6 +105,12 @@ function metricsMiddleware(req, res, next) {
 
 // ── Route Normalization (prevent cardinality explosion) ────────
 function normalizeRoute(path) {
+    // req.route.path pode ser Array (rotas com múltiplos paths) ou RegExp.
+    if (typeof path !== 'string') {
+        if (Array.isArray(path)) path = path[0] || '/';
+        else if (path instanceof RegExp) path = path.source;
+        else path = String(path || '/');
+    }
     return path
         .replace(/\/\d+/g, '/:id')           // /api/vendas/123 → /api/vendas/:id
         .replace(/\/[a-f0-9-]{36}/g, '/:uuid') // UUID params

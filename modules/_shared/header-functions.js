@@ -1,5 +1,9 @@
 ﻿// JavaScript compartilhado para cabeçalho padronizado - ALUFORCE
 
+function withBasePath(path) {
+    return window.__withBasePath ? window.__withBasePath(path) : path;
+}
+
 // Função para carregar informações do usuário
 async function loadUserInfo() {
     try {
@@ -10,7 +14,10 @@ async function loadUserInfo() {
             // Atualizar nome do usuário
             const userTextElement = document.querySelector('.user-text');
             if (userTextElement) {
-                userTextElement.textContent = user.nome || user.email || 'Usuário';
+                // Saudação: apenas apelido OU primeiro nome
+                const apelido = user.apelido && String(user.apelido).trim();
+                const base = user.nome || user.email || 'Usuário';
+                userTextElement.textContent = apelido || String(base).trim().split(/\s+/)[0];
             }
             
             // Atualizar avatar
@@ -65,14 +72,14 @@ async function logout() {
     try {
         const response = await fetch('/logout', { method: 'POST' });
         if (response.ok) {
-            window.location.href = '/login.html';
+            window.location.href = withBasePath('/login.html');
         } else {
             alert('Erro ao fazer logout');
         }
     } catch (error) {
         console.error('Erro ao fazer logout:', error);
         // Forçar logout local
-        window.location.href = '/login.html';
+        window.location.href = withBasePath('/login.html');
     }
 }
 

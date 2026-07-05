@@ -189,14 +189,13 @@ async function writeToDatabase(entry, pool) {
     
     try {
         await pool.execute(`
-            INSERT INTO ${AUDIT_CONFIG.tableName} 
-            (id, timestamp, action, entity, entity_id, user_id, user_email, 
-             ip, method, path, request_body, previous_data, new_data, 
+            INSERT INTO ${AUDIT_CONFIG.tableName}
+            (timestamp, action, entity, entity_id, user_id, user_email,
+             ip, method, path, request_body, previous_data, new_data,
              status, error_message, duration, metadata)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
-            entry.id,
-            entry.timestamp,
+            entry.timestamp.replace('T', ' ').replace('Z', '').slice(0, 19),
             entry.action,
             entry.entity,
             entry.entityId,

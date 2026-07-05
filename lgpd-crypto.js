@@ -8,6 +8,17 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 
+// Throttle do aviso de decrypt: registros legados com a chave perdida geravam
+// 1 linha de log por registro (centenas por carregamento), afogando o err.log.
+// Loga o 1º e depois um resumo a cada 100 ocorrências. (14/jun/2026)
+let _decryptFailCount = 0;
+function _warnDecryptFail() {
+    _decryptFailCount++;
+    if (_decryptFailCount === 1 || _decryptFailCount % 100 === 0) {
+        console.warn(`[LGPD] Falha ao descriptografar PII (chave legada incompatível) — total na sessão: ${_decryptFailCount}. Esses campos ficam em branco e precisam ser recadastrados.`);
+    }
+}
+
 // Derive key from dedicated env var (REQUIRED in production)
 function getEncryptionKey() {
     const secret = process.env.PII_ENCRYPTION_KEY || process.env.JWT_SECRET;
@@ -64,7 +75,7 @@ function decryptPII(encryptedText) {
     } catch (err) {
         // Chave de criptografia mudou — dado irrecuperável com a chave atual
         // Retornar string vazia para que o campo fique em branco e o usuário possa recadastrar
-        console.warn('[LGPD] Falha ao descriptografar PII — chave incompatível. O usuário precisará recadastrar o dado.');
+        _warnDecryptFail();
         return '';
     }
 }

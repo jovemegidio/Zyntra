@@ -11,7 +11,7 @@
     <title>Zyntra: Gestão de Pedidos</title>
 
     <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
-    <script src="/js/auth-unified.js?v=20260301" defer></script>
+    <script src="/js/auth-unified.js?v=20260527" defer></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1516,11 +1516,12 @@
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <script src="/js/tooltips-professional.js?v=20260209"></script>
     <script src="/js/modal-title.js?v=20260210"></script>
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260625a">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
 
     <!-- Chat Widget BOB AI - DESATIVADO -->
     <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 <body>
     <div class="app-container">
@@ -1969,10 +1970,22 @@
 
         // Visualizar pedido - Abre modal de detalhes (estilo Omie)
         async function verPedido(id) {
-            const pedido = todosPedidos.find(p => p.id === id);
+            let pedido = todosPedidos.find(p => p.id === id);
             if (!pedido) {
                 showToast('Pedido não encontrado', 'error');
                 return;
+            }
+
+            try {
+                const detalheResponse = await fetch(`/api/vendas/pedidos/${id}`, { credentials: 'include', headers: getAuthHeaders() });
+                if (detalheResponse.ok) {
+                    const detalhe = await detalheResponse.json();
+                    pedido = { ...pedido, ...detalhe };
+                    const idx = todosPedidos.findIndex(p => p.id === id);
+                    if (idx >= 0) todosPedidos[idx] = pedido;
+                }
+            } catch (e) {
+                console.warn('[VENDAS] Não foi possível carregar detalhes completos do pedido:', e);
             }
 
             pedidoAtualModal = pedido;
@@ -2021,6 +2034,8 @@
 
             // Calcular totais dos itens
             const totalMercadorias = itens.reduce((s, i) => s + (parseFloat(i.valor_total || i.total || i.preco_unitario * i.quantidade) || 0), 0);
+            const dataFaturamentoPedido = pedido.data_faturamento || pedido.faturado_em || pedido.faturamento_data || pedido.data_emissao_nfe || pedido.nfe_data_emissao;
+            const dataFaturamentoLabel = dataFaturamentoPedido ? formatarData(dataFaturamentoPedido) : '-';
 
             // Renderizar detalhes (estilo Omie)
             document.getElementById('modal-visualizar-body').innerHTML = `
@@ -2119,7 +2134,7 @@
                             <h4 style="font-size:13px;font-weight:600;color:#374151;margin-bottom:12px;display:flex;align-items:center;gap:8px;"><i class="fas fa-truck" style="color:var(--primary-orange);"></i> Entrega</h4>
                             <div class="detail-row"><span class="label">Data Previsão:</span><span class="value">${pedido.data_previsao ? formatarData(pedido.data_previsao) : '-'}</span></div>
                             <div class="detail-row"><span class="label">Data Entrega:</span><span class="value">${pedido.data_entrega ? formatarData(pedido.data_entrega) : '-'}</span></div>
-                            <div class="detail-row"><span class="label">Data Faturamento:</span><span class="value">${pedido.data_faturamento ? formatarData(pedido.data_faturamento) : '-'}</span></div>
+                            <div class="detail-row"><span class="label">Data Faturamento:</span><span class="value">${dataFaturamentoLabel}</span></div>
                             <div class="detail-row"><span class="label">Faturamento:</span><span class="value">${pedido.faturamento || '-'}</span></div>
                         </div>
                     </div>
@@ -3272,6 +3287,7 @@
                 // Atualizar UI
                 document.getElementById('edit-status').value = 'faturado';
                 pedidoAtualModal.status = 'faturado';
+                pedidoAtualModal.data_faturamento = pedidoAtualModal.data_faturamento || new Date().toISOString();
 
                 fecharModalEditar();
                 carregarPedidos();
@@ -3552,7 +3568,7 @@
                         .rpt-footer { margin-top: 20px; padding-top: 10px; border-top: 2px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
                         .rpt-footer span { font-size: 8px; color: #94a3b8; }
                     </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
                 </head>
                 <body>
                     <div class="print-bar">
@@ -4443,7 +4459,7 @@
     <!-- Performance Utilities -->
     <script src="/js/performance-utils.js?v=20260213"></script>
 
-    <script src="/js/auth-unified.js?v=20260301"></script>
+    <script src="/js/auth-unified.js?v=20260527"></script>
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
     <!-- Chat Widget BOB AI - DESATIVADO -->
     <!-- <script src="/chat/widget.js?v=20260418" defer></script> -->

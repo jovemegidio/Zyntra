@@ -3967,19 +3967,20 @@ app.post('/api/rh/holerite/:id/item', authMiddleware, async (req, res) => {
 
 // AUDIT-FIX R3: DDLs holerites encapsuladas em IIFE
 (function initHoleritesTables() {
-  const ensureHoleritesColumns = `
-    ALTER TABLE rh_holerites
-      ADD COLUMN IF NOT EXISTS visualizado TINYINT(1) DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS total_visualizacoes INT DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS confirmado_recebimento TINYINT(1) DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS data_confirmacao DATETIME NULL,
-      ADD COLUMN IF NOT EXISTS arquivo_pdf VARCHAR(255),
-      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'rascunho',
-      ADD COLUMN IF NOT EXISTS tipo VARCHAR(30) DEFAULT 'salario'
-  `;
-  db.query(ensureHoleritesColumns, (e) => {
-    if (e && !e.message?.includes('Duplicate')) logger.warn('Aviso ao ajustar colunas rh_holerites:', e.message);
-  });
+  const holeritesColumns = [
+    "ALTER TABLE rh_holerites ADD COLUMN visualizado TINYINT(1) DEFAULT 0",
+    "ALTER TABLE rh_holerites ADD COLUMN total_visualizacoes INT DEFAULT 0",
+    "ALTER TABLE rh_holerites ADD COLUMN confirmado_recebimento TINYINT(1) DEFAULT 0",
+    "ALTER TABLE rh_holerites ADD COLUMN data_confirmacao DATETIME NULL",
+    "ALTER TABLE rh_holerites ADD COLUMN arquivo_pdf VARCHAR(255)",
+    "ALTER TABLE rh_holerites ADD COLUMN status VARCHAR(20) DEFAULT 'rascunho'",
+    "ALTER TABLE rh_holerites ADD COLUMN tipo VARCHAR(30) DEFAULT 'salario'"
+  ];
+  holeritesColumns.forEach((sql) => db.query(sql, (e) => {
+    if (e && e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('Duplicate')) {
+      logger.warn('Aviso ao ajustar colunas rh_holerites:', e.message);
+    }
+  }));
 
   const ensureHoleritesConsentTable = `
     CREATE TABLE IF NOT EXISTS rh_holerites_consentimentos (

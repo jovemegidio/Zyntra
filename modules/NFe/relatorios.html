@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <!-- Favicon -->
@@ -33,7 +33,7 @@
     <link rel="stylesheet" href="/modules/Faturamento/css/faturamento-layout.css?v=20260325">
 
     <!-- Global Header & Sidebar é Padrão Institucional -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260610">
 
     <!-- Performance: Skeleton Loaders -->
     <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260325">
@@ -52,7 +52,7 @@
         .quick-action .action-text { display: flex; flex-direction: column; gap: 3px; }
         .quick-action .action-text span:first-child { font-size: 13px; font-weight: 600; color: #111827; }
         .quick-action .action-desc { font-size: 11px; color: #6b7280; line-height: 1.4; font-weight: 400; }
-        .modal-overlay { display: none; }
+        .modal-overlay { display: none; position: fixed; inset: 0; z-index: 1060; background: rgba(0,0,0,.55); align-items: center; justify-content: center; }
         .modal-overlay.active { display: flex; }
         .report-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px; }
         .summary-card { background: #f9fafb; border-radius: 6px; padding: 14px; text-align: center; }
@@ -61,7 +61,7 @@
     </style>
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260325">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260325">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
 </head>
 <body>
 
@@ -74,9 +74,9 @@
     <nav class="sidebar-nav">
         <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
         <a href="consultar.html" class="sidebar-btn" title="Consultar NFe"><i class="fas fa-search"></i></a>
-        <a href="relatórios.html" class="sidebar-btn active" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        <a href="relatorios.html" class="sidebar-btn active" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
         <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-history"></i></a>
-        <a href="inutilização.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+        <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
         <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
         <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
         <a href="logistica.html" class="sidebar-btn" title="Logística & Expedição"><i class="fas fa-truck"></i></a>
@@ -91,9 +91,9 @@
         <div class="header-left">
             <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
             <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                 <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
                 <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
                 <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Relatórios</span>
             </div>
@@ -370,7 +370,7 @@ function gerarRelatório(tipo) {
     if (df) params.append('dataFim', df);
 
     document.getElementById('previewTitle').textContent = 'Carregando...';
-    document.getElementById('previewContent').innerHTML = '<div style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:32px;color:var(--primary-500);"></i><p style="margin-top:12px;color:var(--text-secondary);font-size:13px;">Carregando relatério...</p></div>';
+    document.getElementById('previewContent').innerHTML = '<div style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:32px;color:var(--primary-500);"></i><p style="margin-top:12px;color:var(--text-secondary);font-size:13px;">Carregando relatório...</p></div>';
     document.getElementById('previewSection').classList.add('active');
     document.getElementById('currentReportType').value = tipo;
 
@@ -386,18 +386,18 @@ function gerarRelatório(tipo) {
     })
     .catch(function(err) {
         dadosRelatórioAtual = null;
-        document.getElementById('previewTitle').textContent = 'Relatério Indisponível';
+        document.getElementById('previewTitle').textContent = 'Relatório Indisponível';
         document.getElementById('previewContent').innerHTML = '<div style="text-align:center;padding:48px 24px;">' +
             '<i class="fas fa-database" style="font-size:48px;color:var(--text-muted);margin-bottom:16px;"></i>' +
             '<h3 style="color:var(--text-primary);font-size:16px;margin-bottom:8px;">Dados não disponíveis</h3>' +
-            '<p style="color:var(--text-secondary);font-size:13px;max-width:400px;margin:0 auto;">Este relatério requer dados do servidor. Verifique se o endpoint da API está configurado ou tente novamente mais tarde.</p>' +
+            '<p style="color:var(--text-secondary);font-size:13px;max-width:400px;margin:0 auto;">Este relatório requer dados do servidor. Verifique se o endpoint da API está configurado ou tente novamente mais tarde.</p>' +
             '</div>';
     });
 }
 
 function renderizarRelatório(dados) {
-    document.getElementById('previewTitle').textContent = dados.titulo || 'Relatério';
-    document.title = 'Zyntra: ' + (dados.titulo || 'Relatério');
+    document.getElementById('previewTitle').textContent = dados.titulo || 'Relatório';
+    document.title = 'Zyntra: ' + (dados.titulo || 'Relatório');
 
     var período = '';
     var di = document.getElementById('reportDataInicio').value;
@@ -453,7 +453,7 @@ document.addEventListener('click', function(e) {
 
 function exportarPDF() {
     var dados = dadosRelatórioAtual;
-    if (!dados) { showAlert('Nenhum relatério carregado para exportar', 'warning'); return; }
+    if (!dados) { showAlert('Nenhum relatório carregado para exportar', 'warning'); return; }
 
     var período = '';
     var di = document.getElementById('reportDataInicio').value;
@@ -529,7 +529,7 @@ function exportarPDF() {
             '.btn-print:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(11,40,66,.3)}' +
             '.btn-close{background:var(--soft);color:var(--text);border:1px solid var(--line)}' +
             '.btn-close:hover{background:#fff}' +
-            '</style><link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body>' +
+            '</style><link rel="stylesheet" href="/css/design-system.css?v=20260628g"></head><body>' +
         '<div class="btn-bar no-print">' +
             '<button class="btn-print" onclick="window.print()">Imprimir / Salvar PDF</button>' +
             '<button class="btn-close" onclick="window.close()">Fechar</button>' +
@@ -577,7 +577,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Sistema de Notificações Global -->
 <script src="/js/notification-manager.js?v=20260325"></script>
-<script src="/_shared/connection-monitor.js?v=20260325"></script>
+<script src="/_shared/connection-monitor.js?v=20260325" defer></script>
 <script src="/js/popup-confirmacao.js?v=20260325"></script>
 
 <!-- Utilitários Compartilhados -->
@@ -593,8 +593,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Enterprise Shared -->
 <script src="/js/sidebar-click-animation.js?v=20260325"></script>
-<script src="/_shared/accessibility-widget.js?v=20260325"></script>
+<script src="/_shared/accessibility-widget.js?v=20260325" defer></script>
     <script src="/js/user-dropdown.js?v=20260325" defer></script>
+
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
 </body>
 </html>
 

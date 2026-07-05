@@ -65,9 +65,9 @@ function createNFEntradaRouter(pool, authenticateToken) {
             }
 
             // Contagem total
-            const countQuery = query.replace(/SELECT .+ FROM/, 'SELECT COUNT(*) as total FROM');
+            const countQuery = query.replace(/SELECT[\s\S]+?\sFROM\s/, 'SELECT COUNT(*) as total FROM ');
             const [countRows] = await pool.query(countQuery, params);
-            const total = countRows[0].total;
+            const total = (countRows[0] && countRows[0].total) || 0;
 
             query += ' ORDER BY data_emissao DESC LIMIT ? OFFSET ?';
             params.push(parseInt(limite), (parseInt(pagina) - 1) * parseInt(limite));
@@ -154,6 +154,107 @@ function createNFEntradaRouter(pool, authenticateToken) {
         } catch (error) {
             console.error('❌ Erro ao importar XML:', error);
             res.status(500).json({ error: 'Erro interno no servidor. Tente novamente.' });
+        }
+    });
+
+    // ============================================================
+    // SINCRONIZAR SEFAZ — NF-e emitidas contra o CNPJ (faturado pelo fornecedor)
+    // Puxa todas as notas via DistDFe (distribuição de DF-e) e importa em nf_entrada.
+    // Ativa quando o certificado A1 está configurado em empresa_config.
+    // ============================================================
+    router.post('/sincronizar-sefaz', authenticateToken, async (req, res) => {
+        try {
+            const { ManifestacaoSefazService } = require('../modules/Faturamento/services/manifestacao-sefaz.service');
+            const zlib = require('zlib');
+
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS nf_entrada_sefaz_state (
+                    empresa_id INT PRIMARY KEY,
+                    ult_nsu VARCHAR(20) DEFAULT '0',
+                    bloqueado_ate DATETIME NULL,
+                    last_cstat VARCHAR(10) NULL,
+                    last_motivo VARCHAR(500) NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            `).catch(() => {});
+            await pool.query('ALTER TABLE nf_entrada_sefaz_state ADD COLUMN bloqueado_ate DATETIME NULL').catch(() => {});
+            await pool.query('ALTER TABLE nf_entrada_sefaz_state ADD COLUMN last_cstat VARCHAR(10) NULL').catch(() => {});
+            await pool.query('ALTER TABLE nf_entrada_sefaz_state ADD COLUMN last_motivo VARCHAR(500) NULL').catch(() => {});
+
+            const empresaId = Number(req.user?.empresa_id || 1);
+            const [[st]] = await pool.query('SELECT ult_nsu, bloqueado_ate, last_cstat, last_motivo FROM nf_entrada_sefaz_state WHERE empresa_id = ?', [empresaId]);
+            if (st?.bloqueado_ate && new Date(st.bloqueado_ate) > new Date()) {
+                return res.status(429).json({
+                    success: false,
+                    message: st.last_motivo || 'SEFAZ solicitou aguardar antes de uma nova consulta.',
+                    bloqueado_ate: st.bloqueado_ate
+                });
+            }
+            let ultNSU = (st && st.ult_nsu) || '0';
+
+            let importadas = 0, resumos = 0, lotes = 0;
+            // A SEFAZ devolve em lotes; itera até alcançar o maxNSU (limite de segurança: 20 lotes).
+            for (let i = 0; i < 20; i++) {
+                const r = await ManifestacaoSefazService.consultarNFeDestinatario(pool, { ultNSU });
+                if (!r.sucesso) {
+                    const certIssue = r.error && /certificad|cert\b|pfx|senha/i.test(r.error);
+                    if (r.ultNSU) {
+                        ultNSU = r.ultNSU;
+                        const bloqueio = r.cStat === '656' ? 'DATE_ADD(NOW(), INTERVAL 1 HOUR)' : 'NULL';
+                        await pool.query(
+                            `INSERT INTO nf_entrada_sefaz_state (empresa_id, ult_nsu, bloqueado_ate, last_cstat, last_motivo)
+                             VALUES (?, ?, ${bloqueio}, ?, ?)
+                             ON DUPLICATE KEY UPDATE
+                                ult_nsu = VALUES(ult_nsu),
+                                bloqueado_ate = ${bloqueio},
+                                last_cstat = VALUES(last_cstat),
+                                last_motivo = VALUES(last_motivo)`,
+                            [empresaId, ultNSU, r.cStat || null, r.xMotivo || r.error || null]
+                        ).catch(() => {});
+                    }
+                    return res.status(certIssue ? 400 : 502).json({
+                        success: false,
+                        message: r.error || 'Falha na consulta à SEFAZ',
+                        instrucoes: r.instrucoes || 'Configure o certificado digital A1 da empresa para habilitar a busca automática de NF-e.'
+                    });
+                }
+                lotes++;
+                for (const doc of (r.documentos || [])) {
+                    try {
+                        const xml = zlib.gunzipSync(Buffer.from(doc.conteudoBase64, 'base64')).toString('utf8');
+                        if (/<nfeProc|<NFe[ >]/.test(xml)) {
+                            const result = await processarXMLEntrada(pool, xml, req.user.id).catch(() => null);
+                            if (result && !result.duplicada) importadas++;
+                        } else if (/<resNFe[\s>]/.test(xml)) {
+                            const result = await processarResumoNFe(pool, xml, req.user.id).catch(() => null);
+                            if (result && !result.duplicada) importadas++;
+                            resumos++;
+                        } else {
+                            resumos++; // resEvento/outros documentos sem dados mínimos de NF-e
+                        }
+                    } catch (_) { /* documento ilegível, ignora */ }
+                }
+                ultNSU = r.ultNSU || ultNSU;
+                if (!r.documentos || !r.documentos.length || Number(r.ultNSU) >= Number(r.maxNSU)) break;
+            }
+
+            await pool.query(
+                `INSERT INTO nf_entrada_sefaz_state (empresa_id, ult_nsu, bloqueado_ate, last_cstat, last_motivo) VALUES (?, ?, NULL, NULL, NULL)
+                 ON DUPLICATE KEY UPDATE
+                    ult_nsu = VALUES(ult_nsu),
+                    bloqueado_ate = NULL,
+                    last_cstat = NULL,
+                    last_motivo = NULL`,
+                [empresaId, ultNSU]
+            );
+            res.json({
+                success: true,
+                message: `Sincronização SEFAZ concluída: ${importadas} NF-e importada(s), ${resumos} resumo(s).`,
+                importadas, resumos, lotes, ultNSU
+            });
+        } catch (error) {
+            console.error('❌ Erro ao sincronizar SEFAZ:', error);
+            res.status(500).json({ success: false, message: 'Erro ao sincronizar com a SEFAZ' });
         }
     });
 
@@ -336,7 +437,7 @@ async function processarXMLEntrada(pool, xmlContent, userId) {
 
     // Verificar duplicidade
     const [existe] = await pool.query(
-        'SELECT id FROM nf_entrada WHERE chave_acesso = ?', [chaveAcesso]
+        'SELECT id FROM nf_entrada WHERE chave_nfe = ?', [chaveAcesso]
     );
     if (existe.length > 0) {
         return { success: false, error: 'NF já importada', id: existe[0].id, duplicada: true };
@@ -384,22 +485,18 @@ async function processarXMLEntrada(pool, xmlContent, userId) {
     // Inserir NF de entrada
     const [insertResult] = await pool.query(`
         INSERT INTO nf_entrada (
-            chave_acesso, numero_nfe, serie, modelo,
-            fornecedor_cnpj, fornecedor_razao_social, fornecedor_nome_fantasia,
-            fornecedor_ie, fornecedor_uf, fornecedor_municipio, fornecedor_codigo_municipio,
-            valor_produtos, valor_frete, valor_seguro, valor_desconto, valor_outros, valor_total,
-            bc_icms, valor_icms, bc_icms_st, valor_icms_st, valor_ipi, valor_pis, valor_cofins,
-            data_emissao, data_saida, protocolo_autorizacao, data_autorizacao,
-            natureza_operacao, status, xml_completo, importado_por
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'importada', ?, ?)
+            chave_nfe, numero_nfe, serie,
+            emitente_cnpj, emitente_razao, emitente_uf,
+            valor_produtos, valor_frete, valor_seguro, valor_desconto, valor_outras_despesas, valor_total,
+            base_icms, valor_icms, base_icms_st, valor_icms_st, valor_ipi, valor_pis, valor_cofins,
+            data_emissao, natureza_operacao, status, xml_conteudo
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)
     `, [
-        chaveAcesso, parseInt(nNF) || 0, parseInt(serie) || 1, mod || '55',
-        fornecedorCNPJ, fornecedorRazao, fornecedorFantasia || fornecedorRazao,
-        fornecedorIE, fornecedorUF, fornecedorMun, fornecedorCodMun,
+        chaveAcesso, parseInt(nNF) || 0, parseInt(serie) || 1,
+        fornecedorCNPJ, fornecedorRazao, fornecedorUF,
         valorProd, valorFrete, valorSeg, valorDesc, valorOutro, valorNF,
         bcICMS, valorICMS, bcST, valorST, valorIPI, valorPIS, valorCOFINS,
-        dhEmi || new Date(), dhSaiEnt || null, nProt || null, dhRecbto || null,
-        natOp || '', xmlContent, userId
+        dhEmi || new Date(), natOp || '', xmlContent
     ]);
 
     const nfEntradaId = insertResult.insertId;
@@ -460,22 +557,20 @@ async function processarXMLEntrada(pool, xmlContent, userId) {
 
         await pool.query(`
             INSERT INTO nf_entrada_itens (
-                nf_entrada_id, numero_item, codigo_produto, descricao, ncm, cest, cfop,
-                unidade, quantidade, valor_unitario, valor_total, ean,
-                valor_desconto, valor_frete, valor_seguro, valor_outros,
-                origem, cst_icms, csosn_icms, bc_icms, aliquota_icms, valor_icms,
-                cst_ipi, bc_ipi, aliquota_ipi, valor_ipi,
-                cst_pis, bc_pis, aliquota_pis, valor_pis,
-                cst_cofins, bc_cofins, aliquota_cofins, valor_cofins
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                nf_entrada_id, numero_item, codigo_produto, descricao, ncm, cfop,
+                unidade, quantidade, valor_unitario, valor_total,
+                base_icms, aliquota_icms, valor_icms, cst_icms,
+                valor_ipi, aliquota_ipi, cst_ipi,
+                valor_pis, aliquota_pis, cst_pis,
+                valor_cofins, aliquota_cofins, cst_cofins
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
-            nfEntradaId, nItem, cProd, xProd, ncm, cest || null, cfop,
-            uCom || 'UN', qCom, vUnCom, vProd, cEAN || null,
-            vDesc, vFrete, vSeg, vOutro,
-            origItem, cstICMS, csosn, bcICMSItem, aliqICMS, valorICMSItem,
-            cstIPI, bcIPI, aliqIPI, valorIPIItem,
-            cstPIS, bcPIS, aliqPIS, valorPISItem,
-            cstCOFINS, bcCOFINS, aliqCOFINS, valorCOFINSItem
+            nfEntradaId, nItem, cProd, xProd, ncm, cfop,
+            uCom || 'UN', qCom, vUnCom, vProd,
+            bcICMSItem, aliqICMS, valorICMSItem, cstICMS,
+            valorIPIItem, aliqIPI, cstIPI,
+            valorPISItem, aliqPIS, cstPIS,
+            valorCOFINSItem, aliqCOFINS, cstCOFINS
         ]);
         itensInseridos++;
     }
@@ -501,6 +596,64 @@ async function processarXMLEntrada(pool, xmlContent, userId) {
         valor_total: valorNF,
         itens: itensInseridos,
         message: `NF ${nNF} importada com ${itensInseridos} itens`
+    };
+}
+
+async function processarResumoNFe(pool, xmlContent, userId) {
+    const parseTagSimples = (xml, tag) => {
+        const regex = new RegExp(`<${tag}>([^<]*)<\\/${tag}>`, 'i');
+        const match = regex.exec(xml);
+        return match ? match[1].trim() : '';
+    };
+
+    const chaveAcesso = parseTagSimples(xmlContent, 'chNFe');
+    if (!chaveAcesso || chaveAcesso.length !== 44) {
+        throw new Error('Chave de acesso não encontrada no resumo da NF-e');
+    }
+
+    const [existe] = await pool.query('SELECT id FROM nf_entrada WHERE chave_nfe = ?', [chaveAcesso]);
+    if (existe.length > 0) {
+        return { success: false, error: 'NF já importada', id: existe[0].id, duplicada: true };
+    }
+
+    const numeroNFe = parseInt(chaveAcesso.slice(25, 34), 10) || 0;
+    const serie = parseInt(chaveAcesso.slice(22, 25), 10) || 1;
+    const emitenteCNPJ = parseTagSimples(xmlContent, 'CNPJ') || chaveAcesso.slice(6, 20);
+    const emitenteRazao = parseTagSimples(xmlContent, 'xNome') || 'Fornecedor não identificado';
+    const valorNF = parseFloat(parseTagSimples(xmlContent, 'vNF')) || 0;
+    const dataEmissao = parseTagSimples(xmlContent, 'dhEmi');
+
+    const [insertResult] = await pool.query(`
+        INSERT INTO nf_entrada (
+            chave_nfe, numero_nfe, serie,
+            emitente_cnpj, emitente_razao, emitente_uf,
+            valor_produtos, valor_total,
+            data_emissao, natureza_operacao, status, xml_conteudo, usuario_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?)
+    `, [
+        chaveAcesso,
+        numeroNFe,
+        serie,
+        emitenteCNPJ,
+        emitenteRazao,
+        chaveAcesso.slice(0, 2),
+        valorNF,
+        valorNF,
+        dataEmissao ? dataEmissao.slice(0, 10) : new Date(),
+        'Resumo SEFAZ - NF-e emitida contra o CNPJ',
+        xmlContent,
+        userId || null
+    ]);
+
+    return {
+        success: true,
+        id: insertResult.insertId,
+        resumo: true,
+        chave_acesso: chaveAcesso,
+        numero_nfe: numeroNFe,
+        fornecedor: emitenteRazao,
+        valor_total: valorNF,
+        message: `Resumo NF ${numeroNFe} importado da SEFAZ`
     };
 }
 

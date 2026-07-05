@@ -1,4 +1,4 @@
-/**
+﻿/**
  * LOGISTICA ROUTES - Extracted from server.js (Lines 2565-2812)
  * @module routes/logistica-routes
  */
@@ -96,6 +96,8 @@ module.exports = function createLogisticaRoutes(deps) {
                     p.frete,
                     p.nf,
                     p.numero_nf,
+                    p.nfe_id,
+                    nfe_tab.numero as nfe_numero_real,
                     p.transportadora_id,
                     p.endereco_entrega,
                     c.nome as cliente_nome,
@@ -112,6 +114,7 @@ module.exports = function createLogisticaRoutes(deps) {
                 LEFT JOIN clientes c ON p.cliente_id = c.id
                 LEFT JOIN empresas e ON p.empresa_id = e.id
                 LEFT JOIN transportadoras t ON p.transportadora_id = t.id
+                LEFT JOIN nfes nfe_tab ON nfe_tab.id = p.nfe_id
                 WHERE p.status IN ('faturado', 'recibo', 'entregue')
             `;
     
@@ -151,7 +154,7 @@ module.exports = function createLogisticaRoutes(deps) {
             const pedidos = rows.map(row => ({
                 id: row.id,
                 pedido_id: row.pedido_id,
-                nfe_numero: row.nf || row.numero_nf || '-',
+                nfe_numero: row.nfe_numero_real || row.nf || row.numero_nf || '-',
                 cliente: row.cliente_fantasia || row.cliente_nome || row.pedido_cliente_nome || row.empresa_nome || row.empresa_razao || 'Cliente não informado',
                 // Sprint 3 (F-05 fix): Priorizar endereco_entrega do pedido sobre endereço cadastral
                 endereco_entrega: row.endereco_entrega || null,
@@ -1239,3 +1242,4 @@ module.exports = function createLogisticaRoutes(deps) {
 
     return router;
 };
+

@@ -58,11 +58,11 @@ class SistemaRHAdmin {
     }
 
     async loadInitialData() {
-        // Carregar dados do dashboard por padráo
+        // Carregar dados do dashboard por padrão
         await this.loadDashboardData();
     }
 
-    // Navegaçáo entre seções
+    // Navegação entre seções
     showSection(sectionId, navElement) {
         // Esconder todas as seções
         document.querySelectorAll('.content-section').forEach(section => {
@@ -74,7 +74,7 @@ class SistemaRHAdmin {
             link.classList.remove('active');
         });
 
-        // Mostrar seçáo selecionada
+        // Mostrar seção selecionada
         const targetSection = document.getElementById(sectionId);
         if (targetSection) {
             targetSection.classList.add('active');
@@ -85,15 +85,15 @@ class SistemaRHAdmin {
             navElement.classList.add('active');
         }
 
-        // Atualizar seçáo atual
+        // Atualizar seção atual
         this.currentSection = sectionId;
 
-        // Carregar dados da seçáo
+        // Carregar dados da seção
         this.loadSectionData(sectionId);
     }
 
     async loadSectionData(sectionId) {
-        console.log(`📊 Carregando dados da seçáo: ${sectionId}`);
+        console.log(`📊 Carregando dados da seção: ${sectionId}`);
         
         switch(sectionId) {
             case 'dashboard':
@@ -121,7 +121,7 @@ class SistemaRHAdmin {
                 await this.loadConfiguracoes();
                 break;
             default:
-                console.warn(`Seçáo ${sectionId} náo implementada`);
+                console.warn(`Seção ${sectionId} não implementada`);
         }
     }
 
@@ -136,7 +136,7 @@ class SistemaRHAdmin {
             this.updateFuncionariosRecentes(funcionariosRecentes);
             
         } catch (error) {
-            console.log('⚠️ API náo disponível, usando dados mock');
+            console.log('⚠️ API não disponível, usando dados mock');
             this.loadMockDashboardData();
         }
     }
@@ -146,7 +146,7 @@ class SistemaRHAdmin {
         const response = await fetch(`${this.apiBaseUrl}/stats`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (!response.ok) throw new Error('API Stats náo disponível');
+        if (!response.ok) throw new Error('API Stats não disponível');
         return await response.json();
     }
 
@@ -155,7 +155,7 @@ class SistemaRHAdmin {
         const response = await fetch(`${this.apiBaseUrl}/funcionarios/recentes`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (!response.ok) throw new Error('API Funcionários náo disponível');
+        if (!response.ok) throw new Error('API Funcionários não disponível');
         return await response.json();
     }
 
@@ -198,7 +198,7 @@ class SistemaRHAdmin {
                 const funcionarios = await response.json();
                 this.updateFuncionariosList(funcionarios);
             } else {
-                throw new Error('API náo disponível');
+                throw new Error('API não disponível');
             }
         } catch (error) {
             console.log('⚠️ Carregando dados mock de funcionários');
@@ -296,11 +296,42 @@ class SistemaRHAdmin {
         return `<span class="badge ${badgeClass}">${status || 'N/A'}</span>`;
     }
 
+    getFuncionarioRowHTML(f) {
+        const status = f.statusNorm || f.status || (f.ativo ? 'Ativo' : 'Inativo');
+        const admissao = f.data_admissao ? new Date(f.data_admissao).toLocaleDateString('pt-BR') : '-';
+        return `<tr>
+            <td><strong>${f.nome || '-'}</strong><br><small>${f.email || ''}</small></td>
+            <td>${f.cargo || '-'}</td>
+            <td>${f.departamento || '-'}</td>
+            <td>${admissao}</td>
+            <td>${this.getStatusBadge(status.toLowerCase())}</td>
+            <td><button class="btn btn-primary" style="padding:6px 12px;font-size:11px;" onclick="rhAdmin.viewFuncionario(${f.id})"><i class="fas fa-eye"></i></button></td>
+        </tr>`;
+    }
+
+    getFuncionarioCompleteRowHTML(f) {
+        const status = f.statusNorm || f.status || (f.ativo ? 'Ativo' : 'Inativo');
+        const salario = f.salario ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(f.salario) : '-';
+        return `<tr>
+            <td>${f.id}</td>
+            <td><strong>${f.nome || f.nome_completo || '-'}</strong><br><small>${f.email || ''}</small></td>
+            <td>${f.cpf || '-'}</td>
+            <td>${f.cargo || '-'}</td>
+            <td>${f.departamento || '-'}</td>
+            <td>${salario}</td>
+            <td>${this.getStatusBadge(status.toLowerCase())}</td>
+            <td>
+                <button class="btn btn-primary" style="padding:4px 8px;font-size:11px;margin-right:4px;" onclick="rhAdmin.editFuncionario(${f.id})"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="rhAdmin.deleteFuncionario(${f.id})"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`;
+    }
+
     // Templates HTML
     getFuncionariosRecentesHTML() {
         return `
             <tr>
-                <td><strong>Joáo Silva</strong><br><small>joao.silva@aluforce.com</small></td>
+                <td><strong>João Silva</strong><br><small>joao.silva@aluforce.com</small></td>
                 <td>Desenvolvedor Full Stack</td>
                 <td>Tecnologia</td>
                 <td>15/10/2025</td>
@@ -325,8 +356,8 @@ class SistemaRHAdmin {
             </tr>
             <tr>
                 <td><strong>Pedro Costa</strong><br><small>pedro.costa@aluforce.com</small></td>
-                <td>Supervisor de Produçáo</td>
-                <td>Produçáo</td>
+                <td>Supervisor de Produção</td>
+                <td>Produção</td>
                 <td>08/10/2025</td>
                 <td>${this.getStatusBadge('licença')}</td>
                 <td>
@@ -354,7 +385,7 @@ class SistemaRHAdmin {
         return `
             <tr>
                 <td>001</td>
-                <td><strong>Joáo Silva</strong><br><small>joao.silva@aluforce.com</small></td>
+                <td><strong>João Silva</strong><br><small>joao.silva@aluforce.com</small></td>
                 <td>123.456.789-00</td>
                 <td>Desenvolvedor Full Stack</td>
                 <td>Tecnologia</td>
@@ -390,8 +421,8 @@ class SistemaRHAdmin {
                 <td>003</td>
                 <td><strong>Pedro Costa</strong><br><small>pedro.costa@aluforce.com</small></td>
                 <td>456.789.123-00</td>
-                <td>Supervisor de Produçáo</td>
-                <td>Produçáo</td>
+                <td>Supervisor de Produção</td>
+                <td>Produção</td>
                 <td>R$ 7.800,00</td>
                 <td>${this.getStatusBadge('licença')}</td>
                 <td>
@@ -443,12 +474,12 @@ class SistemaRHAdmin {
     // Ações de funcionário
     viewFuncionario(id) {
         console.log(`👁️ Visualizando funcionário ID: ${id}`);
-        // Implementar modal ou navegaçáo para detalhes
+        // Implementar modal ou navegação para detalhes
     }
 
     editFuncionario(id) {
         console.log(`✏️ Editando funcionário ID: ${id}`);
-        // Implementar modal de ediçáo
+        // Implementar modal de edição
     }
 
     deleteFuncionario(id) {
@@ -481,7 +512,7 @@ function showSection(sectionId, navElement) {
     window.rhAdmin?.showSection(sectionId, navElement);
 }
 
-// Inicializaçáo
+// Inicialização
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Inicializando Sistema RH Admin...');
     window.rhAdmin = new SistemaRHAdmin();

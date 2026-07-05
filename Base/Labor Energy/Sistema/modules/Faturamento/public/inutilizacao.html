@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 
 <head>
@@ -12,7 +12,8 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/Faturamento/css/faturamento-layout.css?v=20260413b">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260621b" defer></script>
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <link rel="stylesheet" href="/chat/widget.css?v=20260218">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
@@ -32,8 +33,12 @@
                 <a href="/Faturamento/consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
                 <a href="/Faturamento/eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
                 <a href="/Faturamento/inutilizacao.html" class="sidebar-btn active" title="Inutilização"><i class="fas fa-ban"></i></a>
+                <a href="/Faturamento/contratos.html" class="sidebar-btn" title="Contratos"><i class="fas fa-file-signature"></i></a>
+                <a href="/Faturamento/logistica.html" class="sidebar-btn" title="Logística CT-e/MDF-e"><i class="fas fa-truck"></i></a>
+                <a href="/Faturamento/cenario-fiscal.html" class="sidebar-btn" title="Cenário Fiscal"><i class="fas fa-gavel"></i></a>
             </nav>
             <div class="sidebar-bottom">
+                <a href="/Faturamento/painel-contador.html" class="sidebar-btn" title="Painel do Contador"><i class="fas fa-calculator"></i></a>
                 <a href="/Faturamento/relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
             </div>
         </aside>
@@ -124,8 +129,6 @@
                                 <button type="submit" class="btn btn-primary"><i class="fas fa-ban"></i> Inutilizar Faixa</button>
                             </div>
                         </form>
-                        <!-- FISC-009: Área de resultado do protocolo SEFAZ (preenchida dinamicamente) -->
-                        <div id="inut-protocolo-resultado"></div>
                     </div>
                 </div>
 
@@ -144,12 +147,11 @@
                                         <th>Série</th>
                                         <th>Faixa</th>
                                         <th>Justificativa</th>
-                                        <th>Protocolo SEFAZ</th>
-                                        <th>Status</th>
+                                        <th>Protocolo</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr><td colspan="7"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Carregando...</p></div></td></tr>
+                                    <tr><td colspan="6"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Carregando...</p></div></td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -216,10 +218,11 @@ function toggleMobileSidebar() {
             const numFim = parseInt(document.getElementById('inut-numero-fim').value, 10);
             const justificativa = document.getElementById('inut-justificativa').value.trim();
 
-            // BUG-022: exigir 4 dígitos; API armazena 4 dígitos e converte para 2 ao enviar à SEFAZ
+            // BUG-022: aceitar 4 ou 2 dígitos, converter para 2 para SEFAZ e 4 para exibição
             const anoNum = parseInt(anoRaw, 10);
-            if (isNaN(anoNum) || anoRaw.length !== 4 || anoNum < 2020 || anoNum > 2099) { _fat_toast('Informe o ano com 4 dígitos (ex: 2026).'); return; }
-            const ano = anoRaw; // 4 dígitos para exibição e para armazenar na API
+            if (isNaN(anoNum) || (anoRaw.length !== 2 && anoRaw.length !== 4)) { _fat_toast('Informe o ano com 4 dígitos (ex: 2026).'); return; }
+            const anoSefaz = String(anoNum).slice(-2); // 2026 → "26" para SEFAZ
+            const ano = anoRaw.length === 2 ? '20' + anoRaw : anoRaw; // para exibição (4 dígitos)
             if (!/^[0-9]{1,3}$/.test(serie)) { _fat_toast('Série inválida.'); return; }
             if (!Number.isFinite(numIni) || numIni < 1) { _fat_toast('Número inicial inválido.'); return; }
             if (!Number.isFinite(numFim) || numFim < numIni) { _fat_toast('Número final deve ser ≥ ao inicial.'); return; }
@@ -234,29 +237,16 @@ function toggleMobileSidebar() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ ano: anoNum, serie, numero_inicial: numIni, numero_final: numFim, justificativa })
+                    body: JSON.stringify({ ano: anoSefaz, serie, numero_inicial: numIni, numero_final: numFim, justificativa })
                 });
-                const resp = await r.json().catch(() => ({}));
                 if (r.ok) {
-                    // FISC-009 + FISC-003: exibir protocolo SEFAZ após inutilização
-                    if (resp.protocolo) {
-                        _fat_toast('Faixa inutilizada. Protocolo SEFAZ: ' + resp.protocolo, 'success');
-                        const protDiv = document.getElementById('inut-protocolo-resultado');
-                        if (protDiv) {
-                            protDiv.innerHTML = '<div style="background:#dcfce7;border:1px solid #16a34a;border-radius:8px;padding:12px 16px;margin-top:12px;font-size:13px;">' +
-                                '<i class="fas fa-check-circle" style="color:#16a34a;"></i> <strong>Protocolo SEFAZ recebido:</strong> ' +
-                                '<span class="code" style="background:#fff;padding:2px 8px;border-radius:4px;margin-left:8px;font-size:12px;">' + esc(resp.protocolo) + '</span></div>';
-                            setTimeout(function() { if (protDiv) protDiv.innerHTML = ''; }, 20000);
-                        }
-                    } else {
-                        // FISC-003: SEFAZ indisponível — registro salvo localmente, sem protocolo
-                        _fat_toast('Inutilização registrada. ATENÇÃO: protocolo SEFAZ não recebido — o serviço estava indisponível. Reenvie assim que possível.', 'warning');
-                    }
+                    _fat_toast('Faixa inutilizada com sucesso.');
                     document.getElementById('form-inutilizacao').reset();
                     document.getElementById('inut-serie').value = '1';
                     carregarInutilizacoes();
                 } else {
-                    _fat_toast('Erro: ' + (resp.message || resp.error || 'Falha ao inutilizar faixa.'));
+                    const e = await r.json().catch(() => ({}));
+                    _fat_toast('Erro: ' + (e.message || e.error || 'Falha ao inutilizar faixa.'));
                 }
             } catch (e) {
                 _fat_toast('Erro de conexão ao inutilizar faixa.');
@@ -281,28 +271,20 @@ function toggleMobileSidebar() {
                         const s = String(ano);
                         return s.length === 2 ? '20' + s : s;
                     };
-                    tbody.innerHTML = items.map(i => {
-                        // FISC-009: badge de status SEFAZ
-                        const temProtocolo = i.protocolo && i.protocolo !== '-' && i.protocolo !== 'null';
-                        const statusBadge = temProtocolo
-                            ? '<span style="background:#dcfce7;color:#16a34a;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;"><i class="fas fa-check-circle"></i> Homologada</span>'
-                            : '<span style="background:#fef3c7;color:#d97706;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;" title="Protocolo SEFAZ não recebido — verificar transmissão"><i class="fas fa-exclamation-triangle"></i> Sem protocolo</span>';
-                        return `<tr>
+                    tbody.innerHTML = items.map(i => `<tr>
                         <td>${i.created_at ? new Date(i.created_at).toLocaleDateString('pt-BR') : '-'}</td>
                         <td>${esc(anoDisplay(i.ano))}</td>
                         <td>${esc(i.serie || '-')}</td>
                         <td><strong>${esc(i.numero_inicial)} - ${esc(i.numero_final)}</strong></td>
                         <td style="max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(i.justificativa)}">${esc(i.justificativa || '-')}</td>
-                        <td><span class="code" style="font-size:10px;">${esc(i.protocolo || '—')}</span></td>
-                        <td>${statusBadge}</td>
-                    </tr>`;
-                    }).join('');
+                        <td><span class="code" style="font-size:10px;">${esc(i.protocolo || '-')}</span></td>
+                    </tr>`).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-info-circle"></i><p>Nenhuma faixa inutilizada</p></div></td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-info-circle"></i><p>Nenhuma faixa inutilizada</p></div></td></tr>';
                 }
             } catch (e) {
                 console.error('Erro ao carregar inutilizações:', e);
-                tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-info-circle"></i><p>Nenhuma faixa inutilizada</p></div></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-info-circle"></i><p>Nenhuma faixa inutilizada</p></div></td></tr>';
             }
         }
 

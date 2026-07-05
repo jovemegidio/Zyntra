@@ -88,20 +88,44 @@ class CotacoesManager {
                 this.cotacoes = Array.isArray(data) ? data : (data.cotacoes || []);
 
                 // Normalizar dados para o formato esperado
-                this.cotacoes = this.cotacoes.map(c => ({
-                    id: c.id,
-                    numero: c.numero,
-                    data: c.data_abertura || c.created_at,
-                    solicitante: c.criado_por_nome || 'Sistema',
-                    descricao: c.descricao,
-                    prazoResposta: c.data_validade,
-                    status: this.mapStatus(c.status),
-                    materiais: c.itens || [],
-                    fornecedores: c.fornecedores_ids || [],
-                    propostas: c.propostas || [],
-                    melhorProposta: c.melhor_preco ? { total: c.melhor_preco } : null,
-                    total_fornecedores: c.total_fornecedores || 0
-                }));
+                this.cotacoes = this.cotacoes.map(c => {
+                    // BUG-020: a API devolve as propostas cruas do banco (snake_case) e as
+                    // telas leem camelCase (valorTotal/prazoEntrega/fornecedorNome) — sem esta
+                    // normalização, valores registrados aparecem como "-"
+                    const propostas = (c.propostas || []).map(p => {
+                        const valorTotal = parseFloat(p.valor_total != null ? p.valor_total : (p.valorTotal || 0)) || 0;
+                        return Object.assign({}, p, {
+                            valorTotal: valorTotal,
+                            total: valorTotal,
+                            fornecedorId: p.fornecedor_id != null ? p.fornecedor_id : p.fornecedorId,
+                            fornecedorNome: p.fornecedor_nome || p.fornecedorNome || 'Fornecedor',
+                            prazoEntrega: p.prazo_entrega != null ? p.prazo_entrega : (p.prazoEntrega || null),
+                            dataRecebimento: p.data_proposta || p.dataRecebimento || null,
+                            itens: p.itens || []
+                        });
+                    });
+                    // Melhor oferta: menor proposta com valor > 0 (placeholders entram com 0.00)
+                    const comValor = propostas.filter(p => p.valorTotal > 0);
+                    const melhorProposta = c.melhor_preco
+                        ? { total: c.melhor_preco, valorTotal: c.melhor_preco }
+                        : (comValor.length ? comValor.reduce((m, p) => (p.valorTotal < m.valorTotal ? p : m)) : null);
+                    return {
+                        id: c.id,
+                        // AUDIT #006: a API retorna numero_cotacao (não numero)
+                        numero: c.numero_cotacao || c.numero,
+                        data: c.data_abertura || c.data_solicitacao || c.created_at,
+                        // AUDIT #006: mostrar nome real do solicitante quando disponível; sem inventar "Sistema"
+                        solicitante: c.solicitante_nome || c.criado_por_nome || 'Não informado',
+                        descricao: c.descricao,
+                        prazoResposta: c.data_validade || c.data_limite,
+                        status: this.mapStatus(c.status),
+                        materiais: c.itens || [],
+                        fornecedores: c.fornecedores_ids || [],
+                        propostas: propostas,
+                        melhorProposta: melhorProposta,
+                        total_fornecedores: c.total_fornecedores || 0
+                    };
+                });
             }
         } catch (error) {
             console.error('Erro ao carregar cotações:', error);
@@ -113,13 +137,14 @@ class CotacoesManager {
     }
 
     mapStatus(status) {
+        // AUDIT #006: 'aberta' não é 'Rascunho' — refletir o status real da API
         const statusMap = {
-            'aberta': 'Rascunho',
+            'aberta': 'Aberta',
             'analise': 'Em Análise',
             'finalizada': 'Aprovada',
             'cancelada': 'Cancelada'
         };
-        return statusMap[status] || status || 'Rascunho';
+        return statusMap[status] || status || '-';
     }
 
     async salvarCotacao(dados) {
@@ -295,10 +320,13 @@ class CotacoesManager {
 
             // Badge de status
             let statusBadge = '';
-            const status = cotacao.status || 'Rascunho';
+            const status = cotacao.status || '-';
             switch (status) {
                 case 'Rascunho':
                     statusBadge = '<span class="badge badge-secondary"><i class="fas fa-edit"></i> Rascunho</span>';
+                    break;
+                case 'Aberta':
+                    statusBadge = '<span class="badge badge-info"><i class="fas fa-folder-open"></i> Aberta</span>';
                     break;
                 case 'Enviada':
                     statusBadge = '<span class="badge badge-info"><i class="fas fa-paper-plane"></i> Enviada</span>';
@@ -460,7 +488,7 @@ class CotacoesManager {
 
         // Gerar próximo número
         const proximoNumero = this.cotacoes.length + 1;
-        document.getElementById('cotacaoNumero').value = `COT-2024-${String(proximoNumero).padStart(4, '0')}`;
+        document.getElementById('cotacaoNumero').value = `COT-${new Date().getFullYear()}-${String(proximoNumero).padStart(4, '0')}`; // __FIX_B4a__
 
         this.setDataAtual();
 
@@ -633,7 +661,7 @@ class CotacoesManager {
         const body = document.getElementById('viewCotacaoBody');
         body.innerHTML =
             '<div class="view-section"><h4><i class="fas fa-info-circle"></i> Informações Gerais</h4><div class="view-grid">' +
-                '<div class="view-item"><label>Número</label><p>' + this.escapeHtml(cotacao.numero || '-') + '</p></div>' +
+                '<div class="view-item"><label>Número</label><p>' + this.escapeHtml(cotacao.numero || cotacao.numero_cotacao || '-') + '</p></div>' + // __FIX_B4c__
                 '<div class="view-item"><label>Data</label><p>' + this.formatarData(cotacao.data) + '</p></div>' +
                 '<div class="view-item"><label>Solicitante</label><p>' + this.escapeHtml(cotacao.solicitante || '-') + '</p></div>' +
                 '<div class="view-item"><label>Status</label><p><span class="badge badge-' + statusClass + '">' + this.escapeHtml(cotacao.status || '-') + '</span></p></div>' +
@@ -1136,8 +1164,15 @@ class CotacoesManager {
                     body: JSON.stringify(cotacao)
                 });
                 if (response.ok) {
+                    const criada = await response.json().catch(() => ({}));
                     this.mostrarToast(`Cotação ${status === 'Rascunho' ? 'salva' : 'enviada'} com sucesso!`, 'success');
                     await this.carregarDados();
+                    // __FIX_B4b__ Materiais não são persistidos no backend; restaura da memória
+                    const numCriada = criada.numero || cotacao.numero;
+                    const cotSalva = this.cotacoes.find(c => c.numero === numCriada || c.id === criada.id);
+                    if (cotSalva && cotacao.materiais && cotacao.materiais.length > 0) {
+                        cotSalva.materiais = cotacao.materiais;
+                    }
                 } else {
                     const err = await response.json().catch(() => ({}));
                     this.mostrarToast(err.message || 'Erro ao criar cotação', 'error');

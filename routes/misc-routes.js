@@ -10,6 +10,27 @@ try { logger = require('../src/logger'); } catch(_) { logger = console; }
 module.exports = function createMiscRoutes(deps) {
     const { pool, authenticateToken, authorizeArea, writeAuditLog, cacheMiddleware, CACHE_CONFIG, jwt, JWT_SECRET } = deps;
     const router = express.Router();
+
+    function normalizarCodigoCondicaoPagamento(valor) {
+        if (valor == null || valor === '') return null;
+        const raw = String(valor).trim();
+        const lower = raw.toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ');
+        if (['a vista', 'a_vista', 'avista', 'av', '0'].includes(lower)) return 'a_vista';
+        const onlyNumbers = raw.replace(/[^\d/_-]+/g, '').replace(/[-_]+/g, '/').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
+        if (/^\d+(\/\d+)*$/.test(onlyNumbers)) return onlyNumbers;
+        return raw.replace(/_/g, '/');
+    }
+
+    function formatarDescricaoCondicaoPagamento(valor) {
+        const codigo = normalizarCodigoCondicaoPagamento(valor);
+        if (!codigo) return 'A combinar';
+        if (codigo === 'a_vista') return 'À Vista';
+        if (/^\d+$/.test(codigo)) return `${codigo} dias`;
+        if (/^\d+(\/\d+)+$/.test(codigo)) return `${codigo} dias`;
+        return codigo;
+    }
     // Rota para obter informações do usuário logado
     router.get('/user/me', authenticateToken, async (req, res) => {
         try {
@@ -611,7 +632,7 @@ module.exports = function createMiscRoutes(deps) {
                         tipo: 'info',
                         modulo: 'Vendas',
                         mensagem: `${pedidosResult[0].aguardando} pedido(s) aguardando aprovação`,
-                        link: '/modules/Vendas/public/index.html'
+                        link: '/modules/Vendas/index.html'
                     });
                 }
     
@@ -662,7 +683,8 @@ module.exports = function createMiscRoutes(deps) {
             const isAdmin = user.is_admin === true || user.is_admin === 1 || (user.role && user.role.toString().toLowerCase() === 'admin');
     
             // Para vendedores (não-admin), filtrar apenas seus próprios pedidos
-            if (!isAdmin && user.id) {
+            const isComprasUser = String((req.user||{}).email||'').toLowerCase().indexOf('compras@') === 0;
+            if (!isAdmin && !isComprasUser && user.id) {
                 whereConditions.push('p.vendedor_id = ?');
                 params.push(user.id);
             } else if (vendedor && vendedor !== 'todos') {
@@ -710,7 +732,7 @@ module.exports = function createMiscRoutes(deps) {
                            COALESCE(c.nome_fantasia, c.razao_social, c.nome, p.cliente_nome, p.cliente, 'Cliente não informado') as cliente_nome,
                            c.email as cliente_email,
                            c.telefone as cliente_telefone,
-                           u.nome as vendedor_nome,
+                           COALESCE(NULLIF(u.nome, ''), NULLIF(p.vendedor_nome, '')) as vendedor_nome,
                            (SELECT COALESCE(SUM(COALESCE(pi.subtotal, pi.quantidade * pi.preco_unitario, 0)), 0)
                             FROM pedido_itens pi WHERE pi.pedido_id = p.id) as valor_itens
                     FROM pedidos p
@@ -752,6 +774,9 @@ module.exports = function createMiscRoutes(deps) {
                 };
                 const labelNumero = statusLabel[p.status] || 'Pedido';
     
+                const condicaoCodigo = normalizarCodigoCondicaoPagamento(p.condicao_pagamento || p.parcelas);
+                const condicaoDescricao = formatarDescricaoCondicaoPagamento(condicaoCodigo || p.condicao_pagamento || p.parcelas);
+
                 return {
                     id: p.id,
                     numero: `${labelNumero} Nº ${p.id}`,
@@ -769,7 +794,8 @@ module.exports = function createMiscRoutes(deps) {
                     vendedor: p.vendedor_nome || 'Não atribuído',
                     vendedor_nome: p.vendedor_nome || 'Não atribuído',
                     vendedor_id: p.vendedor_id,
-                    parcelas: p.parcelas || p.condicao_pagamento || 'a vista',
+                    parcelas: condicaoCodigo || 'a_vista',
+                    condicoes_pagamento: condicaoDescricao,
                     transportadora: p.transportadora || p.transportadora_nome || p.metodo_envio || null,
                     transportadora_id: p.transportadora_id || null,
                     nf: p.nf || p.nota_fiscal || null,
@@ -779,6 +805,7 @@ module.exports = function createMiscRoutes(deps) {
                     data_criacao: p.created_at,
                     data_inclusao: p.created_at,
                     observacao: p.observacao,
+                    observacao_producao: p.observacao_producao || '',
                     mensagem: p.observacao,
                     // Campos de transporte
                     placa_veiculo: p.placa_veiculo || '',
@@ -796,7 +823,7 @@ module.exports = function createMiscRoutes(deps) {
                     outras_despesas: parseFloat(p.outras_despesas) || 0,
                     codigo_rastreio: p.codigo_rastreio || '',
                     cenario_fiscal: p.cenario_fiscal || '',
-                    condicao_pagamento: p.condicao_pagamento || '',
+                    condicao_pagamento: condicaoCodigo || '',
                     desconto: parseFloat(p.desconto) || 0,
                     desconto_pct: parseFloat(p.desconto_pct) || 0
                 };
@@ -880,6 +907,9 @@ module.exports = function createMiscRoutes(deps) {
     router.get('/vendas/pedidos/:id/itens', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
+            if (!id || id === 'null' || id === 'undefined' || !Number.isFinite(Number(id))) {
+                return res.status(400).json({ error: 'ID do pedido inválido' });
+            }
             const [itens] = await pool.query(
                 'SELECT * FROM pedido_itens WHERE pedido_id = ? ORDER BY id ASC',
                 [id]
@@ -1061,6 +1091,156 @@ module.exports = function createMiscRoutes(deps) {
         } catch (error) {
             console.error('[NOTIFICATIONS] Erro ao criar:', error.message);
             res.status(500).json({ success: false, error: 'Erro interno no servidor. Tente novamente.' });
+        }
+    });
+
+    // POST /api/admin/test-email — envia email de teste para destinatários especificados
+    router.post('/admin/test-email', authenticateToken, async (req, res) => {
+        if (!req.user || !(req.user.is_admin || req.user.role === 'admin' || req.user.role === 'ti')) {
+            return res.status(403).json({ success: false, error: 'Sem permissão' });
+        }
+        try {
+            const { sendEmail } = require('../utils/email');
+            const { getBrandConfig, getLogoAttachment } = require('../services/scheduler.service');
+            const path = require('path');
+            const fs = require('fs');
+            const destinatarios = req.body.destinatarios || [
+                'ti@aluforce.ind.br',
+                'antonio.egidio2004@hotmail.com',
+                'gerenciavendas@aluforce.ind.br',
+                'financeiro@aluforce.ind.br',
+                'aluforce@aluforce.ind.br',
+                'financeiro3@aluforce.ind.br'
+            ];
+            const to = Array.isArray(destinatarios) ? destinatarios.join(',') : destinatarios;
+            const cfg = getBrandConfig();
+            const companyLabel = cfg.label;
+            const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+            const smtpHost = process.env.SMTP_HOST || '-';
+            const logoAttachment = getLogoAttachment();
+            const logoSrc = logoAttachment ? `cid:${logoAttachment.cid}` : '';
+            const logoImg = logoSrc
+                ? `<img src="${logoSrc}" alt="${companyLabel}" height="38" style="display:block;height:38px;max-width:200px;border:0;">`
+                : `<span style="font-size:20px;font-weight:800;color:#ffffff;">${companyLabel}</span>`;
+            const attachments = logoAttachment
+                ? [{ filename: logoAttachment.filename, content: logoAttachment.content, cid: logoAttachment.cid, contentType: logoAttachment.mimeType }]
+                : [];
+
+            const html = `<!DOCTYPE html>
+<html lang="pt-BR" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Email de Teste — Zyntra SGE</title>
+</head>
+<body style="margin:0;padding:0;background-color:#eef2f7;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#eef2f7;padding:32px 12px;">
+  <tr><td align="center">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
+      style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);">
+
+      <!-- HEADER -->
+      <tr><td style="${cfg.headerGradient};padding:0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="padding:26px 30px 16px;">${logoImg}</td>
+            <td align="right" style="padding:26px 30px 16px;white-space:nowrap;">
+              <span style="display:inline-block;background:#16a34a;color:#fff;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:20px;">&#10003; SMTP OK</span>
+            </td>
+          </tr>
+          <tr><td colspan="2" style="padding:0 30px 24px;">
+            <div style="font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:5px;">${companyLabel} &#x25CF; Sistema</div>
+            <div style="font-size:23px;font-weight:700;color:#ffffff;letter-spacing:-.3px;">Email de Teste</div>
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <!-- SUCCESS BAND -->
+      <tr><td style="background:#f0fdf4;border-top:3px solid #16a34a;padding:13px 30px;">
+        <span style="font-family:Arial,sans-serif;font-size:13px;font-weight:600;color:#15803d;">
+          &#10003; &nbsp;Servidor SMTP configurado e funcionando corretamente.
+        </span>
+      </td></tr>
+
+      <!-- BODY -->
+      <tr><td style="background:#ffffff;padding:30px;">
+        <p style="font-family:Arial,sans-serif;font-size:14px;color:#475569;margin:0 0 24px;line-height:1.6;">
+          Este é um email de teste do sistema <strong style="color:#0f172a;">Zyntra SGE</strong>.
+          Se você recebeu esta mensagem, o envio automático de notificações está operacional.
+        </p>
+
+        <!-- Info table -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+          style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:24px;">
+          <tr style="background:#f8fafc;">
+            <td colspan="2" style="padding:10px 18px;border-bottom:1px solid #e2e8f0;">
+              <span style="font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#64748b;">Informações do Teste</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:11px 18px;border-bottom:1px solid #f1f5f9;width:130px;"><span style="font-family:Arial,sans-serif;font-size:12px;color:#94a3b8;">Empresa</span></td>
+            <td style="padding:11px 18px;border-bottom:1px solid #f1f5f9;"><span style="font-family:Arial,sans-serif;font-size:13px;font-weight:600;color:#0f172a;">${companyLabel}</span></td>
+          </tr>
+          <tr style="background:#fafafa;">
+            <td style="padding:11px 18px;border-bottom:1px solid #f1f5f9;"><span style="font-family:Arial,sans-serif;font-size:12px;color:#94a3b8;">Data / Hora</span></td>
+            <td style="padding:11px 18px;border-bottom:1px solid #f1f5f9;"><span style="font-family:Arial,sans-serif;font-size:13px;font-weight:600;color:#0f172a;">${now}</span></td>
+          </tr>
+          <tr>
+            <td style="padding:11px 18px;border-bottom:1px solid #f1f5f9;"><span style="font-family:Arial,sans-serif;font-size:12px;color:#94a3b8;">Servidor SMTP</span></td>
+            <td style="padding:11px 18px;border-bottom:1px solid #f1f5f9;"><span style="font-family:Arial,sans-serif;font-size:13px;font-weight:600;color:#0f172a;">${smtpHost}</span></td>
+          </tr>
+          <tr style="background:#fafafa;">
+            <td style="padding:11px 18px;"><span style="font-family:Arial,sans-serif;font-size:12px;color:#94a3b8;">Enviado por</span></td>
+            <td style="padding:11px 18px;"><span style="font-family:Arial,sans-serif;font-size:13px;font-weight:600;color:#0f172a;">${req.user.nome || req.user.email}</span></td>
+          </tr>
+        </table>
+
+        <!-- Status card -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+          style="background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);border:1px solid #bbf7d0;border-radius:10px;">
+          <tr><td style="padding:18px 20px;">
+            <div style="font-family:Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#15803d;margin-bottom:10px;">Automações Ativas</div>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr>
+                <td width="18" style="vertical-align:top;padding-top:1px;"><div style="width:14px;height:14px;border-radius:50%;background:#16a34a;"></div></td>
+                <td style="padding-left:8px;padding-bottom:8px;"><span style="font-family:Arial,sans-serif;font-size:13px;color:#166534;"><strong>8h diário</strong> — Alertas de cobrança para contas a receber vencidas</span></td>
+              </tr>
+              <tr>
+                <td width="18" style="vertical-align:top;padding-top:1px;"><div style="width:14px;height:14px;border-radius:50%;background:#16a34a;"></div></td>
+                <td style="padding-left:8px;"><span style="font-family:Arial,sans-serif;font-size:13px;color:#166534;"><strong>4h30 diário</strong> — Bloqueio automático de clientes inadimplentes após 3 dias sem comprovante</span></td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <!-- FOOTER -->
+      <tr><td style="background:#0f172a;padding:18px 30px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td><span style="font-family:Arial,sans-serif;font-size:11px;font-weight:600;color:#94a3b8;">Zyntra SGE</span><span style="font-family:Arial,sans-serif;font-size:11px;color:#475569;"> &#x2022; ${companyLabel}</span></td>
+            <td align="right"><span style="font-family:Arial,sans-serif;font-size:10px;color:#475569;">Não responda este e-mail</span></td>
+          </tr>
+        </table>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+            const text = `[${companyLabel}] Email de Teste — Zyntra SGE\nData/Hora: ${now}\nSMTP: ${smtpHost} — OK\nEnviado por: ${req.user.nome || req.user.email}\n\nAutomações ativas:\n- 8h: Alertas de cobrança (contas vencidas)\n- 4h30: Bloqueio automático por inadimplência (>3 dias sem comprovante)`;
+            const result = await sendEmail(to, `[${companyLabel}] Email de Teste — Zyntra SGE`, html, text, attachments);
+            if (result && result.success) {
+                logger.info(`[TEST-EMAIL] Enviado para ${to} por ${req.user.email}`);
+                res.json({ success: true, destinatarios: to, messageId: result.messageId });
+            } else {
+                res.status(500).json({ success: false, error: result?.error || 'Falha ao enviar', destinatarios: to });
+            }
+        } catch (err) {
+            logger.error('[TEST-EMAIL] Erro:', err.message);
+            res.status(500).json({ success: false, error: err.message });
         }
     });
 

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
@@ -189,13 +189,14 @@
     <script src="/js/tooltips-professional.js?v=20260209"></script>
 
     <!-- Global Header & Sidebar -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
 
     <!-- PCP Header & Sidebar  Design Refinado (DEVE SER O ÚLTIMO) -->
     <link rel="stylesheet" href="../css/pcp-header-sidebar.css?v=20260224">
     <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
     <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 <body>
     <div class="app-container">
@@ -274,6 +275,10 @@
                         <button class="report-tab" data-report="apontamentos" onclick="trocarRelatório('apontamentos')">
                             <span class="tab-icon"><i class="fas fa-stopwatch"></i></span>
                             <span class="tab-label">Apontamentos<small>Produção e eficiência</small></span>
+                        </button>
+                        <button class="report-tab" data-report="custo" onclick="trocarRelatório('custo')">
+                            <span class="tab-icon"><i class="fas fa-balance-scale"></i></span>
+                            <span class="tab-label">Custo de OP<small>Real vs Planejado</small></span>
                         </button>
                     </div>
 
@@ -657,6 +662,73 @@
                         </div>
                     </div>
 
+
+                    <!-- =============== 6. CUSTO REAL vs PLANEJADO =============== -->
+                    <div class="report-section" id="section-custo">
+                        <div class="filters-card">
+                            <div class="filter-field"><label>Período Início</label><input type="date" id="custo-data-inicio"></div>
+                            <div class="filter-field"><label>Período Fim</label><input type="date" id="custo-data-fim"></div>
+                            <div class="filter-field"><label>Status OP</label>
+                                <select id="custo-status">
+                                    <option value="todos">Todos</option>
+                                    <option value="concluida" selected>Concluída</option>
+                                    <option value="em_producao">Em Produção</option>
+                                    <option value="pendente">Pendente</option>
+                                    <option value="cancelada">Cancelada</option>
+                                </select>
+                            </div>
+                            <button class="btn-gerar" onclick="carregarCustoOP()"><i class="fas fa-balance-scale"></i> Gerar Relatório</button>
+                            <button class="btn-export" onclick="exportarCustoCSV()" id="btn-export-custo" style="display:none"><i class="fas fa-file-csv"></i> CSV</button>
+                        </div>
+
+                        <div class="kpi-strip">
+                            <div class="kpi blue">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-industry"></i></span></div>
+                                <div class="kpi-val" id="custo-total-ops">—</div>
+                                <div class="kpi-lbl">OPs Analisadas</div>
+                            </div>
+                            <div class="kpi green">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-clipboard-list"></i></span></div>
+                                <div class="kpi-val" id="custo-total-planejado">—</div>
+                                <div class="kpi-lbl">Custo Planejado</div>
+                            </div>
+                            <div class="kpi amber">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-coins"></i></span></div>
+                                <div class="kpi-val" id="custo-total-real">—</div>
+                                <div class="kpi-lbl">Custo Real</div>
+                            </div>
+                            <div class="kpi purple">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-chart-line"></i></span></div>
+                                <div class="kpi-val" id="custo-variacao-pct">—</div>
+                                <div class="kpi-lbl">Desvio Total (%)</div>
+                            </div>
+                            <div class="kpi rose">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-exclamation-triangle"></i></span></div>
+                                <div class="kpi-val" id="custo-ops-desvio">—</div>
+                                <div class="kpi-lbl">OPs c/ Desvio &gt;5%</div>
+                            </div>
+                        </div>
+
+                        <div class="table-card">
+                            <div class="table-card-head">
+                                <h3><span class="ico" style="background:rgba(139,92,246,0.1);color:#8b5cf6"><i class="fas fa-balance-scale"></i></span> Comparativo Real vs Planejado</h3>
+                                <span class="table-count" id="custo-table-count">0 OPs</span>
+                            </div>
+                            <div style="overflow-x:auto">
+                                <table class="dtable">
+                                    <thead><tr>
+                                        <th>OP</th><th>Produto</th><th>Qtd</th><th>Status</th>
+                                        <th>Custo Planejado</th><th>Custo Real</th>
+                                        <th>Variação R$</th><th>Variação %</th><th>Itens</th>
+                                    </tr></thead>
+                                    <tbody id="tbody-custo">
+                                        <tr><td colspan="9"><div class="empty-state-pro"><div class="empty-icon"><i class="fas fa-balance-scale"></i></div><h4>Aguardando dados</h4><p>Selecione os filtros e gere o relatório</p></div></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </main>
         </main>
@@ -932,7 +1004,7 @@
         var p = new URLSearchParams();
         if (di) p.append('data_inicio', di);
         if (df) p.append('data_fim', df);
-        showLoading('Gerando relatório de produção...');
+        showLoading('Gerando relatório de metros produzidos...');
         try {
             var r = await fetch(API + '/api/pcp/relatorios/metros-produzidos?' + p.toString(), { credentials: 'include', headers: hdrs() });
             if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -1301,6 +1373,110 @@
         /* Auto-load first report (silent = no toast) */
         carregarCabos(true);
     });
+
+    /* ============================= CUSTO OP ============================= */
+    var _custoData = [];
+
+    function carregarCustoOP() {
+        var di = document.getElementById('custo-data-inicio').value;
+        var df = document.getElementById('custo-data-fim').value;
+        var st = document.getElementById('custo-status').value;
+        var url = API + '/relatórios/custo-op?status=' + encodeURIComponent(st);
+        if (di) url += '&data_inicio=' + di;
+        if (df) url += '&data_fim=' + df;
+
+        var tbody = document.getElementById('tbody-custo');
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px"><i class="fas fa-spinner fa-spin"></i> Carregando...</td></tr>';
+
+        fetch(url, { credentials: 'include', headers: { Authorization: 'Bearer ' + t } })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (!d.success) throw new Error(d.message || 'Erro');
+                _custoData = d.ops || [];
+                var tot = d.totais || {};
+
+                document.getElementById('custo-total-ops').textContent = tot.count || 0;
+                document.getElementById('custo-total-planejado').textContent = fmtMoeda(tot.custo_planejado || 0);
+                document.getElementById('custo-total-real').textContent = fmtMoeda(tot.custo_real || 0);
+                var vp = tot.variacao_pct || 0;
+                var vpEl = document.getElementById('custo-variacao-pct');
+                vpEl.textContent = (vp >= 0 ? '+' : '') + vp.toFixed(1) + '%';
+                vpEl.style.color = vp > 5 ? '#ef4444' : vp < -5 ? '#f59e0b' : '#10b981';
+                document.getElementById('custo-ops-desvio').textContent = tot.ops_com_desvio || 0;
+                document.getElementById('custo-table-count').textContent = _custoData.length + ' OPs';
+
+                if (_custoData.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state-pro"><div class="empty-icon"><i class="fas fa-balance-scale"></i></div><h4>Sem dados</h4><p>Nenhuma OP encontrada com os filtros informados</p></div></td></tr>';
+                    document.getElementById('btn-export-custo').style.display = 'none';
+                    return;
+                }
+
+                var html = '';
+                _custoData.forEach(function(op) {
+                    var vAbs = op.variacao_abs || 0;
+                    var vPct = op.variacao_pct || 0;
+                    var cor = Math.abs(vPct) <= 5 ? '#10b981' : vPct > 5 ? '#ef4444' : '#f59e0b';
+                    var badge = vPct > 5
+                        ? '<span style="background:#fef2f2;color:#ef4444;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">+' + vPct.toFixed(1) + '%</span>'
+                        : vPct < -5
+                        ? '<span style="background:#fffbeb;color:#d97706;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">' + vPct.toFixed(1) + '%</span>'
+                        : '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">' + (vPct >= 0 ? '+' : '') + vPct.toFixed(1) + '%</span>';
+                    var stBadge = fmtStatusBadge(op.status);
+                    html += '<tr>'
+                        + '<td><strong>#' + op.id + '</strong>' + (op.codigo ? '<br><small style="color:#94a3b8">' + op.codigo + '</small>' : '') + '</td>'
+                        + '<td>' + (op.produto_nome || '—') + '</td>'
+                        + '<td style="text-align:right">' + fmtNum(op.quantidade) + '</td>'
+                        + '<td>' + stBadge + '</td>'
+                        + '<td style="text-align:right">' + fmtMoeda(op.custo_planejado) + '</td>'
+                        + '<td style="text-align:right">' + fmtMoeda(op.custo_real) + '</td>'
+                        + '<td style="text-align:right;color:' + cor + '">' + (vAbs >= 0 ? '+' : '') + fmtMoeda(vAbs) + '</td>'
+                        + '<td style="text-align:center">' + badge + '</td>'
+                        + '<td style="text-align:center">' + (op.total_itens || 0) + '</td>'
+                        + '</tr>';
+                });
+                tbody.innerHTML = html;
+                document.getElementById('btn-export-custo').style.display = '';
+            })
+            .catch(function(e) {
+                tbody.innerHTML = '<tr><td colspan="9" style="color:#ef4444;text-align:center;padding:24px"><i class="fas fa-exclamation-triangle"></i> ' + e.message + '</td></tr>';
+            });
+    }
+
+    function fmtMoeda(v) {
+        return 'R$ ' + (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function fmtNum(v) {
+        return (parseFloat(v) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+    }
+
+    function fmtStatusBadge(st) {
+        var map = {
+            concluida: ['#dcfce7', '#16a34a', 'Concluída'],
+            em_producao: ['#dbeafe', '#2563eb', 'Em Produção'],
+            pendente: ['#fef9c3', '#ca8a04', 'Pendente'],
+            cancelada: ['#fee2e2', '#dc2626', 'Cancelada'],
+            ativa: ['#f3e8ff', '#7c3aed', 'Ativa']
+        };
+        var m = map[st] || ['#f1f5f9', '#64748b', st || '—'];
+        return '<span style="background:' + m[0] + ';color:' + m[1] + ';padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">' + m[2] + '</span>';
+    }
+
+    function exportarCustoCSV() {
+        if (!_custoData.length) return;
+        var rows = [['OP','Código','Produto','Qtd','Status','Custo Planejado','Custo Real','Variação R$','Variação %','Itens']];
+        _custoData.forEach(function(op) {
+            rows.push([op.id, op.codigo || '', op.produto_nome || '', op.quantidade,
+                op.status, op.custo_planejado, op.custo_real,
+                op.variacao_abs, op.variacao_pct + '%', op.total_itens]);
+        });
+        var csv = rows.map(function(r) { return r.map(function(c) { return '"' + String(c).replace(/"/g,'""') + '"'; }).join(','); }).join('\n');
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'custo-op-' + new Date().toISOString().slice(0,10) + '.csv';
+        a.click();
+    }
+
     </script>
     <script src="/modules/_shared/connection-monitor.js?v=20260205c"></script>
     <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--

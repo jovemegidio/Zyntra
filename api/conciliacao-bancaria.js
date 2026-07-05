@@ -10,6 +10,32 @@ let pool;
 let authenticateToken;
 
 /**
+ * Parser de OFX (Money 2000 / OFX 1.x SGML e 2.x XML).
+ * Extrai as transações <STMTTRN> sem dependência externa.
+ */
+function parseOfx(text) {
+    const txns = [];
+    const tag = (block, name) => {
+        const r = new RegExp('<' + name + '>([^<\\r\\n]*)', 'i').exec(block);
+        return r ? r[1].trim() : '';
+    };
+    const re = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        const b = m[1];
+        const dtRaw = (tag(b, 'DTPOSTED') || '').replace(/[^0-9]/g, '');
+        if (dtRaw.length < 8) continue;
+        const valor = parseFloat((tag(b, 'TRNAMT') || '0').replace(',', '.'));
+        if (Number.isNaN(valor)) continue;
+        const descricao = (tag(b, 'MEMO') || tag(b, 'NAME') || tag(b, 'CHECKNUM') || 'Lançamento').slice(0, 500);
+        const fitid = tag(b, 'FITID');
+        const data = `${dtRaw.slice(0, 4)}-${dtRaw.slice(4, 6)}-${dtRaw.slice(6, 8)}`;
+        txns.push({ data, valor, descricao, fitid });
+    }
+    return txns;
+}
+
+/**
  * GET /api/conciliacao-bancaria/contas
  * Lista contas bancárias para conciliação
  */
@@ -300,6 +326,64 @@ router.get('/estatisticas/:contaId', async (req, res) => {
             success: true, 
             data: { total: 0, conciliados: 0, pendentes: 0 }
         });
+    }
+});
+
+/**
+ * POST /api/conciliacao-bancaria/importar-ofx
+ * Recebe o conteúdo bruto de um arquivo .OFX, parseia e importa o extrato.
+ * Faz conciliação automática quando há um único movimento pendente de valor exato.
+ * Body: { conta_id, ofx, auto_conciliar=true }
+ */
+router.post('/importar-ofx', async (req, res) => {
+    try {
+        const { conta_id, ofx, auto_conciliar = true } = req.body;
+        if (!conta_id || !ofx) {
+            return res.status(400).json({ success: false, error: 'conta_id e ofx (conteúdo do arquivo) são obrigatórios' });
+        }
+        const txns = parseOfx(String(ofx));
+        if (!txns.length) {
+            return res.json({ success: true, message: 'Nenhuma transação encontrada no arquivo OFX', data: { importados: 0, duplicados: 0, conciliados: 0, total: 0 } });
+        }
+        let importados = 0, duplicados = 0, conciliados = 0;
+        for (const t of txns) {
+            const [existing] = await pool.query(
+                'SELECT id FROM extrato_bancario WHERE conta_id = ? AND data = ? AND valor = ? AND descricao = ?',
+                [conta_id, t.data, t.valor, t.descricao]
+            );
+            if (existing.length) { duplicados++; continue; }
+            const [ins] = await pool.query(
+                'INSERT INTO extrato_bancario (conta_id, data, descricao, valor, tipo, conciliado, created_at) VALUES (?, ?, ?, ?, ?, 0, NOW())',
+                [conta_id, t.data, t.descricao, t.valor, t.valor >= 0 ? 'credito' : 'debito']
+            );
+            importados++;
+            // Conciliação automática: só quando há UM único candidato de valor exato ainda não conciliado
+            if (auto_conciliar) {
+                try {
+                    const isCred = t.valor >= 0;
+                    const tabela = isCred ? 'contas_receber' : 'contas_pagar';
+                    const tipoMov = isCred ? 'recebimento' : 'pagamento';
+                    const [cand] = await pool.query(
+                        `SELECT id FROM ${tabela}
+                         WHERE ABS(valor) = ABS(?)
+                           AND id NOT IN (SELECT movimento_id FROM extrato_bancario WHERE movimento_id IS NOT NULL AND tipo_movimento = ?)
+                         LIMIT 2`,
+                        [t.valor, tipoMov]
+                    );
+                    if (cand.length === 1) {
+                        await pool.query(
+                            'UPDATE extrato_bancario SET conciliado = 1, movimento_id = ?, tipo_movimento = ?, conciliado_em = NOW() WHERE id = ?',
+                            [cand[0].id, tipoMov, ins.insertId]
+                        );
+                        conciliados++;
+                    }
+                } catch (e) { /* matching best-effort */ }
+            }
+        }
+        res.json({ success: true, message: 'Extrato OFX importado', data: { importados, duplicados, conciliados, total: txns.length } });
+    } catch (error) {
+        console.error('[CONCILIACAO] Erro ao importar OFX:', error);
+        res.status(500).json({ success: false, error: 'Erro ao importar arquivo OFX' });
     }
 });
 

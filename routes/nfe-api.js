@@ -25,6 +25,84 @@ module.exports = function createNfeApiRouter({ authenticateToken, pool }) {
             .replace(/'/g, '&apos;');
     }
 
+    // Compatibilidade com o Vendas legado: o front antigo consultava
+    // /api/nfe/pedido/:id antes de abrir o DANFE do pedido.
+    router.get('/pedido/:pedidoId', authenticateToken, async (req, res) => {
+        try {
+            const pedidoId = Number(req.params.pedidoId);
+            if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+                return res.status(400).json({ success: false, message: 'Pedido invalido.' });
+            }
+
+            const [[pedido]] = await pool.query(
+                `SELECT id, nf, numero_nf, nfe_id, nfe_chave, nfe_faturamento_numero, nfe_remessa_numero
+                   FROM pedidos
+                  WHERE id = ?
+                  LIMIT 1`,
+                [pedidoId]
+            );
+
+            if (!pedido) {
+                return res.status(404).json({ success: false, message: 'Pedido nao encontrado.' });
+            }
+
+            const numeroPedido = pedido.nf || pedido.numero_nf || pedido.nfe_faturamento_numero || pedido.nfe_remessa_numero || null;
+            let nfe = null;
+
+            try {
+                const [[row]] = await pool.query(
+                    `SELECT id, numero, chave_acesso, protocolo_autorizacao, status
+                       FROM nfes
+                      WHERE (id = ? OR pedido_id = ?)
+                        AND COALESCE(status, '') <> 'cancelada'
+                   ORDER BY (status = 'autorizada') DESC, id DESC
+                      LIMIT 1`,
+                    [pedido.nfe_id || 0, pedidoId]
+                );
+                if (row) nfe = row;
+            } catch (_) {
+                // A tabela nfes nao existe em todas as instancias antigas.
+            }
+
+            if (!nfe) {
+                try {
+                    const [[row]] = await pool.query(
+                        `SELECT id, COALESCE(numero_nfe, numero) AS numero, chave_acesso, protocolo_nfe AS protocolo_autorizacao, status
+                           FROM nfe
+                          WHERE (id = ? OR pedido_id = ?)
+                            AND COALESCE(status, '') <> 'cancelada'
+                       ORDER BY (status = 'autorizada') DESC, id DESC
+                          LIMIT 1`,
+                        [pedido.nfe_id || 0, pedidoId]
+                    );
+                    if (row) nfe = row;
+                } catch (_) {
+                    // Fallback legado best-effort.
+                }
+            }
+
+            const numero = nfe?.numero || numeroPedido;
+            const chave = nfe?.chave_acesso || pedido.nfe_chave || null;
+            if (!numero && !chave) {
+                return res.status(404).json({ success: false, message: 'Este pedido ainda nao possui NF-e emitida.' });
+            }
+
+            res.json({
+                success: true,
+                pedido_id: pedidoId,
+                nfe_id: nfe?.id || pedido.nfe_id || null,
+                numero,
+                chave_acesso: chave,
+                protocolo: nfe?.protocolo_autorizacao || null,
+                status: nfe?.status || null,
+                danfe_url: `/api/vendas/pedidos/${pedidoId}/danfe`
+            });
+        } catch (err) {
+            console.error('[NFe Pedido] Erro:', err);
+            res.status(500).json({ success: false, message: 'Erro interno ao buscar NF-e do pedido.' });
+        }
+    });
+
     // POST /api/nfe/preview
     router.post('/preview', authenticateToken, async (req, res) => {
         try {
@@ -103,6 +181,16 @@ module.exports = function createNfeApiRouter({ authenticateToken, pool }) {
 
     // POST /api/nfe/emitir
     router.post('/emitir', authenticateToken, async (req, res) => {
+        // [FISCAL-SAFETY] ROTA DESCONTINUADA — este proxy encaminhava a emissão para
+        // localhost:3003, que é a instância "zyntra-demo" (ver deploy/nginx-zyntra-demo.conf),
+        // e NÃO o motor fiscal correto. A emissão fiscal real roda in-process em
+        // /api/faturamento/* (server.js). Mantido apenas como stub para evitar emissão cruzada.
+        return res.status(410).json({
+            success: false,
+            code: 'ROTA_DESCONTINUADA',
+            message: 'Esta rota de emissão foi descontinuada. Use /api/faturamento/gerar-nfe e /api/faturamento/nfes/:id/enviar-sefaz.'
+        });
+        // eslint-disable-next-line no-unreachable
         try {
             const nfeData = req.body;
             if (!nfeData || !nfeData.itens || !nfeData.itens.length) {
@@ -344,102 +432,88 @@ module.exports = function createNfeApiRouter({ authenticateToken, pool }) {
                     } catch (_) {}
                 }
             } catch (_) {}
-            // Fallback: busca itens via pedido_itens se NF-e não tem itens próprios
+            // Fallback: busca itens via pedido_itens se NF-e não tem itens próprios (ex.: NF-e
+            // ainda pendente, sem nfe_itens gravado). Inclui o mesmo JOIN com `produtos` usado
+            // no /danfe oficial para trazer NCM/CFOP/CST/CSOSN/alíquotas reais em vez de campos
+            // vazios — ver memória nfe-emitente-empresas-bug-2026-06-28.
             if (!itens.length && (row.pedido_id || row.venda_id)) {
                 try {
                     const pedidoId = row.pedido_id || row.venda_id;
-                    const [rows] = await pool.query(
-                        'SELECT codigo AS codigo_produto, descricao, ncm, unidade, quantidade, preco_unitario AS valor_unitario, desconto AS valor_desconto, subtotal AS valor_total FROM pedido_itens WHERE pedido_id = ? ORDER BY id ASC',
-                        [pedidoId]
-                    );
-                    if (rows && rows.length) itens = rows;
-                } catch (_) {}
-            }
-
-            // Emitente — busca por empresa_id para garantir isolamento multiempresa
-            const empresaIdEmit = req.user?.empresa_id || 1;
-            let emit = { razaoSocial: '', nomeFantasia: '', cnpj: '', ie: '', logradouro: '', numero: '', bairro: '', cidade: '', uf: 'SP', cep: '', telefone: '', logoPath: '' };
-            let emitFilled = false;
-
-            // 1) nfe_configuracoes filtrada por empresa_id (fonte primária e mais completa)
-            try {
-                const [nfeConfigRows] = await pool.query(
-                    "SELECT * FROM nfe_configuracoes WHERE empresa_id = ? AND ativo = 1 ORDER BY id DESC LIMIT 1",
-                    [empresaIdEmit]
-                );
-                if (nfeConfigRows && nfeConfigRows[0]) {
-                    const c = nfeConfigRows[0];
-                    if (c.cnpj || c.emitente_cnpj) {
-                        emit = {
-                            razaoSocial: c.razao_social || c.emitente_razao_social || '',
-                            nomeFantasia: c.nome_fantasia || c.emitente_nome_fantasia || '',
-                            cnpj: c.cnpj || c.emitente_cnpj || '',
-                            ie: c.inscricao_estadual || c.emitente_ie || '',
-                            logradouro: c.endereco || c.emitente_logradouro || '',
-                            numero: c.numero || c.emitente_numero || '',
-                            bairro: c.bairro || c.emitente_bairro || '',
-                            cidade: c.municipio || c.emitente_municipio || '',
-                            uf: c.uf || c.emitente_uf || 'SP',
-                            cep: c.cep || c.emitente_cep || '',
-                            telefone: c.telefone || '',
-                            logoPath: c.logo_path || ''
+                    const [rows] = await pool.query(`
+                        SELECT pi.codigo AS codigo_produto, pi.descricao, pi.unidade, pi.quantidade,
+                               pi.preco_unitario AS valor_unitario, pi.desconto AS valor_desconto, pi.subtotal AS valor_total,
+                               pi.icms_value AS valor_icms, pi.aliquota_icms, pi.valor_ipi, pi.aliquota_ipi, pi.cfop AS cfop_item,
+                               COALESCE(pr_id.ncm, pr_cod.ncm) AS ncm,
+                               COALESCE(pi.cfop, pr_id.cfop_saida_interna, pr_cod.cfop_saida_interna) AS cfop,
+                               COALESCE(pr_id.cst_icms, pr_cod.cst_icms) AS cst,
+                               COALESCE(pr_id.csosn_icms, pr_cod.csosn_icms) AS csosn,
+                               COALESCE(pr_id.aliquota_icms, pr_cod.aliquota_icms) AS produto_aliquota_icms,
+                               COALESCE(pr_id.aliquota_ipi, pr_cod.aliquota_ipi) AS produto_aliquota_ipi
+                        FROM pedido_itens pi
+                        LEFT JOIN produtos pr_id ON pi.produto_id = pr_id.id
+                        LEFT JOIN produtos pr_cod ON pi.produto_id IS NULL AND pr_cod.codigo = pi.codigo
+                        WHERE pi.pedido_id = ? ORDER BY pi.id ASC
+                    `, [pedidoId]);
+                    if (rows && rows.length) {
+                        // pedido_itens.aliquota_icms/aliquota_ipi/valor_ipi têm DEFAULT 0.00 (não
+                        // NULL) quando nunca preenchidos — tratar 0 como "não definido" e cair no
+                        // dado fiscal do produto e, por fim, na alíquota padrão da empresa (mesma
+                        // lógica de buildDanfeCtx/firstPositiveOrLast em danfe-renderer.js).
+                        const firstPositiveOrLast = (...vals) => {
+                            for (let i = 0; i < vals.length; i++) {
+                                const n = parseFloat(vals[i]);
+                                if (!isNaN(n) && (n > 0 || i === vals.length - 1)) return n;
+                            }
+                            return 0;
                         };
-                        emitFilled = true;
-                    }
-                }
-            } catch (_) {}
-
-            // 2) empresas filtrada por empresa_id (fallback robusto)
-            if (!emitFilled) {
-                try {
-                    const [empresaRows] = await pool.query(
-                        "SELECT * FROM empresas WHERE id = ? LIMIT 1",
-                        [empresaIdEmit]
-                    );
-                    if (empresaRows && empresaRows[0]) {
-                        const e = empresaRows[0];
-                        emit = {
-                            razaoSocial: e.razao_social || e.nome || '',
-                            nomeFantasia: e.nome_fantasia || e.nome_comercial || '',
-                            cnpj: e.cnpj || '',
-                            ie: e.inscricao_estadual || '',
-                            logradouro: e.endereco || e.logradouro || '',
-                            numero: e.numero || '',
-                            bairro: e.bairro || '',
-                            cidade: e.municipio || e.cidade || '',
-                            uf: e.uf || e.estado || 'SP',
-                            cep: e.cep || '',
-                            telefone: e.telefone || '',
-                            logoPath: e.logo_url || ''
-                        };
-                        emitFilled = true;
-                    }
-                } catch (_) {}
-            }
-
-            // 3) configuracoes_empresa sem empresa_id (legado — último recurso)
-            if (!emitFilled) {
-                try {
-                    const [ceRows] = await pool.query("SELECT * FROM configuracoes_empresa LIMIT 1");
-                    if (ceRows && ceRows[0]) {
-                        const e = ceRows[0];
-                        if (e.cnpj || e.razao_social) {
-                            emit = {
-                                razaoSocial: e.razao_social || '',
-                                nomeFantasia: e.nome_fantasia || '',
-                                cnpj: e.cnpj || '',
-                                ie: e.inscricao_estadual || '',
-                                logradouro: e.endereco || '',
-                                numero: e.numero || '',
-                                bairro: e.bairro || '',
-                                cidade: e.cidade || '',
-                                uf: e.estado || 'SP',
-                                cep: e.cep || '',
-                                telefone: e.telefone || '',
-                                logoPath: e.logo_path || ''
+                        itens = rows.map(it => {
+                            const sub = parseFloat(it.valor_total) || 0;
+                            const aliqIcms = firstPositiveOrLast(it.aliquota_icms, it.produto_aliquota_icms, aliqIcmsPadraoEspelho);
+                            const aliqIpi = firstPositiveOrLast(it.aliquota_ipi, it.produto_aliquota_ipi, aliqIpiPadraoEspelho);
+                            const vIcms = it.valor_icms != null && parseFloat(it.valor_icms) > 0
+                                ? parseFloat(it.valor_icms) : (sub * aliqIcms / 100);
+                            const vIpi = firstPositiveOrLast(it.valor_ipi, sub * aliqIpi / 100);
+                            return {
+                                ...it,
+                                aliquota_icms: aliqIcms,
+                                aliquota_ipi: aliqIpi,
+                                valor_icms: vIcms,
+                                valor_ipi: vIpi,
+                                base_icms: aliqIcms > 0 ? (vIcms / (aliqIcms / 100)) : sub
                             };
-                        }
+                        });
                     }
+                } catch (_) {}
+            }
+
+            // Alíquotas padrão da empresa (fallback quando pedido_itens/produtos não têm
+            // alíquota própria configurada — usado no fallback de itens abaixo).
+            const [[cfgFiscalEspelho]] = await pool.query('SELECT * FROM config_fiscal_empresa LIMIT 1').catch(() => [[]]);
+            const aliqIcmsPadraoEspelho = parseFloat(cfgFiscalEspelho && cfgFiscalEspelho.icms_padrao) || 0;
+            const aliqIpiPadraoEspelho = parseFloat(cfgFiscalEspelho && cfgFiscalEspelho.ipi_padrao) || 0;
+
+            // Emitente — FiscalProfileService (mesma fonte usada na emissão real, já validada
+            // contra o certificado digital). BUG-FIX 2026-06-28: a cascata antiga caía no
+            // fallback `empresas WHERE id = empresa_id`, mas essa tabela é, na prática, um
+            // cadastro de CLIENTES — o registro id=1 (empresa_id padrão de todo usuário
+            // Aluforce) era um cliente inativo de teste, fazendo o espelho da NF-e exibir o
+            // emitente errado. Ver memória nfe-emitente-empresas-bug-2026-06-28.
+            let emit = { razaoSocial: '', nomeFantasia: '', cnpj: '', ie: '', logradouro: '', numero: '', bairro: '', cidade: '', uf: 'SP', cep: '', telefone: '', logoPath: '' };
+            try {
+                const FiscalProfileService = require('../modules/Faturamento/services/fiscal-profile.service');
+                const perfil = await FiscalProfileService.carregar(pool);
+                emit = {
+                    razaoSocial: perfil.razaoSocial || '', nomeFantasia: perfil.nomeFantasia || '',
+                    cnpj: perfil.cnpj || '', ie: perfil.ie || '',
+                    logradouro: perfil.logradouro || '', numero: perfil.numero || '', bairro: perfil.bairro || '',
+                    cidade: perfil.municipio || '', uf: perfil.uf || 'SP', cep: perfil.cep || '',
+                    telefone: perfil.telefone || '', logoPath: ''
+                };
+            } catch (_) {}
+            if (!emit.logoPath) {
+                try {
+                    const [r] = await pool.query("SELECT logo_path FROM configuracoes_empresa LIMIT 1");
+                    emit.logoPath = (r && r[0] && r[0].logo_path) || '';
                 } catch (_) {}
             }
 
@@ -519,45 +593,72 @@ module.exports = function createNfeApiRouter({ authenticateToken, pool }) {
                             fat: { nFat: nfe.numero || '', vOrig: fmtMoney(valorNF), vLiq: fmtMoney(valorNF) },
                             dup: dups
                         },
-                        det: itens.map((item, i) => ({
-                            prod: {
-                                cProd: item.codigo_produto || item.codigo || String(i + 1).padStart(3, '0'),
-                                xProd: item.descricao || '',
-                                NCM: item.ncm || '',
-                                CFOP: item.cfop || '',
-                                uCom: item.unidade || 'UN',
-                                qCom: fmtQty(item.quantidade),
-                                vUnCom: fmtMoney(item.valor_unitario),
-                                vProd: fmtMoney(item.valor_total)
-                            },
-                            _danfeCstCsosn: item.cst || item.csosn || '',
-                            _danfeBcIcms: fmtMoney(item.base_icms || item.valor_total || 0),
-                            _danfeVIcms: fmtMoney(item.valor_icms || 0),
-                            _danfePIcms: item.aliquota_icms ? fmtMoney(item.aliquota_icms) : '',
-                            _danfeVIpi: fmtMoney(item.valor_ipi || 0),
-                            _danfePIpi: item.aliquota_ipi ? fmtMoney(item.aliquota_ipi) : ''
-                        })),
-                        total: {
+                        det: itens.map((item, i) => {
+                            // BUG-FIX 2026-06-28: coluna real é `base_calculo_icms` (gravada pelo
+                            // emissor real em nfe_itens); `base_icms` nunca existiu, então a BC do
+                            // ICMS sempre mostrava 0,00. Para itens vindos do fallback pedido_itens
+                            // (sem NF-e gravada ainda), `base_icms` é calculado acima a partir do
+                            // valor/alíquota disponíveis.
+                            const aliqIcms = parseFloat(item.aliquota_icms) || 0;
+                            const vIcms = parseFloat(item.valor_icms) || 0;
+                            const vTotal = parseFloat(item.valor_total) || 0;
+                            const bcIcms = item.base_calculo_icms != null
+                                ? item.base_calculo_icms
+                                : (item.base_icms != null ? item.base_icms : (aliqIcms > 0 ? (vIcms / (aliqIcms / 100)) : vTotal));
+                            return {
+                                prod: {
+                                    cProd: item.codigo_produto || item.codigo || String(i + 1).padStart(3, '0'),
+                                    xProd: item.descricao || '',
+                                    NCM: item.ncm || '',
+                                    CFOP: item.cfop || '',
+                                    uCom: item.unidade || 'UN',
+                                    qCom: fmtQty(item.quantidade),
+                                    vUnCom: fmtMoney(item.valor_unitario),
+                                    vProd: fmtMoney(item.valor_total)
+                                },
+                                _danfeCstCsosn: item.cst || item.csosn || '',
+                                _danfeBcIcms: fmtMoney(bcIcms),
+                                _danfeVIcms: fmtMoney(vIcms),
+                                _danfePIcms: aliqIcms ? fmtMoney(aliqIcms) : '',
+                                _danfeVIpi: fmtMoney(item.valor_ipi || 0),
+                                _danfePIpi: item.aliquota_ipi ? fmtMoney(item.aliquota_ipi) : ''
+                            };
+                        }),
+                        total: (() => {
+                            // BUG-FIX 2026-06-28: mysql2 retorna DECIMAL como string ("0.00"), que
+                            // é truthy em JS — "0.00" || calc nunca cai no somatório dos itens.
+                            // parseFloat(...) converte pra número (0 é falsy) antes do fallback.
+                            const rowBcIcms = parseFloat(row.base_calculo_icms) || 0;
+                            const rowVIcms = parseFloat(row.valor_icms) || 0;
+                            const rowVIpi = parseFloat(row.valor_ipi) || 0;
+                            const rowVPis = parseFloat(row.valor_pis) || 0;
+                            const rowVCofins = parseFloat(row.valor_cofins) || 0;
+                            const somaBcIcms = itens.reduce((s, it) => s + (parseFloat(it.base_calculo_icms ?? it.base_icms) || 0), 0);
+                            const somaVIcms = itens.reduce((s, it) => s + (parseFloat(it.valor_icms) || 0), 0);
+                            const somaVIpi = itens.reduce((s, it) => s + (parseFloat(it.valor_ipi) || 0), 0);
+                            return {
                             ICMSTot: {
-                                vBC: fmtMoney(row.base_calculo_icms || 0),
-                                vICMS: fmtMoney(row.valor_icms || 0),
+                                vBC: fmtMoney(rowBcIcms || somaBcIcms),
+                                vICMS: fmtMoney(rowVIcms || somaVIcms),
                                 vBCST: fmtMoney(row.base_calculo_st || 0),
                                 vST: fmtMoney(row.valor_icms_st || 0),
-                                vTotTrib: fmtMoney(row.valor_tributos || 0),
+                                vTotTrib: fmtMoney(row.valor_tributos
+                                    || ((rowVIcms || somaVIcms) + (rowVIpi || somaVIpi) + rowVPis + rowVCofins)),
                                 vProd: fmtMoney(totalItens),
                                 vFCPSTRet: '0,00',
                                 vFrete: fmtMoney(row.valor_frete || 0),
                                 vSeg: fmtMoney(row.valor_seguro || 0),
                                 vDesc: fmtMoney(row.valor_desconto || 0),
                                 vOutro: fmtMoney(row.outras_despesas || 0),
-                                vIPI: fmtMoney(row.valor_ipi || 0),
-                                vPIS: fmtMoney(row.valor_pis || 0),
-                                vCOFINS: fmtMoney(row.valor_cofins || 0),
+                                vIPI: fmtMoney(rowVIpi || somaVIpi),
+                                vPIS: fmtMoney(rowVPis),
+                                vCOFINS: fmtMoney(rowVCofins),
                                 vNF: fmtMoney(valorNF),
                                 vII: '0,00'
                             },
                             ISSQNtot: { vServ: '', vBC: '', vISS: '', cMunFG: '' }
-                        },
+                            };
+                        })(),
                         transp: {
                             modFrete: { '0': '0 - Emitente', '1': '1 - Destinatário', '9': '9 - Sem Frete' }[nfe.modalidade_frete] || '',
                             transporta: { xNome: row.transportadora_nome || '', CNPJ: '', CPF: '', IE: '', xEnder: '', xMun: '', UF: '' },
@@ -599,53 +700,30 @@ module.exports = function createNfeApiRouter({ authenticateToken, pool }) {
     router.get('/configuracoes', authenticateToken, async (req, res) => {
         try {
             const empresaId = req.user?.empresa_id || 1;
-            let emitente = {};
 
-            // 1) nfe_configuracoes filtrada por empresa (fonte fiscal primária)
+            // Identidade do emitente — FiscalProfileService (mesma fonte da emissão real).
+            // BUG-FIX 2026-06-28: o fallback antigo (`empresas WHERE id = empresa_id`) lia de
+            // uma tabela que é, na prática, um cadastro de CLIENTES — o id=1 (empresa_id
+            // padrão de todo usuário Aluforce) era um cliente inativo de teste. Ver memória
+            // nfe-emitente-empresas-bug-2026-06-28.
+            const FiscalProfileService = require('../modules/Faturamento/services/fiscal-profile.service');
+            const perfil = await FiscalProfileService.carregar(pool).catch(() => null);
+            let emitente = perfil ? {
+                cnpj: perfil.cnpj || '', razao_social: perfil.razaoSocial || '', nome_fantasia: perfil.nomeFantasia || '',
+                inscricao_estadual: perfil.ie || '', endereco: perfil.logradouro || '', numero: perfil.numero || '',
+                bairro: perfil.bairro || '', municipio: perfil.municipio || '', uf: perfil.uf || '',
+                cep: perfil.cep || '', ambiente: perfil.ambiente, serie: perfil.serie
+            } : {};
+
+            // Dados operacionais do certificado (não fazem parte da identidade do emitente)
             try {
                 const [rows] = await pool.query(
-                    `SELECT id, cnpj, razao_social, nome_fantasia, inscricao_estadual,
-                            endereco, numero, bairro, codigo_municipio, municipio, uf, cep, crt, ativo,
-                            ambiente, serie, certificado_validade
+                    `SELECT crt, ativo, certificado_validade
                      FROM nfe_configuracoes WHERE empresa_id = ? AND ativo = 1 ORDER BY id DESC LIMIT 1`,
                     [empresaId]
                 );
-                if (rows && rows.length > 0) {
-                    emitente = rows[0];
-                }
-            } catch (dbErr) {
-                console.warn('[NFe Config] nfe_configuracoes indisponível, usando fallback.');
-            }
-
-            // 2) empresas filtrada por id (fallback)
-            if (!emitente.cnpj) {
-                try {
-                    const [empresaRows] = await pool.query(
-                        `SELECT id, cnpj, razao_social, nome_fantasia, inscricao_estadual,
-                                endereco, numero, bairro, municipio, cidade, uf, estado, cep
-                         FROM empresas WHERE id = ? LIMIT 1`,
-                        [empresaId]
-                    );
-                    if (empresaRows && empresaRows.length > 0) {
-                        const emp = empresaRows[0];
-                        emitente = {
-                            cnpj: emp.cnpj || '',
-                            razao_social: emp.razao_social || '',
-                            nome_fantasia: emp.nome_fantasia || '',
-                            inscricao_estadual: emp.inscricao_estadual || '',
-                            endereco: emp.endereco || '',
-                            numero: emp.numero || '',
-                            bairro: emp.bairro || '',
-                            municipio: emp.municipio || emp.cidade || '',
-                            uf: emp.uf || emp.estado || '',
-                            cep: emp.cep || '',
-                            ambiente: 2
-                        };
-                    }
-                } catch {
-                    console.warn('[NFe Config] Tabela empresas não encontrada.');
-                }
-            }
+                if (rows && rows[0]) Object.assign(emitente, rows[0]);
+            } catch (_) {}
 
             res.json({ success: true, emitente, empresa_id: empresaId });
         } catch (err) {

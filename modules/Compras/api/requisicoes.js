@@ -6,7 +6,7 @@ const { getDatabase } = require('../database');
 router.get('/', async (req, res) => {
     try {
         const db = getDatabase();
-        const { status, departamento, urgente, limit = 50, offset = 0 } = req.query;
+        const { status, departamento, urgente, limit = req.query.limite || 50, offset = 0 } = req.query;
         
         let sql = 'SELECT * FROM requisicoes_compras WHERE 1=1';
         const params = [];
@@ -153,6 +153,15 @@ router.post('/', async (req, res) => {
         if (itemSemQtd) {
             await connection.rollback();
             return res.status(400).json({ error: 'Todos os itens devem ter quantidade maior que zero' });
+        }
+        // Preço estimado obrigatório e > 0 (base para nota de venda / cotação)
+        const itemSemPreco = itens.find(i => {
+            const p = parseFloat(i.valor_estimado != null ? i.valor_estimado : i.preco_unitario);
+            return !(p > 0);
+        });
+        if (itemSemPreco) {
+            await connection.rollback();
+            return res.status(400).json({ error: 'Todos os itens devem ter preço estimado maior que zero' });
         }
         
         // Gerar número da requisição se não informado

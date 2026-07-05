@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 
 <head>
@@ -12,13 +12,14 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/Faturamento/css/faturamento-layout.css?v=20260413b">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
     <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260320">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 
 <body>
@@ -33,8 +34,12 @@
                 <a href="/Faturamento/consultar.html" class="sidebar-btn active" title="Consultar"><i class="fas fa-search"></i></a>
                 <a href="/Faturamento/eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
                 <a href="/Faturamento/inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+                <a href="/Faturamento/contratos.html" class="sidebar-btn" title="Contratos"><i class="fas fa-file-signature"></i></a>
+                <a href="/Faturamento/logistica.html" class="sidebar-btn" title="Logística CT-e/MDF-e"><i class="fas fa-truck"></i></a>
+                <a href="/Faturamento/cenario-fiscal.html" class="sidebar-btn" title="Cenário Fiscal"><i class="fas fa-gavel"></i></a>
             </nav>
             <div class="sidebar-bottom">
+                <a href="/Faturamento/painel-contador.html" class="sidebar-btn" title="Painel do Contador"><i class="fas fa-calculator"></i></a>
                 <a href="/Faturamento/relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
             </div>
         </aside>
@@ -168,6 +173,25 @@
         </main>
     </div>
 
+    <!-- Modal Detalhes NF-e (#15) -->
+    <div class="modal-overlay" id="modalDetalhesNFe" onclick="if(event.target===this) fecharDetalhesNFe()">
+        <div class="modal-content" style="max-width:560px;">
+            <div style="background:linear-gradient(135deg,#0891b2,#0e7490);color:#fff;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;border-radius:12px 12px 0 0;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <i class="fas fa-file-invoice" style="font-size:18px;"></i>
+                    <span style="font-size:16px;font-weight:700;" id="det-titulo">Detalhes da NF-e</span>
+                </div>
+                <button onclick="fecharDetalhesNFe()" title="Fechar" style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:20px;cursor:pointer;border-radius:50px;width:32px;height:32px;line-height:1;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding:20px;">
+                <div id="det-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px 20px;"></div>
+            </div>
+            <div style="background:#f9f9f9;border-top:1px solid #f0f0f0;padding:14px 20px;display:flex;justify-content:flex-end;border-radius:0 0 12px 12px;">
+                <button onclick="fecharDetalhesNFe()" style="padding:9px 22px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:#e5e7eb;color:#374151;">Fechar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
                 function _fat_toast(msg, tipo) {
             tipo = tipo || (msg.toLowerCase().includes('sucesso') || msg.toLowerCase().includes('success') ? 'success' : msg.toLowerCase().includes('erro') || msg.toLowerCase().includes('error') || msg.toLowerCase().includes('inválid') ? 'error' : 'info');
@@ -188,6 +212,29 @@ function toggleMobileSidebar() {
         function getStatusIcon(status) {
             const m = { autorizada: 'check-circle', pendente: 'clock', cancelada: 'times-circle', denegada: 'exclamation-triangle', rejeitada: 'ban' };
             return m[status?.toLowerCase()] || 'question-circle';
+        }
+
+        // Parser tolerante: aceita ISO, "YYYY-MM-DD HH:mm:ss", "DD/MM/YYYY" e Date.
+        function parseDataFlexivel(data) {
+            if (!data) return null;
+            if (data instanceof Date) return isNaN(data.getTime()) ? null : data;
+            const s = String(data).trim();
+            if (!s) return null;
+            const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+            if (m) {
+                const d = new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+                return isNaN(d.getTime()) ? null : d;
+            }
+            let d = new Date(s.replace(' ', 'T'));
+            if (!isNaN(d.getTime())) return d;
+            d = new Date(s);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        function formatarDataConsulta(data, comHora) {
+            const d = parseDataFlexivel(data);
+            if (!d) return '-';
+            return comHora ? d.toLocaleString('pt-BR') : d.toLocaleDateString('pt-BR');
         }
 
         async function carregarNFes() {
@@ -231,7 +278,7 @@ function toggleMobileSidebar() {
                         const chaveFull = n.chave_acesso || '';
                         const chaveResumo = chaveFull
                             ? `${chaveFull.slice(0, 4)}…${chaveFull.slice(-4)}`
-                            : '-';
+                            : '<span style="color:#9ca3af;font-style:italic;">não informada</span>';
                         const valorNum = parseFloat(n.valor ?? n.valor_total ?? 0) || 0;
                         const valorFmt = valorNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
                         const numeroAria = n.numero ? `da NF-e ${numeroFmt}` : 'da NF-e';
@@ -245,7 +292,7 @@ function toggleMobileSidebar() {
                     </td>
                     <td>${n.destinatario || n.cliente || '-'}</td>
                     <td><strong>${valorFmt}</strong></td>
-                    <td>${n.data_emissao ? new Date(n.data_emissao).toLocaleDateString('pt-BR') : '-'}</td>
+                    <td>${formatarDataConsulta(n.data_emissao)}</td>
                     <td><span class="badge ${(n.status || 'pendente').toLowerCase()}">${n.status || 'Pendente'}</span></td>
                     <td>
                         <div style="display:flex;gap:4px;">
@@ -262,25 +309,56 @@ function toggleMobileSidebar() {
             } catch (e) { console.error('Erro:', e); }
         }
 
+        function escapeHtml(v) {
+            return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        // #15: substitui o toast de texto cru por um modal de detalhes formatado.
         function visualizarNFe(id, origem) {
             if (!id) { _fat_toast('ID não disponível'); return; }
             const qs = origem === 'pedido' ? '?origem=pedido' : '';
             fetch(`/api/faturamento/nfes/${id}${qs}`, { credentials: 'include' })
                 .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-                .then(nfe => {
-                    const info = [
-                        'NF-e #' + (nfe.numero || id),
-                        'Série: ' + (nfe.serie || '1'),
-                        'Status: ' + (nfe.status || '-'),
-                        'Chave: ' + (nfe.chave_acesso || '-'),
-                        'Destinatário: ' + (nfe.destinatario || nfe.cliente || '-'),
-                        'Valor: ' + (nfe.valor || nfe.valor_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-                        'Data: ' + (nfe.data_emissao ? new Date(nfe.data_emissao).toLocaleString('pt-BR') : '-'),
-                        'Protocolo: ' + (nfe.protocolo || '-')
-                    ].join('\n');
-                    _fat_toast(info);
+                .then(resp => {
+                    // FISCAL-02: API retorna {success, data}; aceitar ambos formatos por compatibilidade
+                    const nfe = (resp && resp.data) ? resp.data : (resp && resp.success === false ? null : resp);
+                    if (!nfe || typeof nfe !== 'object') {
+                        document.getElementById('det-titulo').textContent = 'Detalhes da NF-e';
+                        document.getElementById('det-grid').innerHTML = '<div style="grid-column:1 / -1;text-align:center;color:#9ca3af;padding:20px 0;">Não foi possível carregar os dados desta NF-e.</div>';
+                        document.getElementById('modalDetalhesNFe').classList.add('active');
+                        return;
+                    }
+                    const numeroFmt = nfe.numero ? String(nfe.numero).replace(/\D/g, '').padStart(9, '0') : '-';
+                    const valor = parseFloat(nfe.valor_total ?? nfe.valor ?? 0) || 0;
+                    const naoInf = '<span style="color:#9ca3af;font-style:italic;">não informado</span>';
+                    const chave = nfe.chave_acesso || nfe.chave || '';
+                    const protocolo = nfe.protocolo || nfe.protocolo_autorizacao || '';
+                    const destinatario = nfe.destinatario || nfe.cliente_nome || nfe.destinatario_nome || '';
+                    const statusS = (nfe.status || 'pendente').toLowerCase();
+                    const campos = [
+                        ['Número', escapeHtml(numeroFmt), false],
+                        ['Série', escapeHtml(nfe.serie || '1'), false],
+                        ['Status', `<span class="badge ${escapeHtml(statusS)}">${escapeHtml(nfe.status || 'Pendente')}</span>`, false],
+                        ['Valor', valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), false],
+                        ['Data de Emissão', escapeHtml(formatarDataConsulta(nfe.data_emissao, true)), false],
+                        ['Destinatário', destinatario ? escapeHtml(destinatario) : naoInf, true],
+                        ['Chave de Acesso', chave ? `<span style="font-family:monospace;font-size:11px;word-break:break-all;">${escapeHtml(chave)}</span>` : naoInf, true],
+                        ['Protocolo', protocolo ? `<span style="font-family:monospace;">${escapeHtml(protocolo)}</span>` : naoInf, false]
+                    ];
+                    document.getElementById('det-titulo').textContent = 'NF-e ' + numeroFmt;
+                    document.getElementById('det-grid').innerHTML = campos.map(([label, val, full]) => `
+                        <div${full ? ' style="grid-column:1 / -1;"' : ''}>
+                            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#9ca3af;font-weight:600;margin-bottom:2px;">${label}</div>
+                            <div style="font-size:14px;color:#111827;">${val}</div>
+                        </div>
+                    `).join('');
+                    document.getElementById('modalDetalhesNFe').classList.add('active');
                 })
                 .catch(e => _fat_toast('Erro ao carregar detalhes'));
+        }
+
+        function fecharDetalhesNFe() {
+            document.getElementById('modalDetalhesNFe').classList.remove('active');
         }
 
         async function baixarXML(id, origem) {

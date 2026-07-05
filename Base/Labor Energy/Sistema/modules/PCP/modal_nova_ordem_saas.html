@@ -1,5 +1,5 @@
 <!-- ============================================ -->
-<!-- MODAL: NOVA ORDEM DE PRODUÇÃO - SaaS Modern -->
+<!-- MODAL: NOVA ORDEM DE PRODUÇÁO - SaaS Modern -->
 <!-- ============================================ -->
 <div id="modal-nova-ordem" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.85); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 20px;">
     <div class="modal-dialog" role="document" style="background: white; border-radius: 20px; max-width: 1400px; width: 100%; max-height: 95vh; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.05); animation: modalSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);">    <!-- Mobile Enterprise Design System -->
@@ -275,7 +275,7 @@
                                 </div>
                                 <div>
                                     <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Endereço Completo</label>
-                                    <input type="text" id="endereco" placeholder="Rua, nº, bairro, cidade - UF" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                    <input type="text" id="endereço" placeholder="Rua, nº, bairro, cidade - UF" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
                                 </div>
                                 <div>
                                     <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">CPF/CNPJ</label>
@@ -402,9 +402,9 @@
                                 </thead>
                                 <tbody id="produtos-lista">
                                     <tr>
-                                        <td><input type="text" placeholder="Código" class="produto-codigo"></td>
+                                        <td><input type="text" placeholder="Código" class="produto-código"></td>
                                         <td><input type="text" placeholder="Nome do produto" class="produto-nome"></td>
-                                        <td><input type="text" placeholder="Peso Líq." class="produto-peso-liquido"></td>
+                                        <td><input type="text" placeholder="Peso Líq." class="produto-peso-líquido"></td>
                                         <td><input type="text" placeholder="Lote" class="produto-lote"></td>
                                         <td>
                                             <select class="produto-embalagem" style="width: 100%; padding: 8px 10px; border: 1.5px solid #e5e7eb; border-radius: 6px; font-size: 13px; background: white;">
@@ -465,6 +465,12 @@
                         onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(16,185,129,0.4)'"
                         onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(16,185,129,0.3)'">
                         <i class="fas fa-file-excel"></i> Gerar Ordem em Excel
+                    </button>
+                    <button type="button" onclick="gerarOrdemPdfSaas()"
+                        style="background: linear-gradient(135deg, #EF4444, #DC2626); color: white; border: none; padding: 14px 40px; border-radius: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-size: 14px; box-shadow: 0 4px 12px rgba(239,68,68,0.3);"
+                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(239,68,68,0.4)'"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(239,68,68,0.3)'">
+                        <i class="fas fa-file-pdf"></i> Gerar Ordem em PDF
                     </button>
                 </div>
                 
@@ -537,9 +543,9 @@ async function submitNovaOrdem(event) {
     const tbody = document.getElementById('produtos-lista');
     
     tbody.querySelectorAll('tr').forEach(row => {
-        const codigo = row.querySelector('.produto-codigo').value;
+        const código = row.querySelector('.produto-código').value;
         const nome = row.querySelector('.produto-nome').value;
-        const pesoLiquido = row.querySelector('.produto-peso-liquido').value;
+        const pesoLiquido = row.querySelector('.produto-peso-líquido').value;
         const lote = row.querySelector('.produto-lote').value;
         const embalagem = row.querySelector('.produto-embalagem').value;
         const lances = row.querySelector('.produto-lances').value;
@@ -547,9 +553,9 @@ async function submitNovaOrdem(event) {
         const valorUnit = parseFloat(row.querySelector('.produto-valor').value) || 0;
         const valorTotal = parseFloat(row.querySelector('.produto-total').value) || 0;
         
-        if (codigo || nome || qtde > 0) {
+        if (código || nome || qtde > 0) {
             produtos.push({
-                codigo,
+                código,
                 descrição: nome, // ð§ Usar 'descrição' ao invés de 'nome' para compatibilidade
                 nome,
                 peso_liquido: pesoLiquido,
@@ -584,7 +590,7 @@ async function submitNovaOrdem(event) {
         
         // Endereço
         cep: document.getElementById('cep').value,
-        endereco: document.getElementById('endereco').value,
+        endereço: document.getElementById('endereço').value,
         cpf_cnpj: document.getElementById('cpf_cnpj').value,
         email_nfe: document.getElementById('email_nfe').value,
         
@@ -604,7 +610,7 @@ async function submitNovaOrdem(event) {
         percentual_pagamento: parseFloat(document.getElementById('percentual_pagamento').value) || 0,
         
         // Observações
-        observacoes: document.getElementById('observacoes').value,
+        observações: document.getElementById('observacoes').value,
         
         // Produtos
         produtos: produtos
@@ -626,8 +632,8 @@ async function submitNovaOrdem(event) {
             // Cabeçalho
             número: númeroOP,
             revisao: dados.revisao || '01',
-            número_pedido: dados.num_pedido,
-            número_orçamento: dados.num_orçamento,
+            numero_pedido: dados.num_pedido,
+            numero_orçamento: dados.num_orçamento,
             num_pedido: dados.num_pedido,
             num_orçamento: dados.num_orçamento,
             data_liberacao: dados.data_liberacao,
@@ -644,7 +650,7 @@ async function submitNovaOrdem(event) {
             
             // Endereço
             cep_cliente: dados.cep,
-            endereco_cliente: dados.endereco,
+            endereco_cliente: dados.endereço,
             cpf_cnpj: dados.cpf_cnpj,
             cliente_cpf_cnpj: dados.cpf_cnpj,
             email_nfe: dados.email_nfe,
@@ -666,12 +672,12 @@ async function submitNovaOrdem(event) {
             percentual_pagamento: dados.percentual_pagamento,
             
             // Observações
-            observacoes: dados.observacoes,
+            observações: dados.observações,
             
             // Produtos (formato compatível com endpoint kanban)
             produtos: produtos.map(p => ({
-                codigo: p.codigo || '',
-                descrição: p.descrição || p.nome || '',
+                código: p.codigo || '',
+                descrição: p.descricao || p.nome || '',
                 nome: p.nome || '',
                 embalagem: p.embalagem || '',
                 lances: p.lances || '',
@@ -684,7 +690,7 @@ async function submitNovaOrdem(event) {
             })),
             
             // Campos para visualização no Kanban
-            produto: produtos.map(p => p.descrição || p.codigo).filter(Boolean).join(', ').substring(0, 200) || dados.cliente,
+            produto: produtos.map(p => p.descricao || p.codigo).filter(Boolean).join(', ').substring(0, 200) || dados.cliente,
             dataConclusao: dados.prazo_entrega || dados.data_liberacao || null,
             data_previsao_entrega: dados.prazo_entrega || null,
             quantidade: qtdTotal || 1,
@@ -741,7 +747,7 @@ async function submitNovaOrdem(event) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Ordem_Produção_${dados.num_pedido || Date.now()}.xlsx`;
+        a.download = `Ordem_Producao_${dados.num_pedido || Date.now()}.xlsx`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -775,6 +781,75 @@ async function submitNovaOrdem(event) {
 function fecharModalNovaOrdem() {
     document.getElementById('modal-nova-ordem').classList.add('hidden');
     document.body.style.overflow = '';
+}
+
+// Gerar PDF da Ordem de Produção (XSL-FO / Apache FOP)
+async function gerarOrdemPdfSaas() {
+    const form = document.getElementById('form-nova-ordem');
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+
+    const btnPdf = event?.target?.closest('button');
+    const textoOriginal = btnPdf ? btnPdf.innerHTML : '';
+    if (btnPdf) {
+        btnPdf.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando PDF...';
+        btnPdf.disabled = true;
+    }
+
+    try {
+        const dados = coletarDadosFormulario();
+
+        // 1. Salvar no Kanban/Banco
+        try {
+            await salvarNoKanban(dados);
+        } catch (err) {
+            console.warn('Aviso ao salvar no Kanban:', err.message);
+        }
+
+        // 2. Gerar PDF via FOP
+        const response = await fetch('/api/gerar-ordem-pdf', {
+            credentials: 'include',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dados)
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || errData.detalhe || 'Erro ao gerar PDF');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Ordem_Producao_${dados.num_pedido || Date.now()}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        alert('PDF gerado com sucesso!');
+        fecharModalNovaOrdem();
+        form.reset();
+        calcularTotalGeral();
+
+        if (typeof loadDashboardData === 'function') loadDashboardData();
+        if (typeof carregarControlePCP === 'function') carregarControlePCP();
+        if (typeof carregarOrdensKanban === 'function') carregarOrdensKanban();
+        if (typeof renderizarKanban === 'function') renderizarKanban();
+
+    } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+        alert('Erro ao gerar PDF. Verifique se o Apache FOP está instalado no servidor.');
+    } finally {
+        if (btnPdf) {
+            btnPdf.innerHTML = textoOriginal;
+            btnPdf.disabled = false;
+        }
+    }
 }
 </script>
 

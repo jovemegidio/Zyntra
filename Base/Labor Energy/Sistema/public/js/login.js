@@ -150,69 +150,112 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==================== MULTI-COMPANY ROUTING ====================
-  // A tela de login é única. O domínio do email define apenas o destino pós-login.
+  // Mapeia domínios de email para o base path de cada empresa
   const COMPANY_DOMAINS = {
-    '@labor.com.br': {
-      label: 'Labor Eletric / Energy Comercio',
-      destination: '/dashboard',
-      badge: '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,0.15);color:#4ADE80;border:1px solid rgba(34,197,94,0.3);border-radius:20px;padding:5px 14px;font-size:0.78rem;font-weight:600;">Labor Eletric / Energy</span>'
+    '@aluforce.ind.br': '',
+    '@labor.com.br': '/labor-eletric',
+    '@laborenergy.com.br': '/labor-energy',
+    '@energy.com.br': '/labor-energy',
+    '@laboreletric.com.br': '/labor-eletric'
+  };
+
+  const COMPANY_BRANDS = {
+    neutral: {
+      id: 'neutral',
+      name: 'Zyntra ERP',
+      logo: '/images/zyntra-branco.png',
+      bodyClass: '',
+      greeting: 'Bem-vindo de volta',
+      subtitle: 'Entre na sua conta para continuar'
     },
-    '@laboreletric.com.br': {
-      label: 'Labor Eletric',
-      destination: '/dashboard',
-      badge: '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.15);color:#FF8C42;border:1px solid rgba(255,107,0,0.3);border-radius:20px;padding:5px 14px;font-size:0.78rem;font-weight:600;">Labor Eletric</span>'
+    aluforce: {
+      id: 'aluforce',
+      name: 'Aluforce',
+      logo: '/logos/aluforce-branco.png',
+      bodyClass: 'brand-aluforce',
+      greeting: 'Portal Aluforce',
+      subtitle: 'Acesse com seu e-mail corporativo Aluforce'
     },
-    '@laborenergy.com.br': {
-      label: 'Labor Energy',
-      destination: '/dashboard',
-      badge: '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,0.15);color:#4ADE80;border:1px solid rgba(34,197,94,0.3);border-radius:20px;padding:5px 14px;font-size:0.78rem;font-weight:600;">Labor Energy</span>'
+    'labor-eletric': {
+      id: 'labor-eletric',
+      name: 'Labor Eletric',
+      logo: '/logos/labor-branco.png',
+      bodyClass: 'brand-labor-eletric',
+      greeting: 'Portal Labor Eletric',
+      subtitle: 'Acesse com seu e-mail corporativo Labor Eletric'
     },
-    '@energy.com.br': {
-      label: 'Energy Comercio',
-      destination: '/dashboard',
-      badge: '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,0.15);color:#4ADE80;border:1px solid rgba(34,197,94,0.3);border-radius:20px;padding:5px 14px;font-size:0.78rem;font-weight:600;">Energy Comercio</span>'
-    },
-    '@lumiereassesoria.com.br': {
-      label: 'Lumiere',
-      destination: '/dashboard',
-      badge: '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(99,102,241,0.15);color:#A5B4FC;border:1px solid rgba(99,102,241,0.3);border-radius:20px;padding:5px 14px;font-size:0.78rem;font-weight:600;">Lumiere</span>'
-    },
-    '@lumiereassessoria.com.br': {
-      label: 'Lumiere',
-      destination: '/dashboard',
-      badge: '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(99,102,241,0.15);color:#A5B4FC;border:1px solid rgba(99,102,241,0.3);border-radius:20px;padding:5px 14px;font-size:0.78rem;font-weight:600;">Lumiere</span>'
+    'labor-energy': {
+      id: 'labor-energy',
+      name: 'Labor Energy',
+      logo: '/logos/energy-branco.png',
+      bodyClass: 'brand-labor-energy',
+      greeting: 'Portal Labor Energy',
+      subtitle: 'Acesse com seu e-mail corporativo Labor Energy'
     }
   };
 
-  function getCompanyInfo(email) {
-    if (!email) return null;
-    const emailLower = email.toLowerCase().trim();
-    for (const [domain, config] of Object.entries(COMPANY_DOMAINS)) {
-      if (emailLower.endsWith(domain)) return config;
-    }
-    return null;
-  }
+  const COMPANY_DOMAIN_BRANDS = {
+    '@aluforce.ind.br': 'aluforce',
+    '@labor.com.br': 'labor-eletric',
+    '@laboreletric.com.br': 'labor-eletric',
+    '@laborenergy.com.br': 'labor-energy',
+    '@energy.com.br': 'labor-energy'
+  };
 
   function getCompanyBasePath(email) {
-    const mountedBasePath = window.__BASE_PATH || window.__MOUNT_PATH__ || '';
-    return mountedBasePath;
+    if (!email) return window.__BASE_PATH || '';
+    const emailLower = email.toLowerCase();
+    for (const [domain, basePath] of Object.entries(COMPANY_DOMAINS)) {
+      if (emailLower.endsWith(domain)) return basePath;
+    }
+    return window.__BASE_PATH || '';
   }
 
-  function getCompanyRedirectPath(email, fallback = '/dashboard') {
-    // On a branded instance (labor-energy, labor-eletric) go directly to that dashboard
-    // instead of the multi-company portal, which is only meaningful on the main aluforce instance.
-    if (window.__BASE_PATH || window.__MOUNT_PATH__) {
-      return fallback;
+  function detectCompanyBrand(email) {
+    const emailLower = String(email || '').trim().toLowerCase();
+    for (const [domain, brandId] of Object.entries(COMPANY_DOMAIN_BRANDS)) {
+      if (emailLower.endsWith(domain)) return COMPANY_BRANDS[brandId];
     }
-    const companyInfo = getCompanyInfo(email);
-    return companyInfo?.destination || fallback;
+    return COMPANY_BRANDS.neutral;
   }
 
-  function withCompanyBasePath(path, basePath) {
-    if (basePath && typeof path === 'string' && path.charAt(0) === '/' && path.indexOf(basePath) !== 0) {
-      return basePath + path;
+  function setCompanyBrand(brand) {
+    const selectedBrand = brand || COMPANY_BRANDS.neutral;
+    const brandClasses = Object.values(COMPANY_BRANDS)
+      .map(item => item.bodyClass)
+      .filter(Boolean);
+    document.body.classList.remove(...brandClasses);
+    if (selectedBrand.bodyClass) document.body.classList.add(selectedBrand.bodyClass);
+
+    const logoHost = document.getElementById('logo-crossfade');
+    const currentLogo = logoHost?.querySelector('.login-logo.active');
+    const isSameBrand = logoHost?.dataset.currentBrand === selectedBrand.id;
+    if (logoHost && !isSameBrand) {
+      logoHost.dataset.currentBrand = selectedBrand.id;
     }
-    return path;
+    if (logoHost && currentLogo && !isSameBrand && currentLogo.getAttribute('src') !== selectedBrand.logo) {
+      const nextLogo = currentLogo.cloneNode(false);
+      nextLogo.src = selectedBrand.logo;
+      nextLogo.alt = selectedBrand.name;
+      nextLogo.className = `login-logo logo-${selectedBrand.id} entering`;
+      nextLogo.dataset.brandLogo = 'true';
+      nextLogo.onerror = () => { nextLogo.src = '/images/zyntra-branco.png'; };
+      currentLogo.classList.remove('active', 'entering');
+      currentLogo.classList.add('leaving');
+      logoHost.appendChild(nextLogo);
+      window.setTimeout(() => {
+        nextLogo.classList.remove('entering');
+        nextLogo.classList.add('active');
+        currentLogo.remove();
+      }, 2200);
+    }
+
+    if (greetingEl && !avatarContainer?.classList.contains('has-email')) {
+      greetingEl.textContent = selectedBrand.greeting;
+    }
+    if (subtitleEl && !avatarContainer?.classList.contains('has-email')) {
+      subtitleEl.textContent = selectedBrand.subtitle;
+    }
   }
 
   // ==================== AVATAR SYSTEM ====================
@@ -247,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       // Multi-company: buscar foto no backend correto
       const _photoBasePath = getCompanyBasePath(email);
-      const _photoPrefix = (_photoBasePath && !window.__BASE_PATH && !window.__MOUNT_PATH__) ? _photoBasePath : '';
+      const _photoPrefix = (_photoBasePath && !window.__BASE_PATH) ? _photoBasePath : '';
       const response = await fetch(`${_photoPrefix}/api/public/usuarios/foto/${encodeURIComponent(email)}`);
       if (!response.ok) return null;
       const data = await response.json();
@@ -298,14 +341,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Se campo vazio, resetar tudo
       if (email.length === 0) {
-        if (greetingEl) greetingEl.textContent = 'Bem-vindo de volta';
-        if (subtitleEl) subtitleEl.textContent = 'Entre na sua conta para continuar';
         if (avatarContainer) avatarContainer.classList.remove('has-email');
-        const _badge = document.getElementById('company-badge');
-        if (_badge) { _badge.innerHTML = ''; _badge.style.display = 'none'; }
+        setCompanyBrand(COMPANY_BRANDS.neutral);
         resetAvatar();
         return;
       }
+
+      setCompanyBrand(detectCompanyBrand(email));
 
       // Só exibir avatar/saudação quando o email estiver 100% digitado
       // (deve conter @ + domínio com pelo menos um ponto)
@@ -320,9 +362,12 @@ document.addEventListener('DOMContentLoaded', () => {
     emailInput.addEventListener('blur', () => {
       const email = emailInput.value.trim().toLowerCase();
       const isFullEmail = /^[^@]+@[^@]+\.[^@]+$/.test(email);
+      setCompanyBrand(detectCompanyBrand(email));
       if (isFullEmail) showUserAvatar(email);
     });
   }
+
+  setCompanyBrand(detectCompanyBrand(emailInput?.value || ''));
 
   async function showUserAvatar(email) {
     const emailParts = email.toLowerCase().split('@');
@@ -339,15 +384,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (greetingEl) greetingEl.textContent = `Olá, ${displayName}`;
     if (subtitleEl) subtitleEl.textContent = 'Digite sua senha para continuar';
     if (avatarContainer) avatarContainer.classList.add('has-email');
-
-    // Exibir badge de empresa detectada pelo domínio
-    const companyBadgeEl = document.getElementById('company-badge');
-    if (companyBadgeEl) {
-      const companyInfo = getCompanyInfo(email);
-      const badgeHtml = companyInfo ? companyInfo.badge : '';
-      companyBadgeEl.innerHTML = badgeHtml;
-      companyBadgeEl.style.display = badgeHtml ? 'flex' : 'none';
-    }
 
     // Try API first
     const result = await fetchUserPhotoFromAPI(email);
@@ -373,7 +409,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Fallback: local avatars
-    const dominiosPermitidos = ['aluforce', 'lumiereassesoria', 'lumiereassessoria', 'labor', 'energy', 'laboreletric', 'laborenergy'];
+    const dominiosPermitidos = ['aluforce', 'lumiereassesoria', 'lumiereassessoria', 'energy', 'laboreletric'];
     const domainMatch = emailParts[1] && dominiosPermitidos.some(d => emailParts[1].includes(d));
 
     if (domainMatch) {
@@ -398,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
       avatarBox.appendChild(img);
     };
     img.onerror = () => {
-      const dominiosPermitidos = ['aluforce', 'lumiereassesoria', 'lumiereassessoria', 'energy', 'laboreletric', 'laborenergy'];
+      const dominiosPermitidos = ['aluforce', 'lumiereassesoria', 'lumiereassessoria', 'energy', 'laboreletric'];
       const domainMatch = domain && dominiosPermitidos.some(d => domain.includes(d));
       if (domainMatch) {
         setAvatarInitials(firstName);
@@ -632,8 +668,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('remember-continue').addEventListener('click', () => {
       // Multi-company: redirecionar para o dashboard correto baseado no email do usuário
       const _rememberCompanyPath = getCompanyBasePath(userEmail);
-      const _rememberDestination = getCompanyRedirectPath(userEmail, '/dashboard');
-      window.location.href = withCompanyBasePath(_rememberDestination, _rememberCompanyPath);
+      window.location.href = _rememberCompanyPath ? _rememberCompanyPath + '/dashboard' : '/dashboard';
     });
 
     document.getElementById('remember-switch').addEventListener('click', async () => {
@@ -752,10 +787,10 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         loginPayload.email = username;
       }
-      // Multi-company: autenticação centralizada; domínio só define o destino pós-login
+      // Multi-company: detectar empresa pelo domínio do email
       const _companyPath = getCompanyBasePath(username);
-      const _needsPrefix = _companyPath && !window.__BASE_PATH && !window.__MOUNT_PATH__;
-      const _loginUrl = withCompanyBasePath('/api/login', _companyPath);
+      const _needsPrefix = _companyPath && !window.__BASE_PATH;
+      const _loginUrl = _needsPrefix ? _companyPath + '/api/login' : '/api/login';
       const response = await apiFetch(_loginUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -780,7 +815,6 @@ document.addEventListener('DOMContentLoaded', () => {
       // 🔐 2FA - Se o servidor pedir verificação de dois fatores
       // ═══════════════════════════════════════════════════════════
       if (data && data.requires2FA) {
-        twoFA_companyPath = _companyPath || window.__BASE_PATH || window.__MOUNT_PATH__ || '';
         setLoading(false);
         show2FAModal(data.pendingToken, data.maskedEmail);
         return; // Para aqui - o modal 2FA continua o fluxo
@@ -824,11 +858,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Handle redirect
       if (data && data.redirectTo) {
-        let redirectTo = getCompanyRedirectPath(data.user?.email || username, data.redirectTo);
+        let redirectTo = data.redirectTo;
         try {
           const parsed = new URL(redirectTo, window.location.origin);
           redirectTo = parsed.pathname + parsed.search + parsed.hash;
         } catch (e) {}
+        if (redirectTo === '/index.html' || redirectTo === '/index.html/') redirectTo = '/dashboard';
+
         // Multi-company: garantir que o redirect inclui o base path correto
         if (_companyPath && !redirectTo.startsWith(_companyPath)) {
           redirectTo = _companyPath + redirectTo;
@@ -871,7 +907,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let finalRedirect = redirectTo;
             if (returnTo) {
               const decodedReturn = decodeURIComponent(returnTo);
-              if (decodedReturn.startsWith('/') && !decodedReturn.startsWith('//')) {
+              if (decodedReturn.startsWith('/') && !decodedReturn.startsWith('//') && !decodedReturn.startsWith('/Zyntra-SGE')) {
                 finalRedirect = decodedReturn;
                 // Garantir base path no returnTo tamb\u00e9m
                 if (_companyPath && !finalRedirect.startsWith(_companyPath)) {
@@ -913,10 +949,10 @@ document.addEventListener('DOMContentLoaded', () => {
           localStorage.setItem('userData', freshJson);
           sessionStorage.setItem('tabUserData', freshJson);
 
-          let finalRedirect = withCompanyBasePath(getCompanyRedirectPath(data.user?.email || username, '/dashboard'), _companyPath);
+          let finalRedirect = _companyPath ? _companyPath + '/dashboard' : '/dashboard';
           if (returnTo) {
             const decodedReturn = decodeURIComponent(returnTo);
-            if (decodedReturn.startsWith('/') && !decodedReturn.startsWith('//')) {
+            if (decodedReturn.startsWith('/') && !decodedReturn.startsWith('//') && !decodedReturn.startsWith('/Zyntra-SGE')) {
               finalRedirect = decodedReturn;
               if (_companyPath && !finalRedirect.startsWith(_companyPath)) {
                 finalRedirect = _companyPath + finalRedirect;
@@ -946,7 +982,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   let twoFA_pendingToken = null;
-  let twoFA_companyPath = '';
   let twoFA_countdownInterval = null;
 
   function show2FAModal(pendingToken, maskedEmail) {
@@ -990,7 +1025,6 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => { if (modal) modal.style.display = 'none'; }, 300);
     }
     twoFA_pendingToken = null;
-    twoFA_companyPath = '';
     if (twoFA_countdownInterval) { clearInterval(twoFA_countdownInterval); twoFA_countdownInterval = null; }
   }
 
@@ -1120,8 +1154,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const rememberDevice = document.getElementById('twofa-remember-device');
-      const _twoFAPath = twoFA_companyPath || window.__BASE_PATH || window.__MOUNT_PATH__ || '';
-      const response = await apiFetch(withCompanyBasePath('/api/verify-2fa', _twoFAPath), {
+      const response = await apiFetch('/api/verify-2fa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1189,17 +1222,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Handle redirect
       setTimeout(() => {
-        let redirectTo = getCompanyRedirectPath(data.user?.email, data.redirectTo || '/dashboard');
+        let redirectTo = (data.redirectTo || '/dashboard');
         try {
           const parsed = new URL(redirectTo, window.location.origin);
           redirectTo = parsed.pathname + parsed.search + parsed.hash;
         } catch (e) {}
-        redirectTo = withCompanyBasePath(redirectTo, _twoFAPath);
+        if (redirectTo === '/index.html' || redirectTo === '/index.html/') redirectTo = '/dashboard';
 
         // Remember me
         const rememberCheckbox = document.getElementById('remember-me');
         if (rememberCheckbox && rememberCheckbox.checked && data.user) {
-          apiFetch(withCompanyBasePath('/api/auth/create-remember-token', _twoFAPath), {
+          apiFetch('/api/auth/create-remember-token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -1208,7 +1241,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Fetch /api/me for fresh data
-        apiFetch(withCompanyBasePath('/api/me', _twoFAPath), {
+        apiFetch('/api/me', {
           credentials: 'include'
         }).then(r => r.ok ? r.json() : Promise.reject()).then(userData => {
           const freshJson = JSON.stringify(userData);
@@ -1219,9 +1252,7 @@ document.addEventListener('DOMContentLoaded', () => {
           let finalRedirect = redirectTo;
           if (returnTo) {
             const decoded = decodeURIComponent(returnTo);
-            if (decoded.startsWith('/') && !decoded.startsWith('//')) {
-              finalRedirect = withCompanyBasePath(decoded, _twoFAPath);
-            }
+            if (decoded.startsWith('/') && !decoded.startsWith('//') && !decoded.startsWith('/Zyntra-SGE')) finalRedirect = decoded;
           }
           window.location.href = finalRedirect;
         }).catch(() => {
@@ -1260,8 +1291,7 @@ document.addEventListener('DOMContentLoaded', () => {
       resendBtn.textContent = 'Enviando...';
 
       try {
-        const _twoFAPath = twoFA_companyPath || window.__BASE_PATH || window.__MOUNT_PATH__ || '';
-        const response = await apiFetch(withCompanyBasePath('/api/resend-2fa', _twoFAPath), {
+        const response = await apiFetch('/api/resend-2fa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -1500,11 +1530,12 @@ document.addEventListener('DOMContentLoaded', () => {
               }
 
               // Redirecionar
-              let finalRedirect = getCompanyRedirectPath(userData?.email, redirectTo || '/dashboard');
+              let finalRedirect = redirectTo || '/dashboard';
               try {
                 const parsed = new URL(finalRedirect, window.location.origin);
                 finalRedirect = parsed.pathname + parsed.search + parsed.hash;
               } catch (e) {}
+              if (finalRedirect === '/index.html' || finalRedirect === '/index.html/') finalRedirect = '/dashboard';
               window.location.href = finalRedirect;
             }, 1500);
 

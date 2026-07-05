@@ -1,4 +1,4 @@
-﻿// auth.js - Middleware e rota de autenticação corrigida
+// auth.js - Middleware e rota de autenticação corrigida
 const express = require('express');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
@@ -285,7 +285,7 @@ router.post('/login', validate(schemas.login), async (req, res) => {
         const emailValido = dominiosPermitidos.some(dominio => email && email.endsWith(dominio));
 
         if (!isCpfLogin && (!email || !emailValido)) {
-            return res.status(401).json({ message: 'E-mail não autorizado para este sistema.' }); // BUG-006: não expor domínios internos
+            return res.status(401).json({ message: 'E-mail não autorizado. Domínios permitidos: ' + dominiosPermitidos.join(', ') });
         }
 
         // ========================================

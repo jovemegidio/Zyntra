@@ -58,7 +58,7 @@
                 
                 // Redirecionar para o login do dashboard principal
                 setTimeout(() => {
-                    window.location.href = `/login.html?returnTo=${returnTo}`;
+                    window.location.assign(`/login.html?returnTo=${returnTo}`);
                 }, 150);
                 return null;
             } else {
@@ -70,7 +70,7 @@
                 const returnTo = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
                 
                 setTimeout(() => {
-                    window.location.href = `/login.html?returnTo=${returnTo}`;
+                    window.location.assign(`/login.html?returnTo=${returnTo}`);
                 }, 150);
                 return null;
             }

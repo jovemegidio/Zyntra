@@ -334,12 +334,12 @@ router.put('/:id/status', async (req, res) => {
     try {
         const db = getDatabase();
         const { status } = req.body;
-        
+
         const statusValidos = ['pendente', 'aprovado', 'enviado', 'recebido', 'cancelado'];
         if (!statusValidos.includes(status)) {
             return res.status(400).json({ error: 'Status inválido' });
         }
-        
+
         // Transições válidas: evita reapproval ou transições inválidas
         const transicoesPermitidas = {
             'pendente': ['aprovado', 'cancelado'],
@@ -348,29 +348,29 @@ router.put('/:id/status', async (req, res) => {
             'recebido': [],
             'cancelado': []
         };
-        
+
         // Guard clause atômica: só atualiza se o status atual permitir a transição
         const statusOrigensValidas = Object.entries(transicoesPermitidas)
             .filter(([_, destinos]) => destinos.includes(status))
             .map(([origem]) => origem);
-        
+
         if (statusOrigensValidas.length === 0) {
             return res.status(400).json({ error: `Status '${status}' não pode ser definido como destino` });
         }
-        
+
         const placeholders = statusOrigensValidas.map(() => '?').join(', ');
         const [result] = await db.query(
             `UPDATE pedidos_compra SET status = ?, updated_at = NOW() WHERE id = ? AND status IN (${placeholders})`,
             [status, req.params.id, ...statusOrigensValidas]
         );
-        
+
         if (result.affectedRows === 0) {
-            return res.status(409).json({ 
-                error: 'Conflito de status', 
-                message: 'Pedido já foi alterado por outro usuário ou transição inválida' 
+            return res.status(409).json({
+                error: 'Conflito de status',
+                message: 'Pedido já foi alterado por outro usuário ou transição inválida'
             });
         }
-        
+
         res.json({
             success: true,
             message: 'Status atualizado com sucesso'

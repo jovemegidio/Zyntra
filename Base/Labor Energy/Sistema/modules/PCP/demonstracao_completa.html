@@ -1,8 +1,9 @@
-﻿ï»¿
+ï»¿
 
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260320">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260608g">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260610">
 </head>
 <body>
     <div class="demo-container">
@@ -144,7 +145,7 @@ DELETE /api/pcp/produtos/:id    # Remove produto
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="edit-codigo">Código do Produto</label>
+                                <label for="edit-código">Código do Produto</label>
                                 <input type="text" id="edit-codigo" class="form-control" required>
                             </div>
                             <div class="form-group">
@@ -167,7 +168,7 @@ DELETE /api/pcp/produtos/:id    # Remove produto
                         </div>
                         <div class="form-group">
                             <label for="edit-descrição">Descrição Detalhada</label>
-                            <textarea id="edit-descrição" class="form-control" rows="3" placeholder="Descrição completa do produto"></textarea>
+                            <textarea id="edit-descricao" class="form-control" rows="3" placeholder="Descrição completa do produto"></textarea>
                         </div>
                     </div>
 
@@ -197,7 +198,7 @@ DELETE /api/pcp/produtos/:id    # Remove produto
                             </div>
                         </div>
                         <div class="form-group">
-                            <label for="edit-variacao">Variações</label>
+                            <label for="edit-variação">Variações</label>
                             <div class="tags-input-container">
                                 <input type="text" id="edit-variacao" class="tags-input" placeholder="Digite uma Variação e pressione Enter">
                                 <div id="edit-variacao-tags" class="tags-display"></div>
@@ -238,7 +239,7 @@ DELETE /api/pcp/produtos/:id    # Remove produto
                             </div>
                             <div class="info-item">
                                 <label>Última Atualização</label>
-                                <span id="edit-ultima-atualização" class="info-value">-</span>
+                                <span id="edit-Última-atualizacao" class="info-value">-</span>
                             </div>
                             <div class="info-item">
                                 <label>ID do Produto</label>
@@ -270,7 +271,7 @@ DELETE /api/pcp/produtos/:id    # Remove produto
         // Carregamento inicial
         document.addEventListener('DOMContentLoaded', async function() {
             await verificarStatus();
-            await carregarProdutosDemonstracao();
+            await carregarProdutosDemonstração();
             configurarEventosModal();
         });
 
@@ -301,7 +302,7 @@ DELETE /api/pcp/produtos/:id    # Remove produto
         }
 
         // Carregar produtos para Demonstração
-        async function carregarProdutosDemonstracao() {
+        async function carregarProdutosDemonstração() {
             try {
                 const response = await fetch('/api/pcp/produtos?limit=5');
                 if (response.ok) {
@@ -312,7 +313,7 @@ DELETE /api/pcp/produtos/:id    # Remove produto
                     tbody.innerHTML = produtos.map(p => `
                         <tr data-id="${p.id}">
                             <td><strong>${p.codigo || ''}</strong></td>
-                            <td>${p.nome || p.descrição || ''}</td>
+                            <td>${p.nome || p.descricao || ''}</td>
                             <td><span class="sku-badge">${p.sku || '-'}</span></td>
                             <td><span class="gtin-text">${p.gtin || '-'}</span></td>
                             <td class="text-center">${Number(p.quantidade || 0).toFixed(2)}</td>
@@ -345,7 +346,7 @@ DELETE /api/pcp/produtos/:id    # Remove produto
         function demonstrarModal() {
             const produtoDemo = {
                 id: 999,
-                codigo: 'DEMO001',
+                código: 'DEMO001',
                 nome: 'Produto de Demonstração',
                 sku: 'DEMODEMO999',
                 gtin: '1234567890123',
@@ -354,7 +355,7 @@ DELETE /api/pcp/produtos/:id    # Remove produto
                 unidade_medida: 'un',
                 quantidade: 50,
                 custo_unitario: 125.90,
-                variacao: ['Azul', 'Vermelho', '220V'],
+                variação: ['Azul', 'Vermelho', '220V'],
                 data_criacao: new Date().toISOString()
             };
             
@@ -371,7 +372,7 @@ DELETE /api/pcp/produtos/:id    # Remove produto
             document.getElementById('edit-nome').value = produto.nome || '';
             document.getElementById('edit-sku').value = produto.sku || '';
             document.getElementById('edit-gtin').value = produto.gtin || '';
-            document.getElementById('edit-descrição').value = produto.descrição || '';
+            document.getElementById('edit-descricao').value = produto.descricao || '';
             document.getElementById('edit-marca').value = produto.marca || '';
             document.getElementById('edit-unidade').value = produto.unidade_medida || '';
             document.getElementById('edit-estoque').value = produto.quantidade || 0;
@@ -381,29 +382,29 @@ DELETE /api/pcp/produtos/:id    # Remove produto
             document.getElementById('edit-produto-id-display').textContent = produto.id || '-';
             document.getElementById('edit-data-criacao').textContent = produto.data_criacao ? 
                 new Date(produto.data_criacao).toLocaleDateString('pt-BR') : '-';
-            document.getElementById('edit-ultima-atualização').textContent = 
+            document.getElementById('edit-Última-atualizacao').textContent = 
                 new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR');
             
             // Processar variações
-            const variacaoContainer = document.getElementById('edit-variacao-tags');
-            variacaoContainer.innerHTML = '';
+            const variaçãoContainer = document.getElementById('edit-variacao-tags');
+            variaçãoContainer.innerHTML = '';
             
-            let variacoes = [];
+            let variações = [];
             try {
-                if (Array.isArray(produto.variacao)) {
-                    variacoes = produto.variacao;
-                } else if (typeof produto.variacao === 'string' && produto.variacao.trim().startsWith('[')) {
-                    variacoes = JSON.parse(produto.variacao);
-                } else if (typeof produto.variacao === 'string') {
-                    variacoes = produto.variacao.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+                if (Array.isArray(produto.variação)) {
+                    variações = produto.variação;
+                } else if (typeof produto.variação === 'string' && produto.variação.trim().startsWith('[')) {
+                    variações = JSON.parse(produto.variação);
+                } else if (typeof produto.variação === 'string') {
+                    variações = produto.variação.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
                 }
             } catch (e) {
                 console.warn('Erro ao processar variações:', e);
             }
             
-            variacoes.forEach(variacao => {
-                if (variacao && variacao.trim()) {
-                    adicionarTagVariacao(variacao.trim());
+            variações.forEach(variação => {
+                if (variação && variação.trim()) {
+                    adicionarTagVariação(variação.trim());
                 }
             });
             
@@ -417,19 +418,19 @@ DELETE /api/pcp/produtos/:id    # Remove produto
         }
 
         // Adicionar tag de Variação
-        function adicionarTagVariacao(variacao) {
+        function adicionarTagVariação(variação) {
             const container = document.getElementById('edit-variacao-tags');
             const tag = document.createElement('div');
             tag.className = 'tag-item';
             tag.innerHTML = `
-                ${variacao}
-                <span class="tag-remove" onclick="removerTagVariacao(this)">×</span>
+                ${variação}
+                <span class="tag-remove" onclick="removerTagVariação(this)">×</span>
             `;
             container.appendChild(tag);
         }
 
         // Remover tag de Variação
-        function removerTagVariacao(element) {
+        function removerTagVariação(element) {
             element.parentElement.remove();
         }
 
@@ -449,14 +450,14 @@ DELETE /api/pcp/produtos/:id    # Remove produto
             });
             
             // Input de variações
-            const variacaoInput = document.getElementById('edit-variacao');
-            if (variacaoInput) {
-                variacaoInput.addEventListener('keypress', function(e) {
+            const variaçãoInput = document.getElementById('edit-variacao');
+            if (variaçãoInput) {
+                variaçãoInput.addEventListener('keypress', function(e) {
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         const valor = this.value.trim();
                         if (valor) {
-                            adicionarTagVariacao(valor);
+                            adicionarTagVariação(valor);
                             this.value = '';
                         }
                     }
@@ -505,6 +506,7 @@ DELETE /api/pcp/produtos/:id    # Remove produto
     </script>
     <script src="/js/auth-unified.js?v=20260131c"></script>
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <script defer src="/js/global-sidebar-submenu.js?v=20260610b"></script>
 </body>
 </html>
 

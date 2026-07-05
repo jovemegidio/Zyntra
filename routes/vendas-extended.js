@@ -1,4 +1,4 @@
-/**
+﻿/**
  * VENDAS EXTENDED ROUTES - Extracted from server.js (Lines 25776-27054)
  * Dashboard admin/vendedor, top-vendedores, pedidos, relatorios
  * NOTE: Uses separate vendasPool connecting to aluforce_vendas database
@@ -7,6 +7,7 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
 const { buscarConfiguracoesEmpresa, formatarDadosParaPDF, resolverCaminhoLogo } = require('../modules/_shared/services/empresa-config.service');
+const { buildEmpresaTemplateData, renderHtmlRelatorio, resolveRelatorioTemplate, statusBadgeClass } = require('../src/services/html-relatorio-renderer');
 
 module.exports = function createVendasExtendedRoutes(deps) {
     const { pool, authenticateToken, authorizeArea, authorizeAdmin, writeAuditLog, cacheMiddleware, CACHE_CONFIG, VENDAS_DB_CONFIG } = deps;
@@ -26,6 +27,38 @@ module.exports = function createVendasExtendedRoutes(deps) {
     };
 
     const safeParseJSON = (str, fallback = []) => { try { return JSON.parse(str); } catch (_) { return fallback; } };
+    const normalizarCodigoCondicaoPagamento = (valor) => {
+        if (valor == null || valor === '') return null;
+        const raw = String(valor).trim();
+        const lower = raw.toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ');
+        if (['a vista', 'a_vista', 'avista', 'av', '0'].includes(lower)) return 'a_vista';
+        const onlyNumbers = raw.replace(/[^\d/_-]+/g, '').replace(/[-_]+/g, '/').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
+        if (/^\d+(\/\d+)*$/.test(onlyNumbers)) return onlyNumbers;
+        return raw.replace(/_/g, '/');
+    };
+    const formatarDescricaoCondicaoPagamento = (valor) => {
+        const codigo = normalizarCodigoCondicaoPagamento(valor);
+        if (!codigo) return 'A combinar';
+        if (codigo === 'a_vista') return 'À Vista';
+        if (/^\d+$/.test(codigo)) return `${codigo} dias`;
+        if (/^\d+(\/\d+)+$/.test(codigo)) return `${codigo} dias`;
+        return codigo;
+    };
+    const isPedidoMeiaNota = (pedido) => {
+        const tipo = String(pedido?.tipo_faturamento || '').toLowerCase();
+        const status = String(pedido?.status || '').toLowerCase().trim();
+        const valorTotal = parseFloat(pedido?.valor || pedido?.valor_total) || 0;
+        const valorFaturado = parseFloat(pedido?.valor_faturado) || 0;
+        const valorPendente = parseFloat(pedido?.valor_pendente) || 0;
+        const percentual = parseFloat(pedido?.percentual_faturado) || 0;
+        return (tipo && tipo !== 'normal' && tipo !== 'integral')
+            || ['parcial', 'recibo'].includes(status)
+            || percentual > 0
+            || (valorPendente > 0 && valorPendente < valorTotal)
+            || (valorFaturado > 0 && valorFaturado < valorTotal);
+    };
 
     // Separate pool for vendas database
     let vendasPool;
@@ -35,7 +68,7 @@ module.exports = function createVendasExtendedRoutes(deps) {
             port: parseInt(process.env.DB_PORT) || 3306,
             user: process.env.DB_USER || 'aluforce',
             password: process.env.DB_PASSWORD || '',
-            database: 'aluforce_vendas',
+            database: process.env.DB_NAME || 'aluforce_vendas',
             waitForConnections: true,
             connectionLimit: 10,
             charset: 'utf8mb4'
@@ -370,6 +403,237 @@ module.exports = function createVendasExtendedRoutes(deps) {
         next('route');
     });
 
+    // ============================================================
+    // ORÇAMENTO HTML — template novo (public/relatorios/orcamento.html)
+    // Renderiza o documento com dados reais do pedido + branding por
+    // instância (BRAND/empresa). É exibido inline pelo Report Viewer
+    // (que intercepta o window.open). Print -> PDF A4 pelo navegador.
+    // ============================================================
+    router.get('/pedidos/:id/orcamento', authenticateToken, authorizeArea('vendas'), async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            const [pedidos] = await vendasPool.query(`
+                SELECT p.*,
+                       c.nome as cliente_nome_real,
+                       c.razao_social as cliente_razao_social,
+                       c.nome_fantasia as cliente_nome_fantasia,
+                       COALESCE(c.cnpj, c.cnpj_cpf) as cliente_cnpj,
+                       c.inscricao_estadual as cliente_ie,
+                       c.contato as cliente_contato,
+                       c.email as cliente_email,
+                       c.telefone as cliente_telefone,
+                       c.endereco as cliente_endereco,
+                       c.bairro as cliente_bairro,
+                       c.cidade as cliente_cidade,
+                       c.estado as cliente_estado,
+                       c.cep as cliente_cep,
+                       u.nome as vendedor_nome
+                FROM pedidos p
+                LEFT JOIN clientes c ON p.cliente_id = c.id
+                LEFT JOIN usuarios u ON p.vendedor_id = u.id
+                WHERE p.id = ?
+            `, [id]);
+
+            if (pedidos.length === 0) return res.status(404).send('<h1>Pedido nao encontrado</h1>');
+            const pedido = pedidos[0];
+
+            // Ownership: vendedor so visualiza os proprios pedidos
+            const isAdmin = req.user && (req.user.role === 'admin' || req.user.cargo === 'admin');
+            if (!isAdmin && pedido.vendedor_id && req.user && pedido.vendedor_id !== req.user.id) {
+                return res.status(403).send('<h1>Acesso negado</h1>');
+            }
+
+            if (isPedidoMeiaNota(pedido)) {
+                return res.redirect(302, `/api/vendas/pedidos/${encodeURIComponent(id)}/recibo`);
+            }
+
+            let [itens] = await vendasPool.query('SELECT * FROM pedido_itens WHERE pedido_id = ? ORDER BY id ASC', [id]);
+            if (itens.length === 0 && pedido.produtos_preview) {
+                const preview = safeParseJSON(pedido.produtos_preview, []);
+                if (Array.isArray(preview)) {
+                    itens = preview.map(it => ({
+                        codigo: it.codigo || '',
+                        descricao: it.descricao || it.nome || '',
+                        quantidade: parseFloat(it.quantidade) || 0,
+                        unidade: it.unidade || 'UN',
+                        preco_unitario: parseFloat(it.preco_unitario || it.valor_unitario || it.preco) || 0,
+                        desconto: parseFloat(it.desconto) || 0,
+                        subtotal: parseFloat(it.total || it.subtotal) || 0
+                    }));
+                }
+            }
+
+            // Fallback: pedido criado com o NOME do cliente digitado (sem cliente_id
+            // vinculado) → o JOIN não traz os dados cadastrais. Resolver pelo nome.
+            if (!pedido.cliente_cnpj && (pedido.cliente_nome || pedido.cliente)) {
+                try {
+                    const nomeBusca = pedido.cliente_nome || pedido.cliente;
+                    const [[cli]] = await vendasPool.query(
+                        `SELECT COALESCE(cnpj, cnpj_cpf) AS cnpj, inscricao_estadual, contato, telefone, email,
+                                endereco, bairro, cidade, estado, cep, razao_social, nome_fantasia, nome
+                         FROM clientes WHERE razao_social = ? OR nome = ? OR nome_fantasia = ? LIMIT 1`,
+                        [nomeBusca, nomeBusca, nomeBusca]
+                    );
+                    if (cli) {
+                        pedido.cliente_cnpj          = pedido.cliente_cnpj          || cli.cnpj;
+                        pedido.cliente_ie            = pedido.cliente_ie            || cli.inscricao_estadual;
+                        pedido.cliente_contato       = pedido.cliente_contato       || cli.contato;
+                        pedido.cliente_telefone      = pedido.cliente_telefone      || cli.telefone;
+                        pedido.cliente_email         = pedido.cliente_email         || cli.email;
+                        pedido.cliente_endereco      = pedido.cliente_endereco      || cli.endereco;
+                        pedido.cliente_bairro        = pedido.cliente_bairro        || cli.bairro;
+                        pedido.cliente_cidade        = pedido.cliente_cidade        || cli.cidade;
+                        pedido.cliente_estado        = pedido.cliente_estado        || cli.estado;
+                        pedido.cliente_cep           = pedido.cliente_cep           || cli.cep;
+                        pedido.cliente_razao_social  = pedido.cliente_razao_social  || cli.razao_social;
+                        pedido.cliente_nome_fantasia = pedido.cliente_nome_fantasia || cli.nome_fantasia;
+                    }
+                } catch (_e) { /* best-effort: mantém o que veio do JOIN */ }
+            }
+
+            // Empresa (configuracoes_empresa da instancia) + logo por marca
+            const empresaConfig = await buscarConfiguracoesEmpresa(pool);
+            const dados = formatarDadosParaPDF(empresaConfig);
+            const BRAND = (process.env.BRAND || '').toLowerCase();
+            const BRAND_LOGOS = {
+                'labor-eletric': '/images/labor-eletric-logo.png',
+                'labor-energy': '/images/labor-energy-logo.png',
+                'zyntra': '/images/zyntra-sem-fundo.png'
+            };
+            const empresaLogo = BRAND_LOGOS[BRAND] || empresaConfig.logo_url || '/images/Logo Monocromatico - Azul - Aluforce.png';
+
+            // Helpers
+            const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const moeda = (v) => 'R$ ' + (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const numBR = (v) => (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+
+            // Status -> rotulo + classe de badge do template
+            const statusMap = {
+                'orcamento':'Orçamento','em-analise':'Em Análise','negociacao':'Negociação',
+                'pedido-aprovado':'Pedido Aprovado','em-producao':'Em Produção','aguardando':'Aguardando',
+                'faturado':'Faturado','cancelado':'Cancelado','recibo':'Recibo','entregue':'Entregue','finalizado':'Finalizado','pronto':'Pronto'
+            };
+            const statusRaw = (pedido.status || 'orcamento').toLowerCase().trim();
+            const statusNome = statusMap[statusRaw] || statusRaw.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const badgeMap = {
+                'orcamento':'badge-amber','em-analise':'badge-amber','negociacao':'badge-amber','aguardando':'badge-amber',
+                'pedido-aprovado':'badge-green','faturado':'badge-green','entregue':'badge-green','finalizado':'badge-green','pronto':'badge-green','recibo':'badge-green',
+                'cancelado':'badge-red'
+            };
+            const statusClasse = badgeMap[statusRaw] || 'badge-blue';
+
+            // Itens + totais
+            let subtotal = 0, totalDesc = 0;
+            const itensTpl = itens.map((it, i) => {
+                const qtd = parseFloat(it.quantidade) || 0;
+                const unit = parseFloat(it.preco_unitario) || 0;
+                const desc = parseFloat(it.desconto) || 0;
+                const total = parseFloat(it.subtotal || it.preco_total) || (qtd * unit - desc);
+                subtotal += (qtd * unit);
+                totalDesc += desc;
+                return {
+                    num: String(i + 1).padStart(2, '0'),
+                    codigo: esc(it.codigo || '—'),
+                    descricao: esc(it.descricao || '—'),
+                    qtd: numBR(qtd),
+                    unidade: esc(it.unidade || 'UN'),
+                    valor_unit: moeda(unit),
+                    desconto: desc > 0 ? moeda(desc) : '—',
+                    total: moeda(total)
+                };
+            });
+
+            if (subtotal === 0) subtotal = parseFloat(pedido.valor) || 0;
+            if (totalDesc === 0) totalDesc = parseFloat(pedido.desconto) || 0;
+            const frete = parseFloat(pedido.frete) || 0;
+            const ipi = parseFloat(pedido.total_ipi || pedido.ipi) || 0;
+            const totalGeral = parseFloat(pedido.valor) || (subtotal - totalDesc + frete + ipi);
+
+            const validade = pedido.data_validade
+                ? fmtData(pedido.data_validade)
+                : (() => { const b = pedido.created_at ? new Date(pedido.created_at) : new Date(); b.setDate(b.getDate() + 7); return b.toLocaleDateString('pt-BR'); })();
+
+            const enderecoCliente = [pedido.cliente_endereco, pedido.cliente_bairro].filter(Boolean).join(', ');
+            const cidadeCliente = [pedido.cliente_cidade, pedido.cliente_estado].filter(Boolean).join('/');
+            const nomeCliente = pedido.cliente_razao_social || pedido.cliente_nome_fantasia || pedido.cliente_nome_real || pedido.cliente_nome || 'Cliente nao informado';
+            const observacoes = pedido.observacao || pedido.observacoes || pedido.descricao || '';
+            const condicoes = pedido.condicoes_pagamento || pedido.condicao_pagamento || pedido.forma_pagamento || (pedido.parcelas ? `${pedido.parcelas} dias` : 'A combinar');
+            const prazoEntrega = pedido.prazo_entrega || pedido.previsao_entrega || 'A combinar';
+
+            const data = {
+                empresa_logo: empresaLogo,
+                empresa_nome: esc(dados.nomeFantasia || 'ALUFORCE'),
+                empresa_razao_social: esc(dados.nome),
+                empresa_cnpj: esc(dados.cnpj),
+                empresa_ie: esc(dados.inscricaoEstadual),
+                empresa_endereco: esc([dados.endereco, dados.numero].filter(Boolean).join(', ') + (dados.bairro ? ' - ' + dados.bairro : '')),
+                empresa_cidade: esc(`${dados.cidade}/${dados.estado} - CEP ${dados.cep}`),
+                empresa_telefone: esc(dados.telefone),
+                empresa_email: esc(dados.email || ''),
+                empresa_site: esc(dados.site || ''),
+
+                numero_orcamento: String(pedido.id).padStart(5, '0'),
+                status: esc(statusNome),
+                status_classe: statusClasse,
+                data_emissao: fmtData(pedido.created_at),
+                vendedor: esc(pedido.vendedor_nome || '—'),
+                validade: validade,
+
+                cliente_nome: esc(nomeCliente),
+                cliente_cnpj: esc(pedido.cliente_cnpj || '—'),
+                cliente_ie: esc(pedido.cliente_ie || 'Isento'),
+                cliente_telefone: esc(pedido.cliente_telefone || '—'),
+                cliente_email: esc(pedido.cliente_email || '—'),
+                cliente_contato: esc(pedido.cliente_contato || '—'),
+                cliente_endereco: esc(enderecoCliente || '—'),
+                cliente_cidade: esc(cidadeCliente || '—'),
+                cliente_cep: esc(pedido.cliente_cep || '—'),
+                prazo_entrega: esc(prazoEntrega),
+
+                itens: itensTpl,
+
+                subtotal: moeda(subtotal),
+                desconto: moeda(totalDesc),
+                desconto_display: totalDesc > 0 ? '' : 'display:none',
+                frete: moeda(frete),
+                frete_display: frete > 0 ? '' : 'display:none',
+                ipi: moeda(ipi),
+                ipi_display: ipi > 0 ? '' : 'display:none',
+                total: moeda(totalGeral),
+
+                condicoes_pagamento: esc(condicoes),
+                observacoes: esc(observacoes),
+                observacoes_display: observacoes ? '' : 'display:none',
+
+                gerado_em: new Date().toLocaleString('pt-BR')
+            };
+
+            // Renderizar o template (secoes {{#itens}}...{{/itens}} + {{chave}})
+            const tplPath = resolveRelatorioTemplate(path.join(__dirname, '..'), 'orcamento.html');
+            let html = fs.readFileSync(tplPath, 'utf8');
+            html = html.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, key, inner) => {
+                const arr = data[key];
+                if (!Array.isArray(arr) || arr.length === 0) return '';
+                return arr.map(item => inner.replace(/\{\{([^#/}][^}]*)\}\}/g, (_m, k) => {
+                    const v = item[k.trim()];
+                    return v !== undefined && v !== null ? String(v) : '';
+                })).join('');
+            });
+            html = html.replace(/\{\{([^#/}][^}]*)\}\}/g, (_m, k) => {
+                const v = data[k.trim()];
+                return v !== undefined && v !== null ? String(v) : '';
+            });
+
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            return res.send(html);
+        } catch (err) {
+            console.error('[ORCAMENTO-HTML] Erro:', err);
+            return res.status(500).send('<h1>Erro ao gerar o orcamento</h1><p>' + (err.message || '') + '</p>');
+        }
+    });
+
     router.get('/pedidos/:id/pdf', authenticateToken, authorizeArea('vendas'), async (req, res) => {
         console.log('[PDF] Gerando documento para pedido:', req.params.id);
         try {
@@ -415,6 +679,10 @@ module.exports = function createVendasExtendedRoutes(deps) {
             const isAdmin = req.user && (req.user.role === 'admin' || req.user.cargo === 'admin');
             if (!isAdmin && pedido.vendedor_id && req.user && pedido.vendedor_id !== req.user.id) {
                 return res.status(403).json({ error: 'Acesso negado: este pedido pertence a outro vendedor' });
+            }
+
+            if (isPedidoMeiaNota(pedido)) {
+                return res.redirect(302, `/api/vendas/pedidos/${encodeURIComponent(id)}/recibo`);
             }
 
             let [itens] = await vendasPool.query(`SELECT * FROM pedido_itens WHERE pedido_id = ? ORDER BY id ASC`, [id]);
@@ -495,20 +763,40 @@ module.exports = function createVendasExtendedRoutes(deps) {
             res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(nomeArquivoSafe)}.pdf"`);
             doc.pipe(res);
 
-            // ===== PALETA CORPORATIVA ZYNTRA =====
+            // ===== PALETA POR MARCA (process.env.BRAND) =====
+            const PDF_BRAND = (process.env.BRAND || '').toLowerCase();
+            const BRAND_PALETTES = {
+                'labor-eletric': {
+                    navy: '#7D2D00', navyMid: '#A03B00', navyLight: '#C94F00',
+                    gold: '#F39C12', goldDark: '#D68910', goldLight: '#F8C471',
+                    logoFile: 'labor-eletric-logo.png'
+                },
+                'labor-energy': {
+                    navy: '#0B4F30', navyMid: '#1A7A50', navyLight: '#1E8449',
+                    gold: '#27AE60', goldDark: '#1E8449', goldLight: '#58D68D',
+                    logoFile: 'labor-energy-logo.png'
+                },
+                'zyntra': {
+                    navy: '#2D1B69', navyMid: '#4A2B8A', navyLight: '#5A3CA8',
+                    gold: '#6C5CE7', goldDark: '#5A4BD1', goldLight: '#A29BFE',
+                    logoFile: 'zyntra-sem-fundo.png'
+                },
+            };
+            const activePalette = BRAND_PALETTES[PDF_BRAND] || {};
+
             const C = {
-                navy:       '#0b2842',    // azul marinho institucional (brand)
-                navyMid:    '#103758',    // azul médio
-                navyLight:  '#1a5585',    // azul claro
-                gold:       '#18b6c8',    // ciano/teal destaque (accent)
-                goldDark:   '#139bab',    // ciano escuro
-                goldLight:  '#a5e8ef',    // ciano claro
-                text:       '#1A202C',    // texto principal
-                textMid:    '#4A5568',    // texto secundário
-                textLight:  '#A0AEC0',    // texto suave
-                bg:         '#F8F9FB',    // fundo alternado
-                border:     '#CBD5E0',    // borda
-                borderLight:'#E2E8F0',    // borda suave
+                navy:        activePalette.navy       || '#0b2842',
+                navyMid:     activePalette.navyMid    || '#103758',
+                navyLight:   activePalette.navyLight   || '#1a5585',
+                gold:        activePalette.gold       || '#18b6c8',
+                goldDark:    activePalette.goldDark   || '#139bab',
+                goldLight:   activePalette.goldLight  || '#a5e8ef',
+                text:       '#1A202C',
+                textMid:    '#4A5568',
+                textLight:  '#A0AEC0',
+                bg:         '#F8F9FB',
+                border:     '#CBD5E0',
+                borderLight:'#E2E8F0',
                 white:      '#FFFFFF',
                 red:        '#C53030',
                 green:      '#276749'
@@ -524,9 +812,7 @@ module.exports = function createVendasExtendedRoutes(deps) {
             // ================================================================
             //  HEADER BAND - faixa topo premium
             // ================================================================
-            // Faixa azul marinho grossa
             doc.rect(0, 0, PW, 8).fillColor(C.navy).fill();
-            // Filete dourado elegante
             doc.rect(0, 8, PW, 1.5).fillColor(C.gold).fill();
 
             y = 20;
@@ -535,8 +821,11 @@ module.exports = function createVendasExtendedRoutes(deps) {
             //  CABECALHO - Logo | Empresa | Documento
             // ================================================================
             const empresaConfigForLogo = await buscarConfiguracoesEmpresa(pool);
+            const logoFallback = activePalette.logoFile
+                ? path.join(__dirname, '..', 'public', 'images', activePalette.logoFile)
+                : path.join(__dirname, '..', 'public', 'images', 'Logo Monocromatico - Azul - Aluforce.png');
             const logoPath = resolverCaminhoLogo(empresaConfigForLogo, path.join(__dirname, '..', 'public'))
-                          || path.join(__dirname, '..', 'public', 'images', 'Logo Monocromatico - Azul - Aluforce.png');
+                          || logoFallback;
             if (fs.existsSync(logoPath)) {
                 try { doc.image(logoPath, ML, y, { width: 70 }); } catch(e) {}
             }
@@ -1027,9 +1316,11 @@ module.exports = function createVendasExtendedRoutes(deps) {
             const {
                 cliente_id, empresa_id, produtos, valor, descricao,
                 status = 'orcamento', frete = 0, prioridade = 'normal',
-                prazo_entrega, endereco_entrega, municipio_entrega, metodo_envio
+                prazo_entrega, endereco_entrega, municipio_entrega, metodo_envio,
+                parcelas, condicao_pagamento
             } = req.body;
             const vendedor_id = req.user.id;
+            const condicaoCodigo = normalizarCodigoCondicaoPagamento(condicao_pagamento || req.body.condicoes_pagamento || parcelas) || 'a_vista';
 
             // empresa_id padrão = 1 (ALUFORCE) se não fornecido
             const empresaIdFinal = empresa_id || 1;
@@ -1054,12 +1345,14 @@ module.exports = function createVendasExtendedRoutes(deps) {
                 INSERT INTO pedidos
                 (cliente_id, empresa_id, vendedor_id, valor, descricao, status,
                  numero_pedido, frete, prioridade, produtos_preview, prazo_entrega, endereco_entrega,
-                 municipio_entrega, metodo_envio, cliente_nome, vendedor_nome, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                 municipio_entrega, metodo_envio, parcelas, condicao_pagamento, condicoes_pagamento,
+                 cliente_nome, vendedor_nome, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             `, [
                 cliente_id, empresaIdFinal, vendedor_id, valor || 0, descricao || '',
                 status, numeroPedido, frete, prioridade, JSON.stringify(produtos || []),
                 prazo_entrega, endereco_entrega, municipio_entrega, metodo_envio,
+                condicaoCodigo, condicaoCodigo, formatarDescricaoCondicaoPagamento(condicaoCodigo),
                 clienteNome, vendedorNome
             ]);
 
@@ -1116,10 +1409,31 @@ module.exports = function createVendasExtendedRoutes(deps) {
                 qtd_volumes, especie_volumes, marca_volumes, numeracao_volumes,
                 peso_liquido, peso_bruto, valor_seguro, outras_despesas, tipo_entrega,
                 // Campos adicionais
-                desconto_pct, vendedor_nome: vendedorNomeBody, origem, observacao_cliente,
+                desconto_pct, vendedor_nome: vendedorNomeBody, origem, observacao_cliente, observacao_producao,
                 nf
             } = req.body;
-            const vendedor_id = req.user.id;
+
+            // O modal envia algumas chaves com nomes alternativos — aceitar todas as variações
+            const condicaoPagamentoFinal = normalizarCodigoCondicaoPagamento(sanitize(condicao_pagamento) || sanitize(req.body.condicoes_pagamento) || sanitize(parcelas)) || 'a_vista';
+            const observacaoFinal = sanitize(observacao) || sanitize(req.body['observação']) || sanitize(req.body.observacoes);
+            const transportadoraFinal = sanitize(transportadora) || sanitize(req.body.transportadora_nome);
+
+            // Vendedor: admin pode atribuir o pedido a OUTRO vendedor; não-admin é sempre
+            // o próprio usuário logado (regra reforçada no servidor — não confia no front).
+            const isAdminReq = req.user && (req.user.is_admin === 1 || req.user.is_admin === true ||
+                ['admin', 'administrador', 'ti', 'diretoria', 'super_admin'].includes((req.user.role || '').toLowerCase()));
+            let vendedor_id = req.user.id;
+            if (isAdminReq) {
+                const vid = sanitizeNum(req.body.vendedor_id);
+                if (vid) {
+                    vendedor_id = parseInt(vid);
+                } else if (sanitize(vendedorNomeBody)) {
+                    try {
+                        const [vByName] = await connection.query('SELECT id FROM usuarios WHERE nome = ? LIMIT 1', [vendedorNomeBody]);
+                        if (vByName.length > 0) vendedor_id = vByName[0].id;
+                    } catch (_) { /* mantém req.user.id */ }
+                }
+            }
 
             // Usar itens se disponível, senão produtos
             const produtosData = itens || produtos || [];
@@ -1144,25 +1458,25 @@ module.exports = function createVendasExtendedRoutes(deps) {
                 (cliente_id, empresa_id, vendedor_id, valor, descricao, status,
                  frete, prioridade, produtos_preview, prazo_entrega, endereco_entrega,
                  municipio_entrega, metodo_envio, parcelas, condicao_pagamento,
-                 cenario_fiscal, observacao, cliente_nome, vendedor_nome,
+                 condicoes_pagamento, cenario_fiscal, observacao, cliente_nome, vendedor_nome,
                  transportadora_nome, transportadora, tipo_frete, placa_veiculo, veiculo_uf, rntrc,
                  qtd_volumes, especie_volumes, marca_volumes, numeracao_volumes,
                  peso_liquido, peso_bruto, valor_seguro, outras_despesas,
-                 desconto_pct, origem, observacao_cliente, nf, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                 desconto_pct, origem, observacao_cliente, observacao_producao, nf, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             `, [
                 cliente_id || null, empresaIdFinal, vendedor_id, valor || 0, descricao || 'Novo Orçamento',
                 status, sanitizeNum(frete) || 0, prioridade, JSON.stringify(produtosData),
                 sanitize(prazo_entrega), sanitize(endereco_entrega), sanitize(municipio_entrega), sanitize(metodo_envio),
                 parcelas ? (typeof parcelas === 'string' ? parcelas : JSON.stringify(parcelas)) : null,
-                sanitize(condicao_pagamento), sanitize(cenario_fiscal), sanitize(observacao),
+                condicaoPagamentoFinal, formatarDescricaoCondicaoPagamento(condicaoPagamentoFinal), sanitize(cenario_fiscal), observacaoFinal,
                 clienteNome, vendedorNome,
-                sanitize(transportadora), sanitize(transportadora), sanitize(tipo_frete),
+                transportadoraFinal, transportadoraFinal, sanitize(tipo_frete),
                 sanitize(placa_veiculo), sanitize(veiculo_uf), sanitize(rntrc),
                 sanitizeNum(qtd_volumes), sanitize(especie_volumes), sanitize(marca_volumes), sanitize(numeracao_volumes),
                 sanitizeNum(peso_liquido), sanitizeNum(peso_bruto), sanitizeNum(valor_seguro), sanitizeNum(outras_despesas),
-                sanitizeNum(desconto_pct) || 0, sanitize(origem), sanitize(observacao_cliente), sanitize(nf)
+                sanitizeNum(desconto_pct) || 0, sanitize(origem), sanitize(observacao_cliente), sanitize(observacao_producao), sanitize(nf)
             ]);
 
             const pedidoId = result.insertId;
@@ -1184,6 +1498,50 @@ module.exports = function createVendasExtendedRoutes(deps) {
             }
 
             await connection.commit();
+
+            // ── Persistência best-effort dos campos das abas Informações Adicionais / E-mail / NF-e.
+            //    Executado APÓS o commit e filtrando por colunas existentes (information_schema),
+            //    para NUNCA quebrar a criação do pedido caso alguma coluna não exista na instância.
+            try {
+                const toFlag = (v) => (v === 1 || v === '1' || v === true || v === 'true') ? 1 : 0;
+                const richCandidates = {
+                    transportadora_id: sanitizeNum(req.body.transportadora_id),
+                    redespacho: toFlag(req.body.redespacho),
+                    info_complementar: sanitize(req.body.info_complementar),
+                    categoria: sanitize(req.body.categoria),
+                    conta_corrente: sanitize(req.body.conta_corrente),
+                    etapa: sanitize(req.body.etapa),
+                    pedido_cliente: sanitize(req.body.pedido_cliente),
+                    contrato_venda: sanitize(req.body.contrato_venda),
+                    contato: sanitize(req.body.contato),
+                    projeto: sanitize(req.body.projeto),
+                    origem_pedido: sanitize(req.body.origem_pedido),
+                    email_boleto: toFlag(req.body.email_boleto),
+                    email_pix: toFlag(req.body.email_pix),
+                    nota_fiscal_consumo_final: toFlag(req.body.nota_fiscal_consumo_final),
+                    dados_adicionais_nf: sanitize(req.body.dados_adicionais_nf),
+                    campos_obs_nfe: sanitize(req.body.campos_obs_nfe),
+                    endereco_entrega_nfe: sanitize(req.body.endereco_entrega_nfe),
+                    previsao_faturamento: sanitize(req.body.previsao_faturamento)
+                };
+                const provided = Object.keys(richCandidates).filter(k => richCandidates[k] !== null && richCandidates[k] !== undefined);
+                if (provided.length > 0) {
+                    const [colRows] = await pool.query(
+                        "SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'pedidos'"
+                    );
+                    const existing = new Set(colRows.map(r => r.COLUMN_NAME || r.column_name));
+                    const setCols = provided.filter(k => existing.has(k));
+                    if (setCols.length > 0) {
+                        const setClause = setCols.map(c => `\`${c}\` = ?`).join(', ');
+                        const setVals = setCols.map(c => richCandidates[c]);
+                        setVals.push(pedidoId);
+                        await pool.query(`UPDATE pedidos SET ${setClause} WHERE id = ?`, setVals);
+                    }
+                }
+            } catch (richErr) {
+                console.warn('Aviso: campos adicionais do pedido', pedidoId, 'não persistidos:', richErr.message);
+            }
+
             res.json({ success: true, id: pedidoId, message: 'Pedido criado com sucesso' });
         } catch (error) {
             await connection.rollback();
@@ -1198,20 +1556,26 @@ module.exports = function createVendasExtendedRoutes(deps) {
         try {
             const { id } = req.params;
 
-            // Lock: pedidos em status bloqueado só podem ser editados por ti@aluforce.ind.br
-            const STATUS_BLOQUEADO = ['faturado', 'faturar', 'aprovado', 'pedido-aprovado', 'orcamento', 'orçamento', 'analise', 'analise-credito', 'recibo', 'entregue'];
+            // Lock comercial: vendedor só fica bloqueado durante Análise de Crédito.
+            const STATUS_BLOQUEADO = ['analise', 'análise', 'analise-credito', 'análise-crédito'];
             const [[pedidoLock]] = await vendasPool.query('SELECT status FROM pedidos WHERE id = ?', [parseInt(id)]);
             if (pedidoLock && STATUS_BLOQUEADO.includes((pedidoLock.status || '').toLowerCase())) {
                 const userEmail = (req.user && req.user.email || '').toLowerCase();
                 if (userEmail !== 'ti@aluforce.ind.br') {
-                    return res.status(403).json({ error: `Pedido com status "${pedidoLock.status}" não pode ser editado. Somente TI pode editar pedidos neste status.` });
+                    return res.status(403).json({ error: `Pedido em Análise de Crédito não pode ser editado por vendedor.` });
                 }
             }
 
             const {
                 cliente_id, empresa_id, produtos, valor, descricao, status,
                 frete, prioridade, prazo_entrega, endereco_entrega,
-                municipio_entrega, metodo_envio, observacao
+                municipio_entrega, metodo_envio, observacao, observacao_producao,
+                condicao_pagamento, condicoes_pagamento, parcelas,
+                transportadora_nome, transportadora, tipo_frete,
+                placa_veiculo, veiculo_uf, rntrc, qtd_volumes, especie_volumes,
+                marca_volumes, numeracao_volumes, peso_liquido, peso_bruto,
+                valor_seguro, outras_despesas, tipo_entrega, numero_lacre,
+                codigo_rastreio, veiculo_proprio, data_previsao_entrega
             } = req.body;
 
             // Construir query dinâmica apenas com campos fornecidos
@@ -1223,6 +1587,7 @@ module.exports = function createVendasExtendedRoutes(deps) {
             if (valor !== undefined) { updates.push('valor = ?'); params.push(valor); }
             if (descricao !== undefined) { updates.push('descricao = ?'); params.push(descricao); }
             if (observacao !== undefined) { updates.push('observacao = ?'); params.push(observacao); }
+            if (observacao_producao !== undefined) { updates.push('observacao_producao = ?'); params.push(observacao_producao); }
             if (status !== undefined) { updates.push('status = ?'); params.push(status); }
             if (frete !== undefined) { updates.push('frete = ?'); params.push(frete); }
             if (prioridade !== undefined) { updates.push('prioridade = ?'); params.push(prioridade); }
@@ -1231,6 +1596,30 @@ module.exports = function createVendasExtendedRoutes(deps) {
             if (municipio_entrega !== undefined) { updates.push('municipio_entrega = ?'); params.push(municipio_entrega); }
             if (metodo_envio !== undefined) { updates.push('metodo_envio = ?'); params.push(metodo_envio); }
             if (produtos !== undefined) { updates.push('produtos_preview = ?'); params.push(JSON.stringify(produtos)); }
+            if (condicao_pagamento !== undefined || condicoes_pagamento !== undefined || parcelas !== undefined) {
+                const condicao = condicao_pagamento || condicoes_pagamento || parcelas || null;
+                updates.push('condicao_pagamento = ?'); params.push(condicao);
+                updates.push('condicoes_pagamento = ?'); params.push(condicao);
+                updates.push('parcelas = ?'); params.push(condicao);
+            }
+            if (transportadora_nome !== undefined || transportadora !== undefined) { updates.push('transportadora_nome = ?'); params.push(transportadora_nome || transportadora || null); }
+            if (tipo_frete !== undefined) { updates.push('tipo_frete = ?'); params.push(tipo_frete); }
+            if (placa_veiculo !== undefined) { updates.push('placa_veiculo = ?'); params.push(placa_veiculo); }
+            if (veiculo_uf !== undefined) { updates.push('veiculo_uf = ?'); params.push(veiculo_uf); }
+            if (rntrc !== undefined) { updates.push('rntrc = ?'); params.push(rntrc); }
+            if (qtd_volumes !== undefined) { updates.push('qtd_volumes = ?'); params.push(qtd_volumes); }
+            if (especie_volumes !== undefined) { updates.push('especie_volumes = ?'); params.push(especie_volumes); }
+            if (marca_volumes !== undefined) { updates.push('marca_volumes = ?'); params.push(marca_volumes); }
+            if (numeracao_volumes !== undefined) { updates.push('numeracao_volumes = ?'); params.push(numeracao_volumes); }
+            if (peso_liquido !== undefined) { updates.push('peso_liquido = ?'); params.push(peso_liquido); }
+            if (peso_bruto !== undefined) { updates.push('peso_bruto = ?'); params.push(peso_bruto); }
+            if (valor_seguro !== undefined) { updates.push('valor_seguro = ?'); params.push(valor_seguro); }
+            if (outras_despesas !== undefined) { updates.push('outras_despesas = ?'); params.push(outras_despesas); }
+            if (tipo_entrega !== undefined) { updates.push('tipo_entrega = ?'); params.push(tipo_entrega); }
+            if (numero_lacre !== undefined) { updates.push('numero_lacre = ?'); params.push(numero_lacre); }
+            if (codigo_rastreio !== undefined) { updates.push('codigo_rastreio = ?'); params.push(codigo_rastreio); }
+            if (veiculo_proprio !== undefined) { updates.push('veiculo_proprio = ?'); params.push(veiculo_proprio === '1' || veiculo_proprio === 1 || veiculo_proprio === true ? 1 : 0); }
+            if (data_previsao_entrega !== undefined) { updates.push('data_previsao = ?'); params.push(data_previsao_entrega); }
 
             if (updates.length === 0) {
                 return res.status(400).json({ error: 'Nenhum campo para atualizar' });
@@ -1631,16 +2020,37 @@ module.exports = function createVendasExtendedRoutes(deps) {
         return num % 1 === 0 ? num.toString() : num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
     }
 
+    function formatarPeriodoRelatorio(dataInicio, dataFim) {
+        const ini = dataInicio ? formatarDataPdf(dataInicio) : 'início';
+        const fim = dataFim ? formatarDataPdf(dataFim) : 'hoje';
+        return `Período: ${ini} a ${fim}`;
+    }
+
+    async function dadosEmpresaRelatorio() {
+        const empresaConfig = await buscarConfiguracoesEmpresa(pool);
+        const dados = formatarDadosParaPDF(empresaConfig);
+        return buildEmpresaTemplateData(empresaConfig, dados, path.join(__dirname, '..'));
+    }
+
+    function enviarRelatorioHtml(res, nomeArquivo, html) {
+        res.set({
+            'Content-Type': 'text/html; charset=utf-8',
+            'Content-Disposition': `inline; filename="${nomeArquivo}.html"`
+        });
+        res.send(html);
+    }
+
     // PDF: Vendas por Período
     router.get('/relatorios/vendas-periodo/pdf', authenticateToken, authorizeArea('vendas'), async (req, res) => {
         try {
-            const { data_inicio, data_fim, vendedor_id, status } = req.query;
+            const { data_inicio, data_fim, vendedor_id, vendedor, status } = req.query;
             let query = `SELECT p.id, COALESCE(p.omie_numero_pedido, p.id) as numero, p.cliente_nome, p.vendedor_nome, p.valor, p.status, p.created_at
                          FROM pedidos p WHERE 1=1`;
             const params = [];
             if (data_inicio) { query += ' AND p.created_at >= ?'; params.push(data_inicio); }
             if (data_fim) { query += ' AND p.created_at <= ?'; params.push(data_fim + ' 23:59:59'); }
             if (vendedor_id) { query += ' AND p.vendedor_id = ?'; params.push(vendedor_id); }
+            else if (vendedor) { query += ' AND p.vendedor_nome = ?'; params.push(vendedor); }
             if (status && status !== 'todos') { query += ' AND p.status = ?'; params.push(status); }
             query += ' ORDER BY p.created_at DESC';
 
@@ -1651,29 +2061,24 @@ module.exports = function createVendasExtendedRoutes(deps) {
             rows.forEach(r => { statusMap[r.status || 'N/A'] = (statusMap[r.status || 'N/A'] || 0) + 1; });
             const statusResumo = Object.entries(statusMap).map(([k, v]) => `${k}: ${v}`).join(' | ');
 
-            const filtro = `Período: ${data_inicio || 'início'} a ${data_fim || 'hoje'}${vendedor_id ? ' | Vendedor filtrado' : ''}${status && status !== 'todos' ? ` | Status: ${status}` : ''}`;
-            const colunas = ['Nº Pedido', 'Cliente', 'Vendedor', 'Valor', 'Status', 'Data'];
-            const pageW = 842 - 80; // A4 landscape
-            const colWidths = [pageW * 0.10, pageW * 0.28, pageW * 0.20, pageW * 0.14, pageW * 0.13, pageW * 0.15];
-            const colAligns = ['center', 'left', 'left', 'right', 'center', 'center'];
-
-            const linhas = rows.map(r => [
-                String(r.numero || r.id), r.cliente_nome || '-', r.vendedor_nome || '-',
-                formatarMoedaPdf(r.valor), (r.status || '-').charAt(0).toUpperCase() + (r.status || '-').slice(1),
-                formatarDataPdf(r.created_at)
-            ]);
-
-            const resumo = [
-                { label: 'Total de Pedidos', valor: String(rows.length), cor: '#f0f9ff', borda: '#bfdbfe', corTexto: '#1e40af' },
-                { label: 'Valor Total', valor: formatarMoedaPdf(totalValor), cor: '#f0fdf4', borda: '#bbf7d0', corTexto: '#166534' },
-                { label: 'Ticket Médio', valor: formatarMoedaPdf(rows.length ? totalValor / rows.length : 0), cor: '#fefce8', borda: '#fde68a', corTexto: '#92400e' }
-            ];
-
-            const pdfBuffer = await criarPdfRelatorio('Relatório de Vendas por Período', colunas, linhas, filtro, {
-                colWidths, colAligns, resumo, totais: `Valor Total: ${formatarMoedaPdf(totalValor)}`
+            const filtro = `${formatarPeriodoRelatorio(data_inicio, data_fim)}${(vendedor_id || vendedor) ? ' | Vendedor filtrado' : ''}${status && status !== 'todos' ? ` | Status: ${status}` : ''}`;
+            const emAberto = rows.filter(r => !['faturado', 'recibo', 'finalizado', 'entregue'].includes(String(r.status || '').toLowerCase())).length;
+            const html = renderHtmlRelatorio(path.join(__dirname, '..'), 'pedidos.html', {
+                ...(await dadosEmpresaRelatorio()),
+                periodo: filtro,
+                pedidos_emitidos: rows.length,
+                valor_total: formatarMoedaPdf(totalValor),
+                em_aberto: emAberto,
+                linhas: rows.map(r => ({
+                    numero: String(r.numero || r.id || '-'),
+                    cliente: r.cliente_nome || '-',
+                    data: formatarDataPdf(r.created_at),
+                    valor: formatarMoedaPdf(r.valor),
+                    status: (r.status || '-').replace(/-/g, ' '),
+                    status_cor: statusBadgeClass(r.status)
+                }))
             });
-            res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename=relatorio-vendas.pdf' });
-            res.send(pdfBuffer);
+            return enviarRelatorioHtml(res, 'relatorio-pedidos', html);
         } catch (err) {
             console.error('Erro ao gerar PDF vendas-periodo:', err);
             res.status(500).json({ error: 'Erro ao gerar PDF', detalhe: err.message });
@@ -1683,7 +2088,7 @@ module.exports = function createVendasExtendedRoutes(deps) {
     // PDF: Comissões (com categorias: 2% cabos power, 1% multiplexado)
     router.get('/relatorios/comissoes/pdf', authenticateToken, authorizeArea('vendas'), async (req, res) => {
         try {
-            const { data_inicio, data_fim, vendedor_id } = req.query;
+            const { data_inicio, data_fim, vendedor_id, vendedor } = req.query;
 
             // Buscar itens dos pedidos com informação do vendedor
             let query = `SELECT p.vendedor_nome, p.vendedor_id, pi.descricao, pi.codigo,
@@ -1695,6 +2100,7 @@ module.exports = function createVendasExtendedRoutes(deps) {
             if (data_inicio) { query += ' AND p.created_at >= ?'; params.push(data_inicio); }
             if (data_fim) { query += ' AND p.created_at <= ?'; params.push(data_fim + ' 23:59:59'); }
             if (vendedor_id) { query += ' AND p.vendedor_id = ?'; params.push(vendedor_id); }
+            else if (vendedor) { query += ' AND p.vendedor_nome = ?'; params.push(vendedor); }
             query += ' ORDER BY p.vendedor_nome, pi.descricao';
 
             const [rows] = await vendasPool.query(query, params);
@@ -1766,18 +2172,26 @@ module.exports = function createVendasExtendedRoutes(deps) {
                 }
             });
 
-            const resumo = [
-                { label: 'Vendedores', valor: String(Object.keys(vendedores).length), cor: '#f0f9ff', borda: '#bfdbfe', corTexto: '#1e40af' },
-                { label: 'Total Vendido', valor: formatarMoedaPdf(grandTotalVendas), cor: '#f0fdf4', borda: '#bbf7d0', corTexto: '#166534' },
-                { label: 'Total Comissões', valor: formatarMoedaPdf(grandTotalComissao), cor: '#fef3c7', borda: '#fde68a', corTexto: '#92400e' }
-            ];
-
-            const pdfBuffer = await criarPdfRelatorio('Relatório de Comissões por Categoria', colunas, [], filtro, {
-                colWidths, colAligns, resumo, secoes, totalRegistros,
-                totais: `Total Comissões: ${formatarMoedaPdf(grandTotalComissao)}`
+            const html = renderHtmlRelatorio(path.join(__dirname, '..'), 'comissoes.html', {
+                ...(await dadosEmpresaRelatorio()),
+                competencia: formatarPeriodoRelatorio(data_inicio, data_fim),
+                data_pagamento: 'A definir',
+                total_base: formatarMoedaPdf(grandTotalVendas),
+                total_comissao: formatarMoedaPdf(grandTotalComissao),
+                qtd_vendedores: Object.keys(vendedores).length,
+                observacoes: 'Relatório gerado a partir dos pedidos de venda no período selecionado.',
+                linhas: Object.entries(vendedores)
+                    .sort((a, b) => b[1].totalComissao - a[1].totalComissao)
+                    .map(([vendNome, vend]) => ({
+                        vendedor: vendNome,
+                        plano: 'Comercial',
+                        plano_classe: 'badge-blue',
+                        base: formatarMoedaPdf(vend.totalVendas),
+                        taxa: 'por categoria',
+                        comissao: formatarMoedaPdf(vend.totalComissao)
+                    }))
             });
-            res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename=relatorio-comissoes.pdf' });
-            res.send(pdfBuffer);
+            return enviarRelatorioHtml(res, 'relatorio-comissoes', html);
         } catch (err) {
             console.error('Erro ao gerar PDF comissoes:', err);
             res.status(500).json({ error: 'Erro ao gerar PDF', detalhe: err.message });
@@ -1790,7 +2204,8 @@ module.exports = function createVendasExtendedRoutes(deps) {
             const { cliente_id, status, cidade, estado, ordenar_por } = req.query;
             let query = `SELECT c.nome, c.email, c.telefone, c.cidade, c.estado, c.ativo,
                          (SELECT COUNT(*) FROM pedidos p WHERE p.cliente_id = c.id) as qtd_pedidos,
-                         (SELECT COALESCE(SUM(p.valor), 0) FROM pedidos p WHERE p.cliente_id = c.id) as total_compras
+                         (SELECT COALESCE(SUM(p.valor), 0) FROM pedidos p WHERE p.cliente_id = c.id) as total_compras,
+                         (SELECT MAX(p.created_at) FROM pedidos p WHERE p.cliente_id = c.id) as ultima_compra
                          FROM clientes c WHERE 1=1`;
             const params = [];
             if (cliente_id) { query += ' AND c.id = ?'; params.push(cliente_id); }
@@ -1809,28 +2224,29 @@ module.exports = function createVendasExtendedRoutes(deps) {
             const clientesComPedido = rows.filter(r => parseInt(r.qtd_pedidos) > 0).length;
 
             const filtro = `${cidade ? `Cidade: ${cidade} | ` : ''}${estado ? `Estado: ${estado} | ` : ''}Ordenado por: ${ordenar_por || 'nome'}`;
-            const colunas = ['Nome', 'Email', 'Telefone', 'Cidade', 'UF', 'Pedidos', 'Total Compras'];
-            const pageW = 842 - 80;
-            const colWidths = [pageW * 0.20, pageW * 0.22, pageW * 0.13, pageW * 0.16, pageW * 0.06, pageW * 0.08, pageW * 0.15];
-            const colAligns = ['left', 'left', 'center', 'left', 'center', 'center', 'right'];
-
-            const linhas = rows.map(r => [
-                r.nome || '-', r.email || '-', r.telefone || '-',
-                r.cidade || '-', r.estado || '-', String(r.qtd_pedidos || 0), formatarMoedaPdf(r.total_compras)
-            ]);
-
-            const resumo = [
-                { label: 'Total Clientes', valor: String(totalClientes), cor: '#f0f9ff', borda: '#bfdbfe', corTexto: '#1e40af' },
-                { label: 'Clientes Ativos', valor: String(clientesComPedido), cor: '#f0fdf4', borda: '#bbf7d0', corTexto: '#166534' },
-                { label: 'Total em Pedidos', valor: String(totalPedidos), cor: '#fefce8', borda: '#fde68a', corTexto: '#92400e' },
-                { label: 'Valor Total', valor: formatarMoedaPdf(totalCompras), cor: '#fdf2f8', borda: '#fbcfe8', corTexto: '#9d174d' }
-            ];
-
-            const pdfBuffer = await criarPdfRelatorio('Relatório de Clientes', colunas, linhas, filtro, {
-                colWidths, colAligns, resumo, totais: `${totalClientes} clientes | ${totalPedidos} pedidos | ${formatarMoedaPdf(totalCompras)}`
+            const ordenados = rows.slice().sort((a, b) => (parseFloat(b.total_compras) || 0) - (parseFloat(a.total_compras) || 0));
+            const limiteClasseA = Math.max(1, Math.ceil(ordenados.length * 0.2));
+            const limiteClasseB = Math.max(limiteClasseA, Math.ceil(ordenados.length * 0.5));
+            const classeAReceita = ordenados.slice(0, limiteClasseA)
+                .reduce((s, r) => s + (parseFloat(r.total_compras) || 0), 0);
+            const html = renderHtmlRelatorio(path.join(__dirname, '..'), 'analise-clientes.html', {
+                ...(await dadosEmpresaRelatorio()),
+                periodo: filtro,
+                clientes_ativos: totalClientes,
+                receita_total: formatarMoedaPdf(totalCompras),
+                classe_a_pct: ordenados.length ? `${Math.round((limiteClasseA / ordenados.length) * 100)}%` : '0%',
+                classe_a_receita: formatarMoedaPdf(classeAReceita),
+                recencia_media: '-',
+                linhas: ordenados.map((r, idx) => ({
+                    cliente: r.nome || '-',
+                    classe: idx < limiteClasseA ? 'A' : (idx < limiteClasseB ? 'B' : 'C'),
+                    classe_cor: idx < limiteClasseA ? 'badge-green' : (idx < limiteClasseB ? 'badge-blue' : 'badge-gray'),
+                    pedidos: String(r.qtd_pedidos || 0),
+                    receita: formatarMoedaPdf(r.total_compras),
+                    ultima_compra: formatarDataPdf(r.ultima_compra)
+                }))
             });
-            res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename=relatorio-clientes.pdf' });
-            res.send(pdfBuffer);
+            return enviarRelatorioHtml(res, 'relatorio-clientes', html);
         } catch (err) {
             console.error('Erro ao gerar PDF clientes:', err);
             res.status(500).json({ error: 'Erro ao gerar PDF', detalhe: err.message });
@@ -1859,28 +2275,25 @@ module.exports = function createVendasExtendedRoutes(deps) {
             const totalQtd = rows.reduce((s, r) => s + (parseFloat(r.qtd_total) || 0), 0);
             const totalValor = rows.reduce((s, r) => s + (parseFloat(r.valor_total) || 0), 0);
 
-            const filtro = `Período: ${data_inicio || 'início'} a ${data_fim || 'hoje'} | Ordenado por: ${ordenar_por || 'valor'}`;
-            const colunas = ['Código', 'Descrição', 'Qtd Vendida', 'Nº Pedidos', 'Valor Total'];
-            const pageW = 842 - 80;
-            const colWidths = [pageW * 0.12, pageW * 0.38, pageW * 0.15, pageW * 0.12, pageW * 0.23];
-            const colAligns = ['center', 'left', 'right', 'center', 'right'];
-
-            const linhas = rows.map(r => [
-                r.codigo || '-', r.descricao || '-', formatarQtd(r.qtd_total),
-                String(r.qtd_pedidos || 0), formatarMoedaPdf(r.valor_total)
-            ]);
-
-            const resumo = [
-                { label: 'Produtos Únicos', valor: String(rows.length), cor: '#f0f9ff', borda: '#bfdbfe', corTexto: '#1e40af' },
-                { label: 'Qtd Total Vendida', valor: formatarQtd(totalQtd), cor: '#f0fdf4', borda: '#bbf7d0', corTexto: '#166534' },
-                { label: 'Valor Total', valor: formatarMoedaPdf(totalValor), cor: '#fef3c7', borda: '#fde68a', corTexto: '#92400e' }
-            ];
-
-            const pdfBuffer = await criarPdfRelatorio('Relatório de Produtos Mais Vendidos', colunas, linhas, filtro, {
-                colWidths, colAligns, resumo, totais: `${rows.length} produtos | Qtd: ${formatarQtd(totalQtd)} | ${formatarMoedaPdf(totalValor)}`
+            const filtro = `${formatarPeriodoRelatorio(data_inicio, data_fim)} | Ordenado por: ${ordenar_por || 'valor'}`;
+            const html = renderHtmlRelatorio(path.join(__dirname, '..'), 'performance-produtos.html', {
+                ...(await dadosEmpresaRelatorio()),
+                periodo: filtro,
+                skus_ativos: rows.length,
+                receita_top: formatarMoedaPdf(totalValor),
+                margem_media: '-',
+                linhas: rows.map(r => {
+                    const receita = parseFloat(r.valor_total) || 0;
+                    return {
+                        produto: [r.codigo, r.descricao].filter(Boolean).join(' - ') || '-',
+                        qtd: formatarQtd(r.qtd_total),
+                        receita: formatarMoedaPdf(receita),
+                        margem: '-',
+                        participacao: totalValor > 0 ? `${((receita / totalValor) * 100).toFixed(1)}%` : '0%'
+                    };
+                })
             });
-            res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename=relatorio-produtos.pdf' });
-            res.send(pdfBuffer);
+            return enviarRelatorioHtml(res, 'relatorio-produtos', html);
         } catch (err) {
             console.error('Erro ao gerar PDF produtos:', err);
             res.status(500).json({ error: 'Erro ao gerar PDF', detalhe: err.message });
@@ -2116,6 +2529,101 @@ module.exports = function createVendasExtendedRoutes(deps) {
                 },
                 erro: error.message
             });
+        }
+    });
+
+
+    // ===== ROUND3-ALU: kanban/pedidos =====
+    router.get('/kanban/pedidos', authenticateToken, async (req, res) => {
+        try {
+            const {
+                dataInclusao, dataPrevisao, dataFaturamento,
+                vendedor, projeto,
+                exibirCancelados = 'false',
+                exibirDenegados  = 'false',
+                exibirEncerrados = 'false'
+            } = req.query;
+
+            const where  = [];
+            const params = [];
+
+            const excluidos = [];
+            if (exibirCancelados !== 'true')  excluidos.push("'cancelado'", "'cancelada'");
+            if (exibirDenegados  !== 'true')  excluidos.push("'denegado'",  "'negado'");
+            if (exibirEncerrados !== 'true')  excluidos.push("'encerrado'");
+            if (excluidos.length) {
+                where.push('LOWER(COALESCE(p.status,\'\')) NOT IN (' + excluidos.join(',') + ')');
+            }
+
+            if (dataInclusao && dataInclusao !== 'tudo') {
+                where.push('p.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)');
+                params.push(parseInt(dataInclusao) || 30);
+            }
+            if (dataPrevisao && dataPrevisao !== 'tudo') {
+                where.push('COALESCE(p.data_previsao, p.data_prevista) <= DATE_ADD(NOW(), INTERVAL ? DAY)');
+                params.push(parseInt(dataPrevisao) || 30);
+            }
+            if (dataFaturamento && dataFaturamento !== 'tudo') {
+                where.push('p.data_faturamento >= DATE_SUB(NOW(), INTERVAL ? DAY)');
+                params.push(parseInt(dataFaturamento) || 30);
+            }
+            if (vendedor && vendedor !== 'todos') { where.push('p.vendedor_id = ?'); params.push(vendedor); }
+            if (projeto && projeto !== 'todos')   { where.push('p.projeto_id = ?'); params.push(projeto); }
+
+            // Escopo por vendedor: não-admin vê apenas os SEUS pedidos (igual à lista /pedidos,
+            // usando idx_pedidos_vendedor_status). Garante que representantes — cujos pedidos
+            // REPRESENTANTE têm vendedor_id vinculado — vejam só os deles também no kanban.
+            // EXCEÇÃO: PCP (produção) fatura pedidos de toda a equipe → vê TODOS os pedidos.
+            const _kanbanRole = String(req.user?.role || '').toLowerCase().trim();
+            const _kanbanEmail = String(req.user?.email || '').toLowerCase().trim();
+            const _kanbanIsPcp = _kanbanRole === 'pcp' || _kanbanRole === 'producao'
+                || _kanbanRole === 'produção' || _kanbanEmail.startsWith('pcp@');
+            const _kanbanIsAdmin = req.user?.is_admin === true || req.user?.is_admin === 1
+                || _kanbanRole === 'admin';
+            const _kanbanVeTudo = _kanbanIsAdmin || _kanbanIsPcp;
+            if (!_kanbanVeTudo && req.user?.id) { where.push('p.vendedor_id = ?'); params.push(req.user.id); }
+
+            const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+            const [rows] = await pool.query(`
+                SELECT p.id,
+                    COALESCE(p.numero_pedido, p.id) AS numero_pedido,
+                    p.status, COALESCE(p.valor, 0) AS valor,
+                    p.created_at AS data_inclusao, p.created_at,
+                    COALESCE(p.data_previsao, p.data_prevista) AS data_previsao,
+                    p.data_faturamento,
+                    COALESCE(p.condicoes_pagamento, p.condicao_pagamento, '') AS condicoes_pagamento,
+                    COALESCE(p.tipo_frete, '') AS tipo_frete,
+                    COALESCE(p.frete, 0) AS frete,
+                    COALESCE(p.observacao_cliente, '') AS observacao_cliente,
+                    COALESCE(p.observacao_producao, '') AS observacao_producao,
+                    COALESCE(p.tipo_faturamento, 'integral') AS tipo_faturamento,
+                    COALESCE(p.percentual_faturado, 0) AS percentual_faturado,
+                    COALESCE(p.valor_faturado, 0) AS valor_faturado,
+                    COALESCE(p.valor, 0) - COALESCE(p.valor_faturado, 0) AS valor_pendente,
+                    p.numero_nf, p.origem, p.cliente_id,
+                    COALESCE(c.nome_fantasia, c.razao_social, c.nome, p.cliente_nome, '') AS cliente_nome,
+                    COALESCE(c.nome_fantasia, c.razao_social, c.nome, p.cliente_nome, '') AS cliente,
+                    COALESCE(c.cnpj, c.cpf, '') AS cliente_cnpj,
+                    p.empresa_id, p.vendedor_id,
+                    COALESCE(v.nome, vu.nome, p.vendedor_nome, uc.nome, '') AS vendedor_nome,
+                    p.transportadora_id,
+                    COALESCE(t.nome_fantasia, t.razao_social, p.transportadora_nome, '') AS transportadora_nome
+                FROM pedidos p
+                LEFT JOIN clientes       c ON c.id = p.cliente_id
+                LEFT JOIN vendedores     v  ON v.id = p.vendedor_id
+                LEFT JOIN usuarios       vu ON vu.id = p.vendedor_id
+                LEFT JOIN usuarios       uc ON uc.id = p.usuario_id
+                LEFT JOIN transportadoras t ON t.id = p.transportadora_id
+                ${whereClause}
+                ORDER BY p.created_at DESC
+                LIMIT 8000
+            `, params);
+
+            res.json(rows.map(r => ({ ...r, itens: [] })));
+        } catch (err) {
+            console.error('[VENDAS/kanban/pedidos]', err.message);
+            res.status(500).json([]);
         }
     });
 

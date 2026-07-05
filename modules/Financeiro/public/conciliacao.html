@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
@@ -11,7 +11,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <link rel="stylesheet" href="/Financeiro/css/fin-components.css?v=1775916179">
+    <link rel="stylesheet" href="/Financeiro/css/fin-layout.css?v=20260524">
+    <link rel="stylesheet" href="/Financeiro/css/fin-components.css?v=20260524">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260622">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <script src="/js/anti-copy-protection.js"></script>
     <link rel="stylesheet" href="/css/popup-confirmacao.css">
     <script src="/js/modal-title.js?v=20260408"></script>
@@ -20,123 +23,226 @@
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260320">
 
     <style>
-        .conciliação-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-        .summary-card { background: white; border-radius: 12px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid var(--gray-100); }
-        .summary-value { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
-        .summary-label { font-size: 12px; color: var(--gray-500); font-weight: 500; }
-        .match-row { display: flex; gap: 16px; align-items: center; padding: 12px; border-bottom: 1px solid var(--gray-100); }
-        .match-row:hover { background: var(--gray-50); }
-        .conciliado { color: #22c55e; }
-        .pendente { color: #f59e0b; }
-        .divergente { color: #ef4444; }
-        .upload-area { border: 2px dashed var(--gray-300); border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 20px; }
-        .upload-area:hover { border-color: var(--info-500); background: rgba(6, 182, 212, 0.04); }
-        .upload-area.dragover { border-color: var(--info-500); background: rgba(6, 182, 212, 0.08); }
-        .filtros-conciliação { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: flex-end; }
-        .extrato-table { width: 100%; border-collapse: collapse; }
-        .extrato-table th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); }
-        .extrato-table td { padding: 10px 14px; font-size: 13px; color: var(--gray-700); border-bottom: 1px solid var(--gray-100); }
-        .extrato-table tr:hover td { background: var(--gray-50); }
-        .tipo-entrada { color: #059669; font-weight: 600; }
-        .tipo-saida { color: #dc2626; font-weight: 600; }
-        @media (max-width: 1024px) { .conciliação-summary { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 640px) { .conciliação-summary { grid-template-columns: 1fr; } .filtros-conciliação { flex-direction: column; } }
+        :root {
+            --conc-primary: #7c3aed;
+            --conc-primary-2: #a855f7;
+            --conc-ink: #1e1b2e;
+            --conc-line: #ecebf3;
+            --conc-soft: #f7f6fb;
+        }
+        .conc-wrap { max-width: 1240px; margin: 0 auto; }
+
+        /* ---- Hero ---- */
+        .conc-hero {
+            position: relative; overflow: hidden;
+            background: linear-gradient(120deg, #6d28d9 0%, #7c3aed 45%, #9333ea 100%);
+            border-radius: 18px; padding: 26px 28px; margin-bottom: 22px;
+            color: #fff; box-shadow: 0 12px 30px -12px rgba(124,58,237,.5);
+        }
+        .conc-hero::after {
+            content: ''; position: absolute; right: -40px; top: -40px; width: 220px; height: 220px;
+            background: radial-gradient(circle, rgba(255,255,255,.18), transparent 70%); border-radius: 50%;
+        }
+        .conc-hero-top { display: flex; align-items: center; gap: 16px; position: relative; z-index: 1; }
+        .conc-hero-icon {
+            width: 54px; height: 54px; border-radius: 14px; flex: none;
+            background: rgba(255,255,255,.18); display: grid; place-items: center; font-size: 24px;
+            backdrop-filter: blur(4px);
+        }
+        .conc-hero h1 { margin: 0; font-size: 23px; font-weight: 800; letter-spacing: -.3px; }
+        .conc-hero p { margin: 3px 0 0; font-size: 13.5px; opacity: .9; }
+
+        /* ---- Stats ---- */
+        .conc-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+        .stat-card {
+            background: #fff; border: 1px solid var(--conc-line); border-radius: 16px; padding: 18px 18px 16px;
+            position: relative; box-shadow: 0 2px 10px -6px rgba(20,20,40,.18); transition: transform .15s, box-shadow .15s;
+        }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -12px rgba(20,20,40,.28); }
+        .stat-ico { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font-size: 17px; margin-bottom: 12px; }
+        .stat-ico.p { background: #f3e8ff; color: #7c3aed; }
+        .stat-ico.g { background: #dcfce7; color: #16a34a; }
+        .stat-ico.a { background: #fef3c7; color: #d97706; }
+        .stat-ico.s { background: #e0e7ff; color: #4f46e5; }
+        .stat-val { font-size: 22px; font-weight: 800; color: var(--conc-ink); line-height: 1.1; }
+        .stat-lbl { font-size: 12px; color: #8b8aa0; font-weight: 600; margin-top: 5px; }
+        .stat-sub { font-size: 11px; color: #b6b5c6; margin-top: 2px; }
+
+        /* ---- Panels ---- */
+        .conc-grid { display: grid; grid-template-columns: 360px 1fr; gap: 18px; align-items: start; }
+        .panel { background: #fff; border: 1px solid var(--conc-line); border-radius: 16px; box-shadow: 0 2px 10px -6px rgba(20,20,40,.15); }
+        .panel-head { padding: 16px 18px; border-bottom: 1px solid var(--conc-line); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .panel-head h3 { margin: 0; font-size: 14.5px; font-weight: 700; color: var(--conc-ink); display: flex; align-items: center; gap: 8px; }
+        .panel-head h3 i { color: var(--conc-primary); }
+        .panel-body { padding: 18px; }
+
+        /* ---- Form controls ---- */
+        .field { margin-bottom: 14px; }
+        .field label { display: block; font-size: 12px; font-weight: 600; color: #6b6a80; margin-bottom: 6px; }
+        .field .ctrl {
+            width: 100%; border: 1.5px solid var(--conc-line); border-radius: 10px; padding: 10px 12px;
+            font-size: 13.5px; color: var(--conc-ink); background: #fff; font-family: inherit; transition: border-color .15s, box-shadow .15s;
+        }
+        .field .ctrl:focus { outline: none; border-color: var(--conc-primary); box-shadow: 0 0 0 3px rgba(124,58,237,.12); }
+
+        /* ---- Dropzone ---- */
+        .dropzone {
+            border: 2px dashed #d7d4e8; border-radius: 14px; padding: 26px 18px; text-align: center; cursor: pointer;
+            transition: all .18s; background: var(--conc-soft);
+        }
+        .dropzone:hover, .dropzone.dragover { border-color: var(--conc-primary); background: #f5f0ff; }
+        .dropzone i { font-size: 30px; color: var(--conc-primary-2); display: block; margin-bottom: 10px; }
+        .dropzone .dz-title { font-weight: 700; color: var(--conc-ink); font-size: 13.5px; }
+        .dropzone .dz-sub { font-size: 11.5px; color: #9c9bb0; margin-top: 4px; }
+        .dz-formats { display: inline-flex; gap: 6px; margin-top: 12px; }
+        .dz-formats span { font-size: 10.5px; font-weight: 700; color: #7c3aed; background: #f3e8ff; border-radius: 999px; padding: 3px 9px; }
+
+        /* ---- Buttons ---- */
+        .btn { border: none; border-radius: 10px; padding: 10px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
+               display: inline-flex; align-items: center; gap: 8px; font-family: inherit; transition: filter .15s, transform .1s; }
+        .btn:active { transform: translateY(1px); }
+        .btn-primary { background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff; box-shadow: 0 6px 16px -8px rgba(124,58,237,.7); }
+        .btn-primary:hover { filter: brightness(1.05); }
+        .btn-ghost { background: #fff; color: #6b6a80; border: 1.5px solid var(--conc-line); }
+        .btn-ghost:hover { border-color: var(--conc-primary); color: var(--conc-primary); }
+        .btn-soft { background: #f3e8ff; color: #7c3aed; }
+        .btn-soft:hover { background: #ead9ff; }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+        /* ---- Table ---- */
+        .ext-table { width: 100%; border-collapse: collapse; }
+        .ext-table th { text-align: left; padding: 11px 14px; font-size: 11px; font-weight: 700; color: #8b8aa0; text-transform: uppercase; letter-spacing: .03em; background: var(--conc-soft); border-bottom: 1px solid var(--conc-line); position: sticky; top: 0; }
+        .ext-table th.r, .ext-table td.r { text-align: right; }
+        .ext-table td { padding: 11px 14px; font-size: 13px; color: #45435a; border-bottom: 1px solid #f1f0f7; }
+        .ext-table tbody tr:hover td { background: #faf9fe; }
+        .ext-table tbody tr:last-child td { border-bottom: none; }
+        .v-pos { color: #16a34a; font-weight: 700; }
+        .v-neg { color: #dc2626; font-weight: 700; }
+        .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 10px; }
+        .badge.ok { background: #dcfce7; color: #15803d; }
+        .badge.pend { background: #fef3c7; color: #b45309; }
+        .badge.in { color: #16a34a; }
+        .badge.out { color: #dc2626; }
+        .pill { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 9px; }
+        .pill.in { background: #dcfce7; color: #15803d; }
+        .pill.out { background: #fee2e2; color: #b91c1c; }
+
+        /* ---- Empty / states ---- */
+        .empty { text-align: center; padding: 48px 20px; color: #a5a4b8; }
+        .empty i { font-size: 40px; color: #d7d4e8; display: block; margin-bottom: 14px; }
+        .empty .e-title { font-weight: 700; color: #6b6a80; font-size: 14px; }
+        .empty .e-sub { font-size: 12.5px; margin-top: 6px; }
+        .tbl-scroll { max-height: 560px; overflow: auto; border-radius: 0 0 16px 16px; }
+        .info-line { font-size: 12px; color: #9c9bb0; }
+
+        @media (max-width: 1024px) { .conc-stats { grid-template-columns: repeat(2,1fr); } .conc-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 560px) { .conc-stats { grid-template-columns: 1fr; } }
     </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 <body>
     <div class="app-container">
         <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-        <aside class="sidebar" id="mobile-sidebar">
-            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
-            <nav class="sidebar-nav">
-                <a href="/Financeiro/index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
-                <a href="/Financeiro/contas_pagar.html" class="sidebar-btn" title="Contas a Pagar"><i class="fas fa-file-invoice-dollar"></i></a>
-                <a href="/Financeiro/contas_receber.html" class="sidebar-btn" title="Contas a Receber"><i class="fas fa-hand-holding-usd"></i></a>
-                <a href="/Financeiro/contas_bancarias.html" class="sidebar-btn" title="Contas Bancárias"><i class="fas fa-university"></i></a>
-                <a href="/Financeiro/fluxo_caixa.html" class="sidebar-btn" title="Fluxo de Caixa"><i class="fas fa-money-bill-wave"></i></a>
-                <a href="/Financeiro/relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
-                <a href="/Financeiro/plano_contas.html" class="sidebar-btn" title="Plano de Contas"><i class="fas fa-sitemap"></i></a>
-                <a href="/Financeiro/conciliacao.html" class="sidebar-btn active" title="Conciliação"><i class="fas fa-balance-scale"></i></a>
-                <a href="/Financeiro/orcamentos.html" class="sidebar-btn" title="Orçamentos"><i class="fas fa-clipboard-list"></i></a>
-                <a href="/Financeiro/impostos.html" class="sidebar-btn" title="Impostos"><i class="fas fa-receipt"></i></a>
-            </nav>
-            <div class="sidebar-bottom"><a href="/dashboard" class="sidebar-btn" title="Configurações"><i class="fas fa-cog"></i></a></div>
-        </aside>
+        <aside class="sidebar" id="mobile-sidebar"></aside>
 
         <main class="main-area" data-page-name="Conciliação Bancária">
-            <header class="header" id="financeiro-header">
-                <div class="header-left">
-                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
-                    <div class="header-brand">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
-                        <span class="header-separator">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span class="header-dash">—</span>
-                        <span class="page-title">Conciliação Bancária</span>
-                    </div>
-                </div>
-                <div class="header-right">
-                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
-                </div>
-            </header>
+            <header class="header"></header>
 
             <div class="fin-content">
-                <div class="page-header">
-                    <h1><i class="fas fa-balance-scale"></i> Conciliação Bancária</h1>
-                    <p class="page-subtitle">Compare extratos bancários com lançamentos internos</p>
-                </div>
+              <div class="conc-wrap">
 
-                <div class="conciliação-summary">
-                    <div class="summary-card">
-                        <div class="summary-label">Saldo Bancário</div>
-                        <div class="summary-value" id="total-saldo-bancário">R$ 0,00</div>
-                    </div>
-                    <div class="summary-card">
-                        <div class="summary-label">A Receber Pendente</div>
-                        <div class="summary-value" id="total-receber-pendente" style="color: var(--info-600)">R$ 0,00</div>
-                    </div>
-                    <div class="summary-card">
-                        <div class="summary-label">A Pagar Pendente</div>
-                        <div class="summary-value pendente" id="total-pagar-pendente">R$ 0,00</div>
-                    </div>
-                    <div class="summary-card">
-                        <div class="summary-label">Itens p/ Conciliar</div>
-                        <div class="summary-value" id="total-itens-conciliar">0</div>
+                <!-- HERO -->
+                <div class="conc-hero">
+                    <div class="conc-hero-top">
+                        <div class="conc-hero-icon"><i class="fas fa-scale-balanced"></i></div>
+                        <div>
+                            <h1>Conciliação Bancária</h1>
+                            <p>Importe o extrato do banco (OFX, CSV ou XLSX) e compare com os lançamentos do sistema.</p>
+                        </div>
                     </div>
                 </div>
 
-                <div class="upload-area" id="upload-area" onclick="document.getElementById('input-extrato').click()">
-                    <i class="fas fa-cloud-upload-alt" style="font-size: 36px; color: var(--gray-300); margin-bottom: 12px; display:block;"></i>
-                    <p style="color: var(--gray-500); font-weight: 600;">Clique ou arraste para importar extrato bancário</p>
-                    <p style="color: var(--gray-400); font-size: 12px;">Suporta CSV e XLSX</p>
-                    <input type="file" id="input-extrato" accept=".csv,.xlsx" style="display:none" onchange="importarExtrato(this)">
+                <!-- STATS -->
+                <div class="conc-stats">
+                    <div class="stat-card">
+                        <div class="stat-ico p"><i class="fas fa-building-columns"></i></div>
+                        <div class="stat-val" id="st-saldo">R$ 0,00</div>
+                        <div class="stat-lbl">Saldo Bancário</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-ico g"><i class="fas fa-hand-holding-dollar"></i></div>
+                        <div class="stat-val" id="st-receber">R$ 0,00</div>
+                        <div class="stat-lbl">A Receber Pendente</div>
+                        <div class="stat-sub" id="st-receber-q">0 título(s)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-ico a"><i class="fas fa-file-invoice-dollar"></i></div>
+                        <div class="stat-val" id="st-pagar">R$ 0,00</div>
+                        <div class="stat-lbl">A Pagar Pendente</div>
+                        <div class="stat-sub" id="st-pagar-q">0 título(s)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-ico s"><i class="fas fa-scale-balanced"></i></div>
+                        <div class="stat-val" id="st-conciliar">0</div>
+                        <div class="stat-lbl">Lançamentos do Extrato</div>
+                        <div class="stat-sub" id="st-conciliar-sub">0 conciliado(s)</div>
+                    </div>
                 </div>
 
-                <div class="filtros-conciliação">
-                    <div class="filter-group">
-                        <label>Conta Bancária</label>
-                        <select id="filtro-conta" class="filter-input" onchange="carregarConciliação()">
-                            <option value="">Todas</option>
-                        </select>
+                <!-- MAIN GRID -->
+                <div class="conc-grid">
+
+                    <!-- LEFT: filtros + importação -->
+                    <div class="panel">
+                        <div class="panel-head"><h3><i class="fas fa-sliders"></i> Conta &amp; Importação</h3></div>
+                        <div class="panel-body">
+                            <div class="field">
+                                <label>Conta Bancária</label>
+                                <select id="filtro-conta" class="ctrl" onchange="onContaChange()">
+                                    <option value="">Selecione a conta…</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Período</label>
+                                <input type="month" id="filtro-mes" class="ctrl" onchange="carregarExtratoImportado()">
+                            </div>
+
+                            <div class="dropzone" id="dropzone" onclick="document.getElementById('input-extrato').click()">
+                                <i class="fas fa-cloud-arrow-up"></i>
+                                <div class="dz-title">Clique ou arraste o extrato</div>
+                                <div class="dz-sub">Selecione a conta antes de importar</div>
+                                <div class="dz-formats"><span>OFX</span><span>CSV</span><span>XLSX</span></div>
+                                <input type="file" id="input-extrato" accept=".csv,.xlsx,.ofx" style="display:none" onchange="importarExtrato(this)">
+                            </div>
+
+                            <button class="btn btn-soft" style="width:100%;justify-content:center;margin-top:14px;" onclick="conciliarAutomatico()">
+                                <i class="fas fa-wand-magic-sparkles"></i> Conciliar automaticamente
+                            </button>
+                            <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:10px;" onclick="compararConciliacao()">
+                                <i class="fas fa-scale-balanced"></i> Comparar com o sistema
+                            </button>
+                            <p class="info-line" style="margin-top:10px;text-align:center;">
+                                O sistema casa lançamentos por valor e data (±3 dias).
+                            </p>
+                        </div>
                     </div>
-                    <div class="filter-group">
-                        <label>Período</label>
-                        <input type="month" id="filtro-mes" class="filter-input" onchange="carregarConciliação()">
+
+                    <!-- RIGHT: extrato importado -->
+                    <div class="panel">
+                        <div class="panel-head">
+                            <h3><i class="fas fa-receipt"></i> Extrato Importado</h3>
+                            <span class="info-line" id="extrato-info"></span>
+                        </div>
+                        <div class="tbl-scroll" id="lista-conciliacao">
+                            <div class="empty">
+                                <i class="fas fa-circle-notch fa-spin"></i>
+                                <div class="e-title">Carregando…</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="card">
-                    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-                        <h3>Movimentações para Conciliação</h3>
-                        <span id="extrato-info" style="font-size:12px;color:var(--gray-400);"></span>
-                    </div>
-                    <div class="card-body" id="lista-conciliacao">
-                        <p style="color: var(--gray-400); text-align: center; padding: 40px;">
-                            <i class="fas fa-info-circle"></i> Carregando dados de conciliação...
-                        </p>
-                    </div>
-                </div>
+              </div>
             </div>
         </main>
     </div>
@@ -154,167 +260,391 @@
     <script src="/js/user-dropdown.js?v=20260408" defer></script>
     <script>
         const API_BASE = window.location.origin;
-        let extratoData = [];
+        let extratoData = [];           // linhas parseadas aguardando importação
+        let contasCache = [];
+
+        const fmtBRL = v => 'R$ ' + (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        const toast = (msg, type) => { if (typeof showToast === 'function') showToast(msg, type); };
+        const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
         document.addEventListener('DOMContentLoaded', () => {
             const hoje = new Date();
             const mesEl = document.getElementById('filtro-mes');
-            if (mesEl) mesEl.value = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+            if (mesEl) mesEl.value = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
             carregarContas();
-            carregarConciliação();
+            carregarResumo();
             setupDragDrop();
+            renderVazio('Selecione uma conta', 'Escolha a conta bancária para ver e importar o extrato.', 'fa-arrow-left');
         });
 
+        function periodoSelecionado() {
+            const mes = document.getElementById('filtro-mes').value; // AAAA-MM
+            if (!mes) return { inicio: null, fim: null };
+            const [y, m] = mes.split('-').map(Number);
+            const fimDate = new Date(y, m, 0); // último dia do mês
+            return { inicio: `${mes}-01`, fim: `${mes}-${String(fimDate.getDate()).padStart(2, '0')}` };
+        }
+
         function setupDragDrop() {
-            const area = document.getElementById('upload-area');
-            ['dragenter','dragover'].forEach(ev => area.addEventListener(ev, e => { e.preventDefault(); area.classList.add('dragover'); }));
-            ['dragleave','drop'].forEach(ev => area.addEventListener(ev, e => { e.preventDefault(); area.classList.remove('dragover'); }));
-            area.addEventListener('drop', e => {
-                const file = e.dataTransfer.files[0];
-                if (file) processarArquivo(file);
-            });
+            const area = document.getElementById('dropzone');
+            ['dragenter', 'dragover'].forEach(ev => area.addEventListener(ev, e => { e.preventDefault(); area.classList.add('dragover'); }));
+            ['dragleave', 'drop'].forEach(ev => area.addEventListener(ev, e => { e.preventDefault(); area.classList.remove('dragover'); }));
+            area.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) processarArquivo(f); });
         }
 
         async function carregarContas() {
             try {
                 const resp = await fetch(`${API_BASE}/api/financeiro/contas-bancarias`, { credentials: 'include' });
-                if (resp.ok) {
-                    const data = await resp.json();
-                    const contas = Array.isArray(data) ? data : (data.data || []);
-                    const sel = document.getElementById('filtro-conta');
-                    contas.forEach(c => { sel.innerHTML += `<option value="${c.id}">${c.banco || c.nome || 'Conta'} - ${c.agencia || ''}/${c.conta || ''}</option>`; });
-                }
+                if (!resp.ok) return;
+                const data = await resp.json();
+                contasCache = Array.isArray(data) ? data : (data.data || []);
+                const sel = document.getElementById('filtro-conta');
+                contasCache.forEach(c => {
+                    const nome = c.nome || c.banco || 'Conta';
+                    const detalhe = [c.agencia, c.conta || c.numero_conta].filter(Boolean).join(' / ');
+                    sel.innerHTML += `<option value="${c.id}">${esc(nome)}${detalhe ? ' — ' + esc(detalhe) : ''}</option>`;
+                });
             } catch (e) { console.warn('Erro ao carregar contas:', e); }
         }
 
-        async function carregarConciliação() {
+        async function carregarResumo() {
             try {
                 const resp = await fetch(`${API_BASE}/api/financeiro/conciliacao-resumo`, { credentials: 'include' });
-                if (resp.ok) {
-                    const data = await resp.json();
-                    const fmt = v => 'R$ ' + (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-                    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-                    set('total-saldo-bancário', fmt(data.saldoTotal));
-                    set('total-receber-pendente', fmt(data.pendentes?.receber?.total));
-                    set('total-pagar-pendente', fmt(data.pendentes?.pagar?.total));
-                    set('total-itens-conciliar', data.totalItensParaConciliar || 0);
-                    renderizarMovimentações(data.movimentações || []);
-                } else {
-                    const lista = document.getElementById('lista-conciliacao');
-                    if (lista) lista.innerHTML = '<p style="color:var(--gray-400);text-align:center;padding:40px;"><i class="fas fa-info-circle"></i> Nenhum dado de conciliação disponível.</p>';
-                }
+                if (!resp.ok) return;
+                const d = await resp.json();
+                const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+                set('st-saldo', fmtBRL(d.saldoTotal));
+                set('st-receber', fmtBRL(d.pendentes?.receber?.total));
+                set('st-receber-q', `${d.pendentes?.receber?.quantidade || 0} título(s)`);
+                set('st-pagar', fmtBRL(d.pendentes?.pagar?.total));
+                set('st-pagar-q', `${d.pendentes?.pagar?.quantidade || 0} título(s)`);
+            } catch (e) { console.warn('Erro resumo:', e); }
+        }
+
+        function onContaChange() { carregarExtratoImportado(); }
+
+        // Carrega o extrato REAL importado (extratos_importados) da conta/período
+        async function carregarExtratoImportado() {
+            const contaId = document.getElementById('filtro-conta').value;
+            if (!contaId) { renderVazio('Selecione uma conta', 'Escolha a conta bancária para ver e importar o extrato.', 'fa-arrow-left'); return; }
+            const { inicio, fim } = periodoSelecionado();
+            renderVazio('Carregando…', '', 'fa-circle-notch fa-spin');
+            try {
+                const url = new URL(`${API_BASE}/api/financeiro/conciliacao`);
+                url.searchParams.set('conta', contaId);
+                url.searchParams.set('tipo', 'extrato');
+                if (inicio && fim) { url.searchParams.set('inicio', inicio); url.searchParams.set('fim', fim); }
+                const resp = await fetch(url, { credentials: 'include' });
+                const rows = resp.ok ? await resp.json() : [];
+                renderExtratoImportado(Array.isArray(rows) ? rows : []);
             } catch (e) {
-                console.warn('Erro:', e);
-                const lista = document.getElementById('lista-conciliacao');
-                if (lista) lista.innerHTML = '<p style="color:var(--gray-400);text-align:center;padding:40px;"><i class="fas fa-info-circle"></i> Erro ao carregar dados de conciliação.</p>';
+                console.warn('Erro extrato importado:', e);
+                renderVazio('Erro ao carregar', 'Tente novamente em instantes.', 'fa-triangle-exclamation');
             }
         }
 
-        function renderizarMovimentações(movs) {
-            const container = document.getElementById('lista-conciliacao');
-            if (!container) return;
-            if (!movs.length) {
-                container.innerHTML = '<p style="color:var(--gray-400);text-align:center;padding:40px;"><i class="fas fa-info-circle"></i> Nenhuma movimentação pendente para conciliação.</p>';
+        function renderExtratoImportado(rows) {
+            document.getElementById('st-conciliar').textContent = rows.length;
+            const conc = rows.filter(r => Number(r.conciliado) === 1).length;
+            document.getElementById('st-conciliar-sub').textContent = `${conc} conciliado(s)`;
+            document.getElementById('extrato-info').textContent = rows.length ? `${rows.length} lançamento(s)` : '';
+
+            if (!rows.length) {
+                renderVazio('Nenhum extrato importado', 'Arraste um arquivo OFX/CSV/XLSX ao lado para começar.', 'fa-inbox');
                 return;
             }
-            let html = '<table class="extrato-table"><thead><tr><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Data</th><th>Status</th></tr></thead><tbody>';
-            movs.forEach(m => {
-                const tipoClass = m.tipo === 'entrada' ? 'tipo-entrada' : 'tipo-saida';
-                const tipoLabel = m.tipo === 'entrada' ? '↓ Entrada' : '↑ Saída';
-                const valor = (parseFloat(m.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-                const data = m.data ? new Date(m.data).toLocaleDateString('pt-BR') : '-';
-                const desc = (m.descricao || '-').replace(/</g, '&lt;');
-                html += `<tr><td class="${tipoClass}">${tipoLabel}</td><td>${desc}</td><td>R$ ${valor}</td><td>${data}</td><td><span class="pendente">${m.status || 'pendente'}</span></td></tr>`;
+            window._extratoRows = rows;
+            let html = '<table class="ext-table"><thead><tr><th>Data</th><th>Descrição</th><th class="r">Valor</th><th class="r">Saldo</th><th>Status</th><th class="r">Ações</th></tr></thead><tbody>';
+            rows.forEach(r => {
+                const isEntrada = String(r.tipo || '').toLowerCase().indexOf('entr') === 0 || String(r.tipo || '').toLowerCase() === 'credito';
+                const v = Math.abs(parseFloat(r.valor) || 0);
+                const dataBR = r.data ? new Date(r.data).toLocaleDateString('pt-BR') : '-';
+                const conciliado = Number(r.conciliado) === 1;
+                html += `<tr>
+                    <td>${dataBR}</td>
+                    <td>${esc(r.descricao || '-')}</td>
+                    <td class="r ${isEntrada ? 'v-pos' : 'v-neg'}">${isEntrada ? '+' : '−'} ${fmtBRL(v)}</td>
+                    <td class="r">${r.saldo != null && r.saldo !== '' ? fmtBRL(r.saldo) : '-'}</td>
+                    <td>${conciliado ? '<span class="badge ok"><i class="fas fa-check"></i> Conciliado</span>' : '<span class="badge pend">Pendente</span>'}</td>
+                    <td class="r" style="white-space:nowrap;">
+                        <button class="btn btn-ghost" style="padding:6px 9px;" title="Editar" onclick="editarExtrato(${r.id})"><i class="fas fa-pen"></i></button>
+                        <button class="btn btn-ghost" style="padding:6px 9px;color:#dc2626;border-color:#fecaca;" title="Excluir" onclick="excluirExtrato(${r.id})"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
             });
             html += '</tbody></table>';
-            container.innerHTML = html;
+            document.getElementById('lista-conciliacao').innerHTML = html;
+        }
+
+        // ===================== EDITAR / EXCLUIR LINHA DO EXTRATO =====================
+        function editarExtrato(id) {
+            const r = (window._extratoRows || []).find(x => Number(x.id) === Number(id));
+            if (!r) return;
+            const dataVal = r.data ? new Date(r.data).toISOString().slice(0, 10) : '';
+            const tipoVal = (String(r.tipo || '').toLowerCase().indexOf('entr') === 0 || String(r.tipo || '').toLowerCase() === 'credito') ? 'entrada' : 'saida';
+            const old = document.getElementById('modal-editar-extrato');
+            if (old) old.remove();
+            const html = `
+            <div id="modal-editar-extrato" style="position:fixed;inset:0;background:rgba(20,20,40,.45);display:flex;align-items:center;justify-content:center;z-index:9999;">
+              <div style="background:#fff;border-radius:16px;max-width:440px;width:92%;box-shadow:0 20px 50px -20px rgba(0,0,0,.4);">
+                <div style="padding:16px 20px;border-bottom:1px solid var(--conc-line);display:flex;align-items:center;justify-content:space-between;">
+                  <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--conc-ink);"><i class="fas fa-pen" style="color:var(--conc-primary);"></i> Editar Lançamento</h3>
+                  <button class="btn btn-ghost" style="padding:6px 10px;" onclick="document.getElementById('modal-editar-extrato').remove()"><i class="fas fa-times"></i></button>
+                </div>
+                <div style="padding:20px;">
+                  <div class="field"><label>Data</label><input type="date" id="ee-data" class="ctrl" value="${dataVal}"></div>
+                  <div class="field"><label>Descrição</label><input type="text" id="ee-desc" class="ctrl" value="${esc(r.descricao || '')}"></div>
+                  <div style="display:flex;gap:12px;">
+                    <div class="field" style="flex:1;"><label>Valor (R$)</label><input type="number" step="0.01" id="ee-valor" class="ctrl" value="${Math.abs(parseFloat(r.valor) || 0)}"></div>
+                    <div class="field" style="flex:1;"><label>Tipo</label><select id="ee-tipo" class="ctrl"><option value="entrada" ${tipoVal === 'entrada' ? 'selected' : ''}>Entrada</option><option value="saida" ${tipoVal === 'saida' ? 'selected' : ''}>Saída</option></select></div>
+                  </div>
+                  <div class="field"><label>Saldo (R$)</label><input type="number" step="0.01" id="ee-saldo" class="ctrl" value="${r.saldo != null && r.saldo !== '' ? r.saldo : ''}"></div>
+                </div>
+                <div style="padding:14px 20px;border-top:1px solid var(--conc-line);display:flex;justify-content:flex-end;gap:10px;">
+                  <button class="btn btn-ghost" onclick="document.getElementById('modal-editar-extrato').remove()">Cancelar</button>
+                  <button class="btn btn-primary" onclick="salvarEdicaoExtrato(${id})"><i class="fas fa-save"></i> Salvar</button>
+                </div>
+              </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        async function salvarEdicaoExtrato(id) {
+            const body = {
+                data: document.getElementById('ee-data').value || null,
+                descricao: document.getElementById('ee-desc').value,
+                valor: document.getElementById('ee-valor').value,
+                tipo: document.getElementById('ee-tipo').value,
+                saldo: document.getElementById('ee-saldo').value
+            };
+            try {
+                const resp = await fetch(`${API_BASE}/api/financeiro/conciliacao/extrato/${id}`, {
+                    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+                });
+                const data = await resp.json();
+                if (resp.ok && data.success) { toast('Lançamento atualizado.', 'success'); document.getElementById('modal-editar-extrato')?.remove(); carregarExtratoImportado(); }
+                else toast((data && data.message) || 'Erro ao salvar.', 'error');
+            } catch (e) { console.error(e); toast('Erro ao salvar lançamento.', 'error'); }
+        }
+
+        async function excluirExtrato(id) {
+            const ok = (typeof confirmDialog === 'function') ? await confirmDialog('Excluir este lançamento do extrato?') : confirm('Excluir este lançamento do extrato?');
+            if (!ok) return;
+            try {
+                const resp = await fetch(`${API_BASE}/api/financeiro/conciliacao/extrato/${id}`, { method: 'DELETE', credentials: 'include' });
+                const data = await resp.json();
+                if (resp.ok && data.success) { toast('Lançamento excluído.', 'success'); carregarExtratoImportado(); }
+                else toast((data && data.message) || 'Erro ao excluir.', 'error');
+            } catch (e) { console.error(e); toast('Erro ao excluir lançamento.', 'error'); }
+        }
+
+        // ===================== COMPARAR SISTEMA x BANCO =====================
+        async function compararConciliacao() {
+            const contaId = contaSelecionada(); if (!contaId) return;
+            const { inicio, fim } = periodoSelecionado();
+            renderVazio('Comparando…', '', 'fa-circle-notch fa-spin');
+            try {
+                const url = new URL(`${API_BASE}/api/financeiro/conciliacao/comparar`);
+                url.searchParams.set('conta', contaId);
+                if (inicio && fim) { url.searchParams.set('inicio', inicio); url.searchParams.set('fim', fim); }
+                const resp = await fetch(url, { credentials: 'include' });
+                const d = resp.ok ? await resp.json() : { sistema: [], extrato: [], resumo: {} };
+                renderComparacao(d);
+            } catch (e) { console.error(e); toast('Erro ao comparar.', 'error'); carregarExtratoImportado(); }
+        }
+
+        function renderComparacao(d) {
+            const sistema = d.sistema || [], extrato = d.extrato || [], r = d.resumo || {};
+            const linha = (x, lado) => {
+                const isEntrada = String(x.tipo || '').toLowerCase().indexOf('entr') === 0 || String(x.tipo || '').toLowerCase() === 'credito';
+                const dataBR = x.data ? x.data.split('-').reverse().join('/') : '-';
+                const flag = x.conferido ? '<span class="badge ok"><i class="fas fa-check"></i></span>' : '<span class="badge pend">só ' + lado + '</span>';
+                return `<tr><td>${dataBR}</td><td>${esc(x.descricao || '-')}</td><td class="r ${isEntrada ? 'v-pos' : 'v-neg'}">${fmtBRL(Math.abs(x.valor))}</td><td>${flag}</td></tr>`;
+            };
+            const div = Number(r.divergencia || 0);
+            let html = `<div style="padding:14px 16px;border-bottom:1px solid var(--conc-line);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                <button class="btn btn-ghost" onclick="carregarExtratoImportado()"><i class="fas fa-arrow-left"></i> Voltar ao extrato</button>
+                <span class="info-line">Sistema: <strong>${fmtBRL(r.sistemaTotal)}</strong> · Banco: <strong>${fmtBRL(r.extratoTotal)}</strong> · Divergência: <strong style="color:${Math.abs(div) < 0.01 ? '#16a34a' : '#dc2626'}">${fmtBRL(div)}</strong></span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+              <div style="border-right:1px solid var(--conc-line);">
+                <div style="padding:10px 14px;font-weight:700;font-size:12px;color:#6b6a80;background:var(--conc-soft);">LANÇAMENTOS DO SISTEMA (${sistema.length}) · ${r.sistemaSemMatch || 0} sem correspondência</div>
+                <div class="tbl-scroll" style="max-height:460px;"><table class="ext-table"><thead><tr><th>Data</th><th>Descrição</th><th class="r">Valor</th><th>Status</th></tr></thead><tbody>${sistema.map(x => linha(x, 'sistema')).join('') || '<tr><td colspan=4 style="text-align:center;color:#a5a4b8;padding:24px;">Sem lançamentos</td></tr>'}</tbody></table></div>
+              </div>
+              <div>
+                <div style="padding:10px 14px;font-weight:700;font-size:12px;color:#6b6a80;background:var(--conc-soft);">EXTRATO DO BANCO (${extrato.length}) · ${r.extratoSemMatch || 0} sem correspondência</div>
+                <div class="tbl-scroll" style="max-height:460px;"><table class="ext-table"><thead><tr><th>Data</th><th>Descrição</th><th class="r">Valor</th><th>Status</th></tr></thead><tbody>${extrato.map(x => linha(x, 'banco')).join('') || '<tr><td colspan=4 style="text-align:center;color:#a5a4b8;padding:24px;">Sem lançamentos</td></tr>'}</tbody></table></div>
+              </div>
+            </div>`;
+            document.getElementById('lista-conciliacao').innerHTML = html;
+        }
+
+        function renderVazio(titulo, sub, icon) {
+            document.getElementById('lista-conciliacao').innerHTML =
+                `<div class="empty"><i class="fas ${icon || 'fa-inbox'}"></i><div class="e-title">${esc(titulo)}</div>${sub ? `<div class="e-sub">${esc(sub)}</div>` : ''}</div>`;
+        }
+
+        // ===================== IMPORTAÇÃO =====================
+        function contaSelecionada() {
+            const id = document.getElementById('filtro-conta').value;
+            if (!id) { toast('Selecione a Conta Bancária antes de importar.', 'warning'); return null; }
+            return id;
         }
 
         function importarExtrato(input) {
             if (input.files && input.files[0]) processarArquivo(input.files[0]);
+            input.value = '';
         }
 
         function processarArquivo(file) {
+            if (!contaSelecionada()) return;
             const ext = file.name.split('.').pop().toLowerCase();
             if (ext === 'csv') processarCSV(file);
             else if (ext === 'xlsx' || ext === 'xls') processarXLSX(file);
-            else { if (typeof showToast === 'function') showToast('Formato não suportado. Use CSV ou XLSX.', 'warning'); }
+            else if (ext === 'ofx') processarOFX(file);
+            else toast('Formato não suportado. Use OFX, CSV ou XLSX.', 'warning');
+        }
+
+        // OFX → enviado bruto ao servidor (parseia <STMTTRN> e persiste)
+        function processarOFX(file) {
+            const contaId = contaSelecionada(); if (!contaId) return;
+            const reader = new FileReader();
+            reader.onload = async function (e) {
+                try {
+                    const resp = await fetch(`${API_BASE}/api/financeiro/conciliacao/importar-ofx`, {
+                        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ conta_id: contaId, ofx: e.target.result, arquivo: file.name })
+                    });
+                    const data = await resp.json();
+                    if (resp.ok && data.success) {
+                        toast(data.message || 'Extrato OFX importado.', 'success');
+                        carregarExtratoImportado();
+                    } else toast((data && data.message) || 'Erro ao importar OFX.', 'error');
+                } catch (err) { console.error(err); toast('Erro ao importar OFX.', 'error'); }
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function normalizarData(v) {
+            if (v == null || v === '') return null;
+            if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+            if (typeof v === 'number') { const d = new Date(Math.round((v - 25569) * 86400 * 1000)); return isNaN(d) ? null : d.toISOString().slice(0, 10); }
+            const s = String(v).trim();
+            let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+            m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
+            if (m) { let y = m[3]; if (y.length === 2) y = '20' + y; return `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`; }
+            return null;
+        }
+        function parseMoeda(v) {
+            if (v == null || v === '') return NaN;
+            if (typeof v === 'number') return v;
+            return parseFloat(String(v).replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
         }
 
         function processarCSV(file) {
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = function (e) {
                 try {
-                    const text = e.target.result;
-                    const lines = text.split(/\r?\n/).filter(l => l.trim());
-                    if (lines.length < 2) { if (typeof showToast === 'function') showToast('Arquivo vazio ou sem dados.', 'warning'); return; }
+                    const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
+                    if (lines.length < 2) { toast('Arquivo vazio ou sem dados.', 'warning'); return; }
                     const headers = lines[0].split(/[;,]/).map(h => h.trim().toLowerCase().replace(/"/g, ''));
                     const rows = [];
                     for (let i = 1; i < lines.length; i++) {
                         const cols = lines[i].split(/[;,]/).map(c => c.trim().replace(/"/g, ''));
-                        if (cols.length >= 2) {
-                            const obj = {};
-                            headers.forEach((h, idx) => obj[h] = cols[idx] || '');
-                            rows.push(obj);
-                        }
+                        if (cols.length >= 2) { const o = {}; headers.forEach((h, idx) => o[h] = cols[idx] || ''); rows.push(o); }
                     }
-                    exibirExtrato(rows, file.name);
-                } catch (err) { console.error(err); if (typeof showToast === 'function') showToast('Erro ao processar CSV.', 'error'); }
+                    previewExtrato(rows, file.name);
+                } catch (err) { console.error(err); toast('Erro ao processar CSV.', 'error'); }
             };
             reader.readAsText(file, 'UTF-8');
         }
 
         function processarXLSX(file) {
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = function (e) {
                 try {
                     const wb = XLSX.read(e.target.result, { type: 'array' });
                     const ws = wb.Sheets[wb.SheetNames[0]];
                     const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-                    if (!rows.length) { if (typeof showToast === 'function') showToast('Planilha vazia.', 'warning'); return; }
-                    // Normalize header keys to lowercase
-                    const normalized = rows.map(r => {
-                        const o = {};
-                        Object.keys(r).forEach(k => o[k.toLowerCase().trim()] = r[k]);
-                        return o;
-                    });
-                    exibirExtrato(normalized, file.name);
-                } catch (err) { console.error(err); if (typeof showToast === 'function') showToast('Erro ao processar XLSX.', 'error'); }
+                    if (!rows.length) { toast('Planilha vazia.', 'warning'); return; }
+                    const norm = rows.map(r => { const o = {}; Object.keys(r).forEach(k => o[k.toLowerCase().trim()] = r[k]); return o; });
+                    previewExtrato(norm, file.name);
+                } catch (err) { console.error(err); toast('Erro ao processar XLSX.', 'error'); }
             };
             reader.readAsArrayBuffer(file);
         }
 
-        function exibirExtrato(rows, filename) {
-            extratoData = rows;
-            document.getElementById('extrato-info').textContent = `Arquivo: ${filename} — ${rows.length} linhas importadas`;
-            if (typeof showToast === 'function') showToast(`${rows.length} registros importados de "${filename}"`, 'success');
-
-            const container = document.getElementById('lista-conciliacao');
-            if (!container) return;
-            // Detect columns
+        // CSV/XLSX → normaliza, mostra prévia no painel e botão Importar
+        function previewExtrato(rows, filename) {
             const keys = Object.keys(rows[0] || {});
             const findCol = (...names) => keys.find(k => names.some(n => k.includes(n))) || null;
             const colData = findCol('data', 'date', 'dt');
-            const colDesc = findCol('descri', 'desc', 'histórico', 'hist', 'memo');
+            const colDesc = findCol('descri', 'desc', 'histórico', 'hist', 'memo', 'lançamento', 'lancamento');
             const colValor = findCol('valor', 'value', 'amount', 'vlr');
             const colTipo = findCol('tipo', 'type', 'natureza');
+            const colSaldo = findCol('saldo', 'balance');
 
-            let html = '<table class="extrato-table"><thead><tr><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Data</th><th>Conciliação</th></tr></thead><tbody>';
-            rows.forEach((r, i) => {
-                let valor = parseFloat(String(r[colValor] || '0').replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
+            const parsed = [];
+            rows.forEach(r => {
+                let valor = parseMoeda(colValor ? r[colValor] : '') || 0;
                 let tipo = 'entrada';
-                if (colTipo && r[colTipo]) {
-                    tipo = String(r[colTipo]).toLowerCase().match(/saida|débito|déb|pag/) ? 'saida' : 'entrada';
-                } else if (valor < 0) {
-                    tipo = 'saida'; valor = Math.abs(valor);
-                }
-                const desc = (r[colDesc] || r[keys[1]] || '-').toString().replace(/</g, '&lt;');
-                const data = r[colData] || r[keys[0]] || '-';
-                const tipoClass = tipo === 'entrada' ? 'tipo-entrada' : 'tipo-saida';
-                html += `<tr><td class="${tipoClass}">${tipo === 'entrada' ? '↓ Entrada' : '↑ Saída'}</td><td>${desc}</td><td>R$ ${valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td><td>${data}</td><td><span class="pendente">Pendente</span></td></tr>`;
+                if (colTipo && r[colTipo]) tipo = String(r[colTipo]).toLowerCase().match(/saida|saída|débito|deb|déb|pag/) ? 'saida' : 'entrada';
+                else if (valor < 0) tipo = 'saida';
+                const data = normalizarData(colData ? r[colData] : r[keys[0]]);
+                const descricao = String((colDesc ? r[colDesc] : r[keys[1]]) || '-');
+                let saldo = null;
+                if (colSaldo && r[colSaldo] !== '' && r[colSaldo] != null) { const s = parseMoeda(r[colSaldo]); if (!isNaN(s)) saldo = s; }
+                if (data) parsed.push({ data, descricao, valor: Math.abs(valor), tipo, saldo });
             });
-            html += '</tbody></table>';
-            container.innerHTML = html;
+            extratoData = parsed;
+            document.getElementById('extrato-info').textContent = `${filename} — ${parsed.length} linha(s)`;
+
+            if (!parsed.length) { renderVazio('Nenhuma linha válida', 'Verifique se há colunas de Data e Valor no arquivo.', 'fa-triangle-exclamation'); return; }
+            const safe = String(filename || '').replace(/['"\\]/g, '');
+            let html = `<div style="padding:14px 16px;border-bottom:1px solid var(--conc-line);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                            <button class="btn btn-primary" onclick="confirmarImportacao('${safe}')"><i class="fas fa-download"></i> Importar ${parsed.length} lançamento(s)</button>
+                            <button class="btn btn-ghost" onclick="carregarExtratoImportado()">Cancelar</button>
+                            <span class="info-line">Prévia — confira antes de importar</span>
+                        </div>`;
+            html += '<div class="tbl-scroll" style="max-height:500px;"><table class="ext-table"><thead><tr><th>Data</th><th>Descrição</th><th class="r">Valor</th><th class="r">Saldo</th></tr></thead><tbody>';
+            parsed.forEach(r => {
+                const dataBR = r.data.split('-').reverse().join('/');
+                html += `<tr><td>${dataBR}</td><td>${esc(r.descricao)}</td><td class="r ${r.tipo === 'entrada' ? 'v-pos' : 'v-neg'}">${r.tipo === 'entrada' ? '+' : '−'} ${fmtBRL(r.valor)}</td><td class="r">${r.saldo != null ? fmtBRL(r.saldo) : '-'}</td></tr>`;
+            });
+            html += '</tbody></table></div>';
+            document.getElementById('lista-conciliacao').innerHTML = html;
+            toast(`${parsed.length} registros lidos de "${filename}"`, 'success');
+        }
+
+        async function confirmarImportacao(filename) {
+            const contaId = contaSelecionada(); if (!contaId) return;
+            if (!extratoData.length) { toast('Nenhuma linha para importar.', 'warning'); return; }
+            try {
+                const resp = await fetch(`${API_BASE}/api/financeiro/conciliacao/importar-ofx`, {
+                    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conta_id: contaId, arquivo: filename || 'importacao', movimentacoes: extratoData })
+                });
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    toast(data.message || 'Extrato importado.', 'success');
+                    extratoData = [];
+                    carregarExtratoImportado();
+                } else toast((data && data.message) || 'Erro ao importar.', 'error');
+            } catch (err) { console.error(err); toast('Erro ao importar extrato.', 'error'); }
+        }
+
+        async function conciliarAutomatico() {
+            const contaId = contaSelecionada(); if (!contaId) return;
+            const { inicio, fim } = periodoSelecionado();
+            try {
+                const resp = await fetch(`${API_BASE}/api/financeiro/conciliacao/automatica`, {
+                    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conta_id: contaId, data_inicio: inicio, data_fim: fim })
+                });
+                const data = await resp.json();
+                if (resp.ok && data.success) { toast(data.message || 'Conciliação automática concluída.', 'success'); carregarExtratoImportado(); }
+                else toast((data && data.message) || 'Erro na conciliação automática.', 'error');
+            } catch (err) { console.error(err); toast('Erro na conciliação automática.', 'error'); }
         }
     </script>
 </body>

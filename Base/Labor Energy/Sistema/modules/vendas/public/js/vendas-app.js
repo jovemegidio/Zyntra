@@ -1,5 +1,5 @@
 /* ============================================
-   ZYNTRA - MÓDULO VENDAS - JAVASCRIPT
+   ALUFORCE - MÓDULO VENDAS - JAVASCRIPT
    Versão: 2.0 | Data: 2025-12-18
    ============================================ */
 
@@ -9,10 +9,9 @@ let pedidoAtual = null;
 let pedidos = [];
 let empresas = [];
 
-function _escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-
 // ==================== INICIALIZAÇÃO ====================
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Aluforce Vendas v2.0 - Inicializando...');
 
     initApp();
 });
@@ -35,6 +34,7 @@ async function initApp() {
         initTabs();
         initEventListeners();
 
+        console.log('✅ Sistema inicializado com sucesso');
     } catch (error) {
         console.error('❌ Erro na inicialização:', error);
         mostrarNotificacao('Erro ao carregar o sistema', 'error');
@@ -61,11 +61,14 @@ async function verificarAuth() {
         const userData = await response.json();
         currentUser = userData;
 
+        console.log('✅ SSO: Usuário autenticado via cookie:', userData.nome || userData.email);
+
         // S2-14: Dados mantidos apenas em memória (currentUser) — sem localStorage
         atualizarUserUI(userData);
         return userData;
 
     } catch (error) {
+        console.log('❌ SSO: Não autenticado - redirecionando para login principal...');
 
         // S2-14: Limpar legado localStorage (pode existir de sessões anteriores)
         localStorage.removeItem('userData');
@@ -117,7 +120,7 @@ function logout() {
         credentials: 'include'
     }).finally(() => {
         // Redirecionar para login principal
-        window.location.href = '/login.html';
+        window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
     });
 }
 
@@ -141,7 +144,7 @@ async function apiRequest(endpoint, options = {}) {
 
         if (response.status === 401) {
             // Sessão expirada - redirecionar para login principal
-
+            console.log('⚠️ Sessão expirada - redirecionando...');
             logout();
             throw new Error('Sessão expirada');
         }
@@ -175,7 +178,7 @@ async function carregarDadosKanban() {
         });
 
         if (response.status === 401) {
-
+            console.log('⚠️ Sessão expirada ao carregar Kanban');
             logout();
             return;
         }
@@ -208,7 +211,7 @@ function popularSelectEmpresas() {
     const selects = document.querySelectorAll('select[name="empresa_id"]');
     selects.forEach(select => {
         select.innerHTML = '<option value="">Selecione...</option>' +
-            empresas.map(e => `<option value="${e.id}">${_escHtml(e.nome)}</option>`).join('');
+            empresas.map(e => `<option value="${e.id}">${e.nome}</option>`).join('');
     });
 }
 
@@ -1074,7 +1077,7 @@ function mostrarNotificacao(mensagem, tipo = 'info') {
 // ==================== MENU DO CARD ====================
 function abrirMenuCard(pedidoId) {
     // Implementar menu contextual
-
+    console.log('Menu do pedido:', pedidoId);
 }
 
 // ==================== EXCLUIR PEDIDO ====================
@@ -1202,3 +1205,4 @@ window.limparFiltros = limparFiltros;
 window.salvarItemCRUD = salvarItemCRUD;
 window.logout = logout;
 
+console.log('📦 Aluforce Vendas App carregado');

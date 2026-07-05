@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 
 <head>
@@ -12,13 +12,14 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/modules/Faturamento/css/faturamento-layout.css?v=20260401">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <!-- Chat Widget BOB AI - DESATIVADO 23/02/2026 -->
     <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260414">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260501">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 
 <body data-modulo-ativo="logistica" data-titulo-modulo="Logística">
@@ -44,7 +45,6 @@
                             style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
                         <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Logística</span>
                     </div>
                 </div>
                 <div class="header-right">
@@ -146,7 +146,7 @@
                 <div class="tabs-bar">
                     <button class="tab-btn active" onclick="mostrarTab('pedidos',this)"><i class="fas fa-list"></i>
                         Pedidos</button>
-                    <button class="tab-btn" onclick="mostrarTab('transportadoras',this)"><i
+                    <button class="tab-btn" onclick="mostrarTab('transportadoras',this); carregarTransportadoras()"><i
                             class="fas fa-truck-moving"></i> Transportadoras</button>
                     <button class="tab-btn" onclick="mostrarTab('cotacao',this)"><i
                             class="fas fa-calculator"></i> Cotação Frete</button>
@@ -579,6 +579,13 @@
         .custom-select-option:hover { background: #f1f5f9; }
         .custom-select-option.selected { background: #f0fdf4; color: #166534; font-weight: 600; }
         .custom-select-option i { width: 18px; text-align: center; font-size: 15px; }
+
+        /* BUG-FIX 2026-06-28: design-system.css (carregado por último) define .modal-overlay
+           com display:flex no estado base (some só via opacity/pointer-events), o que
+           sobrescreve o display:none de faturamento-layout.css e faz os modais "Novo MDF-e"
+           e "Adicionar Evento de Rastreamento" aparecerem abertos ao entrar no módulo.
+           Reforça aqui, só nesta página, sem tocar no CSS global compartilhado. */
+        .modal-overlay:not(.active) { display: none !important; }
     </style>
     <script>
         function toggleStatusDropdown() {
@@ -841,15 +848,10 @@
             modal.classList.add('active');
             modal.style.display = '';
             modal.removeAttribute('aria-hidden');
-            if (window.ZyntraUI?.refreshUi) window.ZyntraUI.refreshUi(modal);
         }
         function closeModal(id) {
             const modal = document.getElementById(id);
             if (!modal) return;
-            if (window.ZyntraUI?.closeModal) {
-                window.ZyntraUI.closeModal(modal);
-                return;
-            }
             modal.classList.remove('active');
             modal.setAttribute('aria-hidden', 'true');
         }
@@ -1025,7 +1027,7 @@
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ status_logistica: novoStatus, observação: obs })
+                    body: JSON.stringify({ status_logistica: novoStatus, observacao: obs })
                 });
                 if (r.ok) {
                     closeModal('modal-status');
@@ -1617,7 +1619,7 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
                             <h4 style="font-size:14px;margin-bottom:8px;">${esc(c.transportadora)}</h4>
                             <p style="font-size:11px;color:var(--text-secondary);">${esc(c.tabela_nome)} • ${c.tipo_calculo}</p>
                             <p style="font-size:24px;font-weight:700;color:var(--primary);margin:8px 0;">R$ ${c.valor_frete.toFixed(2)}</p>
-                            <p style="font-size:12px;color:var(--text-secondary);">Prazo: ${c.prazo_dias ? c.prazo_dias + ' dia(s)' : '-'} ${c.prazo_horas ? '/ ' + c.prazo_horas + 'h' : ''}</p>
+                            <p style="font-size:12px;color:var(--text-secondary);">Prazo: ${c.prazo_dias ? c.prazo_dias + (c.prazo_dias === 1 ? ' dia' : ' dias') : '-'} ${c.prazo_horas ? '/ ' + c.prazo_horas + 'h' : ''}</p>
                             ${c.detalhes.length ? '<ul style="font-size:11px;color:var(--text-secondary);margin-top:8px;padding-left:16px;">' + c.detalhes.map(d => '<li>' + esc(d) + '</li>').join('') + '</ul>' : ''}
                         </div>
                     `).join('')}
@@ -2239,7 +2241,6 @@ body { font-family: 'Arial', 'Helvetica Neue', sans-serif; width: 100mm; height:
     <script src="/socket.io/socket.io.js"></script>
     <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
     <script src="/js/user-dropdown.js?v=20260319" defer></script>
-    <script src="/js/layout-component.js?v=20260501"></script>
     <script src="/js/toast-notifications.js?v=20260501"></script>
 </body>
 

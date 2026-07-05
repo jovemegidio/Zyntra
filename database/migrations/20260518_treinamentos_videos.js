@@ -33,9 +33,9 @@ async function runMigration(pool) {
 
         const addIfMissing = async (col, def) => {
             try {
-                await pool.query(`ALTER TABLE rh_treinamentos ADD COLUMN IF NOT EXISTS ${col} ${def}`);
+                await pool.query(`ALTER TABLE rh_treinamentos ADD COLUMN ${col} ${def}`);
             } catch (e) {
-                if (!e.message.includes('Duplicate column')) throw e;
+                if (e.code !== 'ER_DUP_FIELDNAME' && !e.message.includes('Duplicate column')) throw e;
             }
         };
 

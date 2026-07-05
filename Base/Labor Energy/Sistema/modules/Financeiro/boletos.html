@@ -300,6 +300,7 @@
             <div class="modal-body" id="detalhe-body"></div>
             <div class="modal-footer">
                 <button class="btn-ghost" onclick="fecharModal('modal-detalhe')">Fechar</button>
+                <button class="btn-action" onclick="verBoletoPdf()"><i class="fas fa-file-pdf"></i> 2ª via (PDF)</button>
             </div>
         </div>
     </div>
@@ -403,7 +404,19 @@
                     ${b.valor_pago ? `<div class="info-row"><span class="label">Valor Pago</span><span class="value">${formatarMoeda(b.valor_pago)}</span></div>` : ''}
                 </div>
             `;
+            window._boletoAtual = id;
             document.getElementById('modal-detalhe').classList.add('active');
+        }
+
+        async function verBoletoPdf() {
+            const id = window._boletoAtual;
+            if (!id) return;
+            try {
+                const r = await fetch(`${API}/boletos/${id}/pdf`, { headers: { 'Authorization': `Bearer ${getToken()}` } });
+                if (!r.ok) { mostrarToast('Não foi possível gerar o PDF', 'error'); return; }
+                const blob = await r.blob();
+                window.open(URL.createObjectURL(blob), '_blank');
+            } catch (e) { mostrarToast('Erro de conexão', 'error'); }
         }
 
         async function emitirBoleto() {

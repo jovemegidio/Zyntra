@@ -9,6 +9,10 @@
 (function() {
   'use strict';
 
+  function withBasePath(path) {
+    return window.__withBasePath ? window.__withBasePath(path) : path;
+  }
+
   // Detectar se estamos rodando dentro do Capacitor
   const isCapacitor = typeof window.Capacitor !== 'undefined';
   const isIOS = isCapacitor && window.Capacitor.getPlatform() === 'ios';
@@ -146,7 +150,7 @@
       console.log('[Zyntra] Deep link:', url);
       const path = new URL(url).pathname;
       if (path) {
-        window.location.href = path;
+        window.location.href = withBasePath(path);
       }
     });
   }
@@ -161,7 +165,7 @@
       if (!res.ok) {
         localStorage.removeItem('token');
         localStorage.removeItem('authToken');
-        window.location.href = '/login.html';
+        window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
       }
     } catch(e) {
       // Offline, manter sessão
@@ -285,9 +289,9 @@
       PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
         const data = action.notification.data;
         if (data?.url) {
-          window.location.href = data.url;
+          window.location.href = withBasePath(data.url);
         } else if (data?.module) {
-          window.location.href = `/modules/${data.module}/`;
+          window.location.href = withBasePath(`/modules/${data.module}/`);
         }
       });
 
@@ -461,11 +465,11 @@
         sheet.remove();
         if (href === '#logout') {
           localStorage.clear();
-          window.location.href = '/login.html';
+          window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
         } else if (href === '#settings') {
           document.dispatchEvent(new CustomEvent('zyntra:open-settings'));
         } else {
-          window.location.href = href;
+          window.location.href = withBasePath(href);
         }
       });
     });

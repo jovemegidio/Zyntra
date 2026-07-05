@@ -22,6 +22,12 @@ const NFeCompleto = {
         total: 0
     },
 
+    extrairData(payload, fallback = null) {
+        if (Array.isArray(payload)) return payload;
+        if (!payload || typeof payload !== 'object') return fallback;
+        return payload.data ?? payload.result ?? payload.items ?? fallback;
+    },
+
     // =====================================================
     // INICIALIZAÇÍO
     // =====================================================
@@ -78,7 +84,20 @@ const NFeCompleto = {
             const resp = await fetch(`${this.API_BASE}/dashboard`, { credentials: 'include' });
             if (resp.ok) {
                 const data = await resp.json();
-                this.dashboard = data.data;
+                const dashboard = this.extrairData(data, data);
+                this.dashboard = {
+                    resumo_mes: dashboard?.resumo_mes || {
+                        total_nfes: dashboard?.emitidas || 0,
+                        valor_total: dashboard?.valor || 0
+                    },
+                    impostos_mes: dashboard?.impostos_mes || {
+                        total_iss: 0,
+                        total_pis: 0,
+                        total_cofins: 0,
+                        total_irrf: 0
+                    },
+                    ...dashboard
+                };
                 return this.dashboard;
             }
         } catch (error) {
@@ -165,7 +184,9 @@ const NFeCompleto = {
             const resp = await fetch(`${this.API_BASE}/notas?${params}`, { credentials: 'include' });
             if (resp.ok) {
                 const data = await resp.json();
-                this.notas = data.data?.notas || [];
+                const payload = this.extrairData(data, data);
+                this.notas = payload?.notas || payload?.nfes || data.notas || data.nfes || [];
+                this.paginacao.total = payload?.total || data.total || this.notas.length;
             }
         } catch (error) {
             console.error('Erro ao carregar notas:', error);

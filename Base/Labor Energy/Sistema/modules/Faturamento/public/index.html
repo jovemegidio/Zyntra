@@ -1,21 +1,22 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 
 <head>
     <link rel="icon" type="image/jpeg" href="/favicon-zyntra.jpg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Zyntra: Faturamento — NF-e</title>
+    <title>Zyntra · Faturamento · NF-e</title>
     <!-- Suprimir console.log em produção -->
     <script>if(location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){console.log=function(){}}</script>
     <script src="/js/auth-unified.js?v=20260326" defer></script>
     <script src="/js/inactivity-manager.js?v=20260324" defer></script>
-    <script src="/js/user-greeting-avatar.js?v=20260402" defer></script>
+    <!-- user-greeting-avatar.js removido: saudação gerenciada por carregarUsuarioLogado() nesta página -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="/Faturamento/css/faturamento-layout.css?v=20260413b">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/Faturamento/css/faturamento-layout.css?v=20260611">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260610">
+    <script src="/js/global-sidebar-submenu.js?v=20260616fat" defer></script>
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <link rel="stylesheet" href="/css/skeleton-loader.css">
     <!-- Chat Widget BOB AI -->
@@ -24,7 +25,75 @@
     <link rel="stylesheet" href="/chat-teams/chat-widget.css?v=20260615">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260326">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <style>
+        /* === Zyntra Modal Standard Pattern === */
+        .modal-content {
+            background: #fff;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 520px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+            animation: modalSlideIn 0.22s ease;
+            overflow: hidden;
+        }
+        .modal-content.modal-small { max-width: 480px; }
+        .modal-header.orange {
+            background: linear-gradient(135deg, #14b8a6, #0d9488);
+            color: #fff;
+            padding: 18px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-radius: 12px 12px 0 0;
+        }
+        .modal-header.orange .modal-close {
+            background: rgba(255,255,255,0.12);
+            border: none;
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            border-radius: 50px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+        .modal-header.orange .modal-close:hover { background: rgba(255,255,255,0.25); }
+        .modal-content .modal-footer {
+            background: #f9f9f9;
+            border-top: 1px solid #f0f0f0;
+            padding: 14px 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            border-radius: 0 0 12px 12px;
+        }
+        .btn-modal {
+            padding: 9px 22px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s, opacity 0.2s;
+        }
+        .btn-modal-cancel { background: #e5e7eb; color: #374151; }
+        .btn-modal-cancel:hover { background: #d1d5db; }
+        .btn-modal-save { background: #14b8a6; color: #fff; }
+        .btn-modal-save:hover { background: #0d9488; }
+        @keyframes modalSlideIn {
+            from { opacity: 0; transform: scale(0.95) translateY(-8px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        /* Bug 2/11: reserva espaço no rodapé para que os botões de ação da última
+           linha da tabela não fiquem sob o botão flutuante do chat Zyntra. */
+        .page-content { padding-bottom: 96px; }
+    </style>
+    <link rel="stylesheet" href="/css/design-system.css?v=20260608g">
 </head>
 
 <body>
@@ -40,8 +109,6 @@
                 <a href="/Faturamento/consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
                 <a href="/Faturamento/eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
                 <a href="/Faturamento/inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
-                <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
-                <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
             </nav>
             <div class="sidebar-bottom">
                 <a href="/Faturamento/relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
@@ -54,11 +121,11 @@
                     <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i
                             class="fas fa-bars"></i></button>
                     <a href="/dashboard" class="header-brand" style="display:flex;align-items:center;gap:10px;text-decoration:none;" title="Voltar ao painel">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE"
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE"
                             style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.85);font-size:12px;margin-left:4px;">— Faturamento</span>
                     </a>
                 </div>
                 <div class="header-right">
@@ -66,12 +133,7 @@
                             class="fas fa-sync-alt"></i></button>
                     <div class="user-greeting">
                         <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
-                        <div class="user-avatar" id="user-avatar">
-                            <img src="" alt="" id="user-photo"
-                                style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
-                            <span id="user-initials">U</span>
-                        </div>
-                    </div>
+</div>
                 </div>
             </header>
 
@@ -86,9 +148,9 @@
                             </div>
                         </div>
                         <div class="page-actions">
-                            <button class="btn btn-primary" onclick="abrirModalNovaNovenfe()"><i
+                            <button type="button" class="btn btn-primary" id="btnNovaNFe" onclick="abrirModalNovaNFe()"><i
                                     class="fas fa-plus"></i> Nova NF-e</button>
-                            <button class="btn btn-secondary" onclick="limparFiltros()"><i class="fas fa-eraser"></i>
+                            <button class="btn btn-secondary" id="btnLimparFiltros" onclick="limparFiltros()" style="display:none;"><i class="fas fa-eraser"></i>
                                 Limpar Filtros</button>
                         </div>
                     </div>
@@ -100,7 +162,8 @@
                             <div class="metric-icon orange"><i class="fas fa-file-invoice"></i></div>
                             <span class="metric-trend" id="trend-total">&mdash;</span>
                         </div>
-                        <div class="metric-value" id="statTotal">0</div>
+                        <!-- FISCAL-09: valor inicial "—" evita mostrar 0 estático enquanto carrega -->
+                        <div class="metric-value" id="statTotal">&mdash;</div>
                         <div class="metric-label">Total NF-e</div>
                     </div>
                     <div class="metric-card green">
@@ -108,7 +171,7 @@
                             <div class="metric-icon green"><i class="fas fa-check-circle"></i></div>
                             <span class="metric-trend" id="trend-autorizadas">&mdash;</span>
                         </div>
-                        <div class="metric-value" id="statAutorizadas">0</div>
+                        <div class="metric-value" id="statAutorizadas">&mdash;</div>
                         <div class="metric-label">Autorizadas</div>
                     </div>
                     <div class="metric-card blue">
@@ -116,7 +179,7 @@
                             <div class="metric-icon blue"><i class="fas fa-clock"></i></div>
                             <span class="metric-trend" id="trend-pendentes">&mdash;</span>
                         </div>
-                        <div class="metric-value" id="statPendentes">0</div>
+                        <div class="metric-value" id="statPendentes">&mdash;</div>
                         <div class="metric-label">Pendentes</div>
                     </div>
                     <div class="metric-card purple">
@@ -124,7 +187,7 @@
                             <div class="metric-icon purple"><i class="fas fa-dollar-sign"></i></div>
                             <span class="metric-trend" id="trend-valor">&mdash;</span>
                         </div>
-                        <div class="metric-value" id="statValor">R$ 0,00</div>
+                        <div class="metric-value" id="statValor">&mdash;</div>
                         <div class="metric-label">Valor Total</div>
                     </div>
                 </div>
@@ -181,17 +244,25 @@
     </div>
 
     <!-- Modal Nova NF-e -->
-    <div class="modal-overlay" id="modalNovaNovenfe">
-        <div class="modal">
-            <div class="modal-header">
-                <h3><i class="fas fa-plus-circle"></i> Gerar NF-e a partir de Pedido</h3>
-                <button class="modal-close" onclick="fecharModal('modalNovaNovenfe')"><i
-                        class="fas fa-times"></i></button>
+    <div class="modal-overlay" id="modalNovaNovenfe" style="display:none">
+        <div class="modal-content modal-small">
+            <div class="modal-header orange">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <i class="fas fa-file-invoice" style="font-size:18px;"></i>
+                    <span style="font-size:16px;font-weight:700;">Gerar NF-e a partir de Pedido</span>
+                </div>
+                <button class="modal-close" onclick="fecharModal('modalNovaNovenfe')" title="Fechar">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>ID do Pedido de Venda</label>
-                    <input type="number" class="form-control" id="pedidoId" placeholder="Informe o ID do pedido">
+                    <label>Selecione o Pedido Aprovado</label>
+                    <select class="form-control" id="pedidoIdSelect" onchange="onSelectPedido()">
+                        <option value="">Carregando pedidos...</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-top:8px;">
+                    <label style="font-size:12px;color:#6b7280;">Ou informe o ID manualmente</label>
+                    <input type="number" class="form-control" id="pedidoId" placeholder="ID do pedido" oninput="onManualPedido()">
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -203,9 +274,102 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="fecharModal('modalNovaNovenfe')">Cancelar</button>
-                <button class="btn btn-primary" onclick="gerarNFe()"><i class="fas fa-file-invoice"></i> Gerar
-                    NF-e</button>
+                <button class="btn-modal btn-modal-cancel" onclick="fecharModal('modalNovaNovenfe')">Cancelar</button>
+                <button class="btn-modal btn-modal-save" onclick="gerarNFe()"><i class="fas fa-file-invoice"></i> Gerar NF-e</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar NF-e -->
+    <div class="modal-overlay" id="modalEditarNFe" style="display:none" onclick="if(event.target===this) fecharModalEditar()">
+        <div class="modal-content" style="max-width:720px;max-height:90vh;overflow-y:auto;">
+            <div class="modal-header">
+                <h3 id="modalEditarTitulo"><i class="fas fa-edit"></i> Editar NF-e</h3>
+                <button class="modal-close" onclick="fecharModalEditar()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-nfe-id">
+                <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div class="form-group">
+                        <label>Número NF-e</label>
+                        <input type="text" class="form-control" id="edit-nfe-numero">
+                    </div>
+                    <div class="form-group">
+                        <label>Série</label>
+                        <input type="text" class="form-control" id="edit-nfe-serie">
+                    </div>
+                </div>
+                <div class="form-row" style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+                    <div class="form-group">
+                        <label>Cliente / Destinatário</label>
+                        <input type="text" class="form-control" id="edit-nfe-cliente-nome">
+                        <input type="hidden" id="edit-nfe-cliente-id">
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select class="form-control" id="edit-nfe-status">
+                            <option value="pendente">Pendente</option>
+                            <option value="autorizada">Autorizada</option>
+                            <option value="cancelada">Cancelada</option>
+                            <option value="denegada">Denegada</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div class="form-group">
+                        <label>Valor Total (R$)</label>
+                        <input type="number" step="0.01" class="form-control" id="edit-nfe-valor">
+                    </div>
+                    <div class="form-group">
+                        <label>Data Emissão</label>
+                        <input type="date" class="form-control" id="edit-nfe-data-emissao">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Natureza da Operação</label>
+                    <input type="text" class="form-control" id="edit-nfe-natureza" placeholder="Ex: Venda de mercadoria">
+                </div>
+                <div class="form-group">
+                    <!-- BUG-020: placeholder atualizado para "Não informada" em vez de "44 dígitos" (evita confusão com chave real) -->
+                    <label>Chave de Acesso <span id="edit-nfe-chave-badge" style="font-size:10px;color:#dc2626;font-weight:600;display:none;">⚠ Não informada</span></label>
+                    <input type="text" class="form-control" id="edit-nfe-chave" placeholder="Não informada" maxlength="44" style="font-family:monospace;font-size:12px;">
+                </div>
+                <div class="form-group">
+                    <label>Protocolo de Autorização <span id="edit-nfe-protocolo-badge" style="font-size:10px;color:#dc2626;font-weight:600;display:none;">⚠ Não informado</span></label>
+                    <input type="text" class="form-control" id="edit-nfe-protocolo" placeholder="Não informado" style="font-family:monospace;">
+                </div>
+                <div class="form-group">
+                    <label>Observações</label>
+                    <textarea class="form-control" id="edit-nfe-observacoes" rows="3" style="resize:vertical;"></textarea>
+                </div>
+
+                <!-- Itens da NF-e -->
+                <div style="margin-top:16px;">
+                    <h4 style="font-size:14px;font-weight:700;color:#374151;margin-bottom:12px;"><i class="fas fa-list" style="color:#7c3aed;margin-right:6px;"></i>Itens da NF-e</h4>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table" style="font-size:13px;">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px;">#</th>
+                                    <th>Descrição</th>
+                                    <th style="text-align:center;">Qtd</th>
+                                    <th style="text-align:right;">Unitário</th>
+                                    <th style="text-align:right;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="edit-nfe-itens-body">
+                                <tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:20px;">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="display:flex;justify-content:space-between;">
+                <button class="btn" style="background:#dc2626;color:white;" onclick="excluirNFe()"><i class="fas fa-trash"></i> Excluir</button>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-secondary" onclick="fecharModalEditar()"><i class="fas fa-arrow-left"></i> Fechar</button>
+                    <button class="btn btn-primary" onclick="salvarEdicaoNFe()"><i class="fas fa-save"></i> Salvar Alterações</button>
+                </div>
             </div>
         </div>
     </div>
@@ -218,15 +382,90 @@
             overlay.classList.toggle('active');
         }
 
+        function abrirModalNovaNFe() {
+            const modal = document.getElementById('modalNovaNovenfe');
+            if (!modal) return;
+            // Bug 8: resetar os dois campos exclusivos (dropdown OU ID manual) ao abrir
+            const sel = document.getElementById('pedidoIdSelect');
+            const man = document.getElementById('pedidoId');
+            if (sel) { sel.disabled = false; sel.style.opacity = ''; }
+            if (man) { man.value = ''; man.disabled = false; man.placeholder = 'ID do pedido'; }
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+            carregarPedidosAprovados();
+        }
+
+        // Bug 8: os campos "Selecione o Pedido" e "ID manual" são alternativas mutuamente exclusivas (OU).
+        // Ao usar um, o outro é desabilitado para não gerar conflito de validação.
+        function onSelectPedido() {
+            const sel = document.getElementById('pedidoIdSelect');
+            const man = document.getElementById('pedidoId');
+            if (!sel || !man) return;
+            if (sel.value) {
+                man.value = '';
+                man.disabled = true;
+                man.placeholder = 'Usando o pedido selecionado acima';
+            } else {
+                man.disabled = false;
+                man.placeholder = 'ID do pedido';
+            }
+        }
+
+        function onManualPedido() {
+            const sel = document.getElementById('pedidoIdSelect');
+            const man = document.getElementById('pedidoId');
+            if (!sel || !man) return;
+            if ((man.value || '').trim()) {
+                sel.disabled = true;
+                sel.style.opacity = '0.6';
+            } else {
+                sel.disabled = false;
+                sel.style.opacity = '';
+            }
+        }
+
         function abrirModalNovaNovenfe() {
-            document.getElementById('modalNovaNovenfe').classList.add('active');
+            abrirModalNovaNFe();
+        }
+
+        async function carregarPedidosAprovados() {
+            const select = document.getElementById('pedidoIdSelect');
+            try {
+                const r = await fetch('/api/faturamento/pedidos-aprovados', { credentials: 'include' });
+                if (r.ok) {
+                    const resp = await r.json();
+                    const pedidos = resp.data || [];
+                    if (pedidos.length === 0) {
+                        select.innerHTML = '<option value="">Nenhum pedido aprovado disponível</option>';
+                    } else {
+                        select.innerHTML = '<option value="">-- Selecione um pedido --</option>' +
+                            pedidos.map(p => `<option value="${p.id}">#${p.id} — ${p.cliente_nome || p.cliente} — ${formatarMoeda(p.valor)}</option>`).join('');
+                    }
+                } else {
+                    select.innerHTML = '<option value="">Erro ao carregar pedidos</option>';
+                }
+            } catch (e) {
+                select.innerHTML = '<option value="">Erro de conexão</option>';
+            }
         }
 
         function fecharModal(id) {
-            document.getElementById(id).classList.remove('active');
+            const m = document.getElementById(id);
+            if (!m) return;
+            m.classList.remove('active');
+            m.style.display = 'none';
         }
 
-        function formatarMoeda(valor) {
+                function _fat_toast(msg, tipo) {
+            tipo = tipo || (msg.toLowerCase().includes('sucesso') || msg.toLowerCase().includes('success') ? 'success' : msg.toLowerCase().includes('erro') || msg.toLowerCase().includes('error') || msg.toLowerCase().includes('permiss') || msg.toLowerCase().includes('certific') || msg.toLowerCase().includes('inválid') ? 'error' : 'info');
+            var t = document.createElement('div');
+            var colors = { success: '#059669', error: '#dc2626', info: '#2563eb', warning: '#d97706' };
+            t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:' + (colors[tipo]||colors.info) + ';color:#fff;padding:12px 20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.2);z-index:99999;max-width:420px;font-family:Inter,sans-serif;font-size:13px;line-height:1.5;';
+            t.textContent = msg.replace(/\\n\\n/g, ' | ').replace(/\\n/g, ' ');
+            document.body.appendChild(t);
+            setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 5000);
+        }
+function formatarMoeda(valor) {
             return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
         }
 
@@ -237,7 +476,18 @@
 
         // BUG-023: mapear status internos para labels legíveis na UI
         function statusLabel(status) {
-            const labels = { 'emitida': 'Autorizada', 'autorizada': 'Autorizada', 'authorized': 'Autorizada', 'cancelada': 'Cancelada', 'inutilizada': 'Inutilizada', 'pendente': 'Pendente', 'rejeitada': 'Rejeitada', 'erro': 'Erro', 'rascunho': 'Rascunho' };
+            const labels = {
+                'emitida': 'Autorizada',
+                'autorizada': 'Autorizada',
+                'authorized': 'Autorizada',
+                'cancelada': 'Cancelada',
+                'cancelled': 'Cancelada',
+                'inutilizada': 'Inutilizada',
+                'pendente': 'Pendente',
+                'rejeitada': 'Rejeitada',
+                'erro': 'Erro',
+                'rascunho': 'Rascunho'
+            };
             const s = (status || 'pendente').toLowerCase();
             return labels[s] || status || 'Pendente';
         }
@@ -260,13 +510,55 @@
             try {
                 const r = await fetch('/api/faturamento/estatisticas', { credentials: 'include' });
                 if (r.ok) {
-                    const d = await r.json();
-                    document.getElementById('statTotal').textContent = d.total || 0;
-                    document.getElementById('statAutorizadas').textContent = d.autorizadas || 0;
-                    document.getElementById('statPendentes').textContent = d.pendentes || 0;
-                    document.getElementById('statValor').textContent = formatarMoeda(d.valor_total);
+                    const resp = await r.json();
+                    // Suporte ao formato { success: true, data: {...} } e formato direto
+                    const d = resp.data || resp;
+                    document.getElementById('statTotal').textContent = d.total_nfes ?? d.total ?? 0;
+                    document.getElementById('statAutorizadas').textContent = d.autorizadas ?? 0;
+                    document.getElementById('statPendentes').textContent = d.pendentes ?? 0;
+                    document.getElementById('statValor').textContent = formatarMoeda(d.valor_total_faturado ?? d.valor_total ?? 0);
+                } else {
+                    console.warn('Estatísticas indisponíveis (HTTP ' + r.status + ')');
+                    document.getElementById('statTotal').textContent = '-';
+                    document.getElementById('statAutorizadas').textContent = '-';
+                    document.getElementById('statPendentes').textContent = '-';
+                    document.getElementById('statValor').textContent = '-';
                 }
-            } catch (e) { console.error('Erro ao carregar estatísticas:', e); }
+            } catch (e) {
+                console.error('Erro ao carregar estatísticas:', e);
+                document.getElementById('statTotal').textContent = '-';
+                document.getElementById('statAutorizadas').textContent = '-';
+                document.getElementById('statPendentes').textContent = '-';
+                document.getElementById('statValor').textContent = '-';
+            }
+        }
+
+        // Bug 5: recalcular os cards de KPI a partir do conjunto atualmente filtrado
+        function atualizarCardsComLista(nfes) {
+            const lista = Array.isArray(nfes) ? nfes : [];
+            const autorizadas = lista.filter(n => statusClass(n.status) === 'autorizada').length;
+            const pendentes = lista.filter(n => statusClass(n.status) === 'pendente').length;
+            const valor = lista.reduce((s, n) => s + (Number(n.valor_total ?? n.valor) || 0), 0);
+            document.getElementById('statTotal').textContent = lista.length;
+            document.getElementById('statAutorizadas').textContent = autorizadas;
+            document.getElementById('statPendentes').textContent = pendentes;
+            document.getElementById('statValor').textContent = formatarMoeda(valor);
+        }
+
+        // Bug 5 e 13: detectar se há filtros aplicados (busca/status/datas)
+        function temFiltrosAtivos() {
+            return !!(
+                (document.getElementById('filtroStatus')?.value || '') ||
+                (document.getElementById('filtroDataInicio')?.value || '') ||
+                (document.getElementById('filtroDataFim')?.value || '') ||
+                (document.getElementById('filtroTexto')?.value || '').trim()
+            );
+        }
+
+        // Bug 20: mostrar/esconder botão "Limpar Filtros" conforme estado
+        function atualizarVisibilidadeLimparFiltros() {
+            const btn = document.getElementById('btnLimparFiltros');
+            if (btn) btn.style.display = temFiltrosAtivos() ? '' : 'none';
         }
 
         async function carregarNFes() {
@@ -274,38 +566,91 @@
                 const status = document.getElementById('filtroStatus').value;
                 const inicio = document.getElementById('filtroDataInicio').value;
                 const fim = document.getElementById('filtroDataFim').value;
-                const r = await fetch(`/api/faturamento/nfes?status=${status}&data_inicio=${inicio}&data_fim=${fim}`, { credentials: 'include' });
+                const busca = document.getElementById('filtroTexto').value.trim();
+                atualizarVisibilidadeLimparFiltros();
+                const r = await fetch(`/api/faturamento/nfes?status=${encodeURIComponent(status)}&data_inicio=${encodeURIComponent(inicio)}&data_fim=${encodeURIComponent(fim)}&busca=${encodeURIComponent(busca)}`, { credentials: 'include' });
                 if (r.ok) {
-                    const nfes = await r.json();
-                    renderizarNFes(Array.isArray(nfes) ? nfes : nfes.data || []);
+                    const resp = await r.json();
+                    let nfes = Array.isArray(resp) ? resp : (resp.data || resp.nfes || []);
+                    // Bug 5: fallback client-side caso a API ignore o parâmetro ?busca
+                    if (busca) {
+                        const q = busca.toLowerCase();
+                        nfes = nfes.filter(n => {
+                            const campos = [
+                                String(n.numero || ''),
+                                String(n.destinatario || n.cliente_nome || n.cliente || ''),
+                                String(n.chave_acesso || n.chave || ''),
+                                String(n.pedido_id || ''),
+                                String(n.serie || '')
+                            ].join(' ').toLowerCase();
+                            return campos.includes(q);
+                        });
+                    }
+                    renderizarNFes(nfes);
+                    // Bug 5: cards refletem o conjunto filtrado; sem filtros usam o total global do backend
+                    if (temFiltrosAtivos()) atualizarCardsComLista(nfes);
+                    else carregarEstatisticas();
+                } else {
+                    console.warn('NF-es indisponíveis (HTTP ' + r.status + ')');
+                    const tbody = document.getElementById('nfesList');
+                    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-exclamation-triangle"></i><h3>Dados indisponíveis</h3><p>Não foi possível carregar as NF-es no momento.</p></div></td></tr>';
                 }
-            } catch (e) { console.error('Erro:', e); }
+            } catch (e) {
+                console.error('Erro ao carregar NF-es:', e);
+                const tbody = document.getElementById('nfesList');
+                tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-exclamation-triangle"></i><h3>Erro de conexão</h3><p>Não foi possível carregar as NF-es.</p></div></td></tr>';
+            }
+        }
+
+        function formatarNumeroNFe(numero) {
+            if (numero === null || numero === undefined || numero === '') return '-';
+            return String(numero).replace(/\D/g, '').padStart(9, '0');
         }
 
         function renderizarNFes(nfes) {
             const tbody = document.getElementById('nfesList');
             if (!nfes.length) {
-                tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-file-invoice"></i><h3>Nenhuma NF-e encontrada</h3><p>Emita sua primeira nota fiscal</p></div></td></tr>';
+                // Bug 13: mensagem contextual para "filtros sem resultado" vs "nenhuma nota cadastrada"
+                const subtitulo = temFiltrosAtivos()
+                    ? 'Nenhuma NF-e corresponde aos filtros aplicados. Ajuste os filtros ou <a href="#" onclick="limparFiltros();return false;" style="color:#14b8a6;font-weight:600;text-decoration:underline;cursor:pointer;">Limpar Filtros</a>.'
+                    : 'Emita sua primeira nota fiscal';
+                tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><i class="fas fa-file-invoice"></i><h3>Nenhuma NF-e encontrada</h3><p>${subtitulo}</p></div></td></tr>`;
                 return;
             }
-            tbody.innerHTML = nfes.map(n => `
-        <tr>
-            <td><span class="code">${n.número || '-'}</span></td>
+            // Ordenar por número decrescente (NFs mais recentes primeiro)
+            nfes = nfes.slice().sort((a, b) => {
+                const na = parseInt(String(a.numero || 0).replace(/\D/g, ''), 10) || 0;
+                const nb = parseInt(String(b.numero || 0).replace(/\D/g, ''), 10) || 0;
+                return nb - na;
+            });
+            _nfesCache = nfes;
+            tbody.innerHTML = nfes.map(n => {
+                const origemTag = n.origem === 'pedido' ? `<span style="font-size:10px;color:#6b7280;display:block;">Pedido #${n.pedido_id}</span>` : '';
+                const numeroFmt = formatarNumeroNFe(n.numero);
+                const statusC = statusClass(n.status);
+                // Bug 3: ocultar botão SEFAZ quando já estiver autorizada/inutilizada/cancelada
+                const podeEnviarSefaz = n.origem !== 'pedido' && !['autorizada', 'cancelada', 'inutilizada'].includes(statusC);
+                const podeCancelar = n.origem !== 'pedido' && statusC !== 'cancelada' && statusC !== 'inutilizada';
+                const podeBaixarDanfe = n.origem !== 'pedido';
+                return `
+        <tr ondblclick="abrirModalEditarNFe(${n.id}, '${n.origem || 'nfe'}')" style="cursor:pointer;" title="Duplo clique para editar">
+            <td><span class="code">${numeroFmt}</span>${origemTag}</td>
             <td>${n.serie || '1'}</td>
-            <td>${n.destinatario || n.cliente || '-'}</td>
+            <td>${n.destinatario || n.cliente_nome || n.cliente || '-'}</td>
             <td><strong>${formatarMoeda(n.valor)}</strong></td>
             <td>${formatarData(n.data_emissao)}</td>
-            <td><span class="badge ${statusClass(n.status)}">${statusLabel(n.status)}</span></td>
+            <td><span class="badge ${statusC}">${statusLabel(n.status)}</span></td>
             <td>
                 <div style="display:flex;gap:4px;">
-                    <button class="action-btn view" onclick="verDetalhes(${n.id})" title="Detalhes"><i class="fas fa-eye"></i></button>
-                    <button class="action-btn success" onclick="enviarSEFAZ(${n.id})" title="Enviar SEFAZ"><i class="fas fa-paper-plane"></i></button>
-                    <button class="action-btn" onclick="baixarDANFE(${n.id})" title="DANFE"><i class="fas fa-file-pdf"></i></button>
-                    <button class="action-btn delete" onclick="cancelarNFe(${n.id})" title="Cancelar"><i class="fas fa-times"></i></button>
+                    <button class="action-btn view" onclick="event.stopPropagation();abrirModalEditarNFe(${n.id}, '${n.origem || 'nfe'}')" title="Detalhes da NF-e ${numeroFmt}" aria-label="Ver detalhes da NF-e ${numeroFmt}"><i class="fas fa-eye"></i></button>
+                    ${podeEnviarSefaz ? `<button class="action-btn success" onclick="event.stopPropagation();enviarSEFAZ(${n.id})" title="Enviar NF-e ${numeroFmt} para SEFAZ" aria-label="Enviar NF-e ${numeroFmt} para SEFAZ"><i class="fas fa-paper-plane"></i></button>` : ''}
+                    ${podeBaixarDanfe ? `<button class="action-btn" onclick="event.stopPropagation();baixarDANFE(${n.id})" title="Baixar DANFE da NF-e ${numeroFmt}" aria-label="Baixar DANFE da NF-e ${numeroFmt}"><i class="fas fa-file-pdf"></i></button>` : ''}
+                    ${podeCancelar ? `<button class="action-btn delete" onclick="event.stopPropagation();cancelarNFe(${n.id})" title="Cancelar NF-e ${numeroFmt}" aria-label="Cancelar NF-e ${numeroFmt}"><i class="fas fa-times"></i></button>` : ''}
                 </div>
             </td>
         </tr>
-    `).join('');
+    `;
+            }).join('');
         }
 
         async function gerarNFe() {
@@ -315,8 +660,8 @@
             const btn = document.querySelector('[onclick="gerarNFe()"]');
             if (btn) btn.disabled = true;
             try {
-                const pedidoId = document.getElementById('pedidoId').value;
-                if (!pedidoId) { alert('Informe o ID do pedido'); return; }
+                const pedidoId = (document.getElementById('pedidoId')?.value || document.getElementById('pedidoIdSelect')?.value || '').trim();
+                if (!pedidoId) { _fat_toast('Informe ou selecione o ID do pedido', 'warning'); return; }
                 const r = await fetch('/api/faturamento/gerar-nfe', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -327,22 +672,22 @@
                     fecharModal('modalNovaNovenfe');
                     carregarNFes();
                     carregarEstatisticas();
-                    alert('NF-e gerada com sucesso!');
+                    _fat_toast('NF-e gerada com sucesso!');
                 } else {
                     const e = await r.json().catch(() => null);
                     if (e?.errorCode === 'IBGE_PREFLIGHT' && e?.camposFaltantes?.length) {
-                        alert('Dados fiscais incompletos:\n\n• ' + e.camposFaltantes.join('\n• ') + '\n\nCorrija os cadastros e tente novamente.');
+                        _fat_toast('Dados fiscais incompletos:\n\n• ' + e.camposFaltantes.join('\n• ') + '\n\nCorrija os cadastros e tente novamente.');
                     } else if (e?.errorCode === 'RBAC_DENIED') {
-                        alert('Permissão insuficiente:\n\n' + (e?.message || 'Você não possui permissão para gerar NF-e.'));
+                        _fat_toast('Permissão insuficiente:\n\n' + (e?.message || 'Você não possui permissão para gerar NF-e.'));
                     } else if (e?.errorCode === 'CERTIFICADO_INVALIDO') {
-                        alert('Certificado Digital:\n\n' + (e?.message || 'Certificado inválido ou expirado.'));
+                        _fat_toast('Certificado Digital:\n\n' + (e?.message || 'Certificado inválido ou expirado.'));
                     } else if (e?.errorCode === 'NFE_DUPLICADA') {
-                        alert('NF-e Duplicada:\n\n' + (e?.message || 'Já existe NF-e para este pedido.'));
+                        _fat_toast('NF-e Duplicada:\n\n' + (e?.message || 'Já existe NF-e para este pedido.'));
                     } else {
-                        alert('Erro ao gerar NF-e: ' + (e?.message || e?.error || 'Erro desconhecido'));
+                        _fat_toast('Erro ao gerar NF-e: ' + (e?.message || e?.error || 'Erro desconhecido'));
                     }
                 }
-            } catch (e) { alert('Erro de conexão'); } finally {
+            } catch (e) { _fat_toast('Erro de conexão'); } finally {
                 gerarNFe._running = false;
                 if (btn) btn.disabled = false;
             }
@@ -352,7 +697,7 @@
             const motivo = prompt('Digite o motivo do cancelamento (mínimo 15 caracteres):');
             if (!motivo) return;
             if (motivo.trim().length < 15) {
-                alert('O motivo deve ter no mínimo 15 caracteres.');
+                _fat_toast('O motivo deve ter no mínimo 15 caracteres.');
                 return;
             }
             if (!confirm('Deseja realmente cancelar esta NF-e? Esta ação não pode ser desfeita.')) return;
@@ -370,23 +715,245 @@
                 });
                 const data = await resp.json().catch(() => null);
                 if (resp.ok) {
-                    alert(data?.message || 'NF-e cancelada com sucesso!');
+                    _fat_toast(data?.message || 'NF-e cancelada com sucesso!');
                     carregarNFes();
                     carregarEstatisticas();
                 } else {
                     const mensagemErro = data?.message || data?.error || 'Falha ao cancelar NF-e. Tente novamente.';
-                    alert('Erro ao cancelar NF-e: ' + mensagemErro);
+                    _fat_toast('Erro ao cancelar NF-e: ' + mensagemErro);
                 }
             } catch (e) {
                 const mensagemErro = e?.message || 'Falha na comunicação com o servidor.';
-                alert('Erro ao cancelar NF-e: ' + mensagemErro);
+                _fat_toast('Erro ao cancelar NF-e: ' + mensagemErro);
             } finally {
                 cancelarNFe._running = false;
                 if (btn) btn.disabled = false;
             }
         }
 
-        function verDetalhes(id) { alert('Detalhes da NF-e #' + id); }
+        function verDetalhes(id, origem) { abrirModalEditarNFe(id, origem); }
+
+        // ======= MODAL EDITAR NF-e (Double-click) =======
+        let _nfesCache = [];
+        let _editOrigem = 'nfe';
+
+        // Bug 1: preencher campos do modal com qualquer dado disponível (cache local ou API)
+        function _preencherCamposModalNFe(nfe) {
+            document.getElementById('edit-nfe-id').value = nfe.id || '';
+            document.getElementById('edit-nfe-numero').value = nfe.numero || '';
+            document.getElementById('edit-nfe-serie').value = nfe.serie || '1';
+            document.getElementById('edit-nfe-cliente-nome').value = nfe.cliente_nome || nfe.destinatario || nfe.cliente || '';
+            document.getElementById('edit-nfe-cliente-id').value = nfe.cliente_id || '';
+            // Valor: em pedido faturado (somente leitura) exibe moeda formatada (R$ 97.837,50);
+            // em edição mantém input numérico para permitir digitação.
+            const valorRaw = Number(nfe.valor_total ?? nfe.valor ?? 0) || 0;
+            const valorEl = document.getElementById('edit-nfe-valor');
+            if (valorEl) {
+                if (_editOrigem === 'pedido') {
+                    valorEl.type = 'text';
+                    valorEl.value = formatarMoeda(valorRaw);
+                } else {
+                    valorEl.type = 'number';
+                    valorEl.value = valorRaw;
+                }
+            }
+            document.getElementById('edit-nfe-status').value = (nfe.status || 'pendente').toLowerCase();
+            document.getElementById('edit-nfe-data-emissao').value = nfe.data_emissao ? String(nfe.data_emissao).slice(0,10) : '';
+            document.getElementById('edit-nfe-natureza').value = nfe.natureza_operacao || '';
+            const chaveVal = nfe.chave_acesso || nfe.chave || nfe.chave_nfe || nfe.chNFe || '';
+            const protocoloVal = nfe.protocolo || nfe.protocolo_autorizacao || nfe.numero_protocolo || nfe.nProt || '';
+            document.getElementById('edit-nfe-chave').value = chaveVal;
+            document.getElementById('edit-nfe-protocolo').value = protocoloVal;
+            const obsEl = document.getElementById('edit-nfe-observacoes');
+            obsEl.value = nfe.observacoes || nfe.observacao || '';
+            // Bug 17: garantir que o textarea inicie no topo do conteúdo, não no meio
+            obsEl.scrollTop = 0;
+            const chaveBadge = document.getElementById('edit-nfe-chave-badge');
+            const protBadge = document.getElementById('edit-nfe-protocolo-badge');
+            if (chaveBadge) chaveBadge.style.display = chaveVal ? 'none' : 'inline';
+            if (protBadge) protBadge.style.display = protocoloVal ? 'none' : 'inline';
+        }
+
+        async function abrirModalEditarNFe(id, origem) {
+            origem = origem === 'pedido' ? 'pedido' : 'nfe';
+            _editOrigem = origem;
+            // FISCAL-03: abrir modal imediatamente com loading, em vez de aguardar API
+            // Bug 1: garantir display:flex pois o overlay tem style="display:none" inline
+            const modal = document.getElementById('modalEditarNFe');
+            const itensBodyPre = document.getElementById('edit-nfe-itens-body');
+            if (itensBodyPre) itensBodyPre.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:20px;"><i class="fas fa-spinner fa-spin"></i> Carregando...</td></tr>';
+            if (modal) { modal.style.display = 'flex'; modal.classList.add('active'); }
+
+            // Bug 1: pré-preencher com dados do cache enquanto a API responde — assim o usuário sempre vê algo
+            const cacheHit = (_nfesCache || []).find(n => String(n.id) === String(id));
+            if (cacheHit) _preencherCamposModalNFe(cacheHit);
+
+            try {
+                const r = await fetch('/api/faturamento/nfes/' + encodeURIComponent(id) + '?origem=' + encodeURIComponent(origem), { credentials: 'include' });
+                if (!r.ok) throw new Error('Erro ' + r.status);
+                const resp = await r.json();
+                const nfe = resp.data || resp;
+
+                _preencherCamposModalNFe(nfe);
+
+                // Controle read-only para NF-e originadas de pedidos
+                const isReadOnly = (origem === 'pedido');
+                const editFields = ['edit-nfe-numero', 'edit-nfe-serie', 'edit-nfe-cliente-nome', 'edit-nfe-valor', 'edit-nfe-status', 'edit-nfe-data-emissao', 'edit-nfe-natureza', 'edit-nfe-chave', 'edit-nfe-protocolo', 'edit-nfe-observacoes'];
+                editFields.forEach(fid => {
+                    const el = document.getElementById(fid);
+                    if (el) {
+                        el.readOnly = isReadOnly;
+                        el.disabled = isReadOnly;
+                        // Visual: campos somente-leitura ganham fundo cinza e cursor padrão
+                        el.style.background = isReadOnly ? '#f3f4f6' : '';
+                        el.style.color = isReadOnly ? '#374151' : '';
+                        el.style.cursor = isReadOnly ? 'default' : '';
+                        el.style.opacity = isReadOnly ? '1' : '';
+                    }
+                });
+
+                // BUG-020: input[type=number] não aceita string formatada — manter valor numérico
+                // A formatação é feita apenas na exibição da lista, não no input do modal
+
+                // Botões de ação do modal
+                const btnSalvar = document.querySelector('[onclick="salvarEdicaoNFe()"]');
+                const btnExcluir = document.querySelector('[onclick="excluirNFe()"]');
+                if (btnSalvar) btnSalvar.style.display = isReadOnly ? 'none' : '';
+                if (btnExcluir) btnExcluir.style.display = isReadOnly ? 'none' : '';
+
+                // Título do modal
+                const tituloEl = document.getElementById('modalEditarTitulo');
+                if (tituloEl) {
+                    tituloEl.innerHTML = isReadOnly
+                        ? '<i class="fas fa-eye"></i> Detalhes da NF-e (Pedido Faturado)'
+                        : '<i class="fas fa-edit"></i> Editar NF-e';
+                }
+
+                // Itens
+                const itensBody = document.getElementById('edit-nfe-itens-body');
+                const itens = nfe.itens || [];
+                const fmtQtd = (q) => {
+                    const n = parseFloat(q);
+                    if (!Number.isFinite(n)) return '0';
+                    return n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+                };
+                if (itens.length > 0) {
+                    // Bug 9: linha de total geral ao final da tabela de itens
+                    const totalQtd = itens.reduce((s, it) => s + (parseFloat(it.quantidade) || 0), 0);
+                    const totalGeral = itens.reduce((s, it) => s + (Number(it.valor_total) || 0), 0);
+                    itensBody.innerHTML = itens.map((item, i) => `
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td>${item.descricao || item.produto_nome || '-'}</td>
+                            <td style="text-align:center;">${fmtQtd(item.quantidade)}</td>
+                            <td style="text-align:right;">${formatarMoeda(item.valor_unitario || 0)}</td>
+                            <td style="text-align:right;font-weight:600;">${formatarMoeda(item.valor_total || 0)}</td>
+                        </tr>
+                    `).join('') + `
+                        <tr style="background:#f9fafb;border-top:2px solid #e5e7eb;">
+                            <td colspan="2" style="text-align:right;font-weight:700;color:#374151;">Total Geral</td>
+                            <td style="text-align:center;font-weight:700;color:#374151;">${fmtQtd(totalQtd)}</td>
+                            <td></td>
+                            <td style="text-align:right;font-weight:800;color:#059669;">${formatarMoeda(totalGeral)}</td>
+                        </tr>
+                    `;
+                } else {
+                    itensBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:20px;">Nenhum item registrado</td></tr>';
+                }
+
+            } catch(e) {
+                console.error('[NF-e] Erro ao carregar:', e);
+                const itensBodyErr = document.getElementById('edit-nfe-itens-body');
+                // Bug 1: se já preenchemos com cache, manter modal aberto e apenas avisar; caso contrário mostrar erro de carregamento
+                if (cacheHit) {
+                    if (itensBodyErr) itensBodyErr.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:20px;"><i class="fas fa-info-circle"></i> Itens detalhados indisponíveis no momento. Exibindo dados resumidos da listagem.</td></tr>';
+                    _fat_toast('Detalhes completos indisponíveis. Exibindo dados resumidos.', 'warning');
+                } else {
+                    if (itensBodyErr) itensBodyErr.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#dc2626;padding:20px;"><i class="fas fa-exclamation-triangle"></i> Erro ao carregar dados: ' + (e.message || 'Tente novamente') + '</td></tr>';
+                    _fat_toast('Erro ao carregar dados da NF-e: ' + (e.message || 'Tente novamente'));
+                }
+            }
+        }
+
+        function fecharModalEditar() {
+            const m = document.getElementById('modalEditarNFe');
+            if (!m) return;
+            m.classList.remove('active');
+            m.style.display = 'none';
+        }
+
+        async function salvarEdicaoNFe() {
+            const id = document.getElementById('edit-nfe-id').value;
+            if (!id) { _fat_toast('ID da NF-e não encontrado'); return; }
+
+            if (salvarEdicaoNFe._running) return;
+            salvarEdicaoNFe._running = true;
+            const btn = document.querySelector('[onclick="salvarEdicaoNFe()"]');
+            if (btn) btn.disabled = true;
+
+            try {
+                const body = {
+                    numero: document.getElementById('edit-nfe-numero').value,
+                    serie: document.getElementById('edit-nfe-serie').value,
+                    destinatario_nome: document.getElementById('edit-nfe-cliente-nome').value,
+                    cliente_id: parseInt(document.getElementById('edit-nfe-cliente-id').value) || null,
+                    valor_total: parseFloat(document.getElementById('edit-nfe-valor').value) || 0,
+                    status: document.getElementById('edit-nfe-status').value,
+                    data_emissao: document.getElementById('edit-nfe-data-emissao').value || null,
+                    natureza_operacao: document.getElementById('edit-nfe-natureza').value,
+                    chave_acesso: document.getElementById('edit-nfe-chave').value,
+                    protocolo: document.getElementById('edit-nfe-protocolo').value,
+                    observacoes: document.getElementById('edit-nfe-observacoes').value
+                };
+
+                const r = await fetch('/api/faturamento/nfes/' + id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(body)
+                });
+
+                const resp = await r.json().catch(() => null);
+                if (r.ok && resp?.success) {
+                    _fat_toast('NF-e atualizada com sucesso!');
+                    fecharModalEditar();
+                    carregarNFes();
+                    carregarEstatisticas();
+                } else {
+                    throw new Error(resp?.message || resp?.error || 'Erro desconhecido');
+                }
+            } catch(e) {
+                console.error('[NF-e] Erro ao salvar:', e);
+                _fat_toast('Erro ao salvar NF-e: ' + e.message);
+            } finally {
+                salvarEdicaoNFe._running = false;
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function excluirNFe() {
+            const id = document.getElementById('edit-nfe-id').value;
+            if (!id) return;
+            if (!confirm('Tem certeza que deseja excluir esta NF-e? Esta ação não pode ser desfeita.')) return;
+
+            try {
+                const r = await fetch('/api/faturamento/nfes/' + id, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                const resp = await r.json().catch(() => null);
+                if (r.ok && resp?.success) {
+                    _fat_toast('NF-e excluída com sucesso!');
+                    fecharModalEditar();
+                    carregarNFes();
+                    carregarEstatisticas();
+                } else {
+                    throw new Error(resp?.message || 'Erro ao excluir');
+                }
+            } catch(e) {
+                _fat_toast('Erro ao excluir NF-e: ' + e.message);
+            }
+        }
 
         async function enviarSEFAZ(id) {
             // SECURITY FIX: Idempotency guard - prevent double-click on SEFAZ submission
@@ -396,22 +963,22 @@
             if (btn) btn.disabled = true;
             try {
                 const r = await fetch(`/api/faturamento/nfes/${id}/enviar-sefaz`, { method: 'POST', credentials: 'include' });
-                if (r.ok) { alert('Enviado à SEFAZ com sucesso!'); carregarNFes(); }
+                if (r.ok) { _fat_toast('Enviado à SEFAZ com sucesso!'); carregarNFes(); }
                 else {
                     const e = await r.json().catch(() => null);
                     if (e?.errorCode === 'CERTIFICADO_INVALIDO') {
-                        alert('Certificado Digital:\n\n' + (e?.message || 'Certificado inválido ou expirado.'));
+                        _fat_toast('Certificado Digital:\n\n' + (e?.message || 'Certificado inválido ou expirado.'));
                     } else if (e?.errorCode === 'CREDENCIAL_SEFAZ') {
-                        alert('Credenciais SEFAZ:\n\n' + (e?.message || 'Credenciais de acesso inválidas.'));
+                        _fat_toast('Credenciais SEFAZ:\n\n' + (e?.message || 'Credenciais de acesso inválidas.'));
                     } else if (e?.errorCode === 'SEFAZ_INDISPONIVEL') {
-                        alert('SEFAZ Indisponível:\n\n' + (e?.message || 'Serviço temporariamente indisponível.'));
+                        _fat_toast('SEFAZ Indisponível:\n\n' + (e?.message || 'Serviço temporariamente indisponível.'));
                     } else if (e?.errorCode === 'RBAC_DENIED') {
-                        alert('Permissão insuficiente:\n\n' + (e?.message || 'Você não possui permissão para enviar à SEFAZ.'));
+                        _fat_toast('Permissão insuficiente:\n\n' + (e?.message || 'Você não possui permissão para enviar à SEFAZ.'));
                     } else {
-                        alert('Erro ao enviar à SEFAZ: ' + (e?.message || e?.motivo || 'Erro desconhecido'));
+                        _fat_toast('Erro ao enviar à SEFAZ: ' + (e?.message || e?.motivo || 'Erro desconhecido'));
                     }
                 }
-            } catch (e) { alert('Erro de conexão'); } finally {
+            } catch (e) { _fat_toast('Erro de conexão'); } finally {
                 enviarSEFAZ._running = false;
                 if (btn) btn.disabled = false;
             }
@@ -422,29 +989,53 @@
         }
 
         function carregarUsuarioLogado() {
-            const avatarNameMap = { 'admin': 'AD', 'Admin': 'AD', 'usuario': 'US', 'João': 'JO', 'Maria': 'MA', 'Pedro': 'PE', 'Ana': 'AN', 'Carlos': 'CA', 'Lucas': 'LU', 'Mariana': 'MN', 'Fernanda': 'FE', 'Rafael': 'RA', 'Juliana': 'JU', 'Gabriel': 'GA', 'Beatriz': 'BE', 'Diego': 'DI', 'Camila': 'CM' };
-            const h = new Date().getHours();
-            const g = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
-            document.getElementById('greeting-text').textContent = g;
-            fetch('/api/me', { credentials: 'include' })
-                .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-                .then(u => {
-                    const nome = u.nome || u.name || 'Usuário';
-                    document.getElementById('user-name').textContent = nome.split(' ')[0];
-                    const initials = avatarNameMap[nome.split(' ')[0]] || nome.substring(0, 2).toUpperCase();
-                    document.getElementById('user-initials').textContent = initials;
-                    if (u.foto || u.avatar) {
-                        document.getElementById('user-photo').src = u.foto || u.avatar;
-                        document.getElementById('user-photo').style.display = 'block';
-                        document.getElementById('user-initials').style.display = 'none';
-                    }
-                }).catch(() => { });
+            try {
+                const avatarNameMap = { 'admin': 'AD', 'Admin': 'AD', 'usuario': 'US', 'João': 'JO', 'Maria': 'MA', 'Pedro': 'PE', 'Ana': 'AN', 'Carlos': 'CA', 'Lucas': 'LU', 'Mariana': 'MN', 'Fernanda': 'FE', 'Rafael': 'RA', 'Juliana': 'JU', 'Gabriel': 'GA', 'Beatriz': 'BE', 'Diego': 'DI', 'Camila': 'CM' };
+                const h = new Date().getHours();
+                const g = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+                const greetingEl = document.getElementById('greeting-text');
+                if (greetingEl) greetingEl.textContent = g;
+                fetch('/api/me', { credentials: 'include' })
+                    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+                    .then(u => {
+                        const nome = u.nome || u.name || 'Usuário';
+                        const nameEl = document.getElementById('user-name');
+                        if (nameEl) nameEl.textContent = nome.split(' ')[0];
+                        const initials = avatarNameMap[nome.split(' ')[0]] || nome.substring(0, 2).toUpperCase();
+                        const initialsEl = document.getElementById('user-initials');
+                        if (initialsEl) initialsEl.textContent = initials;
+                        if (u.foto || u.avatar) {
+                            const photoEl = document.getElementById('user-photo');
+                            if (photoEl) {
+                                photoEl.src = u.foto || u.avatar;
+                                photoEl.style.display = 'block';
+                                if (initialsEl) initialsEl.style.display = 'none';
+                            }
+                        }
+                    }).catch(() => { });
+            } catch (e) { /* cabeçalho renderizado pelo layout-component; ignora ausência de elementos */ }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
             carregarUsuarioLogado();
             carregarEstatisticas();
             carregarNFes();
+
+            // Debounce no campo de busca textual
+            let _buscaTimer;
+            const filtroTexto = document.getElementById('filtroTexto');
+            if (filtroTexto) {
+                filtroTexto.addEventListener('input', () => {
+                    clearTimeout(_buscaTimer);
+                    _buscaTimer = setTimeout(() => carregarNFes(), 400);
+                });
+            }
+
+            // Filtros de status e data recarregam ao mudar
+            ['filtroStatus', 'filtroDataInicio', 'filtroDataFim'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('change', () => carregarNFes());
+            });
         });
     </script>
     <script src="../../_shared/connection-monitor.js?v=20251223"></script>
@@ -452,7 +1043,7 @@
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
 
     <!-- Zyntra: Confirm Dialog Profissional v2.0 -->
-    <script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <script src="/_shared/confirm-dialog.js?v=20260429"></script>
     <!-- Chat Widget BOB AI - DESATIVADO 23/02/2026 -->
     <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
     <script src="/_shared/accessibility-widget.js?v=20260226"></script>
@@ -463,3 +1054,4 @@
 </body>
 
 </html>
+

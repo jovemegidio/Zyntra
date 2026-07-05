@@ -13,7 +13,10 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
 // Configurações
-const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || '15m';
+// 8h (era 15m): token de 15min derrubava a sessão "do nada" quando o refresh
+// proativo não disparava (aba em segundo plano, blip de rede). Alinhado aos demais
+// sistemas de auth (auth-rbac/auth-section usam 8h). Refresh continua ativo por cima.
+const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || '8h';
 const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || '7d';
 // SEGURANÇA: JWT_SECRET obrigatório via variável de ambiente
 if (!process.env.JWT_SECRET) {

@@ -83,7 +83,7 @@ async fn send_notification(app: tauri::AppHandle, title: String, body: String) -
 #[tauri::command]
 async fn navigate_to(window: tauri::WebviewWindow, path: String) -> Result<(), String> {
     let script = format!(
-        "(() => {{ const s = localStorage.getItem('zyntra_server_url') || 'https://aluforce.api.br'; window.location.href = s + '{}'; }})()",
+        "(() => {{ const s = localStorage.getItem('zyntra_server_url') || 'https://zyntraerp.com.br'; window.location.href = s + '{}'; }})()",
         path
     );
     window.eval(&script).map_err(|e| e.to_string())
@@ -193,7 +193,7 @@ fn get_injection_script() -> String {
 
             async function checkNotifications() {
                 try {
-                    const serverUrl = localStorage.getItem('zyntra_server_url') || 'https://aluforce.api.br';
+                    const serverUrl = localStorage.getItem('zyntra_server_url') || 'https://zyntraerp.com.br';
                     const token = localStorage.getItem('token') || '';
                     if (!token) return;
 
@@ -774,7 +774,7 @@ fn get_injection_script() -> String {
         document.getElementById('zyntra-btn-forward')?.addEventListener('click', () => window.history.forward());
         document.getElementById('zyntra-btn-reload')?.addEventListener('click', () => window.location.reload());
         document.getElementById('zyntra-btn-home')?.addEventListener('click', () => {
-            const s = localStorage.getItem('zyntra_server_url') || 'https://aluforce.api.br';
+            const s = localStorage.getItem('zyntra_server_url') || 'https://zyntraerp.com.br';
             window.location.href = s + '/dashboard';
         });
         document.getElementById('zyntra-btn-fullscreen')?.addEventListener('click', async () => {
@@ -795,7 +795,7 @@ fn get_injection_script() -> String {
             if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); window.history.forward(); }
             if (e.altKey && e.key === 'Home') {
                 e.preventDefault();
-                const s = localStorage.getItem('zyntra_server_url') || 'https://aluforce.api.br';
+                const s = localStorage.getItem('zyntra_server_url') || 'https://zyntraerp.com.br';
                 window.location.href = s + '/dashboard';
             }
             if (e.ctrlKey && e.key === 'u') { e.preventDefault(); panel?.classList.toggle('open'); }
@@ -889,7 +889,7 @@ pub fn run() {
                                 let _ = w.show();
                                 let _ = w.set_focus();
                                 let script = format!(
-                                    "(() => {{ const s = localStorage.getItem('zyntra_server_url') || 'https://aluforce.api.br'; window.location.href = s + '{}'; }})()",
+                                    "(() => {{ const s = localStorage.getItem('zyntra_server_url') || 'https://zyntraerp.com.br'; window.location.href = s + '{}'; }})()",
                                     path
                                 );
                                 let _ = w.eval(&script);
@@ -929,7 +929,7 @@ pub fn run() {
                         format!("/{}", path)
                     };
                     let script = format!(
-                        "(() => {{ const s = localStorage.getItem('zyntra_server_url') || 'https://aluforce.api.br'; window.location.href = s + '{}'; }})()",
+                        "(() => {{ const s = localStorage.getItem('zyntra_server_url') || 'https://zyntraerp.com.br'; window.location.href = s + '{}'; }})()",
                         clean_path
                     );
                     let _ = deep_link_window.eval(&script);

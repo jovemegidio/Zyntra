@@ -36,7 +36,7 @@
     // Padrões que DEVEM ser interceptados
     const INTERCEPT_PATTERNS = [
         /^blob:/i,                    // Blob URLs (PDFs, HTML)
-        /\/api\/.*\/(danfe|pdf|relatorio|report|etiqueta|dacte|boleto)/i,
+        /\/api\/.*\/(danfe|pdf|relatorio|report|etiqueta|dacte|boleto|orcamento)/i,
         /\.pdf(\?|$)/i               // URLs de PDF diretas
     ];
 

@@ -639,10 +639,10 @@ app.get('/api/financeiro/contas-receber/estatisticas', authenticateToken, async 
     try {
         const [totais] = await pool.execute(`
             SELECT
-                COALESCE(SUM(CASE WHEN status NOT IN ('recebido','pago','liquidado','cancelada') THEN COALESCE(a_receber, valor - COALESCE(valor_recebido,0)) ELSE 0 END), 0) as total_receber,
-                COALESCE(SUM(CASE WHEN status NOT IN ('recebido','pago','liquidado','cancelada') AND data_vencimento >= CURDATE() THEN COALESCE(a_receber, valor - COALESCE(valor_recebido,0)) ELSE 0 END), 0) as vencendo,
-                COALESCE(SUM(CASE WHEN status NOT IN ('recebido','pago','liquidado','cancelada') AND data_vencimento < CURDATE() THEN COALESCE(a_receber, valor - COALESCE(valor_recebido,0)) ELSE 0 END), 0) as vencidas,
-                COALESCE(SUM(CASE WHEN status IN ('recebido','pago','liquidado') THEN COALESCE(valor_recebido, valor) ELSE 0 END), 0) as recebidas_mes
+                COALESCE(SUM(CASE WHEN status NOT IN ('recebido','pago','liquidado','cancelada') THEN COALESCE(NULLIF(a_receber,0), valor - COALESCE(valor_recebido,0)) ELSE 0 END), 0) as total_receber,
+                COALESCE(SUM(CASE WHEN status NOT IN ('recebido','pago','liquidado','cancelada') AND data_vencimento >= CURDATE() THEN COALESCE(NULLIF(a_receber,0), valor - COALESCE(valor_recebido,0)) ELSE 0 END), 0) as vencendo,
+                COALESCE(SUM(CASE WHEN status NOT IN ('recebido','pago','liquidado','cancelada') AND data_vencimento < CURDATE() THEN COALESCE(NULLIF(a_receber,0), valor - COALESCE(valor_recebido,0)) ELSE 0 END), 0) as vencidas,
+                COALESCE(SUM(CASE WHEN status IN ('recebido','pago','liquidado') THEN COALESCE(NULLIF(valor_recebido,0), valor) ELSE 0 END), 0) as recebidas_mes
             FROM contas_receber
             WHERE YEAR(data_emissao) >= YEAR(CURDATE()) OR data_vencimento >= CURDATE()
         `);

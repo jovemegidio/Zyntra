@@ -37,10 +37,12 @@
     
     async function fetchUserData() {
         try {
-            const response = await fetch('/api/me', {
-                method: 'GET',
+            // Obter token
+            
+            const response = await fetch('/api/me', { credentials: 'include', method: 'GET',
                 credentials: 'include',
                 headers: {
+                    ...headers,
                     'Accept': 'application/json',
                     'Cache-Control': 'no-cache'
                 }

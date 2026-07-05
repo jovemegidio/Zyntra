@@ -322,6 +322,19 @@
                 dashboardArea.classList.add('bg-contrast-light');
                 dashboardArea.classList.remove('bg-contrast-dark');
             }
+
+            // Trocar logos de acordo com o contraste
+            const usarBranca = isDark || (!isLight);
+            const logoAzul = document.getElementById('logo-azul');
+            const logoBranca = document.getElementById('logo-branca');
+            const logoZyntraAzul = document.querySelector('.logo-zyntra-azul');
+            const logoZyntraBranca = document.getElementById('logo-zyntra-branca');
+            const logoSep = document.querySelector('.logo-separator');
+            if (logoAzul) logoAzul.style.display = usarBranca ? 'none' : '';
+            if (logoBranca) logoBranca.style.display = usarBranca ? 'block' : 'none';
+            if (logoZyntraAzul) logoZyntraAzul.style.display = usarBranca ? 'none' : '';
+            if (logoZyntraBranca) logoZyntraBranca.style.display = usarBranca ? 'block' : 'none';
+            if (logoSep) logoSep.style.color = usarBranca ? 'rgba(255,255,255,0.3)' : '';
         }
     }
 

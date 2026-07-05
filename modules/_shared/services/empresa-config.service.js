@@ -74,22 +74,63 @@ async function buscarConfiguracoesEmpresa(pool) {
  */
 function resolverCaminhoLogo(config, baseDir = null) {
     const basePath = baseDir || path.join(__dirname, '..', '..', '..', 'public');
-    
-    // 1. Tentar logo das configurações
-    if (config.logo_url) {
-        const logoPath = path.join(basePath, config.logo_url.replace(/^\//, ''));
-        if (fs.existsSync(logoPath)) {
+
+    const resolveLogoRef = (logoRef) => {
+        if (!logoRef) return null;
+
+        const cleanRef = String(logoRef).replace(/\\/g, '/').replace(/^\//, '');
+        const candidates = [];
+
+        if (path.isAbsolute(String(logoRef))) {
+            candidates.push(String(logoRef));
+        }
+
+        if (cleanRef.startsWith('uploads/')) {
+            candidates.push(path.join('/var/www', cleanRef));
+            candidates.push(path.join(basePath, cleanRef));
+        } else {
+            candidates.push(path.join(basePath, cleanRef));
+        }
+
+        for (const candidate of candidates) {
+            if (fs.existsSync(candidate)) return candidate;
+        }
+
+        return null;
+    };
+
+    // 1. Tentar logo específica de documentos; fallback para logo do sistema.
+    // Aceita aliases usados por módulos antigos e novos.
+    const logoRef = config.document_logo_path || config.logo_documentos_path ||
+        config.logo_url_documentos || config.logo_url || config.logo_path;
+    if (logoRef) {
+        const logoPath = resolveLogoRef(logoRef);
+        if (logoPath) {
             return logoPath;
         }
     }
-    
-    // 2. Fallback para logo padrão
+
+    // 2. Fallback por marca da instância
+    const brandLogos = {
+        'labor-eletric': 'images/labor-eletric-logo.png',
+        'labor-energy': 'images/labor-energy-logo.png',
+        'zyntra': 'images/zyntra-sem-fundo.png'
+    };
+    const brandLogoRef = brandLogos[String(process.env.BRAND || '').toLowerCase()];
+    if (brandLogoRef) {
+        const brandLogoPath = path.join(basePath, brandLogoRef);
+        if (fs.existsSync(brandLogoPath)) {
+            return brandLogoPath;
+        }
+    }
+
+    // 3. Fallback para logo padrão
     const logoPadrao = path.join(basePath, 'images', 'Logo Monocromatico - Azul - Aluforce.png');
     if (fs.existsSync(logoPadrao)) {
         return logoPadrao;
     }
     
-    // 3. Tentar outras variações do nome
+    // 4. Tentar outras variações do nome
     const variacoes = [
         'images/logo-aluforce.png',
         'images/logo.png',

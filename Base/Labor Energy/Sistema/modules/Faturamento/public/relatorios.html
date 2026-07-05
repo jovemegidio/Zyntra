@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 
 <head>
@@ -12,16 +12,14 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/Faturamento/css/faturamento-layout.css?v=20260413b">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260621b" defer></script>
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
     <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260320">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <script src="/js/user-greeting-avatar.js?v=20260402" defer></script>
-<!-- FIX-100: Global fetch error guard -->
-<script>!function(){var o=window.fetch;window.fetch=async function(){var r=await o.apply(this,arguments);if(!r.ok&&r.status>=500)console.warn('[Fetch] Erro '+r.status+': '+(typeof arguments[0]==='string'?arguments[0]:''));return r}}()</script>
     <link rel="stylesheet" href="/css/design-system.css?v=20260502">
 </head>
 
@@ -37,10 +35,12 @@
                 <a href="/Faturamento/consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
                 <a href="/Faturamento/eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
                 <a href="/Faturamento/inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
-                <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
-                <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+                <a href="/Faturamento/contratos.html" class="sidebar-btn" title="Contratos"><i class="fas fa-file-signature"></i></a>
+                <a href="/Faturamento/logistica.html" class="sidebar-btn" title="Logística CT-e/MDF-e"><i class="fas fa-truck"></i></a>
+                <a href="/Faturamento/cenario-fiscal.html" class="sidebar-btn" title="Cenário Fiscal"><i class="fas fa-gavel"></i></a>
             </nav>
             <div class="sidebar-bottom">
+                <a href="/Faturamento/painel-contador.html" class="sidebar-btn" title="Painel do Contador"><i class="fas fa-calculator"></i></a>
                 <a href="/Faturamento/relatorios.html" class="sidebar-btn active" title="Relatórios"><i
                         class="fas fa-chart-bar"></i></a>
             </div>
@@ -64,12 +64,7 @@
                             class="fas fa-sync-alt"></i></button>
                     <div class="user-greeting">
                         <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
-                        <div class="user-avatar" id="user-avatar">
-                            <img src="" alt="" id="user-photo"
-                                style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
-                            <span id="user-initials">U</span>
-                        </div>
-                    </div>
+</div>
                 </div>
             </header>
 
@@ -110,34 +105,35 @@
                     </div>
                 </div>
 
-                <!-- Categorias de Relatórios -->
-                <div class="card fade-in-delay-2">
+                <!-- BUG-013: Seção 'Ordens de Serviço' oculta — módulo OS não está integrado.
+                     Quando o módulo for ativado, basta remover o style="display:none". -->
+                <div class="card fade-in-delay-2" style="display:none">
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-tools"></i> Ordens de Serviço</h3>
                     </div>
                     <div class="card-body">
                         <div class="report-grid">
-                            <div class="option-card" onclick="gerarRelatorio('os_abertas')">
+                            <div class="option-card" onclick="gerarRelatório('os_abertas')">
                                 <div class="option-card-icon"><i class="fas fa-folder-open"></i></div>
                                 <div class="option-card-title">OS Abertas</div>
                                 <div class="option-card-desc">Listagem de ordens em andamento</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('os_concluidas')">
+                            <div class="option-card" onclick="gerarRelatório('os_concluidas')">
                                 <div class="option-card-icon green"><i class="fas fa-check-circle"></i></div>
                                 <div class="option-card-title">OS Concluídas</div>
                                 <div class="option-card-desc">Ordens finalizadas no período</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('os_pendentes')">
+                            <div class="option-card" onclick="gerarRelatório('os_pendentes')">
                                 <div class="option-card-icon yellow"><i class="fas fa-clock"></i></div>
                                 <div class="option-card-title">OS Pendentes</div>
                                 <div class="option-card-desc">Aguardando aprovação ou peças</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('os_por_tecnico')">
+                            <div class="option-card" onclick="gerarRelatório('os_por_tecnico')">
                                 <div class="option-card-icon cyan"><i class="fas fa-user-cog"></i></div>
                                 <div class="option-card-title">OS por Técnico</div>
                                 <div class="option-card-desc">Distribuição por responsável</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('os_faturamento')">
+                            <div class="option-card" onclick="gerarRelatório('os_faturamento')">
                                 <div class="option-card-icon purple"><i class="fas fa-dollar-sign"></i></div>
                                 <div class="option-card-title">Faturamento OS</div>
                                 <div class="option-card-desc">Receita gerada pelas OS</div>
@@ -146,37 +142,39 @@
                     </div>
                 </div>
 
+                <!-- Contratos — integrado via /api/faturamento/contratos. -->
                 <div class="card fade-in-delay-3">
-                    <div class="card-header">
+                    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
                         <h3 class="card-title"><i class="fas fa-file-signature"></i> Contratos</h3>
+                        <a href="/Faturamento/contratos.html" class="btn btn-outline btn-sm"><i class="fas fa-cog"></i> Gerenciar contratos</a>
                     </div>
                     <div class="card-body">
                         <div class="report-grid">
-                            <div class="option-card" onclick="gerarRelatorio('contratos_ativos')">
+                            <div class="option-card" onclick="gerarRelatório('contratos_ativos')">
                                 <div class="option-card-icon green"><i class="fas fa-file-alt"></i></div>
                                 <div class="option-card-title">Contratos Ativos</div>
-                                <div class="option-card-desc">Contratos em vigência</div>
+                                <div class="option-card-desc">Contratos em vigência no período</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('contratos_vencer')">
+                            <div class="option-card" onclick="gerarRelatório('contratos_vencer')">
                                 <div class="option-card-icon yellow"><i class="fas fa-calendar-exclamation"></i></div>
                                 <div class="option-card-title">A Vencer</div>
-                                <div class="option-card-desc">Próximos vencimentos</div>
+                                <div class="option-card-desc">Vencimento nos próximos 30 dias</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('contratos_vencidos')">
+                            <div class="option-card" onclick="gerarRelatório('contratos_vencidos')">
                                 <div class="option-card-icon" style="background:#fef2f2;color:#ef4444;"><i
                                         class="fas fa-calendar-times"></i></div>
                                 <div class="option-card-title">Vencidos</div>
-                                <div class="option-card-desc">Contratos já vencidos</div>
+                                <div class="option-card-desc">Contratos com vigência expirada</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('contratos_receita')">
+                            <div class="option-card" onclick="gerarRelatório('contratos_receita')">
                                 <div class="option-card-icon"><i class="fas fa-chart-line"></i></div>
                                 <div class="option-card-title">Receita Contratos</div>
-                                <div class="option-card-desc">Receita mensal recorrente</div>
+                                <div class="option-card-desc">Receita recorrente por periodicidade</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('contratos_clientes')">
+                            <div class="option-card" onclick="gerarRelatório('contratos_clientes')">
                                 <div class="option-card-icon cyan"><i class="fas fa-users"></i></div>
                                 <div class="option-card-title">Contratos por Cliente</div>
-                                <div class="option-card-desc">Agrupamento por cliente</div>
+                                <div class="option-card-desc">Distribuição e valor por cliente</div>
                             </div>
                         </div>
                     </div>
@@ -188,38 +186,38 @@
                     </div>
                     <div class="card-body">
                         <div class="report-grid">
-                            <div class="option-card" onclick="gerarRelatorio('nfe_emitidas')">
+                            <div class="option-card" onclick="gerarRelatório('nfe_emitidas')">
                                 <div class="option-card-icon"><i class="fas fa-file-invoice"></i></div>
                                 <div class="option-card-title">NF-e Emitidas</div>
                                 <div class="option-card-desc">Todas notas emitidas no período</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('nfe_canceladas')">
+                            <div class="option-card" onclick="gerarRelatório('nfe_canceladas')">
                                 <div class="option-card-icon" style="background:#fef2f2;color:#ef4444;"><i
                                         class="fas fa-ban"></i></div>
                                 <div class="option-card-title">NF-e Canceladas</div>
                                 <div class="option-card-desc">Notas canceladas</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('faturamento_mensal')">
+                            <div class="option-card" onclick="gerarRelatório('faturamento_mensal')">
                                 <div class="option-card-icon green"><i class="fas fa-chart-bar"></i></div>
                                 <div class="option-card-title">Faturamento Mensal</div>
                                 <div class="option-card-desc">Evolução do faturamento</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('impostos')">
+                            <div class="option-card" onclick="gerarRelatório('impostos')">
                                 <div class="option-card-icon purple"><i class="fas fa-percentage"></i></div>
                                 <div class="option-card-title">Impostos</div>
                                 <div class="option-card-desc">Resumo de impostos retidos</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('faturamento_cliente')">
+                            <div class="option-card" onclick="gerarRelatório('faturamento_cliente')">
                                 <div class="option-card-icon cyan"><i class="fas fa-user-tag"></i></div>
                                 <div class="option-card-title">Por Cliente</div>
                                 <div class="option-card-desc">Faturamento por cliente</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('logistica')">
+                            <div class="option-card" onclick="gerarRelatório('logistica')">
                                 <div class="option-card-icon yellow"><i class="fas fa-truck"></i></div>
                                 <div class="option-card-title">Logística</div>
                                 <div class="option-card-desc">Entregas e expedição</div>
                             </div>
-                            <div class="option-card" onclick="gerarRelatorio('inadimplencia')">
+                            <div class="option-card" onclick="gerarRelatório('inadimplencia')">
                                 <div class="option-card-icon" style="background:#fef2f2;color:#ef4444;"><i
                                         class="fas fa-exclamation-triangle"></i></div>
                                 <div class="option-card-title">Inadimplência</div>
@@ -238,14 +236,14 @@
             <div style="display:flex;align-items:center;gap:12px;">
                 <button class="btn btn-secondary btn-sm" onclick="fecharPreview()"><i class="fas fa-arrow-left"></i>
                     Voltar</button>
-                <h3 id="preview-título" style="margin:0;color:#1e293b;font-size:16px;">Relatório</h3>
+                <h3 id="preview-titulo" style="margin:0;color:#1e293b;font-size:16px;">Relatório</h3>
             </div>
             <div style="display:flex;gap:8px;">
                 <button class="btn btn-outline btn-sm" onclick="exportarPDF()"><i class="fas fa-file-pdf"></i>
                     PDF</button>
                 <button class="btn btn-outline btn-sm" onclick="exportarExcel()"><i class="fas fa-file-excel"></i> XLSX
                     Excel</button>
-                <button class="btn btn-primary btn-sm" onclick="imprimirRelatorioProfissional()"><i
+                <button class="btn btn-primary btn-sm" onclick="imprimirRelatórioProfissional()"><i
                         class="fas fa-print"></i> Imprimir</button>
             </div>
         </div>
@@ -259,7 +257,7 @@
 
         function formatarMoeda(v) { return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 
-        const relatorioNomes = {
+        const relatórioNomes = {
             os_abertas: 'Ordens de Serviço Abertas', os_concluídas: 'OS Concluídas', os_pendentes: 'OS Pendentes',
             os_por_tecnico: 'OS por Técnico', os_faturamento: 'Faturamento OS',
             contratos_ativos: 'Contratos Ativos', contratos_vencer: 'Contratos a Vencer', contratos_vencidos: 'Contratos Vencidos',
@@ -269,40 +267,48 @@
             logistica: 'Relatório de Logística', inadimplencia: 'Inadimplência'
         };
 
-        function gerarRelatorio(tipo) {
+        // #11/#18: módulos ainda não integrados mostram um toast leve, não o overlay de preview.
+        function _modIndisponivel(nome) {
+            var t = document.createElement('div');
+            t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.2);z-index:99999;font-family:Inter,sans-serif;font-size:13px;';
+            t.textContent = 'Módulo de ' + nome + ' será integrado em breve.';
+            document.body.appendChild(t);
+            setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 4000);
+        }
+
+        function gerarRelatório(tipo) {
             const preview = document.getElementById('report-preview');
             const content = document.getElementById('preview-content');
-            const título = relatorioNomes[tipo] || tipo;
-            document.getElementById('preview-título').textContent = titulo;
+            const título = relatórioNomes[tipo] || tipo;
+            document.getElementById('preview-titulo').textContent = título;
 
             const dataInicio = document.getElementById('filtro-data-inicio').value || '-';
             const dataFim = document.getElementById('filtro-data-fim').value || '-';
 
-            content.innerHTML = gerarConteudoRelatorio(tipo, titulo, dataInicio, dataFim);
+            content.innerHTML = gerarConteudoRelatório(tipo, título, dataInicio, dataFim);
             preview.classList.add('active');
 
             // Carregar dados reais da API
-            carregarDadosRelatorio(tipo, titulo, dataInicio, dataFim);
+            carregarDadosRelatório(tipo, título, dataInicio, dataFim);
         }
 
-        function gerarConteudoRelatorio(tipo, titulo, di, df) {
+        function gerarConteudoRelatório(tipo, título, di, df) {
             return `<div style="text-align:center;padding:24px;">
         <i class="fas fa-spinner fa-spin" style="font-size:32px;color:#2563eb;"></i>
         <p style="margin-top:12px;color:#64748b;">Carregando dados...</p>
     </div>`;
         }
 
-        async function carregarDadosRelatorio(tipo, título, di, df) {
+        async function carregarDadosRelatório(tipo, título, di, df) {
             const content = document.getElementById('preview-content');
 
             const headerInstitucional = `
         <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:16px;border-bottom:3px solid #1e40af;margin-bottom:20px;">
             <div style="display:flex;align-items:center;gap:12px;">
-                <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:28px;filter:invert(1) brightness(0);" onerror="this.style.display='none'">
-                <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;filter:invert(1) brightness(0);margin-left:6px;" onerror="this.style.display='none'">
+                <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:28px;filter:invert(1) brightness(0);" onerror="this.style.display='none'">
                 <div style="border-left:2px solid #e2e8f0;padding-left:12px;">
-                    <h2 style="margin:0;font-size:16px;color:#1e293b;font-weight:700;">ALUFORCE SISTEMAS</h2>
-                    <p style="margin:0;font-size:10px;color:#94a3b8;letter-spacing:1px;">ZYNTRA ERP — GESTÃO EMPRESARIAL INTEGRADA</p>
+                    <h2 style="margin:0;font-size:16px;color:#1e293b;font-weight:700;">ZYNTRA ERP</h2>
+                    <p style="margin:0;font-size:10px;color:#94a3b8;letter-spacing:1px;">GESTÃO EMPRESARIAL INTEGRADA</p>
                 </div>
             </div>
             <div style="text-align:right;">
@@ -371,7 +377,7 @@
                         </tr></tfoot>
                     </table>
                     <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;font-size:10px;color:#94a3b8;">
-                        Relatório gerado pelo Sistema Aluforce • ${new Date().toLocaleString('pt-BR')} • Página 1/1
+                        Relatório gerado pelo Zyntra ERP • ${new Date().toLocaleString('pt-BR')} • Página 1/1
                     </div>`;
                         return;
                     }
@@ -404,7 +410,7 @@
                         <tfoot><tr style="background:#f8fafc;font-weight:700;"><td style="padding:10px 8px;border-top:2px solid #cbd5e1;">Total</td><td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;">${lista.length}</td><td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;color:#1e40af;">${formatarMoeda(totalGeral)}</td></tr></tfoot>
                     </table>
                     <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;font-size:10px;color:#94a3b8;">
-                        Relatório gerado pelo Sistema Aluforce • ${new Date().toLocaleString('pt-BR')}
+                        Relatório gerado pelo Zyntra ERP • ${new Date().toLocaleString('pt-BR')}
                     </div>`;
                         return;
                     }
@@ -431,7 +437,7 @@
                         <tfoot><tr style="background:#f8fafc;font-weight:700;"><td colspan="2" style="padding:10px 8px;border-top:2px solid #cbd5e1;">Total: ${clientes.length} cliente(s)</td><td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;">${lista.length}</td><td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;color:#1e40af;">${formatarMoeda(totalGeral)}</td><td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;">100%</td></tr></tfoot>
                     </table>
                     <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;font-size:10px;color:#94a3b8;">
-                        Relatório gerado pelo Sistema Aluforce • ${new Date().toLocaleString('pt-BR')}
+                        Relatório gerado pelo Zyntra ERP • ${new Date().toLocaleString('pt-BR')}
                     </div>`;
                         return;
                     }
@@ -465,7 +471,7 @@
                         <tfoot><tr style="background:#f8fafc;font-weight:700;"><td colspan="5" style="padding:10px 8px;border-top:2px solid #cbd5e1;">Total: ${pedidos.length} pedido(s)</td></tr></tfoot>
                     </table>
                     <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;font-size:10px;color:#94a3b8;">
-                        Relatório gerado pelo Sistema Aluforce • ${new Date().toLocaleString('pt-BR')}
+                        Relatório gerado pelo Zyntra ERP • ${new Date().toLocaleString('pt-BR')}
                     </div>`;
                     } catch (e) { content.innerHTML = headerInstitucional + '<p style="text-align:center;color:#ef4444;">Erro ao carregar dados de logística</p>'; }
                     return;
@@ -479,7 +485,7 @@
                 <p style="font-size:13px;">O relatório <strong>"${título}"</strong> será habilitado quando o módulo correspondente estiver integrado à API.</p>
             </div>
             <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;font-size:10px;color:#94a3b8;">
-                Relatório gerado pelo Sistema Aluforce • ${new Date().toLocaleString('pt-BR')}
+                Relatório gerado pelo Zyntra ERP • ${new Date().toLocaleString('pt-BR')}
             </div>`;
 
             } catch (e) {
@@ -498,7 +504,7 @@
             const content = document.getElementById('preview-content');
             const tables = content.querySelectorAll('table');
             if (!tables.length) { alert('Nenhuma tabela para exportar'); return; }
-            const titulo = (document.getElementById('preview-título') || document.getElementById('preview-t\u00EDtulo') || {}).textContent || 'Relatorio';
+            const título = (document.getElementById('preview-titulo') || document.getElementById('preview-t\u00EDtulo') || {}).textContent || 'Relatório';
             const wb = XLSX.utils.book_new();
             tables.forEach((table, i) => {
                 const ws = XLSX.utils.table_to_sheet(table, { raw: false });
@@ -517,19 +523,19 @@
                 XLSX.utils.book_append_sheet(wb, ws, 'Dados' + (tables.length > 1 ? '_' + (i + 1) : ''));
             });
             // Summary sheet
-            const summaryData = [['Relatório', titulo], ['Emitido em', new Date().toLocaleString('pt-BR')], ['Sistema', 'Aluforce / Zyntra ERP']];
+            const summaryData = [['Relatório', título], ['Emitido em', new Date().toLocaleString('pt-BR')], ['Sistema', 'Zyntra ERP']];
             const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
             XLSX.utils.book_append_sheet(wb, wsSummary, 'Info');
-            XLSX.writeFile(wb, 'relatorio_' + titulo.replace(/[^a-zA-Z0-9\u00C0-\u024F]/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+            XLSX.writeFile(wb, 'relatorio_' + título.replace(/[^a-zA-Z0-9\u00C0-\u024F]/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
         }
 
-        function exportarPDF() { imprimirRelatorioProfissional(); }
+        function exportarPDF() { imprimirRelatórioProfissional(); }
 
-        function imprimirRelatorioProfissional() {
+        function imprimirRelatórioProfissional() {
             const content = document.getElementById('preview-content').innerHTML;
-            const titulo = (document.getElementById('preview-t\u00EDtulo') || {}).textContent || 'Relat\u00F3rio';
+            const título = (document.getElementById('preview-t\u00EDtulo') || {}).textContent || 'Relat\u00F3rio';
             const w = window.open('', '_blank');
-            w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${titulo} \u2014 Zyntra ERP</title><style>
+            w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${título} \u2014 Zyntra ERP</title><style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Segoe UI',Inter,Arial,sans-serif; padding:15mm; color:#1e293b; font-size:11px; line-height:1.5; }
         .print-header { display:flex; justify-content:space-between; align-items:center; padding-bottom:12px; border-bottom:3px solid #1e40af; margin-bottom:16px; }
@@ -553,20 +559,13 @@
     <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body>
     <div class="print-header">
         <div class="brand">
-            <div style="background:#1e40af;color:white;padding:6px 14px;border-radius:4px;"><span class="brand-name">ALUFORCE</span></div>
+            <div style="background:#1e40af;color:white;padding:6px 14px;border-radius:4px;"><span class="brand-name">ZYNTRA</span></div>
             <div style="border-left:2px solid #e2e8f0;padding-left:10px;"><div style="font-size:15px;font-weight:700;color:#1e40af;">Zyntra ERP</div><div class="brand-sub">GEST\u00C3O EMPRESARIAL INTEGRADA</div></div>
         </div>
-        <div class="print-meta"><strong>${titulo}</strong><span>Emitido em: ${new Date().toLocaleString('pt-BR')}</span></div>
+        <div class="print-meta"><strong>${título}</strong><span>Emitido em: ${new Date().toLocaleString('pt-BR')}</span></div>
     </div>
     ${content}
-
-    <!-- Chat Corporativo (Teams) -->
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
-    <script src="/js/user-dropdown.js?v=20260319" defer></script>
-</body>
-
-</html>`);
+</body></html>`);
 w.document.close();
 setTimeout(() => { w.print(); w.close(); }, 500);
 }
@@ -592,6 +591,564 @@ document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 
     document.getElementById('filtro-data-inicio').value = mesPassado.toISOString().split('T')[0];
     });
     </script>
+    <script>
+        (function () {
+            const relatórioNomesSeguro = {
+                os_abertas: 'Ordens de Servico Abertas',
+                os_concluidas: 'OS Concluidas',
+                os_pendentes: 'OS Pendentes',
+                os_por_tecnico: 'OS por Tecnico',
+                os_faturamento: 'Faturamento OS',
+                contratos_ativos: 'Contratos Ativos',
+                contratos_vencer: 'Contratos a Vencer',
+                contratos_vencidos: 'Contratos Vencidos',
+                contratos_receita: 'Receita de Contratos',
+                contratos_clientes: 'Contratos por Cliente',
+                nfe_emitidas: 'NF-e Emitidas',
+                nfe_canceladas: 'NF-e Canceladas',
+                faturamento_mensal: 'Faturamento Mensal',
+                impostos: 'Resumo de Impostos',
+                faturamento_cliente: 'Faturamento por Cliente',
+                logistica: 'Relatório de Logistica',
+                inadimplencia: 'Inadimplencia'
+            };
+
+            function títuloPreview() {
+                return document.getElementById('preview-titulo') || document.getElementById('preview-titulo');
+            }
+
+            function formatarMoedaSeguro(valor) {
+                return (Number(valor) || 0).toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                });
+            }
+
+            function escaparHtml(valor) {
+                return String(valor ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function montarCabecalhoRelatório(título, di, df) {
+                const períodoInicio = di && di !== '-' ? new Date(di).toLocaleDateString('pt-BR') : '-';
+                const períodoFim = df && df !== '-' ? new Date(df).toLocaleDateString('pt-BR') : '-';
+
+                return `
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:16px;border-bottom:3px solid #1e40af;margin-bottom:20px;">
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:28px;filter:invert(1) brightness(0);" onerror="this.style.display='none'">
+                            <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;filter:invert(1) brightness(0);margin-left:6px;" onerror="this.style.display='none'">
+                            <div style="border-left:2px solid #e2e8f0;padding-left:12px;">
+                                <h2 style="margin:0;font-size:16px;color:#1e293b;font-weight:700;">ALUFORCE SISTEMAS</h2>
+                                <p style="margin:0;font-size:10px;color:#94a3b8;letter-spacing:1px;">ZYNTRA ERP - GESTAO EMPRESARIAL INTEGRADA</p>
+                            </div>
+                        </div>
+                        <div style="text-align:right;">
+                            <h3 style="margin:0;font-size:14px;color:#1e40af;font-weight:700;">${escaparHtml(título)}</h3>
+                            <p style="margin:2px 0 0;font-size:11px;color:#64748b;">Período: ${períodoInicio} a ${períodoFim}</p>
+                            <p style="margin:2px 0 0;font-size:10px;color:#94a3b8;">Emitido em: ${new Date().toLocaleString('pt-BR')}</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            function montarTabelaNfe(lista, título, di, df) {
+                const totalValor = lista.reduce((soma, item) => soma + (Number(item.valor) || Number(item.valor_total) || 0), 0);
+                const tabelaStyle = 'width:100%;border-collapse:collapse;font-size:12px;';
+                const thStyle = 'padding:10px 8px;text-align:left;border-bottom:2px solid #cbd5e1;background:#f8fafc;color:#334155;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;';
+                const tdStyle = 'padding:8px;border-bottom:1px solid #f1f5f9;color:#475569;';
+                const tdRightStyle = 'padding:8px;border-bottom:1px solid #f1f5f9;text-align:right;color:#475569;';
+
+                return (
+                    montarCabecalhoRelatório(título, di, df) +
+                    `
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+                        <div style="background:#f0f9ff;padding:12px;border-radius:6px;text-align:center;border:1px solid #bae6fd;">
+                            <div style="font-size:22px;font-weight:700;color:#0369a1;">${lista.length}</div>
+                            <div style="font-size:11px;color:#64748b;">Total de Notas</div>
+                        </div>
+                        <div style="background:#f0fdf4;padding:12px;border-radius:6px;text-align:center;border:1px solid #bbf7d0;">
+                            <div style="font-size:22px;font-weight:700;color:#15803d;">${formatarMoedaSeguro(totalValor)}</div>
+                            <div style="font-size:11px;color:#64748b;">Valor Total</div>
+                        </div>
+                        <div style="background:#faf5ff;padding:12px;border-radius:6px;text-align:center;border:1px solid #e9d5ff;">
+                            <div style="font-size:22px;font-weight:700;color:#7e22ce;">${lista.length ? formatarMoedaSeguro(totalValor / lista.length) : 'R$ 0,00'}</div>
+                            <div style="font-size:11px;color:#64748b;">Ticket Medio</div>
+                        </div>
+                    </div>
+                    <table style="${tabelaStyle}">
+                        <thead>
+                            <tr>
+                                <th style="${thStyle}">Número</th>
+                                <th style="${thStyle}">Serie</th>
+                                <th style="${thStyle}">Destinatario</th>
+                                <th style="${thStyle}">Data</th>
+                                <th style="${thStyle}">Status</th>
+                                <th style="${thStyle}text-align:right;">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${lista.length ? lista.map((item) => `
+                                <tr>
+                                    <td style="${tdStyle}"><strong>${escaparHtml(item.numero || '-')}</strong></td>
+                                    <td style="${tdStyle}">${escaparHtml(item.serie || '1')}</td>
+                                    <td style="${tdStyle}">${escaparHtml(item.destinatario || item.cliente || '-')}</td>
+                                    <td style="${tdStyle}">${item.data_emissao ? new Date(item.data_emissao).toLocaleDateString('pt-BR') : '-'}</td>
+                                    <td style="${tdStyle}">${escaparHtml(item.status || '-')}</td>
+                                    <td style="${tdRightStyle}"><strong>${formatarMoedaSeguro(item.valor || item.valor_total)}</strong></td>
+                                </tr>
+                            `).join('') : '<tr><td colspan="6" style="padding:24px;text-align:center;color:#94a3b8;">Nenhum registro encontrado no período</td></tr>'}
+                        </tbody>
+                        <tfoot>
+                            <tr style="background:#f8fafc;font-weight:700;">
+                                <td colspan="5" style="padding:10px 8px;border-top:2px solid #cbd5e1;">Total: ${lista.length} nota(s)</td>
+                                <td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;color:#1e40af;">${formatarMoedaSeguro(totalValor)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    `
+                );
+            }
+
+            async function carregarDadosRelatórioSeguro(tipo, título, di, df) {
+                const content = document.getElementById('preview-content');
+                if (!content) return;
+
+                const tabelaStyle = 'width:100%;border-collapse:collapse;font-size:12px;';
+                const thStyle = 'padding:10px 8px;text-align:left;border-bottom:2px solid #cbd5e1;background:#f8fafc;color:#334155;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;';
+                const tdStyle = 'padding:8px;border-bottom:1px solid #f1f5f9;color:#475569;';
+                const tdRightStyle = 'padding:8px;border-bottom:1px solid #f1f5f9;text-align:right;color:#475569;';
+
+                try {
+                    if (['nfe_emitidas', 'nfe_canceladas', 'faturamento_mensal', 'faturamento_cliente', 'impostos'].includes(tipo)) {
+                        const params = new URLSearchParams();
+                        if (di && di !== '-') params.set('data_inicio', di);
+                        if (df && df !== '-') params.set('data_fim', df);
+                        const status = document.getElementById('filtro-status')?.value || '';
+                        if (tipo === 'nfe_canceladas') params.set('status', 'cancelada');
+                        else if (status) params.set('status', status);
+                        params.set('limite', '500');
+
+                        const response = await fetch('/api/faturamento/nfes?' + params.toString(), { credentials: 'include' });
+                        const data = response.ok ? await response.json() : [];
+                        const lista = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+
+                        if (tipo === 'nfe_emitidas' || tipo === 'nfe_canceladas') {
+                            content.innerHTML = montarTabelaNfe(lista, título, di, df);
+                            return;
+                        }
+
+                        if (tipo === 'faturamento_mensal') {
+                            const porMes = {};
+                            lista.forEach((item) => {
+                                const dataRef = item.data_emissao ? new Date(item.data_emissao) : new Date();
+                                const chave = dataRef.getFullYear() + '-' + String(dataRef.getMonth() + 1).padStart(2, '0');
+                                if (!porMes[chave]) porMes[chave] = { total: 0, qtd: 0 };
+                                porMes[chave].total += Number(item.valor) || Number(item.valor_total) || 0;
+                                porMes[chave].qtd += 1;
+                            });
+
+                            const meses = Object.keys(porMes).sort();
+                            const totalGeral = lista.reduce((soma, item) => soma + (Number(item.valor) || Number(item.valor_total) || 0), 0);
+                            const nomesMes = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+                            content.innerHTML = montarCabecalhoRelatório(título, di, df) + `
+                                <div style="background:#f0f9ff;padding:16px;border-radius:8px;text-align:center;margin-bottom:20px;border:1px solid #bae6fd;">
+                                    <div style="font-size:28px;font-weight:700;color:#0369a1;">${formatarMoedaSeguro(totalGeral)}</div>
+                                    <div style="font-size:12px;color:#64748b;">Faturamento Total no Período</div>
+                                </div>
+                                <table style="${tabelaStyle}">
+                                    <thead><tr><th style="${thStyle}">Mes/Ano</th><th style="${thStyle}text-align:right;">Qtd Notas</th><th style="${thStyle}text-align:right;">Valor Faturado</th></tr></thead>
+                                    <tbody>${meses.map((mes) => {
+                                        const [ano, indiceMes] = mes.split('-');
+                                        return `<tr><td style="${tdStyle}">${nomesMes[parseInt(indiceMes, 10)]}/${ano}</td><td style="${tdRightStyle}">${porMes[mes].qtd}</td><td style="${tdRightStyle}"><strong>${formatarMoedaSeguro(porMes[mes].total)}</strong></td></tr>`;
+                                    }).join('')}</tbody>
+                                </table>
+                            `;
+                            return;
+                        }
+
+                        if (tipo === 'faturamento_cliente') {
+                            const porCliente = {};
+                            lista.forEach((item) => {
+                                const cliente = item.destinatario || item.cliente || 'Não informado';
+                                if (!porCliente[cliente]) porCliente[cliente] = { total: 0, qtd: 0 };
+                                porCliente[cliente].total += Number(item.valor) || Number(item.valor_total) || 0;
+                                porCliente[cliente].qtd += 1;
+                            });
+
+                            const clientes = Object.entries(porCliente).sort((a, b) => b[1].total - a[1].total);
+                            const totalGeral = lista.reduce((soma, item) => soma + (Number(item.valor) || Number(item.valor_total) || 0), 0);
+
+                            content.innerHTML = montarCabecalhoRelatório(título, di, df) + `
+                                <table style="${tabelaStyle}">
+                                    <thead><tr><th style="${thStyle}">#</th><th style="${thStyle}">Cliente</th><th style="${thStyle}text-align:right;">Notas</th><th style="${thStyle}text-align:right;">Valor</th><th style="${thStyle}text-align:right;">% do Total</th></tr></thead>
+                                    <tbody>${clientes.map(([nome, dados], indice) => `
+                                        <tr>
+                                            <td style="${tdStyle}">${indice + 1}</td>
+                                            <td style="${tdStyle}"><strong>${escaparHtml(nome)}</strong></td>
+                                            <td style="${tdRightStyle}">${dados.qtd}</td>
+                                            <td style="${tdRightStyle}"><strong>${formatarMoedaSeguro(dados.total)}</strong></td>
+                                            <td style="${tdRightStyle}">${totalGeral ? ((dados.total / totalGeral) * 100).toFixed(1) + '%' : '-'}</td>
+                                        </tr>
+                                    `).join('')}</tbody>
+                                </table>
+                            `;
+                            return;
+                        }
+
+                        content.innerHTML = montarCabecalhoRelatório(título, di, df) + `
+                            <div style="text-align:center;padding:32px;color:#64748b;">
+                                <i class="fas fa-percentage" style="font-size:40px;color:#cbd5e1;margin-bottom:12px;display:block;"></i>
+                                <p>Relatório de impostos requer integração com o módulo fiscal.</p>
+                                <p style="font-size:12px;">Total de notas no período: <strong>${lista.length}</strong></p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    if (tipo === 'logistica') {
+                        const response = await fetch('/api/logistica/pedidos?limit=500', { credentials: 'include' });
+                        const data = response.ok ? await response.json() : [];
+                        const pedidos = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+
+                        content.innerHTML = montarCabecalhoRelatório(título, di, df) + `
+                            <table style="${tabelaStyle}">
+                                <thead><tr><th style="${thStyle}">Pedido</th><th style="${thStyle}">Cliente</th><th style="${thStyle}">Transportadora</th><th style="${thStyle}">Status</th><th style="${thStyle}">Previsao</th></tr></thead>
+                                <tbody>${pedidos.length ? pedidos.map((pedido) => `
+                                    <tr>
+                                        <td style="${tdStyle}">#${escaparHtml(pedido.pedido_id || pedido.id || '-')}</td>
+                                        <td style="${tdStyle}">${escaparHtml(pedido.cliente || '-')}</td>
+                                        <td style="${tdStyle}">${escaparHtml(pedido.transportadora || '-')}</td>
+                                        <td style="${tdStyle}">${escaparHtml(pedido.status || '-')}</td>
+                                        <td style="${tdStyle}">${pedido.previsao ? new Date(pedido.previsao).toLocaleDateString('pt-BR') : '-'}</td>
+                                    </tr>
+                                `).join('') : '<tr><td colspan="5" style="padding:24px;text-align:center;color:#94a3b8;">Nenhum registro encontrado</td></tr>'}</tbody>
+                            </table>
+                        `;
+                        return;
+                    }
+
+                    // ===== Contratos =====
+                    if (['contratos_ativos', 'contratos_vencer', 'contratos_vencidos', 'contratos_receita', 'contratos_clientes'].includes(tipo)) {
+                        const response = await fetch('/api/faturamento/contratos', { credentials: 'include' });
+                        const data = response.ok ? await response.json() : [];
+                        const contratos = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+
+                        const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+                        const em30Dias = new Date(hoje); em30Dias.setDate(em30Dias.getDate() + 30);
+                        const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+                        const ativo = (c) => String(c.status || '').toLowerCase() !== 'cancelado' && String(c.status || '').toLowerCase() !== 'encerrado';
+                        const fimDe = (c) => c.data_fim ? new Date(c.data_fim) : null;
+                        const labelStatus = (c) => {
+                            const f = fimDe(c);
+                            if (!ativo(c)) return 'Encerrado';
+                            if (f && f < hoje) return 'Vencido';
+                            if (f && f <= em30Dias) return 'A vencer';
+                            return 'Ativo';
+                        };
+
+                        // contratos_receita — receita recorrente por periodicidade
+                        if (tipo === 'contratos_receita') {
+                            const fator = { mensal: 1, bimestral: 1 / 2, trimestral: 1 / 3, semestral: 1 / 6, anual: 1 / 12 };
+                            const ativos = contratos.filter(c => ativo(c) && (!fimDe(c) || fimDe(c) >= hoje));
+                            const porPer = {};
+                            let mrr = 0;
+                            ativos.forEach(c => {
+                                const per = String(c.periodicidade || 'mensal').toLowerCase();
+                                if (!porPer[per]) porPer[per] = { qtd: 0, total: 0 };
+                                porPer[per].qtd += 1;
+                                porPer[per].total += Number(c.valor) || 0;
+                                mrr += (Number(c.valor) || 0) * (fator[per] != null ? fator[per] : 1);
+                            });
+                            content.innerHTML = montarCabecalhoRelatório(título, di, df) + `
+                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+                                    <div style="background:#f0f9ff;padding:12px;border-radius:6px;text-align:center;border:1px solid #bae6fd;">
+                                        <div style="font-size:22px;font-weight:700;color:#0369a1;">${ativos.length}</div>
+                                        <div style="font-size:11px;color:#64748b;">Contratos Ativos</div>
+                                    </div>
+                                    <div style="background:#f0fdf4;padding:12px;border-radius:6px;text-align:center;border:1px solid #bbf7d0;">
+                                        <div style="font-size:22px;font-weight:700;color:#15803d;">${formatarMoedaSeguro(mrr)}</div>
+                                        <div style="font-size:11px;color:#64748b;">Receita Mensal (MRR)</div>
+                                    </div>
+                                    <div style="background:#faf5ff;padding:12px;border-radius:6px;text-align:center;border:1px solid #e9d5ff;">
+                                        <div style="font-size:22px;font-weight:700;color:#7e22ce;">${formatarMoedaSeguro(mrr * 12)}</div>
+                                        <div style="font-size:11px;color:#64748b;">Receita Anual (ARR)</div>
+                                    </div>
+                                </div>
+                                <table style="${tabelaStyle}">
+                                    <thead><tr><th style="${thStyle}">Periodicidade</th><th style="${thStyle}text-align:right;">Contratos</th><th style="${thStyle}text-align:right;">Valor/Ciclo</th></tr></thead>
+                                    <tbody>${Object.keys(porPer).length ? Object.entries(porPer).map(([per, d]) => `
+                                        <tr><td style="${tdStyle}">${escaparHtml(per.charAt(0).toUpperCase() + per.slice(1))}</td><td style="${tdRightStyle}">${d.qtd}</td><td style="${tdRightStyle}"><strong>${formatarMoedaSeguro(d.total)}</strong></td></tr>
+                                    `).join('') : '<tr><td colspan="3" style="padding:24px;text-align:center;color:#94a3b8;">Nenhum contrato ativo cadastrado</td></tr>'}</tbody>
+                                </table>
+                            `;
+                            return;
+                        }
+
+                        // contratos_clientes — distribuição por cliente
+                        if (tipo === 'contratos_clientes') {
+                            const porCliente = {};
+                            contratos.filter(ativo).forEach(c => {
+                                const cli = c.cliente_nome || 'Não informado';
+                                if (!porCliente[cli]) porCliente[cli] = { qtd: 0, total: 0 };
+                                porCliente[cli].qtd += 1;
+                                porCliente[cli].total += Number(c.valor) || 0;
+                            });
+                            const clientes = Object.entries(porCliente).sort((a, b) => b[1].total - a[1].total);
+                            const totalGeral = clientes.reduce((s, [, d]) => s + d.total, 0);
+                            content.innerHTML = montarCabecalhoRelatório(título, di, df) + `
+                                <table style="${tabelaStyle}">
+                                    <thead><tr><th style="${thStyle}">#</th><th style="${thStyle}">Cliente</th><th style="${thStyle}text-align:right;">Contratos</th><th style="${thStyle}text-align:right;">Valor</th><th style="${thStyle}text-align:right;">% do Total</th></tr></thead>
+                                    <tbody>${clientes.length ? clientes.map(([nome, d], i) => `
+                                        <tr>
+                                            <td style="${tdStyle}">${i + 1}</td>
+                                            <td style="${tdStyle}"><strong>${escaparHtml(nome)}</strong></td>
+                                            <td style="${tdRightStyle}">${d.qtd}</td>
+                                            <td style="${tdRightStyle}"><strong>${formatarMoedaSeguro(d.total)}</strong></td>
+                                            <td style="${tdRightStyle}">${totalGeral ? ((d.total / totalGeral) * 100).toFixed(1) + '%' : '-'}</td>
+                                        </tr>
+                                    `).join('') : '<tr><td colspan="5" style="padding:24px;text-align:center;color:#94a3b8;">Nenhum contrato cadastrado</td></tr>'}</tbody>
+                                </table>
+                            `;
+                            return;
+                        }
+
+                        // contratos_ativos / contratos_vencer / contratos_vencidos — listagens
+                        let lista;
+                        if (tipo === 'contratos_vencer') {
+                            lista = contratos.filter(c => ativo(c) && fimDe(c) && fimDe(c) >= hoje && fimDe(c) <= em30Dias);
+                        } else if (tipo === 'contratos_vencidos') {
+                            lista = contratos.filter(c => fimDe(c) && fimDe(c) < hoje);
+                        } else { // contratos_ativos
+                            lista = contratos.filter(c => ativo(c) && (!fimDe(c) || fimDe(c) >= hoje));
+                        }
+                        const totalValor = lista.reduce((s, c) => s + (Number(c.valor) || 0), 0);
+                        const corStatus = { 'Ativo': '#15803d', 'A vencer': '#b45309', 'Vencido': '#dc2626', 'Encerrado': '#64748b' };
+                        content.innerHTML = montarCabecalhoRelatório(título, di, df) + `
+                            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;">
+                                <div style="background:#f0f9ff;padding:12px;border-radius:6px;text-align:center;border:1px solid #bae6fd;">
+                                    <div style="font-size:22px;font-weight:700;color:#0369a1;">${lista.length}</div>
+                                    <div style="font-size:11px;color:#64748b;">Contratos</div>
+                                </div>
+                                <div style="background:#f0fdf4;padding:12px;border-radius:6px;text-align:center;border:1px solid #bbf7d0;">
+                                    <div style="font-size:22px;font-weight:700;color:#15803d;">${formatarMoedaSeguro(totalValor)}</div>
+                                    <div style="font-size:11px;color:#64748b;">Valor Total</div>
+                                </div>
+                            </div>
+                            <table style="${tabelaStyle}">
+                                <thead><tr>
+                                    <th style="${thStyle}">Contrato</th><th style="${thStyle}">Cliente</th><th style="${thStyle}">Início</th>
+                                    <th style="${thStyle}">Vencimento</th><th style="${thStyle}">Situação</th><th style="${thStyle}text-align:right;">Valor</th>
+                                </tr></thead>
+                                <tbody>${lista.length ? lista.map(c => {
+                                    const st = labelStatus(c);
+                                    return `<tr>
+                                        <td style="${tdStyle}"><strong>${escaparHtml(c.numero || ('#' + c.id))}</strong></td>
+                                        <td style="${tdStyle}">${escaparHtml(c.cliente_nome || '—')}</td>
+                                        <td style="${tdStyle}">${fmtData(c.data_inicio)}</td>
+                                        <td style="${tdStyle}">${fmtData(c.data_fim)}</td>
+                                        <td style="${tdStyle}"><span style="color:${corStatus[st] || '#475569'};font-weight:600;">${st}</span></td>
+                                        <td style="${tdRightStyle}"><strong>${formatarMoedaSeguro(c.valor)}</strong></td>
+                                    </tr>`;
+                                }).join('') : '<tr><td colspan="6" style="padding:24px;text-align:center;color:#94a3b8;">Nenhum contrato encontrado</td></tr>'}</tbody>
+                                <tfoot><tr style="background:#f8fafc;font-weight:700;">
+                                    <td colspan="5" style="padding:10px 8px;border-top:2px solid #cbd5e1;">Total: ${lista.length} contrato(s)</td>
+                                    <td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;color:#1e40af;">${formatarMoedaSeguro(totalValor)}</td>
+                                </tr></tfoot>
+                            </table>
+                        `;
+                        return;
+                    }
+
+                    content.innerHTML = montarCabecalhoRelatório(título, di, df) + `
+                        <div style="text-align:center;padding:40px;color:#64748b;">
+                            <i class="fas fa-chart-pie" style="font-size:48px;color:#cbd5e1;margin-bottom:16px;display:block;"></i>
+                            <h3 style="margin:0 0 8px;color:#334155;">Relatório em Desenvolvimento</h3>
+                            <p style="font-size:13px;">O relatório <strong>${escaparHtml(título)}</strong> sera habilitado quando o módulo correspondente estiver integrado a API.</p>
+                        </div>
+                    `;
+                } catch (error) {
+                    console.error('[Relatórios] Erro:', error);
+                    content.innerHTML = montarCabecalhoRelatório(título, di, df) + `<div style="text-align:center;padding:24px;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Erro ao carregar dados: ${escaparHtml(error.message)}</div>`;
+                }
+            }
+
+            window.toggleMobileSidebar = function toggleMobileSidebarSeguro() {
+                document.getElementById('mobile-sidebar')?.classList.toggle('open');
+                document.getElementById('sidebar-overlay')?.classList.toggle('active');
+            };
+
+            window.gerarRelatório = function gerarRelatórioSeguro(tipo) {
+                const título = relatórioNomesSeguro[tipo] || tipo;
+                const preview = document.getElementById('report-preview');
+                const content = document.getElementById('preview-content');
+                const títuloEl = títuloPreview();
+                const dataInicio = document.getElementById('filtro-data-inicio')?.value || '-';
+                const dataFim = document.getElementById('filtro-data-fim')?.value || '-';
+
+                if (títuloEl) títuloEl.textContent = título;
+                if (content) {
+                    content.innerHTML = `
+                        <div style="text-align:center;padding:24px;">
+                            <i class="fas fa-spinner fa-spin" style="font-size:32px;color:#2563eb;"></i>
+                            <p style="margin-top:12px;color:#64748b;">Carregando dados...</p>
+                        </div>
+                    `;
+                }
+                preview?.classList.add('active');
+                carregarDadosRelatórioSeguro(tipo, título, dataInicio, dataFim);
+            };
+
+            window.fecharPreview = function fecharPreviewSeguro() {
+                document.getElementById('report-preview')?.classList.remove('active');
+            };
+
+            window.exportarExcel = function exportarExcelSeguro() {
+                if (typeof XLSX === 'undefined') {
+                    alert('Biblioteca XLSX nao carregada.');
+                    return;
+                }
+
+                const content = document.getElementById('preview-content');
+                const tables = content ? content.querySelectorAll('table') : [];
+                if (!tables.length) {
+                    alert('Nenhuma tabela para exportar');
+                    return;
+                }
+
+                const título = títuloPreview()?.textContent || 'Relatório';
+                const wb = XLSX.utils.book_new();
+                tables.forEach((table, index) => {
+                    const ws = XLSX.utils.table_to_sheet(table, { raw: false });
+                    XLSX.utils.book_append_sheet(wb, ws, 'Dados' + (tables.length > 1 ? '_' + (index + 1) : ''));
+                });
+                XLSX.writeFile(wb, 'relatorio_' + título.replace(/[^a-zA-Z0-9]/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+            };
+
+            window.exportarPDF = function exportarPDFSeguro() {
+                window.imprimirRelatórioProfissional();
+            };
+
+            window.imprimirRelatórioProfissional = function imprimirRelatórioProfissionalSeguro() {
+                const content = document.getElementById('preview-content')?.innerHTML || '';
+                const título = títuloPreview()?.textContent || 'Relatório';
+                const printWindow = window.open('', '_blank');
+                if (!printWindow) return;
+
+                const dataEmissao = new Date().toLocaleDateString('pt-BR');
+                const horaEmissao = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+
+                printWindow.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${título} - Zyntra ERP</title>
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+                <style>
+                    @page { margin: 12mm 15mm; size: A4; }
+                    @media print { body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .print-bar { display: none !important; } }
+                    * { margin:0; padding:0; box-sizing:border-box; }
+                    body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color:#1e293b; font-size:11px; line-height:1.5; background:#fff; padding:30px 40px; }
+                    .print-bar { position:sticky; top:0; z-index:100; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:14px 24px; margin-bottom:24px; display:flex; align-items:center; justify-content:center; gap:12px; }
+                    .print-bar button { border:none; padding:10px 28px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition:all 0.2s; }
+                    .print-bar .btn-print { background:linear-gradient(135deg,#2563eb,#1d4ed8); color:#fff; }
+                    .print-bar .btn-close { background:#f1f5f9; color:#475569; }
+                    .rpt-header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:18px; border-bottom:3px solid #1e40af; margin-bottom:22px; }
+                    .brand-name { font-size:24px; font-weight:800; color:#1e293b; letter-spacing:-0.5px; }
+                    .brand-sub { font-size:11px; color:#64748b; font-weight:400; margin-top:3px; }
+                    .rpt-meta { text-align:right; }
+                    .doc-tag { font-size:9px; font-weight:700; color:#fff; background:linear-gradient(135deg,#1e40af,#1d4ed8); padding:4px 12px; border-radius:6px; display:inline-block; margin-bottom:8px; letter-spacing:1px; text-transform:uppercase; }
+                    .meta-line { font-size:10px; color:#64748b; margin-top:3px; }
+                    table { width:100%; border-collapse:collapse; border-radius:8px; overflow:hidden; margin-bottom:12px; }
+                    thead th { background:#1e293b; color:#fff; padding:9px 12px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.4px; }
+                    tbody td { padding:8px 12px; border-bottom:1px solid #f1f5f9; font-size:10.5px; }
+                    tbody tr:nth-child(even) { background:#f8fafc; }
+                    tfoot td { background:#f1f5f9 !important; font-weight:700; border-top:2px solid #cbd5e1; }
+                    .rpt-footer { margin-top:28px; padding-top:14px; border-top:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; }
+                    .rpt-footer span { font-size:9px; color:#94a3b8; }
+                    .confidential { font-size:8px; color:#cbd5e1; text-align:center; margin-top:10px; letter-spacing:1px; text-transform:uppercase; }
+                </style>
+    <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body>
+                <div class="print-bar">
+                    <button class="btn-print" onclick="window.print()"><i class="fas fa-print"></i> Imprimir / Salvar PDF</button>
+                    <button class="btn-close" onclick="window.close()"><i class="fas fa-times"></i> Fechar</button>
+                </div>
+                <div class="rpt-header">
+                    <div>
+                        <div class="brand-name">ALUFORCE</div>
+                        <div class="brand-sub">Zyntra \u2014 M\u00F3dulo de Faturamento</div>
+                    </div>
+                    <div class="rpt-meta">
+                        <div class="doc-tag">Relat\u00F3rio</div>
+                        <div class="meta-line">Emitido em: ${dataEmissao} \u00E0s ${horaEmissao}</div>
+                    </div>
+                </div>
+                ${content}
+                <div class="rpt-footer">
+                    <span>Zyntra ERP \u2014 Gest\u00E3o Empresarial Integrada</span>
+                    <span>Documento gerado automaticamente \u2014 P\u00E1gina 1/1</span>
+                </div>
+                <div class="confidential">Documento confidencial \u2014 Uso interno</div>
+                </body></html>`);
+                printWindow.document.close();
+                setTimeout(() => {
+                    printWindow.print();
+                    printWindow.close();
+                }, 400);
+            };
+
+            window.carregarDadosUsuario = function carregarDadosUsuarioSeguro() {
+                const hour = new Date().getHours();
+                const greeting = hour < 12 ? 'Bom dia' : (hour < 18 ? 'Boa tarde' : 'Boa noite');
+                const greetingEl = document.getElementById('greeting-text');
+                if (greetingEl) greetingEl.textContent = greeting;
+
+                fetch('/api/me', { credentials: 'include' })
+                    .then((response) => {
+                        if (!response.ok) throw new Error(String(response.status));
+                        return response.json();
+                    })
+                    .then((user) => {
+                        const nome = user.nome || user.name || 'Usuario';
+                        const nomeCurto = nome.split(' ')[0];
+                        const userNameEl = document.getElementById('user-name');
+                        const userInitialsEl = document.getElementById('user-initials');
+                        const userPhotoEl = document.getElementById('user-photo');
+
+                        if (userNameEl) userNameEl.textContent = nomeCurto;
+                        if (userInitialsEl) userInitialsEl.textContent = nomeCurto.substring(0, 2).toUpperCase();
+
+                        if ((user.foto || user.avatar) && userPhotoEl && userInitialsEl) {
+                            userPhotoEl.src = user.foto || user.avatar;
+                            userPhotoEl.style.display = 'block';
+                            userInitialsEl.style.display = 'none';
+                        }
+                    })
+                    .catch((error) => {
+                        console.warn('Erro ao carregar usuario:', error);
+                    });
+            };
+
+            function inicializarRelatóriosSeguro() {
+                window.carregarDadosUsuario();
+                const hoje = new Date();
+                const mesPassado = new Date(hoje);
+                mesPassado.setMonth(mesPassado.getMonth() - 1);
+
+                const dataFim = document.getElementById('filtro-data-fim');
+                const dataInicio = document.getElementById('filtro-data-inicio');
+                if (dataFim && !dataFim.value) dataFim.value = hoje.toISOString().split('T')[0];
+                if (dataInicio && !dataInicio.value) dataInicio.value = mesPassado.toISOString().split('T')[0];
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', inicializarRelatóriosSeguro, { once: true });
+            } else {
+                inicializarRelatóriosSeguro();
+            }
+        })();
+    </script>
     <script src="/js/tooltips-professional.js?v=20260209"></script>
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
 
@@ -606,3 +1163,4 @@ document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 
     </body>
 
     </html>
+

@@ -120,7 +120,7 @@ function logout() {
         credentials: 'include'
     }).finally(() => {
         // Redirecionar para login principal
-        window.location.href = '/login.html';
+        window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
     });
 }
 

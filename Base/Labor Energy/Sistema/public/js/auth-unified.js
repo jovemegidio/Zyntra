@@ -12,6 +12,55 @@
 // FIX v7.6: 502/504 entram no mesmo caminho resiliente de retry/fallback.
 
 // =============================================================================
+// 🚦 DEDUP DE /api/me — fix F6 (14/jun/2026)
+// Vários scripts (layout, header, perfil, kpis, sidebar...) chamam GET /api/me
+// de forma independente — observado 8+ requisições por carregamento de página.
+// Este interceptor envolve window.fetch APENAS para GET /api/me: requisições
+// concorrentes compartilham a mesma promise e o resultado é cacheado por uma
+// janela curta. Qualquer outra URL/método passa direto pelo fetch nativo, e
+// qualquer erro inesperado degrada para o fetch nativo (sem regressão de auth).
+// =============================================================================
+;(function dedupMeFetch() {
+    try {
+        if (typeof window === 'undefined' || !window.fetch || window.__meDedupInstalled) return;
+        window.__meDedupInstalled = true;
+        var nativeFetch = window.fetch.bind(window);
+        var TTL_MS = 2500;
+        var cachedResponse = null;
+        var cachedAt = 0;
+        var inflight = null;
+
+        function isMeGet(input, init) {
+            try {
+                var url = typeof input === 'string' ? input : (input && input.url) || '';
+                var method = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+                return method === 'GET' && /(^|\/)api\/me(\?|#|$)/.test(url);
+            } catch (e) { return false; }
+        }
+
+        window.fetch = function (input, init) {
+            if (!isMeGet(input, init)) return nativeFetch(input, init);
+            try {
+                var now = Date.now();
+                if (cachedResponse && (now - cachedAt) < TTL_MS) {
+                    return Promise.resolve(cachedResponse.clone());
+                }
+                if (inflight) return inflight.then(function (r) { return r.clone(); });
+                inflight = nativeFetch(input, init).then(function (r) {
+                    cachedResponse = r; cachedAt = Date.now(); inflight = null;
+                    return r;
+                }, function (err) {
+                    inflight = null; throw err;
+                });
+                return inflight.then(function (r) { return r.clone(); });
+            } catch (e) {
+                return nativeFetch(input, init);
+            }
+        };
+    } catch (e) { /* fetch indisponível: nada a fazer */ }
+})();
+
+// =============================================================================
 // ANTI-FOUC: restaurar somente header/sidebar escuros.
 // Não aplica `dark-mode` no body para não alterar o conteúdo das páginas.
 // =============================================================================
@@ -684,6 +733,37 @@
         return false;
     }
 
+    // Exibir banner de sessão expirada antes de redirecionar (BE-001)
+    function _showSessionExpiredBanner(reason) {
+        try {
+            if (document.getElementById('__auth-session-banner')) return;
+            const banner = document.createElement('div');
+            banner.id = '__auth-session-banner';
+            banner.setAttribute('role', 'alert');
+            banner.style.cssText = [
+                'position:fixed', 'top:0', 'left:0', 'width:100%', 'z-index:2147483647',
+                'background:linear-gradient(90deg,#c0392b,#e74c3c)', 'color:#fff',
+                'padding:14px 20px', 'font:600 14px/1.4 system-ui,sans-serif',
+                'display:flex', 'align-items:center', 'gap:12px',
+                'box-shadow:0 2px 12px rgba(0,0,0,0.3)',
+                'animation:__bannerSlide .25s ease-out'
+            ].join(';');
+            const style = document.createElement('style');
+            style.textContent = '@keyframes __bannerSlide{from{transform:translateY(-100%)}to{transform:translateY(0)}}';
+            document.head.appendChild(style);
+            const icon = document.createElement('span');
+            icon.textContent = '🔒';
+            icon.style.cssText = 'font-size:18px;flex-shrink:0';
+            const text = document.createElement('span');
+            text.textContent = reason && reason !== 'Não autenticado'
+                ? `Sessão encerrada: ${reason}. Redirecionando para login…`
+                : 'Sua sessão expirou. Redirecionando para login…';
+            banner.appendChild(icon);
+            banner.appendChild(text);
+            document.body ? document.body.prepend(banner) : document.documentElement.prepend(banner);
+        } catch(e) { /* não bloquear redirect por falha no banner */ }
+    }
+
     // Função para redirecionar para login (com proteção contra loop)
     function redirectToLogin(reason = 'Não autenticado') {
         if (isRedirecting) {
@@ -699,6 +779,9 @@
         isRedirecting = true;
         debugLog(`🚪 Redirecionando para login: ${reason}`);
 
+        // BE-001: Mostrar banner visível por ~1.5s antes de redirecionar
+        _showSessionExpiredBanner(reason);
+
         const currentPath = window.location.pathname + window.location.search + window.location.hash;
         const returnTo = encodeURIComponent(currentPath);
 
@@ -707,7 +790,7 @@
             loginUrl = `${AUTH_CONFIG.loginUrl}?returnTo=${returnTo}`;
         }
 
-        window.location.assign(loginUrl);
+        setTimeout(() => window.location.assign(loginUrl), 1500);
     }
 
     // =========================================================================
@@ -954,6 +1037,43 @@
         }
     };
 
+    const EMPRESA_LOGO_SELECTOR = '.logo-empresa, .company-logo, #logo-sidebar, #logo-header, img[src*="logo"]';
+
+    function isFixedBrandInstance() {
+        return typeof window !== 'undefined' && !!window.__BRAND_LOGO__;
+    }
+
+    function isBrandLogoLocked(el) {
+        return el && (
+            el.getAttribute('data-brand-logo-locked') === 'true' ||
+            el.id === 'zc-empresa-logo' ||
+            el.id === 'alf-brand-logo'
+        );
+    }
+
+    function forEachMutableEmpresaLogo(callback) {
+        document.querySelectorAll(EMPRESA_LOGO_SELECTOR).forEach(img => {
+            if (isBrandLogoLocked(img)) return;
+            callback(img);
+        });
+    }
+
+    function aplicarLogoFixoDaMarca() {
+        if (!isFixedBrandInstance()) return false;
+
+        localStorage.removeItem('empresa_logo_url');
+        localStorage.removeItem('empresa_logo_timestamp');
+
+        document.querySelectorAll('[data-brand-logo-locked="true"], #zc-empresa-logo, #alf-brand-logo').forEach(img => {
+            if (img.tagName === 'IMG') {
+                img.src = window.__BRAND_LOGO__;
+                if (window.__BRAND_NAME__) img.alt = window.__BRAND_NAME__;
+            }
+        });
+
+        return true;
+    }
+
     // === BRANDING: Aplicar logo e favicon da empresa em todas as páginas ===
     function aplicarBrandingEmpresa() {
         try {
@@ -972,12 +1092,16 @@
                 }
             }
 
-            // Aplicar logo do localStorage
-            const logoUrl = localStorage.getItem('empresa_logo_url');
+            const usaLogoFixaDaMarca = aplicarLogoFixoDaMarca();
+
+            // Aplicar logo do localStorage apenas na instância Aluforce multiempresa.
+            // Nas instâncias Labor, a marca do tenant vem de window.__BRAND_LOGO__
+            // injetado pelo middleware e não pode ser sobrescrita por cache/API.
+            const logoUrl = usaLogoFixaDaMarca ? null : localStorage.getItem('empresa_logo_url');
             if (logoUrl) {
                 const ts = localStorage.getItem('empresa_logo_timestamp') || '';
                 const url = logoUrl + '?v=' + ts;
-                document.querySelectorAll('.logo-empresa, .company-logo, #logo-sidebar, #logo-header, img[src*="logo"]').forEach(img => {
+                forEachMutableEmpresaLogo(img => {
                     if (img.tagName === 'IMG') img.src = url;
                 });
             }
@@ -991,10 +1115,10 @@
                     .then(r => r.ok ? r.json() : null)
                     .then(data => {
                         if (!data) return;
-                        if (data.logo_url) {
+                        if (data.logo_url && !usaLogoFixaDaMarca) {
                             localStorage.setItem('empresa_logo_url', data.logo_url);
                             localStorage.setItem('empresa_logo_timestamp', Date.now().toString());
-                            document.querySelectorAll('.logo-empresa, .company-logo, #logo-sidebar, #logo-header, img[src*="logo"]').forEach(img => {
+                            forEachMutableEmpresaLogo(img => {
                                 if (img.tagName === 'IMG') img.src = data.logo_url + '?v=' + Date.now();
                             });
                         }

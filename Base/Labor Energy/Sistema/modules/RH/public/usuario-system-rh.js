@@ -1,4 +1,4 @@
-﻿// Script para gerenciar avatar e informações do usuário logado - Módulo RH
+// Script para gerenciar avatar e informações do usuário logado - Módulo RH
 (function() {
     'use strict';
     
@@ -12,11 +12,11 @@
         } else if (path.includes('/modules/PCP') || path.includes('/pcp/')) {
             return 'pcp';
         }
-        // Default para PCP se náo detectado
+        // Default para PCP se não detectado
         return 'pcp';
     }
     
-    // Funçáo para carregar informações do usuário atual
+    // Função para carregar informações do usuário atual
     async function carregarUsuarioLogado() {
         try {
             const modulo = detectarModulo();
@@ -55,12 +55,12 @@
                     atualizarInterfaceUsuario(currentUser);
                     return currentUser;
                 } else {
-                    console.error('❌ Campo "user" náo encontrado na resposta');
+                    console.error('❌ Campo "user" não encontrado na resposta');
                     return null;
                 }
             } else {
                 const errorText = await response.text();
-                console.warn('⚠️ Náo foi possível carregar dados do usuário');
+                console.warn('⚠️ Não foi possível carregar dados do usuário');
                 console.warn('⚠️ Status:', response.status, response.statusText);
                 console.warn('⚠️ Resposta:', errorText);
                 return null;
@@ -72,7 +72,7 @@
         }
     }
     
-    // Funçáo para atualizar todos os elementos da interface com os dados do usuário
+    // Função para atualizar todos os elementos da interface com os dados do usuário
     function atualizarInterfaceUsuario(user) {
         if (!user) {
             console.warn('⚠️ atualizarInterfaceUsuario: user é null/undefined');
@@ -133,7 +133,7 @@
         });
     }
     
-    // Funçáo para obter URL do avatar com fallbacks
+    // Função para obter URL do avatar com fallbacks
     function obterURLAvatar(user) {
         console.log('🎯 Obtendo URL do avatar...');
         console.log('🎯 User data:', {
@@ -167,8 +167,8 @@
             return avatarPath;
         }
         
-        // Fallback final: avatar padráo
-        console.log('⚠️ Usando avatar padráo');
+        // Fallback final: avatar padrão
+        console.log('⚠️ Usando avatar padrão');
         return '/avatars/default.webp';
     }
     

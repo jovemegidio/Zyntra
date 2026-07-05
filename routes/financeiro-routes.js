@@ -118,12 +118,41 @@ module.exports = function createFinanceiroRoutes(deps) {
     }
     ensureConciliacaoTables();
 
+    // Parser OFX (SGML 1.x / XML 2.x) — extrai <STMTTRN> sem dependência externa.
+    function parseOfxText(text) {
+        const txns = [];
+        const tag = (block, name) => { const r = new RegExp('<' + name + '>([^<\\r\\n]*)', 'i').exec(block); return r ? r[1].trim() : ''; };
+        const re = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi; let m;
+        while ((m = re.exec(text)) !== null) {
+            const b = m[1];
+            const dtRaw = (tag(b, 'DTPOSTED') || '').replace(/[^0-9]/g, '');
+            if (dtRaw.length < 8) continue;
+            const valorNum = parseFloat((tag(b, 'TRNAMT') || '0').replace(',', '.'));
+            if (Number.isNaN(valorNum)) continue;
+            const descricao = (tag(b, 'MEMO') || tag(b, 'NAME') || tag(b, 'CHECKNUM') || 'Lançamento').slice(0, 500);
+            txns.push({
+                data: `${dtRaw.slice(0, 4)}-${dtRaw.slice(4, 6)}-${dtRaw.slice(6, 8)}`,
+                valor: valorNum,
+                descricao,
+                numero_documento: tag(b, 'CHECKNUM') || tag(b, 'FITID') || null
+            });
+        }
+        return txns;
+    }
+
     // 1a. Importar extrato (OFX/CSV/XLSX)
+    // Aceita movimentacoes[] já parseadas (CSV/XLSX pelo front) OU o conteúdo bruto
+    // de um .OFX (campo `ofx`, ou `conteudo` com `formato='ofx'`) parseado no servidor.
     router.post('/conciliacao/importar-ofx', async (req, res, next) => {
         try {
-            const { conta_id, movimentacoes, arquivo } = req.body;
+            const { conta_id, arquivo, ofx, conteudo, formato } = req.body;
+            let { movimentacoes } = req.body;
+            const rawOfx = ofx || ((String(formato || '').toLowerCase() === 'ofx') ? conteudo : null);
+            if ((!Array.isArray(movimentacoes) || !movimentacoes.length) && rawOfx) {
+                movimentacoes = parseOfxText(String(rawOfx));
+            }
             if (!conta_id || !movimentacoes || !Array.isArray(movimentacoes) || movimentacoes.length === 0) {
-                return res.status(400).json({ success: false, message: 'conta_id e movimentacoes[] são obrigatórios' });
+                return res.status(400).json({ success: false, message: 'conta_id e movimentacoes[] (ou conteúdo OFX) são obrigatórios' });
             }
 
             let inseridos = 0;
@@ -263,6 +292,99 @@ module.exports = function createFinanceiroRoutes(deps) {
             await pool.query('DELETE FROM conciliacoes_bancarias WHERE id = ?', [id]);
             res.json({ success: true, message: 'Conciliação desfeita' });
         } catch (error) { next(error); }
+    });
+
+    // 1d-bis. Editar uma linha do extrato importado (data/descricao/valor/tipo/saldo)
+    router.put('/conciliacao/extrato/:id', async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const { data, descricao, valor, tipo, saldo } = req.body;
+            const [[atual]] = await pool.query('SELECT * FROM extratos_importados WHERE id = ?', [id]);
+            if (!atual) return res.status(404).json({ success: false, message: 'Lançamento do extrato não encontrado' });
+
+            const dataFinal = data || atual.data;
+            const descricaoFinal = (descricao !== undefined && descricao !== null) ? descricao : atual.descricao;
+            const valorFinal = (valor !== undefined && valor !== null && valor !== '') ? Math.abs(parseFloat(valor)) : atual.valor;
+            const tipoFinal = tipo || atual.tipo;
+            const saldoFinal = (saldo !== undefined && saldo !== null && saldo !== '') ? parseFloat(saldo) : atual.saldo;
+
+            await pool.query(
+                'UPDATE extratos_importados SET data = ?, descricao = ?, valor = ?, tipo = ?, saldo = ? WHERE id = ?',
+                [dataFinal, descricaoFinal, valorFinal, tipoFinal, saldoFinal, id]
+            );
+            res.json({ success: true, message: 'Lançamento do extrato atualizado' });
+        } catch (error) {
+            console.error('[Conciliação] Erro ao editar extrato:', error);
+            next(error);
+        }
+    });
+
+    // 1d-ter. Excluir uma linha do extrato importado (e qualquer conciliação que a referencie)
+    router.delete('/conciliacao/extrato/:id', async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            await pool.query('DELETE FROM conciliacoes_bancarias WHERE extrato_id = ?', [id]).catch(() => {});
+            const [result] = await pool.query('DELETE FROM extratos_importados WHERE id = ?', [id]);
+            if (!result.affectedRows) return res.status(404).json({ success: false, message: 'Lançamento não encontrado' });
+            res.json({ success: true, message: 'Lançamento do extrato excluído' });
+        } catch (error) {
+            console.error('[Conciliação] Erro ao excluir extrato:', error);
+            next(error);
+        }
+    });
+
+    // 1d-quater. Comparar lançamentos do sistema x extrato do banco (de acordo com a conta)
+    router.get('/conciliacao/comparar', async (req, res, next) => {
+        try {
+            const { conta, inicio, fim } = req.query;
+            if (!conta) return res.json({ sistema: [], extrato: [], resumo: {} });
+
+            const temPeriodo = inicio && fim;
+            const [movSistema] = await pool.query(
+                `SELECT id, valor, data, descricao, tipo FROM movimentacoes_bancarias
+                 WHERE banco_id = ? ${temPeriodo ? 'AND data BETWEEN ? AND ?' : ''} ORDER BY data`,
+                temPeriodo ? [conta, inicio, fim] : [conta]
+            ).catch(() => [[]]);
+
+            const [extrato] = await pool.query(
+                `SELECT id, valor, data, descricao, tipo, conciliado FROM extratos_importados
+                 WHERE conta_id = ? ${temPeriodo ? 'AND data BETWEEN ? AND ?' : ''} ORDER BY data`,
+                temPeriodo ? [conta, inicio, fim] : [conta]
+            );
+
+            const dataIso = d => { try { return new Date(d).toISOString().slice(0, 10); } catch (_) { return null; } };
+            const diffDias = (a, b) => Math.abs((new Date(a) - new Date(b)) / 86400000);
+            const usadosExtrato = new Set();
+
+            const sistema = (movSistema || []).map(m => {
+                const match = (extrato || []).find(e => !usadosExtrato.has(e.id)
+                    && Math.abs(Number(e.valor) - Number(m.valor)) < 0.01
+                    && diffDias(e.data, m.data) <= 3);
+                if (match) usadosExtrato.add(match.id);
+                return { id: m.id, data: dataIso(m.data), descricao: m.descricao, valor: Number(m.valor),
+                         tipo: m.tipo, conferido: !!match, extrato_id: match ? match.id : null };
+            });
+
+            const extratoOut = (extrato || []).map(e => ({
+                id: e.id, data: dataIso(e.data), descricao: e.descricao, valor: Number(e.valor),
+                tipo: e.tipo, conciliado: Number(e.conciliado) === 1, conferido: usadosExtrato.has(e.id)
+            }));
+
+            const somar = arr => arr.reduce((s, x) => s + (Number(x.valor) || 0), 0);
+            res.json({
+                sistema, extrato: extratoOut,
+                resumo: {
+                    sistemaTotal: somar(sistema),
+                    extratoTotal: somar(extratoOut),
+                    divergencia: somar(sistema) - somar(extratoOut),
+                    sistemaSemMatch: sistema.filter(s => !s.conferido).length,
+                    extratoSemMatch: extratoOut.filter(e => !e.conferido).length
+                }
+            });
+        } catch (error) {
+            console.error('[Conciliação] Erro ao comparar:', error);
+            next(error);
+        }
     });
 
     // 1e. Conciliação automática (server-side)
@@ -1877,6 +1999,84 @@ module.exports = function createFinanceiroRoutes(deps) {
         } catch (error) {
             console.error('❌ Erro ao buscar clientes:', error);
             res.status(500).json({ error: 'Erro ao buscar clientes', message: 'Erro interno no servidor. Tente novamente.' });
+        }
+    });
+
+    // ============================================================
+    // BUG-003: backfill — gera contas_receber para pedidos faturados
+    // que ainda não têm conta. Cobre o histórico antes da integração.
+    // ============================================================
+    router.post('/sincronizar-faturamento', async (req, res) => {
+        try {
+            const { getFaturamentoSharedService } = require('../services/faturamento-shared.service');
+            const faturamentoShared = getFaturamentoSharedService(pool);
+
+            const [pedidos] = await pool.query(`
+                SELECT p.id, p.cliente_id, p.cliente, p.cliente_nome, p.valor,
+                       p.condicao_pagamento, p.condicoes_pagamento, p.nf, p.numero_nf,
+                       p.data_faturamento, p.created_at
+                FROM pedidos p
+                WHERE p.status IN ('faturado', 'entregue', 'recibo', 'convertido')
+                  AND NOT EXISTS (SELECT 1 FROM contas_receber cr WHERE cr.pedido_id = p.id)
+            `);
+
+            if (pedidos.length === 0) {
+                return res.json({ success: true, message: 'Nada a sincronizar.', criadas: 0, erros: 0 });
+            }
+
+            let criadas = 0;
+            let erros = 0;
+            const detalhes = [];
+            const connection = await pool.getConnection();
+
+            try {
+                for (const p of pedidos) {
+                    try {
+                        // Preferir SUM dos itens para precisão
+                        const [[itensSum]] = await connection.query(
+                            'SELECT COUNT(*) as cnt, COALESCE(SUM(subtotal), 0) as tot FROM pedido_itens WHERE pedido_id = ?',
+                            [p.id]
+                        );
+                        let valor = parseFloat(p.valor || 0);
+                        if (Number(itensSum.cnt) > 0 && parseFloat(itensSum.tot) > 0) {
+                            valor = parseFloat(itensSum.tot);
+                        }
+                        if (valor <= 0) {
+                            detalhes.push({ pedido_id: p.id, status: 'skip', motivo: 'valor zero' });
+                            continue;
+                        }
+
+                        await connection.beginTransaction();
+                        const result = await faturamentoShared.gerarContaReceber(connection, {
+                            pedido_id: p.id,
+                            cliente_id: p.cliente_id || null,
+                            descricao: `Faturamento Pedido #${p.id}${p.nf || p.numero_nf ? ' / NF ' + (p.nf || p.numero_nf) : ''} - ${p.cliente_nome || p.cliente || 'Cliente'}`,
+                            valor,
+                            tipo: 'faturamento',
+                            pedido: p
+                        });
+                        await connection.commit();
+
+                        criadas += result?.total_parcelas || 1;
+                        detalhes.push({ pedido_id: p.id, status: 'ok', conta_id: result?.insertId, parcelas: result?.total_parcelas });
+                    } catch (e) {
+                        try { await connection.rollback(); } catch (_) {}
+                        erros++;
+                        detalhes.push({ pedido_id: p.id, status: 'erro', erro: e.message });
+                    }
+                }
+            } finally {
+                connection.release();
+            }
+
+            res.json({
+                success: true,
+                message: `Sincronização concluída: ${criadas} conta(s)/parcela(s) gerada(s), ${erros} erro(s).`,
+                criadas, erros, total_pedidos: pedidos.length, detalhes
+            });
+        } catch (error) {
+            console.error('[SINC-FATURAMENTO] Erro:', error.message);
+            res.status(500).json({ success: false, message: 'Erro ao sincronizar faturamento.', error: error.message });
         }
     });
 

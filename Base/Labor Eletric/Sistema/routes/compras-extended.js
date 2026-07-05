@@ -1993,7 +1993,8 @@ module.exports = function createComprasExtendedRoutes(deps) {
             const { status, prioridade, solicitante, data_inicio, data_fim } = req.query;
             let query = `
                 SELECT r.*,
-                       (SELECT COUNT(*) FROM itens_requisicao WHERE requisicao_id = r.id) as total_itens
+                       (SELECT COUNT(*) FROM itens_requisicao WHERE requisicao_id = r.id) as total_itens,
+                       (SELECT descricao FROM itens_requisicao WHERE requisicao_id = r.id ORDER BY id LIMIT 1) as primeiro_item_descricao
                 FROM requisicoes_compra r
                 WHERE 1=1
             `;

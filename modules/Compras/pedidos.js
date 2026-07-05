@@ -329,9 +329,11 @@ function filtrarProdutosItem(itemId, termo) {
         const nome = escapeHtml(p.nome || p.descricao || p.nome_material || '');
         const preco = p.preco_custo || p.preco || p.valor || 0;
         const codigo = escapeHtml(p.codigo || p.cod || '');
+        // CV-001: carregar o id do material para vincular o item ao estoque (FK), não só texto
+        const materialId = p.id || p.material_id || '';
         return `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:0.82rem;display:flex;justify-content:space-between;align-items:center;"
                      onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background='#fff'"
-                     onclick="selecionarProdutoItem(${itemId}, '${nome.replace(/'/g,"\\'")}', ${preco})">
+                     onclick="selecionarProdutoItem(${itemId}, '${nome.replace(/'/g,"\\'")}', ${preco}, '${materialId}')">
             <span>${codigo ? '<span style=\'color:#94a3b8;margin-right:6px;\'>' + codigo + '</span>' : ''}${nome}</span>
             ${preco > 0 ? '<span style="color:#22c55e;font-weight:600;">R$ ' + Number(preco).toFixed(2) + '</span>' : ''}
         </div>`;
@@ -339,10 +341,13 @@ function filtrarProdutosItem(itemId, termo) {
     dropdown.style.display = 'block';
 }
 
-function selecionarProdutoItem(itemId, nome, preco) {
+function selecionarProdutoItem(itemId, nome, preco, materialId) {
     const row = document.getElementById(`item-${itemId}`);
     if (!row) return;
-    row.querySelector('.item-descricao').value = nome;
+    const descEl = row.querySelector('.item-descricao');
+    descEl.value = nome;
+    // CV-001: guardar o material_id na própria linha para enviar no payload do pedido
+    if (materialId) descEl.dataset.materialId = materialId;
     if (preco > 0) row.querySelector('.item-preco').value = Number(preco).toFixed(2);
     const dropdown = document.getElementById(`prod-dropdown-${itemId}`);
     if (dropdown) dropdown.style.display = 'none';
@@ -601,9 +606,12 @@ function coletarItens() {
         const preco = parseFloat(row.querySelector('.item-preco')?.value) || 0;
         const unidadeEl = row.querySelector('.item-unidade');
         const unidade = unidadeEl ? unidadeEl.value : 'UN';
+        // CV-001: enviar o material_id vinculado (quando o item foi escolhido do catálogo)
+        const materialId = descricaoEl.dataset.materialId || null;
 
         itens.push({
             descricao: descricao,
+            material_id: materialId ? parseInt(materialId) : null,
             quantidade: quantidade,
             unidade: unidade,
             preco_unitario: preco,
@@ -656,10 +664,16 @@ function renderizarTabelaPedidos() {
     tbody.innerHTML = pedidosFiltrados.map(pedido => {
         // Calcular valor exibido em tempo real
         const valorExibir = parseFloat(pedido.valor_final) || parseFloat(pedido.valor_total) || 0;
+        // [FIX A11] Pedidos cancelados: linha esmaecida + texto tachado para distinção visual
+        const isCancelado = pedido.status === 'cancelado';
+        const rowStyle = isCancelado ? 'opacity:0.55;text-decoration:line-through;color:#94a3b8;' : '';
+        const isAtrasado = !['recebido', 'cancelado'].includes(pedido.status)
+            && !!pedido.data_entrega_prevista
+            && new Date(pedido.data_entrega_prevista) < new Date(new Date().toDateString());
 
         return `
-        <tr data-id="${pedido.id}">
-            <td><input type="checkbox" class="pedido-checkbox" data-id="${pedido.id}" onchange="atualizarSelecao()"></td>
+        <tr data-id="${pedido.id}" style="${rowStyle}">
+            <td><input type="checkbox" class="pedido-checkbox" data-id="${pedido.id}" onchange="atualizarSelecao()" ${isCancelado ? 'disabled' : ''}></td>
             <td>
                 <strong>${escapeHtml(pedido.numero_pedido) || '-'}</strong>
                 ${pedido.origem === 'PCP' ? '<span style="background: #8b5cf6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 6px; font-weight: 600;">PCP</span>' : ''}
@@ -667,7 +681,7 @@ function renderizarTabelaPedidos() {
             <td>${escapeHtml(pedido.fornecedor_nome) || '-'}</td>
             <td>${formatarData(pedido.data_pedido)}</td>
             <td><strong>${formatarMoeda(valorExibir)}</strong></td>
-            <td>${pedido.data_entrega_prevista ? formatarData(pedido.data_entrega_prevista) : '-'}</td>
+            <td>${pedido.data_entrega_prevista ? formatarData(pedido.data_entrega_prevista) : '-'}${isAtrasado ? ' <span class="badge-atrasado"><i class="fas fa-exclamation-circle"></i> Atrasado</span>' : ''}</td>
             <td><span class="badge-status badge-${pedido.status}">${getStatusLabel(pedido.status)}</span></td>
             <td class="table-actions">
                     <button class="btn-action view" onclick="visualizarPedido('${pedido.id}')" title="Visualizar">
@@ -714,23 +728,47 @@ function atualizarCards() {
 
 // ============ AÇÕES ============
 
+// [FIX C4] Guarda do último pedidoId solicitado para invalidar respostas obsoletas
+let _visualizarPedidoSeq = 0;
+
 async function visualizarPedido(pedidoId) {
-    let pedido = pedidos.find(p => p.id == pedidoId);
+    // [FIX C4] Limpa o modal antes de carregar para não exibir dados do pedido anterior
+    const content = document.getElementById('detalhesContent');
+    if (content) content.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;"><i class="fas fa-spinner fa-spin" style="font-size:24px;"></i><p style="margin-top:8px;">Carregando pedido...</p></div>';
+    const modalVis = document.getElementById('modalVisualizarPedido');
+    if (modalVis) modalVis.classList.add('active');
+
+    const seq = ++_visualizarPedidoSeq;
+    let pedido = pedidos.find(p => String(p.id) === String(pedidoId));
 
     // Sempre buscar da API para garantir dados completos (condicoes_pagamento, etc.)
     try {
-        // BE-002: Usar apenas cookies httpOnly — nunca localStorage.getItem('token')
-        const response = await fetch(`/api/compras/pedidos/${pedidoId}`, {
-            credentials: 'include'
+        const response = await fetch(`/api/compras/pedidos/${encodeURIComponent(pedidoId)}`, {
+            credentials: 'include',
+            cache: 'no-store'
         });
         if (response.ok) {
-            pedido = await response.json();
+            const fresh = await response.json();
+            // [FIX C4] Se o usuário clicou em outro pedido enquanto este request estava pendente,
+            // descarta esta resposta para não mostrar dados do pedido errado.
+            if (seq !== _visualizarPedidoSeq) return;
+            // [FIX C4] Validar que o pedido retornado é mesmo o solicitado
+            if (fresh && (String(fresh.id) === String(pedidoId) || String(fresh.numero_pedido) === String(pedidoId))) {
+                pedido = fresh;
+            } else {
+                console.warn('[Compras] API retornou pedido diferente do solicitado:', fresh?.id, '!=', pedidoId);
+            }
+        } else {
+            console.warn('[Compras] /api/compras/pedidos/' + pedidoId + ' status', response.status);
         }
     } catch (error) {
         console.error('Erro ao buscar pedido:', error);
     }
 
+    if (seq !== _visualizarPedidoSeq) return;
+
     if (!pedido) {
+        if (content) content.innerHTML = '<div style="text-align:center;padding:40px;color:#dc2626;"><i class="fas fa-exclamation-triangle" style="font-size:24px;"></i><p style="margin-top:8px;">Pedido não encontrado</p></div>';
         mostrarToast('Pedido não encontrado', 'error');
         return;
     }
@@ -738,7 +776,7 @@ async function visualizarPedido(pedidoId) {
     // Garantir que itens seja um array
     const itens = pedido.itens || [];
 
-    const content = document.getElementById('detalhesContent');
+    // [FIX #013] 'content' já declarado no início da função (linha ~728) — reusar, não redeclarar
     content.innerHTML = `
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
             <div>
@@ -1146,6 +1184,7 @@ function getStatusLabel(status) {
     const labels = {
         'pendente': 'Pendente',
         'aprovado': 'Aprovado',
+        'enviado': 'Enviado',
         'recebido': 'Recebido',
         'parcial': 'Parcial',
         'cancelado': 'Cancelado',
@@ -1153,7 +1192,10 @@ function getStatusLabel(status) {
         'em_cotacao': '📋 Em Cotação',
         'cotado': 'Cotado'
     };
-    return labels[status] || status;
+    if (labels[status]) return labels[status];
+    if (!status) return '-';
+    // AUDIT #013: capitaliza qualquer status não mapeado (evita ex.: "enviado" minúsculo)
+    return String(status).charAt(0).toUpperCase() + String(status).slice(1);
 }
 
 // BE-002: salvarPedidosLocal() removido — toda persistência é feita pela API do servidor

@@ -771,6 +771,17 @@ function buildDanfeCtx(pedido, itens, opts = {}) {
     }
     return '';
   };
+  // Alíquotas em pedido_itens têm DEFAULT 0.00 (não NULL) quando nunca foram preenchidas —
+  // firstFilled() pararia no primeiro 0 e nunca cairia no padrão fiscal da empresa (ex.: ICMS
+  // 18% configurado em config_fiscal_empresa). Para alíquotas, 0 só vale se for o ÚLTIMO
+  // candidato (o próprio padrão), nunca um valor intermediário.
+  const firstPositiveOrLast = (...vals) => {
+    for (let i = 0; i < vals.length; i++) {
+      const n = parseFloat(vals[i]);
+      if (!isNaN(n) && (n > 0 || i === vals.length - 1)) return n;
+    }
+    return 0;
+  };
     const fmtMoney = v =>
         (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const fmtQty = v =>
@@ -881,9 +892,17 @@ function buildDanfeCtx(pedido, itens, opts = {}) {
     const vencFat = dups[0]?.dVenc || fmtDate(pedido.data_faturamento || pedido.faturado_em || pedido.created_at);
 
     const regime = String(cfgFiscal.regime_tributario || '').toLowerCase();
-    const cstPadrao = regime === 'simples_nacional' ? '102' : '00';
-    const aliquotaIcmsPadrao = parseFloat(cfgFiscal.icms_padrao) || 0;
+    const simplesNacional = regime === 'simples_nacional';
+    const cstPadrao = simplesNacional ? '102' : '00';
+    const crtEmitente = String(firstFilled(
+      pedido.empresa_crt,
+      cfgFiscal.crt,
+      regime === 'simples_nacional' ? 1 : 3
+    ));
+    const aliquotaIcmsPadrao = simplesNacional ? 0 : (parseFloat(cfgFiscal.icms_padrao) || 0);
     const aliquotaIpiPadrao = parseFloat(cfgFiscal.ipi_padrao) || 0;
+    const aliquotaPisPadrao = parseFloat(cfgFiscal.pis_padrao) || 0;
+    const aliquotaCofinsPadrao = parseFloat(cfgFiscal.cofins_padrao) || 0;
     const transportadoraNome =
       firstFilled(pedido.transportadora_razao_social, pedido.transportadora_nome_fantasia, pedido.transportadora_nome, pedido.transportadora) || '';
     const transportadoraDoc = String(firstFilled(pedido.transportadora_cnpj_cpf, pedido.transportadora_cnpj, pedido.transportadora_cpf) || '');
@@ -891,8 +910,25 @@ function buildDanfeCtx(pedido, itens, opts = {}) {
     const transportadoraCnpj = transportadoraDigits.length > 11 ? transportadoraDoc : '';
     const transportadoraCpf = transportadoraDigits.length > 0 && transportadoraDigits.length <= 11 ? transportadoraDoc : '';
 
-    // Priorizar logo embutido (data:URI) para funcionar em blob URLs
-    const resolvedLogo = opts.logoDataUri || pedido.emitenteLogoUrl || '';
+    // Priorizar a marca da instância Labor mesmo em rotas legadas que enviam
+    // o fallback fixo da Aluforce.
+    // Resolve a logo da empresa p/ TODAS as marcas (inclui aluforce, BRAND vazio).
+    // Antes só calculava p/ labor-*/zyntra → na Aluforce a DANFE/espelho caía no
+    // texto da razão social em vez da logo. Agora a DANFE usa a logo da empresa.
+    let brandLogoDataUri = '';
+    try {
+      const { resolverCaminhoLogo } = require('../modules/_shared/services/empresa-config.service');
+      const logoPath = resolverCaminhoLogo({});
+      if (logoPath && fs.existsSync(logoPath)) {
+        const ext = path.extname(logoPath).toLowerCase();
+        const mime = ext === '.svg' ? 'image/svg+xml'
+          : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
+            : 'image/png';
+        brandLogoDataUri = `data:${mime};base64,${fs.readFileSync(logoPath).toString('base64')}`;
+      }
+    } catch (_) {}
+
+    const resolvedLogo = opts.logoDataUri || brandLogoDataUri || pedido.emitenteLogoUrl || '';
 
     return {
         marcaAguaClasse: opts.preview ? 'watermark-logo' : 'hidden',
@@ -923,7 +959,7 @@ function buildDanfeCtx(pedido, itens, opts = {}) {
                     CPF: '',
                     IE: pedido.empresa_ie || '',
                     IEST: '',
-                    CRT: '',
+                    CRT: crtEmitente,
                     IM: '',
                     email: '',
                     enderEmit: {
@@ -965,10 +1001,13 @@ function buildDanfeCtx(pedido, itens, opts = {}) {
                 },
                 det: itens.map((item, i) => {
                   const subtotal = parseFloat(item.subtotal) || 0;
-                  const aliqIcms = parseFloat(firstFilled(item.aliquota_icms, item.icms_percent, item.produto_aliquota_icms, aliquotaIcmsPadrao)) || 0;
-                  const aliqIpi = parseFloat(firstFilled(item.aliquota_ipi, item.produto_aliquota_ipi, aliquotaIpiPadrao)) || 0;
+                  const aliqIcms = firstPositiveOrLast(item.aliquota_icms, item.icms_percent, item.produto_aliquota_icms, aliquotaIcmsPadrao);
+                  const aliqIpi = firstPositiveOrLast(item.aliquota_ipi, item.produto_aliquota_ipi, aliquotaIpiPadrao);
                   const vIcms = parseFloat(firstFilled(item.icms_value, item.v_icms, subtotal * (aliqIcms / 100))) || 0;
-                  const vIpi = parseFloat(firstFilled(item.valor_ipi, item.v_ipi, subtotal * (aliqIpi / 100))) || 0;
+                  // valor_ipi em pedido_itens tem DEFAULT 0.00 (não NULL) — mesmo problema das
+                  // alíquotas: usar firstPositiveOrLast para não travar no zero de coluna nunca
+                  // preenchida e cair no cálculo via alíquota resolvida.
+                  const vIpi = firstPositiveOrLast(item.valor_ipi, item.v_ipi, subtotal * (aliqIpi / 100));
                   const bcIcms = parseFloat(firstFilled(item.bc_icms, aliqIcms > 0 ? (vIcms / (aliqIcms / 100)) : subtotal)) || subtotal;
                   return {
                     prod: {
@@ -992,7 +1031,7 @@ function buildDanfeCtx(pedido, itens, opts = {}) {
                 total: (() => {
                     // Calcular totais de impostos a partir dos itens quando os campos do pedido estiverem zerados
                     const calcBcIcms = itens.reduce((s, item) => {
-                      const aliqIcms = parseFloat(firstFilled(item.aliquota_icms, item.icms_percent, item.produto_aliquota_icms, aliquotaIcmsPadrao)) || 0;
+                      const aliqIcms = firstPositiveOrLast(item.aliquota_icms, item.icms_percent, item.produto_aliquota_icms, aliquotaIcmsPadrao);
                       const sub = parseFloat(item.subtotal) || 0;
                       const vIcmsItem = parseFloat(firstFilled(item.icms_value, item.v_icms)) || 0;
                       const bc = aliqIcms > 0 ? (vIcmsItem > 0 ? (vIcmsItem / (aliqIcms / 100)) : sub) : 0;
@@ -1000,30 +1039,49 @@ function buildDanfeCtx(pedido, itens, opts = {}) {
                     }, 0);
                     const calcVIcms = itens.reduce((s, item) => {
                       const sub = parseFloat(item.subtotal) || 0;
-                      const aliqIcms = parseFloat(firstFilled(item.aliquota_icms, item.icms_percent, item.produto_aliquota_icms, aliquotaIcmsPadrao)) || 0;
+                      const aliqIcms = firstPositiveOrLast(item.aliquota_icms, item.icms_percent, item.produto_aliquota_icms, aliquotaIcmsPadrao);
                       return s + (parseFloat(firstFilled(item.icms_value, item.v_icms, sub * aliqIcms / 100)) || 0);
                     }, 0);
                     const calcVIpi = itens.reduce((s, item) => {
                       const sub = parseFloat(item.subtotal) || 0;
-                      const aliqIpi = parseFloat(firstFilled(item.aliquota_ipi, item.produto_aliquota_ipi, aliquotaIpiPadrao)) || 0;
-                      return s + (parseFloat(firstFilled(item.valor_ipi, item.v_ipi, sub * aliqIpi / 100)) || 0);
+                      const aliqIpi = firstPositiveOrLast(item.aliquota_ipi, item.produto_aliquota_ipi, aliquotaIpiPadrao);
+                      return s + firstPositiveOrLast(item.valor_ipi, item.v_ipi, sub * aliqIpi / 100);
                     }, 0);
+                    const calcVPis = itens.reduce((s, item) => {
+                      const sub = parseFloat(item.subtotal) || 0;
+                      const aliqPis = firstPositiveOrLast(item.pis_percent, item.produto_aliquota_pis, aliquotaPisPadrao);
+                      return s + (parseFloat(firstFilled(item.pis_value, sub * aliqPis / 100)) || 0);
+                    }, 0);
+                    const calcVCofins = itens.reduce((s, item) => {
+                      const sub = parseFloat(item.subtotal) || 0;
+                      const aliqCofins = firstPositiveOrLast(item.cofins_percent, item.produto_aliquota_cofins, aliquotaCofinsPadrao);
+                      return s + (parseFloat(firstFilled(item.cofins_value, sub * aliqCofins / 100)) || 0);
+                    }, 0);
+                    // BUG-FIX 2026-06-28: mysql2 retorna DECIMAL como string ("0.00"), que é
+                    // truthy em JS — "0.00" || calcVIcms nunca cai no calculado. parseFloat(...)
+                    // antes do || converte a string em número (0 é falsy) para o fallback funcionar.
+                    const pedTotalIcms = parseFloat(pedido.total_icms) || 0;
+                    const pedBaseIcms = parseFloat(pedido.base_calculo_icms) || 0;
+                    const pedTotalIpi = parseFloat(pedido.total_ipi) || 0;
+                    const pedTotalPis = parseFloat(pedido.total_pis) || 0;
+                    const pedTotalCofins = parseFloat(pedido.total_cofins) || 0;
+                    const pedTotalImpostos = parseFloat(pedido.total_impostos) || 0;
                     return {
                     ICMSTot: {
-                        vBC: fmtMoney(pedido.base_calculo_icms || calcBcIcms),
-                        vICMS: fmtMoney(pedido.total_icms || calcVIcms),
+                        vBC: fmtMoney(pedBaseIcms || calcBcIcms),
+                        vICMS: fmtMoney(pedTotalIcms || calcVIcms),
                         vBCST: fmtMoney(pedido.base_calculo_icms_st || 0),
                         vST: fmtMoney(pedido.total_icms_st || 0),
-                        vTotTrib: fmtMoney(pedido.total_impostos || (calcVIcms + calcVIpi)),
+                        vTotTrib: fmtMoney(pedTotalImpostos || (calcVIcms + calcVIpi + calcVPis + calcVCofins)),
                         vProd: fmtMoney(valorTotal),
                         vFCPSTRet: fmtMoney(pedido.total_fcp || 0),
                         vFrete: fmtMoney(frete),
                         vSeg: fmtMoney(seguro),
                         vDesc: fmtMoney(desconto),
                         vOutro: fmtMoney(outras),
-                        vIPI: fmtMoney(pedido.total_ipi || calcVIpi),
-                        vPIS: fmtMoney(pedido.total_pis || 0),
-                        vCOFINS: fmtMoney(pedido.total_cofins || 0),
+                        vIPI: fmtMoney(pedTotalIpi || calcVIpi),
+                        vPIS: fmtMoney(pedTotalPis || calcVPis),
+                        vCOFINS: fmtMoney(pedTotalCofins || calcVCofins),
                         vNF: fmtMoney(valorNF),
                         vII: '0,00'
                     },

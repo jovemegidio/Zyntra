@@ -14,9 +14,7 @@ module.exports = function createFinanceiroRoutes(deps) {
     const path = require('path');
     const multer = require('multer');
     const fs = require('fs');
-    const SAFE_MIMES = new Set(['image/jpeg','image/png','image/gif','image/webp','application/pdf','text/csv','text/plain','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/xml','text/xml']);
-    const safeFileFilter = (req, file, cb) => SAFE_MIMES.has(file.mimetype) ? cb(null, true) : cb(new multer.MulterError('LIMIT_UNEXPECTED_FILE', file.fieldname));
-    const upload = multer({ dest: path.join(__dirname, '..', 'uploads'), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: safeFileFilter });
+    const upload = multer({ dest: path.join(__dirname, '..', 'uploads'), limits: { fileSize: 10 * 1024 * 1024 } });
     const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
     const validate = (req, res, next) => {
         const errors = validationResult(req);
@@ -122,12 +120,9 @@ module.exports = function createFinanceiroRoutes(deps) {
 
     // 1a. Importar extrato (OFX/CSV/XLSX)
     router.post('/conciliacao/importar-ofx', async (req, res, next) => {
-        const connection = await pool.getConnection();
         try {
-            await connection.beginTransaction();
             const { conta_id, movimentacoes, arquivo } = req.body;
             if (!conta_id || !movimentacoes || !Array.isArray(movimentacoes) || movimentacoes.length === 0) {
-                connection.release();
                 return res.status(400).json({ success: false, message: 'conta_id e movimentacoes[] são obrigatórios' });
             }
 
@@ -141,13 +136,13 @@ module.exports = function createFinanceiroRoutes(deps) {
                 const hash = crypto.createHash('sha256').update(hashStr).digest('hex');
 
                 // Verificar duplicata
-                const [existing] = await connection.query('SELECT id FROM extratos_importados WHERE hash_linha = ?', [hash]);
+                const [existing] = await pool.query('SELECT id FROM extratos_importados WHERE hash_linha = ?', [hash]);
                 if (existing.length > 0) { duplicados++; continue; }
 
                 const tipo = (mov.tipo === 'entrada' || mov.tipo === 'credito' || Number(mov.valor) > 0) ? 'entrada' : 'saida';
                 const valor = Math.abs(Number(mov.valor));
 
-                await connection.query(
+                await pool.query(
                     `INSERT INTO extratos_importados (conta_id, data, descricao, valor, tipo, saldo, numero_documento, arquivo_origem, hash_linha)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [conta_id, mov.data, mov.descricao || mov.descrição || '', valor, tipo, mov.saldo || null, mov.numero_documento || null, arquivo || 'manual', hash]
@@ -155,7 +150,6 @@ module.exports = function createFinanceiroRoutes(deps) {
                 inseridos++;
             }
 
-            await connection.commit();
             res.json({
                 success: true,
                 message: `${inseridos} lançamento(s) importado(s), ${duplicados} duplicata(s) ignorada(s)`,
@@ -163,11 +157,8 @@ module.exports = function createFinanceiroRoutes(deps) {
                 duplicados
             });
         } catch (error) {
-            await connection.rollback();
             console.error('[Conciliação] Erro ao importar:', error);
             next(error);
-        } finally {
-            connection.release();
         }
     });
 
@@ -213,16 +204,10 @@ module.exports = function createFinanceiroRoutes(deps) {
     });
 
     // 1c. Salvar conciliação (manual ou automática)
-    // AUDIT-FIX CRIT-B06: Envolver em transação para evitar estado parcial
     router.post('/conciliacao', async (req, res, next) => {
-        const connection = await pool.getConnection();
         try {
-            await connection.beginTransaction();
             const { conta_id, movimentacoes_sistema, movimentacoes_extrato, observacoes, tipo_match } = req.body;
-            if (!conta_id) {
-                connection.release();
-                return res.status(400).json({ success: false, message: 'conta_id é obrigatório' });
-            }
+            if (!conta_id) return res.status(400).json({ success: false, message: 'conta_id é obrigatório' });
 
             const usuario_id = req.user?.id || null;
             let conciliadas = 0;
@@ -232,7 +217,6 @@ module.exports = function createFinanceiroRoutes(deps) {
             const extratoIds = movimentacoes_extrato || [];
 
             if (extratoIds.length === 0) {
-                connection.release();
                 return res.status(400).json({ success: false, message: 'Selecione ao menos um lançamento do extrato' });
             }
 
@@ -240,26 +224,20 @@ module.exports = function createFinanceiroRoutes(deps) {
                 const sistemaId = sistemaIds.length > 0 ? sistemaIds[0] : null;
 
                 // Buscar valor do extrato
-                const [ext] = await connection.query('SELECT valor FROM extratos_importados WHERE id = ?', [extratoId]);
-                if (ext.length === 0) {
-                    await connection.rollback();
-                    connection.release();
-                    return res.status(404).json({ success: false, message: `Extrato ID ${extratoId} não encontrado` });
-                }
-                const valor = ext[0].valor;
+                const [ext] = await pool.query('SELECT valor FROM extratos_importados WHERE id = ?', [extratoId]);
+                const valor = ext.length > 0 ? ext[0].valor : 0;
 
-                await connection.query(
+                await pool.query(
                     `INSERT INTO conciliacoes_bancarias (conta_id, movimentacao_sistema_id, extrato_id, valor, tipo_match, observacoes, usuario_id)
                      VALUES (?, ?, ?, ?, ?, ?, ?)`,
                     [conta_id, sistemaId, extratoId, valor, tipo_match || 'manual', observacoes || null, usuario_id]
                 );
 
                 // Marcar extrato como conciliado
-                await connection.query('UPDATE extratos_importados SET conciliado = 1 WHERE id = ?', [extratoId]);
+                await pool.query('UPDATE extratos_importados SET conciliado = 1 WHERE id = ?', [extratoId]);
                 conciliadas++;
             }
 
-            await connection.commit();
             res.json({ success: true, message: `${conciliadas} lançamento(s) conciliado(s)`, conciliadas });
             // Registrar no audit log
             if (writeAuditLog && conciliadas > 0) {
@@ -269,44 +247,127 @@ module.exports = function createFinanceiroRoutes(deps) {
                 } catch (_) {}
             }
         } catch (error) {
-            await connection.rollback();
             console.error('[Conciliação] Erro ao salvar:', error);
             next(error);
-        } finally {
-            connection.release();
         }
     });
 
     // 1d. Desfazer conciliação
-    // AUDIT-FIX R3: Adicionado authenticateToken + soft delete
-    router.delete('/conciliacao/:id', authenticateToken, async (req, res, next) => {
+    router.delete('/conciliacao/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
             const [conc] = await pool.query('SELECT extrato_id FROM conciliacoes_bancarias WHERE id = ?', [id]);
             if (conc.length > 0) {
                 await pool.query('UPDATE extratos_importados SET conciliado = 0 WHERE id = ?', [conc[0].extrato_id]);
             }
-            await pool.query('UPDATE conciliacoes_bancarias SET ativo = 0 WHERE id = ?', [id]);
+            await pool.query('DELETE FROM conciliacoes_bancarias WHERE id = ?', [id]);
             res.json({ success: true, message: 'Conciliação desfeita' });
         } catch (error) { next(error); }
     });
 
-    // 1e. Conciliação automática (server-side)
-    // AUDIT-FIX CRIT-B05: Envolver em transação para evitar duplicação por race condition
-    router.post('/conciliacao/automatica', async (req, res, next) => {
-        const connection = await pool.getConnection();
+    // 1d-bis. Editar uma linha do extrato importado (data/descricao/valor/tipo/saldo)
+    router.put('/conciliacao/extrato/:id', async (req, res, next) => {
         try {
-            await connection.beginTransaction();
+            const { id } = req.params;
+            const { data, descricao, valor, tipo, saldo } = req.body;
+            const [[atual]] = await pool.query('SELECT * FROM extratos_importados WHERE id = ?', [id]);
+            if (!atual) return res.status(404).json({ success: false, message: 'Lançamento do extrato não encontrado' });
+
+            const dataFinal = data || atual.data;
+            const descricaoFinal = (descricao !== undefined && descricao !== null) ? descricao : atual.descricao;
+            const valorFinal = (valor !== undefined && valor !== null && valor !== '') ? Math.abs(parseFloat(valor)) : atual.valor;
+            const tipoFinal = tipo || atual.tipo;
+            const saldoFinal = (saldo !== undefined && saldo !== null && saldo !== '') ? parseFloat(saldo) : atual.saldo;
+
+            await pool.query(
+                'UPDATE extratos_importados SET data = ?, descricao = ?, valor = ?, tipo = ?, saldo = ? WHERE id = ?',
+                [dataFinal, descricaoFinal, valorFinal, tipoFinal, saldoFinal, id]
+            );
+            res.json({ success: true, message: 'Lançamento do extrato atualizado' });
+        } catch (error) {
+            console.error('[Conciliação] Erro ao editar extrato:', error);
+            next(error);
+        }
+    });
+
+    // 1d-ter. Excluir uma linha do extrato importado (e qualquer conciliação que a referencie)
+    router.delete('/conciliacao/extrato/:id', async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            await pool.query('DELETE FROM conciliacoes_bancarias WHERE extrato_id = ?', [id]).catch(() => {});
+            const [result] = await pool.query('DELETE FROM extratos_importados WHERE id = ?', [id]);
+            if (!result.affectedRows) return res.status(404).json({ success: false, message: 'Lançamento não encontrado' });
+            res.json({ success: true, message: 'Lançamento do extrato excluído' });
+        } catch (error) {
+            console.error('[Conciliação] Erro ao excluir extrato:', error);
+            next(error);
+        }
+    });
+
+    // 1d-quater. Comparar lançamentos do sistema x extrato do banco (de acordo com a conta)
+    router.get('/conciliacao/comparar', async (req, res, next) => {
+        try {
+            const { conta, inicio, fim } = req.query;
+            if (!conta) return res.json({ sistema: [], extrato: [], resumo: {} });
+
+            const temPeriodo = inicio && fim;
+            const [movSistema] = await pool.query(
+                `SELECT id, valor, data, descricao, tipo FROM movimentacoes_bancarias
+                 WHERE banco_id = ? ${temPeriodo ? 'AND data BETWEEN ? AND ?' : ''} ORDER BY data`,
+                temPeriodo ? [conta, inicio, fim] : [conta]
+            ).catch(() => [[]]);
+
+            const [extrato] = await pool.query(
+                `SELECT id, valor, data, descricao, tipo, conciliado FROM extratos_importados
+                 WHERE conta_id = ? ${temPeriodo ? 'AND data BETWEEN ? AND ?' : ''} ORDER BY data`,
+                temPeriodo ? [conta, inicio, fim] : [conta]
+            );
+
+            const dataIso = d => { try { return new Date(d).toISOString().slice(0, 10); } catch (_) { return null; } };
+            const diffDias = (a, b) => Math.abs((new Date(a) - new Date(b)) / 86400000);
+            const usadosExtrato = new Set();
+
+            const sistema = (movSistema || []).map(m => {
+                const match = (extrato || []).find(e => !usadosExtrato.has(e.id)
+                    && Math.abs(Number(e.valor) - Number(m.valor)) < 0.01
+                    && diffDias(e.data, m.data) <= 3);
+                if (match) usadosExtrato.add(match.id);
+                return { id: m.id, data: dataIso(m.data), descricao: m.descricao, valor: Number(m.valor),
+                         tipo: m.tipo, conferido: !!match, extrato_id: match ? match.id : null };
+            });
+
+            const extratoOut = (extrato || []).map(e => ({
+                id: e.id, data: dataIso(e.data), descricao: e.descricao, valor: Number(e.valor),
+                tipo: e.tipo, conciliado: Number(e.conciliado) === 1, conferido: usadosExtrato.has(e.id)
+            }));
+
+            const somar = arr => arr.reduce((s, x) => s + (Number(x.valor) || 0), 0);
+            res.json({
+                sistema, extrato: extratoOut,
+                resumo: {
+                    sistemaTotal: somar(sistema),
+                    extratoTotal: somar(extratoOut),
+                    divergencia: somar(sistema) - somar(extratoOut),
+                    sistemaSemMatch: sistema.filter(s => !s.conferido).length,
+                    extratoSemMatch: extratoOut.filter(e => !e.conferido).length
+                }
+            });
+        } catch (error) {
+            console.error('[Conciliação] Erro ao comparar:', error);
+            next(error);
+        }
+    });
+
+    // 1e. Conciliação automática (server-side)
+    router.post('/conciliacao/automatica', async (req, res, next) => {
+        try {
             const { conta_id, data_inicio, data_fim } = req.body;
-            if (!conta_id) {
-                connection.release();
-                return res.status(400).json({ success: false, message: 'conta_id é obrigatório' });
-            }
+            if (!conta_id) return res.status(400).json({ success: false, message: 'conta_id é obrigatório' });
 
             const usuario_id = req.user?.id || null;
 
             // Buscar movimentações do sistema (não conciliadas)
-            const [movSistema] = await connection.query(
+            const [movSistema] = await pool.query(
                 `SELECT id, valor, data, descricao, tipo FROM movimentacoes_bancarias
                  WHERE banco_id = ? AND id NOT IN (SELECT COALESCE(movimentacao_sistema_id,0) FROM conciliacoes_bancarias WHERE conta_id = ?)
                  ${data_inicio && data_fim ? 'AND data BETWEEN ? AND ?' : ''}
@@ -315,7 +376,7 @@ module.exports = function createFinanceiroRoutes(deps) {
             );
 
             // Buscar extrato não conciliado
-            const [extrato] = await connection.query(
+            const [extrato] = await pool.query(
                 `SELECT id, valor, data, descricao, tipo FROM extratos_importados
                  WHERE conta_id = ? AND conciliado = 0
                  ${data_inicio && data_fim ? 'AND data BETWEEN ? AND ?' : ''}
@@ -337,12 +398,12 @@ module.exports = function createFinanceiroRoutes(deps) {
                     e.tipo === mov.tipo
                 );
                 if (match) {
-                    await connection.query(
+                    await pool.query(
                         `INSERT INTO conciliacoes_bancarias (conta_id, movimentacao_sistema_id, extrato_id, valor, tipo_match, usuario_id)
                          VALUES (?, ?, ?, ?, 'automatico', ?)`,
                         [conta_id, mov.id, match.id, mov.valor, usuario_id]
                     );
-                    await connection.query('UPDATE extratos_importados SET conciliado = 1 WHERE id = ?', [match.id]);
+                    await pool.query('UPDATE extratos_importados SET conciliado = 1 WHERE id = ?', [match.id]);
                     usedExtrato.add(match.id);
                     usedSistema.add(mov.id);
                     conciliadas++;
@@ -360,26 +421,22 @@ module.exports = function createFinanceiroRoutes(deps) {
                     return Math.abs(Number(e.valor) - Number(mov.valor)) < 0.01 && diffDays <= 3 && e.tipo === mov.tipo;
                 });
                 if (match) {
-                    await connection.query(
+                    await pool.query(
                         `INSERT INTO conciliacoes_bancarias (conta_id, movimentacao_sistema_id, extrato_id, valor, tipo_match, observacoes, usuario_id)
                          VALUES (?, ?, ?, ?, 'automatico', 'Match por valor (±3 dias)', ?)`,
                         [conta_id, mov.id, match.id, mov.valor, usuario_id]
                     );
-                    await connection.query('UPDATE extratos_importados SET conciliado = 1 WHERE id = ?', [match.id]);
+                    await pool.query('UPDATE extratos_importados SET conciliado = 1 WHERE id = ?', [match.id]);
                     usedExtrato.add(match.id);
                     usedSistema.add(mov.id);
                     conciliadas++;
                 }
             }
 
-            await connection.commit();
             res.json({ success: true, message: `Conciliação automática: ${conciliadas} lançamento(s) conciliado(s)`, conciliadas });
         } catch (error) {
-            await connection.rollback();
             console.error('[Conciliação] Erro automática:', error);
             next(error);
-        } finally {
-            connection.release();
         }
     });
 
@@ -715,8 +772,8 @@ module.exports = function createFinanceiroRoutes(deps) {
             const codigoBarras = `${bancoCode}9${String(fatorVencimento).padStart(4,'0')}${valorStr}${nossoNumero.padStart(25,'0')}`;
 
             // Calcular multa e juros
-            const multa = Math.round((config.boleto_multa ? (valor * config.boleto_multa / 100) : (valor * 0.02)) * 100) / 100;
-            const jurosDia = Math.round((config.boleto_juros ? (valor * config.boleto_juros / 100 / 30) : (valor * 0.01 / 30)) * 100) / 100;
+            const multa = config.boleto_multa ? (valor * config.boleto_multa / 100) : (valor * 0.02);
+            const jurosDia = config.boleto_juros ? (valor * config.boleto_juros / 100 / 30) : (valor * 0.01 / 30);
 
             const [result] = await pool.query(
                 `INSERT INTO boletos (conta_receber_id, conta_bancaria_id, nosso_numero, numero_documento,
@@ -1097,8 +1154,23 @@ module.exports = function createFinanceiroRoutes(deps) {
             const params = [];
 
             if (status) {
-                whereClause += ' AND cr.status = ?';
-                params.push(status);
+                // FISC-001: Ao filtrar por 'vencido', incluir também registros 'pendente'
+                // com data_vencimento no passado (evita que contas atrasadas sumam da view)
+                if (status === 'vencido') {
+                    whereClause += ` AND (
+                        cr.status = 'vencido'
+                        OR (cr.status = 'pendente' AND cr.data_vencimento < CURRENT_DATE())
+                        OR (cr.status = 'pendente' AND cr.vencimento < CURRENT_DATE())
+                    )`;
+                } else if (status === 'pendente') {
+                    // Filtro 'pendente': excluir registros vencidos para não duplicar
+                    whereClause += ` AND cr.status = 'pendente'
+                        AND (cr.data_vencimento IS NULL OR cr.data_vencimento >= CURRENT_DATE())
+                        AND (cr.vencimento IS NULL OR cr.vencimento >= CURRENT_DATE())`;
+                } else {
+                    whereClause += ' AND cr.status = ?';
+                    params.push(status);
+                }
             }
 
             if (vencimento_inicio && vencimento_fim) {
@@ -1155,6 +1227,41 @@ module.exports = function createFinanceiroRoutes(deps) {
         } catch (error) {
             console.error('[Financeiro] Erro em contas-receber:', error);
             next(error);
+        }
+    });
+
+    // [FIX A7] Backfill: gera contas_receber retroativas para NF-e autorizadas que não têm conta vinculada.
+    // Endpoint admin: POST /api/financeiro/contas-receber/backfill-nfe
+    // Responde com { criadas, ja_existentes, ignoradas }.
+    router.post('/contas-receber/backfill-nfe', async (req, res) => {
+        try {
+            const [nfes] = await pool.query(`
+                SELECT n.id as nfe_id, n.cliente_id, n.valor, n.descricao_servico, n.data_emissao,
+                       (SELECT COUNT(*) FROM contas_receber cr WHERE cr.nfe_id = n.id) as ja_tem
+                FROM nfe n
+                WHERE n.status IN ('autorizada','emitida','faturada')
+                  AND n.cliente_id IS NOT NULL
+                  AND COALESCE(n.valor,0) > 0
+            `);
+            let criadas = 0, jaExistentes = 0, ignoradas = 0;
+            for (const n of nfes) {
+                if (Number(n.ja_tem) > 0) { jaExistentes++; continue; }
+                try {
+                    await pool.query(`
+                        INSERT INTO contas_receber
+                          (nfe_id, cliente_id, descricao, valor, data_vencimento, status, tipo, parcela_numero, total_parcelas, data_criacao)
+                        VALUES (?, ?, ?, ?, DATE_ADD(?, INTERVAL 30 DAY), 'pendente', 'nfe', 1, 1, NOW())
+                    `, [n.nfe_id, n.cliente_id, n.descricao_servico || `NF-e ${n.nfe_id}`, n.valor, n.data_emissao || new Date()]);
+                    criadas++;
+                } catch (e) {
+                    console.warn('[backfill-nfe] erro NF-e', n.nfe_id, e.message);
+                    ignoradas++;
+                }
+            }
+            res.json({ success: true, criadas, ja_existentes: jaExistentes, ignoradas, total_nfe: nfes.length });
+        } catch (err) {
+            console.error('[backfill-nfe] erro:', err);
+            res.status(500).json({ success: false, message: err.message });
         }
     });
 

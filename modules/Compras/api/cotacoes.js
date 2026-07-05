@@ -8,15 +8,19 @@ router.get('/', async (req, res) => {
         const db = getDatabase();
         const { status, limit = 50, offset = 0 } = req.query;
         
-        let sql = 'SELECT * FROM cotacoes WHERE 1=1';
+        // AUDIT #006: retornar nome do solicitante via JOIN (frontend lê solicitante_nome)
+        let sql = `SELECT c.*, u.nome AS solicitante_nome
+                   FROM cotacoes c
+                   LEFT JOIN usuarios u ON c.usuario_solicitante_id = u.id
+                   WHERE 1=1`;
         const params = [];
-        
+
         if (status) {
-            sql += ' AND status = ?';
+            sql += ' AND c.status = ?';
             params.push(status);
         }
-        
-        sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+
+        sql += ' ORDER BY c.created_at DESC LIMIT ? OFFSET ?';
         params.push(parseInt(limit), parseInt(offset));
         
         const [cotacoes] = await db.query(sql, params);
@@ -83,7 +87,10 @@ router.get('/:id', async (req, res) => {
     try {
         const db = getDatabase();
         const [cotacoes] = await db.query(
-            'SELECT * FROM cotacoes WHERE id = ?',
+            `SELECT c.*, u.nome AS solicitante_nome
+             FROM cotacoes c
+             LEFT JOIN usuarios u ON c.usuario_solicitante_id = u.id
+             WHERE c.id = ?`,
             [req.params.id]
         );
         
@@ -161,12 +168,12 @@ router.post('/', async (req, res) => {
             numeroCotacao = `COT-${ano}-${String(maxNum + 1).padStart(4, '0')}`;
         }
         
-        // Inserir cotação
+        // Inserir cotação — AUDIT #012: registrar solicitante a partir do token
         const [result] = await connection.query(
             `INSERT INTO cotacoes (
-                numero_cotacao, descricao, data_solicitacao, data_limite, status
-            ) VALUES (?, ?, ?, ?, 'aberta')`,
-            [numeroCotacao, descricaoFinal, dataSolicitacao, dataLimite]
+                numero_cotacao, descricao, data_solicitacao, data_limite, status, usuario_solicitante_id
+            ) VALUES (?, ?, ?, ?, 'aberta', ?)`,
+            [numeroCotacao, descricaoFinal, dataSolicitacao, dataLimite, (req.user && req.user.id) || null]
         );
         
         const cotacao_id = result.insertId;

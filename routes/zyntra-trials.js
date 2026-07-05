@@ -14,7 +14,7 @@ router.use((req, res, next) => {
     const allowedOrigins = [
         'https://aluforce.com.br',
         'https://www.aluforce.com.br',
-        'https://aluforce.api.br',
+        'https://zyntraerp.com.br',
         'http://localhost:3000',
         'http://localhost:4173',
         'http://YOUR_VPS_IP'

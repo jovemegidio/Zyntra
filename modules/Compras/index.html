@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <!-- Favicon -->
@@ -14,7 +14,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Aluforce: Compras</title>
+    <title>Zyntra: Compras</title>
 
     <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
     <script src="/js/auth-unified.js?v=20260301" defer></script>
@@ -30,7 +30,8 @@
 
     <!-- CSS Padrão Global -->
     <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260301">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260301">
     <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
 
@@ -62,7 +63,7 @@
 
     <!-- Chat Widget BOB AI -->
     <link rel="stylesheet" href="/chat/widget.css?v=20260301">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 <body>
     <div class="app-container">
@@ -114,9 +115,9 @@
                         <i class="fas fa-bars"></i>
                     </button>
                     <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
                         <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Compras</span>
                     </div>
@@ -164,6 +165,13 @@
                 <!-- Page Header -->
                 <div class="page-header">
                     <div class="page-header-top">
+                        <div class="page-title-wrapper">
+                            <div class="page-icon amber"><i class="fas fa-shopping-cart"></i></div>
+                            <div>
+                                <h1 class="page-title">Compras</h1>
+                                <p class="page-subtitle">Requisições, cotações e pedidos de compra</p>
+                            </div>
+                        </div>
                         <div class="page-actions">
                             <button class="btn btn-secondary" onclick="window.location.href='/Compras/relatorios.html'">
                                 <i class="fas fa-chart-bar"></i> Relatórios
@@ -364,6 +372,8 @@
                     // Atualizar atividades recentes com pedidos reais
                     if (data.pedidos_recentes && data.pedidos_recentes.length) {
                         renderizarAtividades(data.pedidos_recentes);
+                    } else {
+                        limparSpinnerAtividades();
                     }
                     // Atualizar gráfico com dados reais
                     atualizarGraficoReal(data);
@@ -373,6 +383,7 @@
                     document.getElementById('kpi-pedidos').textContent = 'R$ 0';
                     document.getElementById('kpi-fornecedores').textContent = '0';
                     ['trend-requisicoes','trend-cotacoes','trend-pedidos','trend-fornecedores'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+                    limparSpinnerAtividades();
                 }
             } catch(e) {
                 console.log('Erro ao carregar KPIs:', e);
@@ -381,6 +392,14 @@
                 document.getElementById('kpi-pedidos').textContent = 'R$ 0';
                 document.getElementById('kpi-fornecedores').textContent = '0';
                 ['trend-requisicoes','trend-cotacoes','trend-pedidos','trend-fornecedores'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+                limparSpinnerAtividades();
+            }
+        }
+
+        function limparSpinnerAtividades() {
+            const list = document.getElementById('activity-list');
+            if (list && list.querySelector('.fa-spin')) {
+                list.innerHTML = '<li class="activity-item"><div class="activity-icon amber"><i class="fas fa-inbox"></i></div><div class="activity-content"><div class="activity-title">Sem atividades recentes</div></div></li>';
             }
         }
 
@@ -593,7 +612,12 @@
             atualizarSaudacao();
             carregarKPIs();
             carregarRequisicoes();
-            inicializarGrafico();
+            try { inicializarGrafico(); } catch(e) {
+                const chartEl = document.getElementById('purchaseChart');
+                if (chartEl) {
+                    chartEl.parentElement.innerHTML = '<p style="color:#9ca3af;text-align:center;padding:40px;">Gráfico indisponível no momento</p>';
+                }
+            }
         });
     </script>
 

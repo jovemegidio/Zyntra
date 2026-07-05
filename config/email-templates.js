@@ -127,10 +127,10 @@ const funcionariosEmail = {
         cartaoAniversario: 'Feliz Aniversário - SGE (Márcia).jpg'
     },
     'representantes@aluforce.ind.br': {
-        nome: 'Márcia Scarcella',
+        nome: 'Melissa',
         sexo: 'F',
         departamento: 'Comercial',
-        cartaoAniversario: 'Feliz Aniversário - SGE (Márcia).jpg'
+        cartaoAniversario: null
     },
     // Financeiro
     'financeiro@aluforce.ind.br': {
@@ -324,7 +324,7 @@ const templates = {
 
         <!-- LOGO -->
         <tr><td bgcolor="#1a1a2e" style="padding:24px 0 28px;text-align:center;background-color:#1a1a2e;">
-          <img src="https://aluforce.api.br/images/zyntra-branco.png" alt="Zyntra" style="height:48px;width:auto;display:inline-block;" />
+          <img src="https://zyntraerp.com.br/images/zyntra-branco.png" alt="Zyntra" style="height:48px;width:auto;display:inline-block;" />
         </td></tr>
 
         <!-- CARD -->
@@ -348,7 +348,7 @@ const templates = {
               <!-- CTA BUTTON -->
               <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 24px;">
                 <tr><td align="center">
-                  <a href="https://aluforce.api.br/login.html" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:600;padding:14px 40px;border-radius:10px;text-decoration:none;">Acessar o Sistema</a>
+                  <a href="https://zyntraerp.com.br/login.html" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:600;padding:14px 40px;border-radius:10px;text-decoration:none;">Acessar o Sistema</a>
                 </td></tr>
               </table>
 

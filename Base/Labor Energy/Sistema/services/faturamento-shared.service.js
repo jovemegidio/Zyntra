@@ -143,7 +143,12 @@ class FaturamentoSharedService {
 
         // Lock global para evitar race condition — verifica TODAS as fontes
         // Usa colunas reais: pedidos.nf, pedidos.numero_nf, nfes.numero
-        let maxNfe = 0, maxNf = 0, maxNumeroNf = 0, maxNfeTable = 0;
+        let maxNf = 0;
+        let maxNumeroNf = 0;
+        let maxNfeTable = 0;
+        let maxPedidoFaturamento = 0;
+        let maxPedidoRemessa = 0;
+        let maxHistoricoParcial = 0;
         try {
             const [nfRows] = await connection.query(
                 'SELECT MAX(CAST(nf AS UNSIGNED)) as max_num FROM pedidos WHERE nf IS NOT NULL AND nf REGEXP "^[0-9]+$" FOR UPDATE'
@@ -164,7 +169,45 @@ class FaturamentoSharedService {
             maxNfeTable = nfeRows[0]?.max_num || 0;
         } catch(e) { /* tabela nfes pode não existir */ }
 
-        const proximo = Math.max(maxNf, maxNumeroNf, maxNfeTable) + 1;
+        try {
+            const [pedidoRows] = await connection.query(`
+                SELECT
+                    MAX(CASE
+                        WHEN nfe_faturamento_numero REGEXP '^[0-9]+$'
+                        THEN CAST(nfe_faturamento_numero AS UNSIGNED)
+                        ELSE 0
+                    END) AS max_faturamento,
+                    MAX(CASE
+                        WHEN nfe_remessa_numero REGEXP '^[0-9]+$'
+                        THEN CAST(nfe_remessa_numero AS UNSIGNED)
+                        ELSE 0
+                    END) AS max_remessa
+                FROM pedidos
+                FOR UPDATE
+            `);
+            maxPedidoFaturamento = pedidoRows[0]?.max_faturamento || 0;
+            maxPedidoRemessa = pedidoRows[0]?.max_remessa || 0;
+        } catch(e) { /* colunas parciais podem ainda nao existir */ }
+
+        try {
+            const [parcialRows] = await connection.query(
+                `SELECT MAX(CAST(nfe_numero AS UNSIGNED)) AS max_num
+                 FROM pedido_faturamentos
+                 WHERE nfe_numero IS NOT NULL
+                   AND nfe_numero REGEXP '^[0-9]+$'
+                 FOR UPDATE`
+            );
+            maxHistoricoParcial = parcialRows[0]?.max_num || 0;
+        } catch(e) { /* tabela parcial pode ainda nao existir */ }
+
+        const proximo = Math.max(
+            maxNf,
+            maxNumeroNf,
+            maxNfeTable,
+            maxPedidoFaturamento,
+            maxPedidoRemessa,
+            maxHistoricoParcial
+        ) + 1;
 
         return {
             numero: String(proximo).padStart(9, '0'),

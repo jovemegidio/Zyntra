@@ -17,12 +17,118 @@ module.exports = function createVendasRoutes(deps) {
     // Repository pattern (ARCH-008)
     const createRepositories = require('../repositories');
     const repos = createRepositories(pool);
+    const ReformaTributariaService = require('../services/reforma-tributaria.service');
+    const tableColumnsCache = new Map();
+
+    async function getTableColumns(tableName) {
+        if (!/^[a-zA-Z0-9_]+$/.test(tableName)) {
+            throw new Error('Nome de tabela inválido');
+        }
+
+        if (tableColumnsCache.has(tableName)) {
+            return tableColumnsCache.get(tableName);
+        }
+
+        const [rows] = await pool.query(`SHOW COLUMNS FROM \`${tableName}\``);
+        const columns = new Set(rows.map(row => row.Field));
+        tableColumnsCache.set(tableName, columns);
+        return columns;
+    }
+
+    // Validação de documento (CNPJ 14 díg. OU CPF 11 díg. com dígitos verificadores).
+    // Mesma regra usada no cadastro de fornecedor (Compras).
+    function onlyDigits(s) { return String(s || '').replace(/\D/g, ''); }
+    function isValidCPF(cpf) {
+        cpf = onlyDigits(cpf);
+        if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+        let s = 0; for (let i = 0; i < 9; i++) s += +cpf[i] * (10 - i);
+        let d = (s * 10) % 11; if (d === 10) d = 0; if (d !== +cpf[9]) return false;
+        s = 0; for (let i = 0; i < 10; i++) s += +cpf[i] * (11 - i);
+        d = (s * 10) % 11; if (d === 10) d = 0; return d === +cpf[10];
+    }
+    function isValidCNPJ(cnpj) {
+        cnpj = onlyDigits(cnpj);
+        if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
+        const calc = (len) => {
+            let p = len - 7, s = 0;
+            for (let i = len; i >= 1; i--) { s += cnpj[len - i] * p--; if (p < 2) p = 9; }
+            const r = s % 11; return r < 2 ? 0 : 11 - r;
+        };
+        return calc(12) === +cnpj[12] && calc(13) === +cnpj[13];
+    }
+    function isValidDoc(doc) {
+        const d = onlyDigits(doc);
+        return (d.length === 14 && isValidCNPJ(d)) || (d.length === 11 && isValidCPF(d));
+    }
+
+    // Verifica se o usuario logado pode cadastrar pedidos/clientes de venda.
+    // Admins e papeis comerciais sempre podem. Usuarios com permissoes_vendas.<tipo>===false sao bloqueados.
+    // Fail-open quando nao ha configuracao explicita (comportamento legado), para nao travar vendedores.
+    // Papéis autorizados a criar pedido/orçamento e cadastrar cliente.
+    // Regra definida pela gestão em 04/07/2026: vendedor (comercial) + gestão; quem NÃO é desses
+    // papéis só passa com permissão granular explícita. Deny-by-default (fallbacks negam) para não
+    // vazar a criação a perfis como financeiro/pcp/rh/operador que só têm acesso de leitura.
+    async function podeCadastrarVendas(reqUser, tipo) {
+        try {
+            if (!reqUser || !reqUser.id) return false;
+            const role = String(reqUser.role || '').toLowerCase().trim();
+            const ROLES_VENDAS = ['admin','super_admin','ti','diretoria','gerente','supervisor','comercial','vendas','faturamento'];
+            if (reqUser.is_admin === 1 || reqUser.is_admin === true || reqUser.is_admin === '1' ||
+                ROLES_VENDAS.includes(role)) {
+                return true;
+            }
+            // Fora dos papéis de vendas: só passa com permissão granular explícita = true
+            const cols = await getTableColumns('usuarios');
+            if (!cols.has('permissoes_vendas')) return false;
+            const [prows] = await pool.query('SELECT permissoes_vendas FROM usuarios WHERE id = ? LIMIT 1', [reqUser.id]);
+            if (!prows.length) return false;
+            let p = prows[0].permissoes_vendas;
+            if (p == null || p === '') return false;
+            if (typeof p === 'string') { try { p = JSON.parse(p); } catch (_) { return false; } }
+            if (p && typeof p === 'object') {
+                const key = tipo === 'clientes' ? 'clientes' : 'pedidos';
+                return p[key] === true;
+            }
+            return false;
+        } catch (e) {
+            console.warn('[VENDAS/PERM] podeCadastrarVendas erro — negando por segurança:', e.message);
+            return false;
+        }
+    }
+
+    function firstExistingColumnSelect(alias, columns, candidates, outputAlias) {
+        const existing = candidates.filter(column => columns.has(column));
+        if (existing.length === 0) return `NULL AS ${outputAlias}`;
+        if (existing.length === 1) return `${alias}.${existing[0]} AS ${outputAlias}`;
+        return `COALESCE(${existing.map(column => `${alias}.${column}`).join(', ')}) AS ${outputAlias}`;
+    }
+
+    function selectExistingColumns(alias, columns, candidates) {
+        return candidates.map(({ column, alias: outputAlias, fallback }) => {
+            if (columns.has(column)) return `${alias}.${column} AS ${outputAlias || column}`;
+            return `${fallback === undefined ? 'NULL' : fallback} AS ${outputAlias || column}`;
+        });
+    }
+
+    function normalizePaymentDays(value) {
+        const parts = String(value || '0')
+            .replace(/[/;]/g, ',')
+            .split(',')
+            .map(v => v.trim())
+            .filter(Boolean)
+            .filter(v => /^\d+$/.test(v));
+        return parts.length ? parts.join(',') : '0';
+    }
 
     // Payment conditions validation
     const { validarCondicaoPagamento, getFaixaPagamento, gerarParcelasAutomaticas, formatarCondicaoPagamento } = require('../utils/condicoes-pagamento');
 
     // Serviço compartilhado de faturamento (configuração centralizada, CFOP, numeração, admin check)
     const { getFaturamentoSharedService } = require('../services/faturamento-shared.service');
+    const {
+        createFaturamentoParcialHandlers,
+        determineRemessaCfop
+    } = require('../services/faturamento-parcial.service');
     const faturamentoShared = getFaturamentoSharedService(pool);
 
     // --- Standard requires for extracted routes ---
@@ -46,8 +152,20 @@ module.exports = function createVendasRoutes(deps) {
     try { lgpdCrypto = require('../lgpd-crypto'); } catch (_) {}
     const _enc = (val) => (lgpdCrypto && lgpdCrypto.encryptPII) ? lgpdCrypto.encryptPII(val) : val;
 
+    // Detecta usuário do PCP (chefe de produção). O PCP NÃO cria pedidos, mas
+    // precisa ver o Kanban de Vendas inteiro e faturar (mover de Aprovado em diante).
+    function isPcpUser(reqUser) {
+        if (!reqUser) return false;
+        const role = String(reqUser.role || '').toLowerCase().trim();
+        const email = String(reqUser.email || '').toLowerCase().trim();
+        return role === 'pcp' || role === 'producao' || role === 'produção'
+            || email.startsWith('pcp@');
+    }
+
     router.use(authenticateToken);
-    router.use(authorizeArea('vendas'));
+    // PCP entra no módulo Vendas (somente leitura do Kanban + faturamento — criação
+    // e edição continuam barradas pelas verificações por-rota abaixo).
+    router.use(authorizeArea(['vendas', 'pcp']));
     // AUDIT-FIX PERM-004: Block mutations for consultoria/restricted roles
     router.use(writeGuard || ((req, res, next) => next()));
     // Audit trail for mutation operations
@@ -303,6 +421,122 @@ module.exports = function createVendasRoutes(deps) {
         }
     });
 
+    router.get('/permissoes-acesso', async (req, res, next) => {
+        try {
+            const columns = await getTableColumns('usuarios');
+            const select = selectExistingColumns('u', columns, [
+                { column: 'id', alias: 'id' },
+                { column: 'nome', alias: 'nome', fallback: "''" },
+                { column: 'email', alias: 'email', fallback: "''" },
+                { column: 'role', alias: 'role', fallback: "'usuario'" },
+                { column: 'is_admin', alias: 'is_admin', fallback: '0' },
+                { column: 'permissoes_vendas', alias: 'permissoes_vendas', fallback: 'NULL' },
+                { column: 'permissoes', alias: 'permissoes', fallback: 'NULL' },
+                { column: 'areas', alias: 'areas', fallback: 'NULL' },
+                { column: 'ativo', alias: 'ativo', fallback: '1' },
+                { column: 'status', alias: 'status', fallback: "'ativo'" },
+                { column: 'deleted_at', alias: 'deleted_at', fallback: 'NULL' }
+            ]).join(', ');
+            const filtros = [
+                "LOWER(COALESCE(u.email, '')) LIKE '%@aluforce.ind.br'"
+            ];
+            if (columns.has('ativo')) filtros.push('COALESCE(u.ativo, 1) = 1');
+            if (columns.has('status')) filtros.push("LOWER(COALESCE(u.status, 'ativo')) NOT IN ('inativo','bloqueado','desativado','excluido','excluido','demitido','desligado','removido')");
+            if (columns.has('deleted_at')) filtros.push('u.deleted_at IS NULL');
+            const where = `WHERE ${filtros.join(' AND ')}`;
+            const order = columns.has('nome') ? 'ORDER BY u.nome ASC' : 'ORDER BY u.id ASC';
+            const [rows] = await pool.query(`SELECT ${select} FROM usuarios u ${where} ${order}`);
+
+            function parsePermissoes(raw) {
+                if (!raw) return null;
+                if (typeof raw === 'object') return raw;
+                try { return JSON.parse(raw); } catch (_) { return String(raw); }
+            }
+
+            function temPermissaoVendas(perms) {
+                if (!perms) return false;
+                let p = perms;
+                if (typeof p === 'string') {
+                    try { p = JSON.parse(p); } catch (_) { return /vendas|comercial|faturamento/i.test(perms); }
+                }
+                if (Array.isArray(p)) return p.some(item => /vendas|comercial|faturamento|nfe|nf-e/i.test(String(item || '')));
+                if (p && typeof p === 'object') {
+                    // Acesso real ao cadastro de vendas: criar pedidos OU clientes OU emitir NF-e
+                    return p.vendas === true || p.modulo === 'vendas' || p.area === 'vendas'
+                        || p.pedidos === true || p.clientes === true || p.nfe === true || p.gestao === true
+                        || (p.modulos && (p.modulos.vendas === true || p.modulos.nfe === true))
+                        || (p.areas && Array.isArray(p.areas) && p.areas.includes('vendas'));
+                }
+                return false;
+            }
+
+            function emailPermitido(email) {
+                const e = String(email || '').toLowerCase().trim();
+                if (!e.endsWith('@aluforce.ind.br')) return false;
+                if (e === 'teste@aluforce.ind.br' || e.startsWith('qa')) return false;
+                if (e.includes('+qa') || e.includes('.qa@') || e.includes('teste')) return false;
+                if (e === 'regina.ballotti@aluforce.ind.br' || e === 'regina.balotti@aluforce.ind.br') return false;
+                return true;
+            }
+
+            function areasInclui(areasRaw, alvo) {
+                let a = parsePermissoes(areasRaw);
+                // Suporte ao formato "base64:typeNN:<conteudo>" (algumas linhas da coluna areas)
+                if (typeof a === 'string') {
+                    const b64 = a.match(/^base64:[^:]*:(.+)$/);
+                    if (b64) { try { a = JSON.parse(Buffer.from(b64[1], 'base64').toString('utf8')); } catch (_) { /* mantem */ } }
+                }
+                if (Array.isArray(a)) return a.map(x => String(x).toLowerCase()).includes(alvo);
+                if (typeof a === 'string') return a.toLowerCase().includes(alvo);
+                return false;
+            }
+
+            function usuarioTemAcessoVendas(user) {
+                const role = String(user.role || '').toLowerCase();
+                const permsVendas = parsePermissoes(user.permissoes_vendas);
+                const permsGerais = parsePermissoes(user.permissoes);
+                const admin = user.is_admin === 1 || user.is_admin === true || ['admin', 'super_admin', 'ti', 'diretoria'].includes(role);
+                return admin || temPermissaoVendas(permsVendas) || temPermissaoVendas(permsGerais)
+                    || areasInclui(user.areas, 'vendas')
+                    || /vendas|comercial|faturamento|nfe|nf-e/.test(role);
+            }
+
+            function grupoUsuario(user) {
+                const role = String(user.role || '').toLowerCase();
+                const perms = parsePermissoes(user.permissoes_vendas || user.permissoes);
+                if (user.is_admin === 1 || user.is_admin === true || ['admin', 'super_admin', 'ti', 'diretoria'].includes(role)) {
+                    return 'Administrador';
+                }
+                if (temPermissaoVendas(perms) || /vendas|comercial|faturamento|nfe|nf-e/.test(role)) {
+                    return 'Vendas e NF-e';
+                }
+                return 'Vendas e NF-e';
+            }
+
+            const gruposMap = new Map();
+            rows.filter(row => emailPermitido(row.email) && usuarioTemAcessoVendas(row)).forEach(row => {
+                const grupo = grupoUsuario(row);
+                if (!gruposMap.has(grupo)) gruposMap.set(grupo, []);
+                gruposMap.get(grupo).push({
+                    id: row.id,
+                    nome: row.nome || row.email || ('Usuario ' + row.id),
+                    email: row.email || '',
+                    role: row.role || '',
+                    is_admin: row.is_admin === 1 || row.is_admin === true,
+                    permissoes: parsePermissoes(row.permissoes_vendas || row.permissoes)
+                });
+            });
+
+            res.json({
+                success: true,
+                grupos: Array.from(gruposMap.entries()).map(([nome, usuarios]) => ({ nome, usuarios }))
+            });
+        } catch (error) {
+            console.error('[API/VENDAS/PERMISSOES] Erro:', error);
+            next(error);
+        }
+    });
+
     // PEDIDOS
     router.get('/pedidos', cacheMiddleware('vendas_pedidos', 60000), async (req, res, next) => {
         try {
@@ -336,7 +570,7 @@ module.exports = function createVendasRoutes(deps) {
                        c.contato AS cliente_contato, c.complemento AS cliente_complemento,
                        c.email AS cliente_email, c.telefone AS cliente_telefone,
                        e.nome_fantasia AS empresa_nome, e.razao_social AS empresa_razao_social,
-                       COALESCE(u.nome, p.vendedor_nome) AS vendedor_nome,
+                       COALESCE(p.vendedor_nome, u.nome) AS vendedor_nome,
                        t.razao_social AS transp_razao_social,
                        t.cnpj_cpf AS transp_cnpj,
                        t.telefone AS transp_telefone,
@@ -442,9 +676,102 @@ module.exports = function createVendasRoutes(deps) {
         }
     };
 
+    let pedidosWriteColumnsReady = null;
+    const ensurePedidosWriteColumns = () => {
+        if (pedidosWriteColumnsReady) return pedidosWriteColumnsReady;
+
+        const columns = [
+            ['cliente_nome', 'VARCHAR(255) NULL'],
+            ['numero_pedido', 'INT NULL'],
+            ['condicao_pagamento', 'VARCHAR(255) NULL'],
+            ['condicoes_pagamento', 'VARCHAR(255) NULL'],
+            ['cenario_fiscal', 'VARCHAR(100) NULL'],
+            ['transportadora_nome', 'VARCHAR(255) NULL'],
+            ['tipo_frete', 'VARCHAR(20) NULL'],
+            ['frete', 'DECIMAL(15,2) DEFAULT 0'],
+            ['placa_veiculo', 'VARCHAR(20) NULL'],
+            ['veiculo_uf', 'VARCHAR(2) NULL'],
+            ['rntrc', 'VARCHAR(50) NULL'],
+            ['qtd_volumes', 'DECIMAL(15,3) NULL'],
+            ['especie_volumes', 'VARCHAR(100) NULL'],
+            ['marca_volumes', 'VARCHAR(100) NULL'],
+            ['numeracao_volumes', 'VARCHAR(100) NULL'],
+            ['peso_liquido', 'DECIMAL(15,3) NULL'],
+            ['peso_bruto', 'DECIMAL(15,3) NULL'],
+            ['valor_seguro', 'DECIMAL(15,2) NULL'],
+            ['outras_despesas', 'DECIMAL(15,2) NULL'],
+            ['tipo_entrega', 'VARCHAR(50) NULL'],
+            ['numero_lacre', 'VARCHAR(50) NULL'],
+            ['codigo_rastreio', 'VARCHAR(100) NULL'],
+            ['veiculo_proprio', 'TINYINT(1) DEFAULT 0'],
+            ['redespacho', 'TINYINT(1) DEFAULT 0'],
+            ['desconto_pct', 'DECIMAL(6,3) DEFAULT 0'],
+            ['origem', 'VARCHAR(50) NULL'],
+            ['observacao', 'TEXT NULL'],
+            ['observacao_producao', 'TEXT NULL'],
+            ['parcelas', 'TEXT NULL'],
+            ['estado_destino', 'VARCHAR(2) NULL'],
+            ['tipo_venda', 'VARCHAR(20) NULL'],
+            ['etapa', 'VARCHAR(50) NULL'],
+            ['version', 'INT NOT NULL DEFAULT 1']
+        ];
+
+        // Colunas em `clientes` usadas pelo bloqueio de inadimplência na criação do pedido.
+        // Sem elas o SELECT falha com "Unknown column ... in 'field list'" (500).
+        const clientesColumns = [
+            ['ativo', 'TINYINT(1) NOT NULL DEFAULT 1'],
+            ['bloqueado_inadimplencia', 'TINYINT(1) NOT NULL DEFAULT 0']
+        ];
+
+        pedidosWriteColumnsReady = (async () => {
+            for (const [column, definition] of columns) {
+                try {
+                    const [existing] = await pool.query('SHOW COLUMNS FROM pedidos LIKE ?', [column]);
+                    if (existing.length === 0) {
+                        await pool.query(`ALTER TABLE pedidos ADD COLUMN \`${column}\` ${definition}`);
+                    }
+                } catch (err) {
+                    if (err.code !== 'ER_DUP_FIELDNAME') throw err;
+                }
+            }
+            for (const [column, definition] of clientesColumns) {
+                try {
+                    const [existing] = await pool.query('SHOW COLUMNS FROM clientes LIKE ?', [column]);
+                    if (existing.length === 0) {
+                        await pool.query(`ALTER TABLE clientes ADD COLUMN \`${column}\` ${definition}`);
+                    }
+                } catch (err) {
+                    if (err.code !== 'ER_DUP_FIELDNAME') throw err;
+                }
+            }
+            // Pedido pode ser criado sem empresa/cliente resolvidos (handler permite NULL).
+            // Se a coluna for NOT NULL, o INSERT falha com "Column ... cannot be null".
+            for (const column of ['empresa_id', 'cliente_id']) {
+                try {
+                    const [rows] = await pool.query('SHOW COLUMNS FROM pedidos LIKE ?', [column]);
+                    if (rows.length && String(rows[0].Null).toUpperCase() === 'NO') {
+                        const tipo = rows[0].Type || 'INT';
+                        await pool.query(`ALTER TABLE pedidos MODIFY \`${column}\` ${tipo} NULL`);
+                    }
+                } catch (err) { /* nao bloquear criacao por ajuste de nullability */ }
+            }
+        })().catch((err) => {
+            pedidosWriteColumnsReady = null;
+            throw err;
+        });
+
+        return pedidosWriteColumnsReady;
+    };
+
     router.post('/pedidos', authenticateToken, async (req, res, next) => {
-        const connection = await pool.getConnection();
+        let connection;
         try {
+            // PCP tem acesso de leitura/faturamento ao Kanban, mas NÃO pode criar pedidos.
+            if (isPcpUser(req.user) || !(await podeCadastrarVendas(req.user, 'pedidos'))) {
+                return res.status(403).json({ success: false, message: 'Seu perfil nao tem permissao para criar pedidos de venda.', code: 'SEM_PERMISSAO_PEDIDOS' });
+            }
+            await ensurePedidosWriteColumns();
+            connection = await pool.getConnection();
             await connection.beginTransaction();
 
             const sanitize = (v) => (v === 'null' || v === 'undefined' || v === '' || v === undefined ? null : v);
@@ -452,7 +779,7 @@ module.exports = function createVendasRoutes(deps) {
 
             const {
                 empresa_id, cliente_id, cliente_nome, cliente,
-                valor, descricao, observacao, observacoes,
+                valor, descricao, observacao, observacoes, observacao_producao,
                 status = 'orcamento',
                 condicao_pagamento, condicoes_pagamento, cenario_fiscal,
                 transportadora, transportadora_nome,
@@ -462,10 +789,15 @@ module.exports = function createVendasRoutes(deps) {
                 peso_liquido, peso_bruto, valor_seguro, outras_despesas,
                 tipo_entrega, endereco_entrega, municipio_entrega, prazo_entrega,
                 desconto_pct = 0, origem,
+                vendedor_id: vendedorSelecionado,
                 itens, produtos, parcelas
             } = req.body;
 
-            const vendedor_id = req.user.id;
+            // BUG-VEND-012: gravar o vendedor SELECIONADO no formulário quando informado.
+            // Antes usava sempre req.user.id, então o pedido saía atribuído ao usuário logado
+            // em vez do vendedor escolhido. Fallback no logado quando nada é informado.
+            const vendedorFormId = sanitizeNum(vendedorSelecionado);
+            const vendedor_id = (vendedorFormId && vendedorFormId > 0) ? vendedorFormId : req.user.id;
             const nomeCliente = sanitize(cliente_nome) || sanitize(cliente) || null;
             const obs = sanitize(observacao) || sanitize(observacoes) || sanitize(descricao) || null;
 
@@ -482,28 +814,41 @@ module.exports = function createVendasRoutes(deps) {
                 // Se empresa não encontrada, empresa_id fica NULL — NÃO usar fallback genérico
             }
 
+            // Declarar clienteFinalId antes de qualquer referência (evita TDZ)
+            let clienteFinalId = sanitize(cliente_id) ? parseInt(cliente_id) : null;
+            let clienteFinalNome = sanitize(cliente_nome) || sanitize(cliente) || null;
+
             if (!empresaFinalId && !clienteFinalId && !nomeCliente) {
                 await connection.rollback();
-                connection.release();
                 return res.status(400).json({ message: 'Informe o cliente ou empresa.' });
             }
 
             // Validar tipo de frete obrigatório
             if (!sanitize(tipo_frete) && sanitize(tipo_frete) !== '0' && sanitize(tipo_frete) !== 0) {
                 await connection.rollback();
-                connection.release();
                 return res.status(400).json({ message: 'Selecione o Tipo de Frete (CIF, FOB, etc.).' });
             }
 
             // Validar cliente_id: se enviado, verificar se existe na tabela clientes
-            let clienteFinalId = sanitize(cliente_id) ? parseInt(cliente_id) : null;
-            let clienteFinalNome = sanitize(cliente_nome) || sanitize(cliente) || null;
             if (clienteFinalId) {
-                const [clienteRows] = await connection.query('SELECT id, COALESCE(nome_fantasia, razao_social, nome) as nome_resolved FROM clientes WHERE id = ? LIMIT 1', [clienteFinalId]);
+                const [clienteRows] = await connection.query(
+                    'SELECT id, COALESCE(nome_fantasia, razao_social, nome) as nome_resolved, ativo, bloqueado_inadimplencia FROM clientes WHERE id = ? LIMIT 1',
+                    [clienteFinalId]
+                );
                 if (clienteRows.length === 0) {
                     clienteFinalId = null; // ID não existe em clientes, usar NULL
-                } else if (!clienteFinalNome) {
-                    clienteFinalNome = clienteRows[0].nome_resolved;
+                } else {
+                    if (!clienteFinalNome) {
+                        clienteFinalNome = clienteRows[0].nome_resolved;
+                    }
+                    // Bloquear criação de pedido para clientes inadimplentes
+                    if (clienteRows[0].bloqueado_inadimplencia === 1) {
+                        await connection.rollback();
+                        return res.status(403).json({
+                            message: `Cliente bloqueado por inadimplência. Regularize as contas a receber vencidas no módulo Financeiro antes de emitir novos pedidos.`,
+                            code: 'CLIENTE_INADIMPLENTE'
+                        });
+                    }
                 }
             }
 
@@ -515,17 +860,38 @@ module.exports = function createVendasRoutes(deps) {
                     const qty = parseFloat(item.quantidade) || 1;
                     const preco = parseFloat(item.preco_unitario || item.preco || 0);
                     const desc = parseFloat(item.desconto) || 0;
+                    // BUG-VEND-011: rejeitar quantidade/preço inválidos (quantidade negativa gerava
+                    // total negativo). Quantidade deve ser > 0 e preço não pode ser negativo.
+                    if (!(qty > 0)) {
+                        await connection.rollback();
+                        return res.status(400).json({ message: 'Quantidade dos itens deve ser maior que zero.' });
+                    }
+                    if (preco < 0) {
+                        await connection.rollback();
+                        return res.status(400).json({ message: 'Preço dos itens não pode ser negativo.' });
+                    }
                     valorTotal += (qty * preco) - desc;
                 }
+                const subtotalBruto = valorTotal;
                 const descontoVal = valorTotal * ((sanitizeNum(desconto_pct) || 0) / 100);
                 valorTotal = valorTotal - descontoVal + (sanitizeNum(frete) || 0);
+                // BUG-CVF-005: pedido com itens não pode ter total <= 0 (desconto de 100% zerava
+                // o valor e a venda era aceita). Desconto não pode anular a venda inteira.
+                if (subtotalBruto > 0 && valorTotal <= 0) {
+                    await connection.rollback();
+                    return res.status(400).json({
+                        success: false,
+                        code: 'DESCONTO_INVALIDO',
+                        message: 'O desconto não pode zerar ou tornar negativo o valor do pedido.'
+                    });
+                }
             } else {
                 // Sem itens: aceitar valor do body como fallback (para compatibilidade)
                 valorTotal = sanitizeNum(valor) || 0;
             }
 
             // Gerar numero_pedido sequencial — AUDIT-FIX BUG-02: FOR UPDATE lock para evitar duplicata
-            const [[npRow]] = await connection.query('SELECT COALESCE(MAX(numero_pedido), 0) + 1 AS next_num FROM pedidos FOR UPDATE');
+            const [[npRow]] = await connection.query('SELECT COALESCE(MAX(CAST(numero_pedido AS UNSIGNED)), 0) + 1 AS next_num FROM pedidos FOR UPDATE');
             const numeroPedido = npRow.next_num || 1;
 
             const [result] = await connection.query(`
@@ -594,6 +960,70 @@ module.exports = function createVendasRoutes(deps) {
             // Invalidar cache do GET /pedidos para que o kanban veja o novo pedido imediatamente
             clearPedidosCache();
 
+            // AUDIT-FIX (campos do modal): o INSERT base persiste apenas o núcleo do pedido.
+            // O modal "Novo Orçamento/Pedido" envia ~20 campos adicionais (abas Informações
+            // Adicionais, E-mail, NF-e, Transporte, etc.) que antes eram descartados na criação
+            // e só persistiam num segundo salvar (PATCH). Aqui gravamos todos de uma vez.
+            // Best-effort pós-commit: nunca derruba a criação caso uma coluna não exista.
+            try {
+                const b = req.body || {};
+                const toBit = (v) => (v === 1 || v === '1' || v === true || v === 'true') ? 1 : 0;
+                const extraCols = [];
+                const extraVals = [];
+                const setIf = (cond, col, val) => { if (cond) { extraCols.push('`' + col + '` = ?'); extraVals.push(val); } };
+
+                setIf(b.estado_destino !== undefined && sanitize(b.estado_destino), 'estado_destino', sanitize(b.estado_destino) ? String(b.estado_destino).toUpperCase().slice(0, 2) : null);
+                setIf(b.tipo_venda !== undefined, 'tipo_venda', sanitize(b.tipo_venda));
+                setIf(b.observacao_cliente !== undefined, 'observacao_cliente', sanitize(b.observacao_cliente));
+                setIf(b.observacao_producao !== undefined, 'observacao_producao', sanitize(b.observacao_producao));
+                setIf(b.info_complementar !== undefined, 'info_complementar', sanitize(b.info_complementar));
+                setIf(b.email_cliente !== undefined, 'email_cliente', sanitize(b.email_cliente));
+                setIf(b.transportadora_id !== undefined, 'transportadora_id', sanitizeNum(b.transportadora_id));
+                setIf((b.transportadora_nome || b.transportadora) !== undefined, 'transportadora', sanitize(b.transportadora_nome) || sanitize(b.transportadora));
+                setIf((b.previsao_faturamento || b.data_previsao || b.data_previsao_entrega) !== undefined, 'data_previsao', sanitize(b.data_previsao_entrega) || sanitize(b.data_previsao) || sanitize(b.previsao_faturamento) || null);
+                setIf(b.redespacho !== undefined, 'redespacho', toBit(b.redespacho));
+                setIf(b.placa_veiculo !== undefined, 'placa_veiculo', sanitize(b.placa_veiculo));
+                setIf(b.veiculo_uf !== undefined, 'veiculo_uf', sanitize(b.veiculo_uf));
+                setIf(b.rntrc !== undefined, 'rntrc', sanitize(b.rntrc));
+                setIf(b.qtd_volumes !== undefined, 'qtd_volumes', sanitizeNum(b.qtd_volumes));
+                setIf(b.especie_volumes !== undefined, 'especie_volumes', sanitize(b.especie_volumes));
+                setIf(b.marca_volumes !== undefined, 'marca_volumes', sanitize(b.marca_volumes));
+                setIf(b.numeracao_volumes !== undefined, 'numeracao_volumes', sanitize(b.numeracao_volumes));
+                setIf(b.peso_liquido !== undefined, 'peso_liquido', sanitizeNum(b.peso_liquido));
+                setIf(b.peso_bruto !== undefined, 'peso_bruto', sanitizeNum(b.peso_bruto));
+                setIf(b.valor_seguro !== undefined, 'valor_seguro', sanitizeNum(b.valor_seguro));
+                setIf(b.tipo_entrega !== undefined, 'tipo_entrega', sanitize(b.tipo_entrega));
+                setIf(b.numero_lacre !== undefined, 'numero_lacre', sanitize(b.numero_lacre));
+                setIf(b.outras_despesas !== undefined, 'outras_despesas', sanitizeNum(b.outras_despesas));
+                setIf(b.codigo_rastreio !== undefined, 'codigo_rastreio', sanitize(b.codigo_rastreio));
+                setIf(b.veiculo_proprio !== undefined, 'veiculo_proprio', toBit(b.veiculo_proprio));
+                setIf(b.nf !== undefined, 'nf', sanitize(b.nf));
+                setIf(b.categoria !== undefined, 'categoria', sanitize(b.categoria));
+                setIf(b.conta_corrente !== undefined, 'conta_corrente', sanitize(b.conta_corrente));
+                setIf(b.etapa !== undefined, 'etapa', sanitize(b.etapa));
+                setIf(b.pedido_cliente !== undefined, 'pedido_cliente', sanitize(b.pedido_cliente));
+                setIf(b.contrato_venda !== undefined, 'contrato_venda', sanitize(b.contrato_venda));
+                setIf(b.contato !== undefined, 'contato', sanitize(b.contato));
+                setIf(b.projeto !== undefined, 'projeto', sanitize(b.projeto));
+                setIf(b.origem_pedido !== undefined, 'origem_pedido', sanitize(b.origem_pedido));
+                setIf(b.departamento !== undefined, 'departamento', sanitize(b.departamento));
+                setIf(b.cenario_fiscal_id !== undefined, 'cenario_fiscal_id', sanitizeNum(b.cenario_fiscal_id));
+                setIf(b.nota_fiscal_consumo_final !== undefined, 'nota_fiscal_consumo_final', toBit(b.nota_fiscal_consumo_final));
+                setIf(b.email_boleto !== undefined, 'email_boleto', toBit(b.email_boleto));
+                setIf(b.email_pix !== undefined, 'email_pix', toBit(b.email_pix));
+                setIf(b.dados_adicionais_nf !== undefined, 'dados_adicionais_nf', sanitize(b.dados_adicionais_nf));
+                setIf(b.campos_obs_nfe !== undefined, 'campos_obs_nfe', sanitize(b.campos_obs_nfe));
+                setIf(b.endereco_entrega_nfe !== undefined, 'endereco_entrega_nfe', sanitize(b.endereco_entrega_nfe));
+                setIf(b.dados_agropecuaria !== undefined, 'dados_agropecuaria', sanitize(b.dados_agropecuaria));
+
+                if (extraCols.length > 0) {
+                    extraVals.push(pedidoId);
+                    await pool.query('UPDATE pedidos SET ' + extraCols.join(', ') + ' WHERE id = ?', extraVals);
+                }
+            } catch (extraErr) {
+                console.error('[POST /pedidos] Falha ao persistir campos adicionais do modal (nao-bloqueante) pedido #' + pedidoId + ':', extraErr.message);
+            }
+
             // Notificação (não-bloqueante)
             try {
                 const nomeVendedor = req.user.nome || 'Vendedor';
@@ -625,14 +1055,17 @@ module.exports = function createVendasRoutes(deps) {
 
             res.status(201).json({ message: 'Pedido criado com sucesso!', id: pedidoId, insertId: pedidoId });
         } catch (error) {
-            try { await connection.rollback(); } catch (_) {}
+            if (connection) { try { await connection.rollback(); } catch (_) {} }
             next(error);
         } finally {
-            connection.release();
+            if (connection) connection.release();
         }
     });
-    // Statuses bloqueados para edição — somente ti@aluforce.ind.br pode editar
-    const STATUS_BLOQUEADO_EDICAO = ['faturado', 'faturar', 'aprovado', 'pedido-aprovado', 'orcamento', 'orçamento', 'analise', 'analise-credito', 'recibo', 'entregue'];
+    // Statuses bloqueados para edição; só ti@aluforce.ind.br pode editar tudo.
+    // Orçamento/aprovado/faturar seguem o controle RBAC normal (vendedor edita o próprio; admin edita qualquer um).
+    const STATUS_ANALISE_CREDITO_BLOQUEADO = ['analise-credito', 'análise-crédito', 'analise', 'análise'];
+    const STATUS_FINAL_BLOQUEADO_EDICAO = ['faturado', 'recibo', 'entregue'];
+    const STATUS_BLOQUEADO_EDICAO = [...STATUS_ANALISE_CREDITO_BLOQUEADO, ...STATUS_FINAL_BLOQUEADO_EDICAO];
     const EMAIL_EDICAO_LIBERADO = 'ti@aluforce.ind.br';
 
     router.put('/pedidos/:id', pedidoOwnership, async (req, res, next) => {
@@ -661,6 +1094,7 @@ module.exports = function createVendasRoutes(deps) {
                 placa_veiculo, veiculo_uf, rntrc,
                 qtd_volumes, especie_volumes, marca_volumes, numeracao_volumes,
                 peso_liquido, peso_bruto, valor_seguro, outras_despesas,
+                tipo_entrega, numero_lacre, codigo_rastreio, veiculo_proprio, data_previsao_entrega,
                 desconto_pct, origem, parcelas
             } = req.body;
 
@@ -678,12 +1112,17 @@ module.exports = function createVendasRoutes(deps) {
             }
             if (valor !== undefined && sanitizeNum(valor) !== null) { sets.push('valor = ?'); params.push(sanitizeNum(valor)); }
             if (obs !== null) { sets.push('descricao = ?'); params.push(obs); sets.push('observacao = ?'); params.push(obs); }
+            if (observacao_producao !== undefined) { sets.push('observacao_producao = ?'); params.push(sanitize(observacao_producao)); }
             // AUDIT-FIX BUG-03: Block status changes via PUT — must use PUT /pedidos/:id/status (state machine)
             if (status !== undefined && sanitize(status)) {
                 return res.status(400).json({ message: 'Alteração de status não permitida via PUT. Use PUT /pedidos/:id/status para garantir validação de transição.' });
             }
             const condicaoPagamentoFinal = condicao_pagamento !== undefined ? condicao_pagamento : condicoes_pagamento;
-            if (condicaoPagamentoFinal !== undefined) { sets.push('condicao_pagamento = ?'); params.push(sanitize(condicaoPagamentoFinal)); }
+            if (condicaoPagamentoFinal !== undefined) {
+                const condicaoSanitizada = sanitize(condicaoPagamentoFinal);
+                sets.push('condicao_pagamento = ?'); params.push(condicaoSanitizada);
+                sets.push('condicoes_pagamento = ?'); params.push(condicaoSanitizada);
+            }
             if (cenario_fiscal !== undefined) { sets.push('cenario_fiscal = ?'); params.push(sanitize(cenario_fiscal)); }
             if (transportadora_nome !== undefined || transportadora !== undefined) {
                 sets.push('transportadora_nome = ?'); params.push(sanitize(transportadora_nome) || sanitize(transportadora));
@@ -701,6 +1140,11 @@ module.exports = function createVendasRoutes(deps) {
             if (peso_bruto !== undefined) { sets.push('peso_bruto = ?'); params.push(sanitizeNum(peso_bruto)); }
             if (valor_seguro !== undefined) { sets.push('valor_seguro = ?'); params.push(sanitizeNum(valor_seguro)); }
             if (outras_despesas !== undefined) { sets.push('outras_despesas = ?'); params.push(sanitizeNum(outras_despesas)); }
+            if (tipo_entrega !== undefined) { sets.push('tipo_entrega = ?'); params.push(sanitize(tipo_entrega)); }
+            if (numero_lacre !== undefined) { sets.push('numero_lacre = ?'); params.push(sanitize(numero_lacre)); }
+            if (codigo_rastreio !== undefined) { sets.push('codigo_rastreio = ?'); params.push(sanitize(codigo_rastreio)); }
+            if (veiculo_proprio !== undefined) { sets.push('veiculo_proprio = ?'); params.push(veiculo_proprio === '1' || veiculo_proprio === 1 || veiculo_proprio === true ? 1 : 0); }
+            if (data_previsao_entrega !== undefined) { sets.push('data_previsao = ?'); params.push(sanitize(data_previsao_entrega)); }
             if (desconto_pct !== undefined) { sets.push('desconto_pct = ?'); params.push(sanitizeNum(desconto_pct) || 0); }
             if (origem !== undefined) { sets.push('origem = ?'); params.push(sanitize(origem)); }
             if (parcelas !== undefined) { sets.push('parcelas = ?'); params.push(parcelas ? (typeof parcelas === 'string' ? parcelas : JSON.stringify(parcelas)) : null); }
@@ -764,15 +1208,24 @@ module.exports = function createVendasRoutes(deps) {
                 });
             }
 
-            // Verificar contas a receber vinculadas (se a tabela existir)
+            // Contas a receber vinculadas: como é soft-delete, bloqueia APENAS se houver
+            // recebimento (dinheiro que já entrou). Contas a receber em aberto são canceladas
+            // junto com o pedido (mais abaixo, após o soft-delete).
+            let temCancelarContasReceber = false;
             try {
-                const [contas] = await connection.query('SELECT COUNT(*) as count FROM contas_receber WHERE pedido_id = ?', [id]);
-                if (contas[0].count > 0) {
+                const [crs] = await connection.query(
+                    'SELECT id, status FROM contas_receber WHERE pedido_id = ?', [id]
+                );
+                const recebidas = crs.filter(c =>
+                    ['recebido', 'pago', 'liquidado', 'parcial'].includes(String(c.status || '').toLowerCase())
+                );
+                if (recebidas.length > 0) {
                     await connection.rollback();
                     return res.status(400).json({
-                        message: `Pedido possui ${contas[0].count} conta(s) a receber vinculada(s).`
+                        message: `Pedido possui ${recebidas.length} conta(s) a receber já recebida(s) e não pode ser excluído. Estorne o recebimento antes.`
                     });
                 }
+                temCancelarContasReceber = crs.length > 0;
             } catch (e) {
                 // Tabela não existe ou não tem coluna pedido_id - ignorar verificação
                 console.log('⚠️ Verificação contas_receber ignorada:', e.message);
@@ -797,6 +1250,21 @@ module.exports = function createVendasRoutes(deps) {
                 `UPDATE pedidos SET status = 'excluido', deleted_at = NOW() WHERE id = ?`,
                 [id]
             );
+
+            // Cancela as contas a receber em aberto vinculadas (não-recebidas), para não
+            // deixar lançamento órfão no Financeiro após a exclusão do pedido.
+            if (temCancelarContasReceber) {
+                try {
+                    await connection.query(
+                        `UPDATE contas_receber SET status = 'cancelado'
+                         WHERE pedido_id = ?
+                           AND (status IS NULL OR LOWER(status) NOT IN ('recebido','pago','liquidado','parcial'))`,
+                        [id]
+                    );
+                } catch (e) {
+                    console.log('⚠️ Cancelamento de contas_receber vinculadas falhou:', e.message);
+                }
+            }
 
             // Registrar no histórico
             try {
@@ -938,13 +1406,27 @@ module.exports = function createVendasRoutes(deps) {
             const user = req.user || {};
             const isAdmin = user.is_admin === true || user.is_admin === 1 || (user.role && user.role.toString().toLowerCase() === 'admin');
 
-            // Lock: pedidos em status bloqueado só podem ser editados por ti@aluforce.ind.br
+            // Lock: pedidos em análise de crédito bloqueiam alterações comerciais;
+            // pedidos finais/fiscais bloqueiam alterações gerais. Somente TI tem acesso total.
             const statusAtualPatch = (existing.status || '').toLowerCase().trim();
-            if (STATUS_BLOQUEADO_EDICAO.includes(statusAtualPatch)) {
-                const userEmail = (user.email || '').toLowerCase();
-                if (userEmail !== EMAIL_EDICAO_LIBERADO) {
+            const userEmail = (user.email || '').toLowerCase();
+            if (STATUS_ANALISE_CREDITO_BLOQUEADO.includes(statusAtualPatch) && userEmail !== EMAIL_EDICAO_LIBERADO) {
+                const CAMPOS_LIBERADOS_ANALISE_CREDITO = ['transportadora_nome', 'transportadora', 'transportadora_id', 'metodo_envio', 'tipo_frete', 'conta_corrente'];
+                Object.keys(updates).forEach(k => {
+                    if (!CAMPOS_LIBERADOS_ANALISE_CREDITO.includes(k)) delete updates[k];
+                });
+                if (Object.keys(updates).length === 0) {
                     await patchConn.rollback();
-                    return res.status(403).json({ message: `Pedido com status "${existing.status}" não pode ser editado. Somente TI pode editar pedidos neste status.`, code: 'EDIT_LOCKED_BY_STATUS' });
+                    return res.status(403).json({ message: `Pedido em Análise de Crédito só permite ajustar Transportadora e Conta Corrente.`, code: 'EDIT_LOCKED_BY_STATUS' });
+                }
+            } else if (STATUS_FINAL_BLOQUEADO_EDICAO.includes(statusAtualPatch) && userEmail !== EMAIL_EDICAO_LIBERADO) {
+                const CAMPOS_LIBERADOS_FATURADO = ['categoria', 'projeto', 'vendedor_id', 'vendedor_nome', 'conta_corrente', 'condicao_pagamento', 'condicoes_pagamento', 'parcelas'];
+                Object.keys(updates).forEach(k => {
+                    if (!CAMPOS_LIBERADOS_FATURADO.includes(k)) delete updates[k];
+                });
+                if (Object.keys(updates).length === 0) {
+                    await patchConn.rollback();
+                    return res.status(403).json({ message: `Pedido com status "${existing.status}" só permite ajustar Categoria, Projeto, Vendedor, Conta Corrente e Condição de Pagamento.`, code: 'EDIT_LOCKED_BY_STATUS' });
                 }
             }
 
@@ -966,7 +1448,7 @@ module.exports = function createVendasRoutes(deps) {
             // AUDIT-FIX: Block financial field changes on faturado/finalizado pedidos
             const statusAtual = (existing.status || '').toLowerCase().trim();
             const isFaturado = ['faturado', 'finalizado', 'entregue', 'recibo'].includes(statusAtual);
-            const financialFields = ['valor', 'frete', 'desconto', 'valor_seguro', 'outras_despesas', 'parcelas', 'condicao_pagamento'];
+            const financialFields = ['valor', 'frete', 'desconto', 'valor_seguro', 'outras_despesas'];
             // Sprint E2E-S1 (E4-HIGH-07 fix): Block address/transport fields after faturamento too
             const deliveryFields = ['endereco_entrega', 'municipio_entrega', 'tipo_frete', 'transportadora_nome', 'transportadora', 'transportadora_id', 'metodo_envio', 'tipo_entrega'];
 
@@ -981,7 +1463,7 @@ module.exports = function createVendasRoutes(deps) {
             }
 
             // Sprint 2 (P-03): Bloquear edição de campos críticos quando há OP ativa vinculada
-            const camposCriticos = ['valor', 'frete', 'desconto', 'parcelas', 'condicao_pagamento', 'cliente_id', 'cliente_nome'];
+            const camposCriticos = ['valor', 'frete', 'desconto', 'cliente_id', 'cliente_nome'];
             const camposCriticosAlterados = camposCriticos.filter(f => updates[f] !== undefined);
             if (camposCriticosAlterados.length > 0) {
                 let opAtiva = [];
@@ -1007,26 +1489,48 @@ module.exports = function createVendasRoutes(deps) {
             const fieldsToUpdate = [];
             const values = [];
 
-            // Atualizar vendedor_id se vendedor_nome foi fornecido
-            if (updates.vendedor_nome !== undefined && updates.vendedor_nome !== '') {
-                const [vendedorRows] = await patchConn.query(
-                    'SELECT id, nome FROM usuarios WHERE nome LIKE ? OR apelido LIKE ? LIMIT 1',
-                    [`%${updates.vendedor_nome}%`, `%${updates.vendedor_nome}%`]
-                );
+            // Atualizar vendedor somente quando houver seleção válida.
+            // Admin abrir/salvar sem escolher vendedor não pode sobrescrever o dono do pedido.
+            if (updates.vendedor_id !== undefined || updates.vendedor_nome !== undefined) {
+                const vendedorIdNum = sanitizeNumber(updates.vendedor_id);
+                const vendedorNomeLimpo = updates.vendedor_nome ? String(updates.vendedor_nome).trim() : '';
+                let vendedorRows = [];
+
+                if (vendedorIdNum) {
+                    [vendedorRows] = await patchConn.query(
+                        'SELECT id, nome FROM usuarios WHERE id = ? LIMIT 1',
+                        [vendedorIdNum]
+                    );
+                } else if (vendedorNomeLimpo) {
+                    [vendedorRows] = await patchConn.query(
+                        'SELECT id, nome FROM usuarios WHERE nome = ? OR apelido = ? LIMIT 1',
+                        [vendedorNomeLimpo, vendedorNomeLimpo]
+                    );
+                }
+
                 if (vendedorRows.length > 0) {
+                    if (!isAdmin && Number(vendedorRows[0].id) !== Number(user.id)) {
+                        await patchConn.rollback();
+                        return res.status(403).json({ message: 'Acesso negado: vendedor não pode reatribuir o pedido.' });
+                    }
                     fieldsToUpdate.push('vendedor_id = ?');
                     values.push(vendedorRows[0].id);
-                    console.log(`✅ Vendedor encontrado: "${updates.vendedor_nome}" -> ID ${vendedorRows[0].id}`);
+                    fieldsToUpdate.push('vendedor_nome = ?');
+                    values.push(vendedorRows[0].nome);
+                    console.log(`✅ Vendedor atualizado: ID ${vendedorRows[0].id} (${vendedorRows[0].nome})`);
+                } else if (updates.vendedor_id !== undefined || vendedorNomeLimpo) {
+                    console.warn(`[VENDAS] Vendedor informado não encontrado; mantendo vendedor atual do pedido #${id}.`);
                 }
-                // Também salvar o nome do vendedor
-                fieldsToUpdate.push('vendedor_nome = ?');
-                values.push(updates.vendedor_nome);
             }
 
             // Observação existe na tabela
             if (updates.observacao !== undefined) {
                 fieldsToUpdate.push('observacao = ?');
                 values.push(updates.observacao);
+            }
+            if (updates.observacao_producao !== undefined) {
+                fieldsToUpdate.push('observacao_producao = ?');
+                values.push(updates.observacao_producao);
             }
 
             // Status NÃO aceito via PATCH (Sprint 1 K-05) — bloqueado acima
@@ -1229,10 +1733,40 @@ module.exports = function createVendasRoutes(deps) {
                 values.push(updates.dados_adicionais_nf);
             }
 
+            // ========== ESTADO DESTINO / UF ==========
+            if (updates.estado_destino !== undefined && updates.estado_destino !== null && updates.estado_destino !== '') {
+                fieldsToUpdate.push('estado_destino = ?');
+                values.push(String(updates.estado_destino).toUpperCase().slice(0, 2));
+            }
+
             // ========== CAMPOS DE ORIGEM E EMAIL ==========
             if (updates.origem !== undefined) {
                 fieldsToUpdate.push('origem = ?');
                 values.push(updates.origem);
+            }
+            if (updates.origem_pedido !== undefined) {
+                fieldsToUpdate.push('origem_pedido = ?');
+                values.push(updates.origem_pedido);
+            }
+            if (updates.nota_fiscal_consumo_final !== undefined) {
+                fieldsToUpdate.push('nota_fiscal_consumo_final = ?');
+                values.push(updates.nota_fiscal_consumo_final === '1' || updates.nota_fiscal_consumo_final === 1 || updates.nota_fiscal_consumo_final === true ? 1 : 0);
+            }
+            if (updates.email_boleto !== undefined) {
+                fieldsToUpdate.push('email_boleto = ?');
+                values.push(updates.email_boleto === '1' || updates.email_boleto === 1 || updates.email_boleto === true ? 1 : 0);
+            }
+            if (updates.email_pix !== undefined) {
+                fieldsToUpdate.push('email_pix = ?');
+                values.push(updates.email_pix === '1' || updates.email_pix === 1 || updates.email_pix === true ? 1 : 0);
+            }
+            if (updates.endereco_entrega_nfe !== undefined) {
+                fieldsToUpdate.push('endereco_entrega_nfe = ?');
+                values.push(updates.endereco_entrega_nfe);
+            }
+            if (updates.dados_agropecuaria !== undefined) {
+                fieldsToUpdate.push('dados_agropecuaria = ?');
+                values.push(updates.dados_agropecuaria);
             }
             if (updates.email_cliente !== undefined) {
                 fieldsToUpdate.push('email_cliente = ?');
@@ -1279,6 +1813,15 @@ module.exports = function createVendasRoutes(deps) {
             if (updates.departamento !== undefined) {
                 fieldsToUpdate.push('departamento = ?');
                 values.push(updates.departamento);
+            }
+            // AUDIT-FIX: Tipo de Venda (Consumidor Final / Revenda) e Etapa do modal
+            if (updates.tipo_venda !== undefined) {
+                fieldsToUpdate.push('tipo_venda = ?');
+                values.push(updates.tipo_venda);
+            }
+            if (updates.etapa !== undefined) {
+                fieldsToUpdate.push('etapa = ?');
+                values.push(updates.etapa);
             }
 
             // Se não há campos para atualizar
@@ -1472,11 +2015,14 @@ module.exports = function createVendasRoutes(deps) {
             'user': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'cancelado'],
             'comercial': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'cancelado'],
             // Supervisores podem aprovar, mas não faturar diretamente
-            'supervisor': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'cancelado'],
+            'supervisor': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'cancelado'],
             // Aprovadores podem encaminhar para faturamento, mas não marcar como faturado diretamente
-            'aprovador': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'faturar', 'cancelado'],
+            'aprovador': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'cancelado'],
+            // PCP (produção) não cria pedidos, mas fatura: move de Aprovado em diante.
+            'pcp': ['aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'faturado', 'entregue', 'recibo'],
+            'producao': ['aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'faturado', 'entregue', 'recibo'],
             // Admin tem acesso total (redundante pois admin bypassa, mas documenta)
-            'admin': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'faturar', 'faturado', 'entregue', 'recibo', 'cancelado']
+            'admin': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'faturado', 'entregue', 'recibo', 'cancelado']
         },
         canMoveToStatus(userRole, status) {
             const role = (userRole || 'default').toLowerCase();
@@ -1491,15 +2037,51 @@ module.exports = function createVendasRoutes(deps) {
         'orçamento': ['analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'cancelado'],
         'analise': ['analise-credito', 'aprovado', 'orcamento', 'cancelado'],
         'analise-credito': ['aprovado', 'pedido-aprovado', 'orcamento', 'cancelado'],
-        'aprovado': ['pedido-aprovado', 'faturar', 'analise-credito', 'cancelado'],
-        'pedido-aprovado': ['faturar', 'faturado', 'cancelado'],
-        'faturar': ['faturado', 'cancelado'],
+        'aprovado': ['pedido-aprovado', 'aguardando-faturamento', 'faturar', 'analise-credito', 'cancelado'],
+        'pedido-aprovado': ['aguardando-faturamento', 'faturar', 'faturado', 'cancelado'],
+        // NOVO 25/06/2026: etapa "Aguardando Faturamento" entre Aprovado e Faturar.
+        // O modal de espelho/faturamento abre ao arrastar aguardando-faturamento -> faturar.
+        'aguardando-faturamento': ['faturar', 'aprovado', 'cancelado'],
+        'faturar': ['faturado', 'aguardando-faturamento', 'cancelado'],
         'parcial': ['faturado', 'entregue', 'cancelado'], // Faturamento parcial pode completar ou cancelar
         'faturado': ['entregue', 'recibo'], // Não pode ser cancelado diretamente (precisa cancelar NF-e)
         'entregue': ['recibo'],
         'recibo': [],
         'cancelado': [] // Estado final
     };
+
+    // Persiste o rascunho da "Conta a Receber" (parcelas editadas no modal) na coluna JSON
+    // pedidos.parcelas_conta_receber. NÃO cria contas_receber real — isso só ocorre no faturamento,
+    // que verifica a existência de contas_receber e seria corrompido por um registro antecipado.
+    router.put('/pedidos/:id/parcelas-conta-receber', pedidoOwnership, async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const { numero, dados, parcelas } = req.body || {};
+
+            const [[ped]] = await pool.query('SELECT parcelas_conta_receber FROM pedidos WHERE id = ?', [id]);
+            if (!ped) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+
+            let mapa = {};
+            if (ped.parcelas_conta_receber) {
+                try { mapa = (typeof ped.parcelas_conta_receber === 'object') ? ped.parcelas_conta_receber : JSON.parse(ped.parcelas_conta_receber); } catch (_) { mapa = {}; }
+            }
+            if (!mapa || typeof mapa !== 'object' || Array.isArray(mapa)) mapa = {};
+
+            if (parcelas && typeof parcelas === 'object') {
+                mapa = parcelas; // substituição completa do conjunto de parcelas
+            } else if (numero !== undefined && numero !== null) {
+                mapa[String(numero)] = dados || {};
+            } else {
+                return res.status(400).json({ success: false, message: 'Informe "numero"+"dados" ou "parcelas".' });
+            }
+
+            await pool.query('UPDATE pedidos SET parcelas_conta_receber = ? WHERE id = ?', [JSON.stringify(mapa), id]);
+            res.json({ success: true, parcelas_conta_receber: mapa });
+        } catch (error) {
+            console.error('[API/VENDAS/PARCELAS-CR] Erro:', error);
+            next(error);
+        }
+    });
 
     router.put('/pedidos/:id/status', async (req, res, next) => {
         const connection = await pool.getConnection();
@@ -1509,7 +2091,7 @@ module.exports = function createVendasRoutes(deps) {
 
             console.log(`📝 Atualizando status do pedido ${id} para: ${status}`);
 
-            const validStatuses = ['orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'faturar', 'faturado', 'entregue', 'cancelado', 'recibo'];
+            const validStatuses = ['orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'faturado', 'entregue', 'cancelado', 'recibo'];
             if (!status || !validStatuses.includes(status)) {
                 console.log(`❌ Status inválido: ${status}`);
                 return res.status(400).json({ message: 'Status inválido.' });
@@ -1544,8 +2126,9 @@ module.exports = function createVendasRoutes(deps) {
                 // Admin sem forceTransition: bloquear também
                 console.log(`❌ Admin ${user.nome || user.email} tentou transição inválida sem forceTransition: ${statusAtual} -> ${status}`);
                 await connection.rollback();
+                // Privacy by design: não expor o mecanismo interno de bypass na mensagem ao cliente.
                 return res.status(400).json({
-                    message: `Transição de status inválida: "${statusAtual}" → "${status}". Use forceTransition=true para forçar (somente admin).`
+                    message: `Não é possível alterar o status de "${statusAtual}" para "${status}".`
                 });
             }
             if (canForce && !transicoesValidas.includes(status)) {
@@ -1556,7 +2139,9 @@ module.exports = function createVendasRoutes(deps) {
 
 // ===== VERIFICAÇÃO GRANULAR DE PERMISSÕES (Sprint 1 - K-01 fix: usa role, não nome) =====
             if (!isAdmin) {
-                const userRole = user.role || 'user';
+                const isComprasUser = String(user.email || '').toLowerCase().indexOf('compras@') === 0;
+                const _isPcp = isPcpUser(user);
+                const userRole = _isPcp ? 'pcp' : (isComprasUser ? 'aprovador' : (user.role || 'user'));
 
                 // Verificar se o role do usuário pode mover para este status específico
                 if (!userPermissions.canMoveToStatus(userRole, status)) {
@@ -1576,10 +2161,26 @@ module.exports = function createVendasRoutes(deps) {
             if (!isAdmin) {
                 // Usar pedidoAtual já consultado acima
                 const pedido = pedidoAtual[0];
-                if (pedido.vendedor_id && user.id && pedido.vendedor_id !== user.id) {
-                    console.log(`❌ Usuário ${user.id} não é dono do pedido ${id}`);
-                    await connection.rollback();
-                    return res.status(403).json({ message: 'Você só pode mover seus próprios pedidos.' });
+                const _isCompras = String(user.email || '').toLowerCase().indexOf('compras@') === 0;
+                // PCP fatura pedidos de qualquer vendedor — não tem "pedidos próprios".
+                const _isPcpMover = isPcpUser(user);
+                if (!_isCompras && !_isPcpMover && pedido.vendedor_id && user.id && Number(pedido.vendedor_id) !== Number(user.id)) {
+                    // Fallback: o mesmo vendedor pode existir com IDs diferentes entre instâncias
+                    // (ex.: cadastro @aluforce e @labor com o mesmo nome). Permite mover se o vendedor
+                    // do pedido tem o MESMO NOME do usuário logado.
+                    let mesmoVendedorPorNome = false;
+                    try {
+                        const [[vendDono]] = await connection.query('SELECT nome FROM usuarios WHERE id = ?', [pedido.vendedor_id]);
+                        const nomeDono = (vendDono && vendDono.nome ? String(vendDono.nome) : '').trim().toLowerCase();
+                        const nomeUser = String(user.nome || '').trim().toLowerCase();
+                        if (nomeDono && nomeUser && nomeDono === nomeUser) mesmoVendedorPorNome = true;
+                    } catch (_e) { /* mantém bloqueio se a consulta falhar */ }
+                    if (!mesmoVendedorPorNome) {
+                        console.log(`❌ Usuário ${user.id} não é dono do pedido ${id} (vendedor_id=${pedido.vendedor_id})`);
+                        await connection.rollback();
+                        return res.status(403).json({ message: 'Você só pode mover seus próprios pedidos.' });
+                    }
+                    console.log(`✅ Usuário ${user.id} autorizado por NOME a mover pedido ${id} (vendedor_id=${pedido.vendedor_id}, mesmo nome)`);
                 }
 
                 // Sprint E2E-S2 (E2-HIGH-03): Vendedor/comercial não pode cancelar pedido já aprovado+
@@ -1596,6 +2197,32 @@ module.exports = function createVendasRoutes(deps) {
                 }
 
                 // Permissão já verificada pelo sistema userPermissions acima
+            }
+
+            // ========================================
+            // A3-NC-011: bloquear avanço de pedido sem valor/sem itens
+            // Bloquear avanço para etapas faturáveis (aprovado/faturar) quando o
+            // pedido não tem valor ou não tem itens. Orçamento vazio continua OK.
+            // Não contornável por forceTransition (NF-e com R$0 é inválida).
+            // ========================================
+            if (['aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'faturado'].includes(status)) {
+                const [itensVal] = await connection.query(
+                    `SELECT COUNT(*) AS qtd, COALESCE(SUM(subtotal), 0) AS total_itens FROM pedido_itens WHERE pedido_id = ?`,
+                    [id]
+                );
+                const qtdItens = Number(itensVal[0]?.qtd || 0);
+                const somaItens = parseFloat(itensVal[0]?.total_itens || 0);
+                const valorPedidoCab = parseFloat(pedidoAtual[0]?.valor || 0);
+                const valorEfetivo = somaItens > 0 ? somaItens : valorPedidoCab;
+                if (qtdItens === 0 || valorEfetivo <= 0) {
+                    console.log(`🚫 [A3] Bloqueado avanço do pedido #${id} para "${status}": itens=${qtdItens}, valor=${valorEfetivo}`);
+                    await connection.rollback();
+                    connection.release();
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Não é possível aprovar/faturar um pedido sem valor ou sem itens.'
+                    });
+                }
             }
 
             // ========================================
@@ -1632,7 +2259,7 @@ module.exports = function createVendasRoutes(deps) {
                                 console.log(`[CREDITO] ❌ Limite excedido para cliente #${pedidoData.cliente_id}: limite=R$${limiteCredito.toFixed(2)}, exposição=R$${totalExposicao.toFixed(2)}`);
                                 await connection.rollback();
                                 return res.status(400).json({
-                                    message: `Limite de crédito excedido. Limite: R$${limiteCredito.toFixed(2)}, Exposição total: R$${totalExposicao.toFixed(2)} (pendente: R$${parseFloat(creditUsed[0].total_pendente).toFixed(2)} + este pedido: R$${valorPedido.toFixed(2)}). Solicite aprovação com forceTransition via admin.`,
+                                    message: `Limite de crédito excedido. Limite: R$${limiteCredito.toFixed(2)}, Exposição total: R$${totalExposicao.toFixed(2)} (pendente: R$${parseFloat(creditUsed[0].total_pendente).toFixed(2)} + este pedido: R$${valorPedido.toFixed(2)}). Solicite aprovação a um administrador.`,
                                     code: 'CREDIT_LIMIT_EXCEEDED',
                                     limite: limiteCredito,
                                     exposicao: totalExposicao
@@ -1831,24 +2458,22 @@ module.exports = function createVendasRoutes(deps) {
                     }
 
                     if (valorFaturamento > 0) {
-                        // M-06 FIX: Check total covered by existing CRs (partials may have created CRs for < full value)
+                        // Verificar se já existe conta a receber para este pedido (evita duplicação)
                         const [existingCR] = await connection.query(
-                            'SELECT COALESCE(SUM(valor), 0) as total_coberto FROM contas_receber WHERE pedido_id = ? AND status != "cancelada"', [id]
+                            'SELECT id FROM contas_receber WHERE pedido_id = ? LIMIT 1', [id]
                         );
-                        const totalCoberto = parseFloat(existingCR[0].total_coberto) || 0;
-                        const valorFaltante = Math.round((valorFaturamento - totalCoberto) * 100) / 100;
-                        if (valorFaltante > 0.01) {
+                        if (existingCR.length === 0) {
                             contaReceberGerada = await faturamentoShared.gerarContaReceber(connection, {
                                 pedido_id: parseInt(id),
                                 cliente_id: pedidoData.cliente_id || null,
                                 descricao: `Faturamento Pedido #${id} - ${pedidoData.cliente_nome || 'Cliente'}`,
-                                valor: valorFaltante,
+                                valor: valorFaturamento,
                                 tipo: 'faturamento',
                                 pedido: pedidoData
                             });
-                            console.log(`[FINANCEIRO_AUTO] Conta a receber #${contaReceberGerada.insertId} gerada para pedido #${id} (R$${valorFaltante} de R$${valorFaturamento})`);
+                            console.log(`[FINANCEIRO_AUTO] Conta a receber #${contaReceberGerada.insertId} gerada para pedido #${id} (R$${valorFaturamento}, venc. ${contaReceberGerada.data_vencimento_dias} dias)`);
                         } else {
-                            console.log(`[FINANCEIRO_AUTO] Contas a receber já cobrem R$${totalCoberto} de R$${valorFaturamento} para pedido #${id} — pulando`);
+                            console.log(`[FINANCEIRO_AUTO] Conta a receber já existe para pedido #${id} (id=${existingCR[0].id}), pulando`);
                         }
                     }
                 } catch (financeiroError) {
@@ -2007,6 +2632,454 @@ module.exports = function createVendasRoutes(deps) {
         }
     });
 
+    // GET /pedidos/:id/comunicacao-sefaz - Timeline de comunicação com a SEFAZ
+    // (emissão/envio/autorização/cancelamento da NF-e + eventos registrados).
+    // Sintetiza eventos a partir da NF-e/pedido quando não há log granular, de modo
+    // que pedidos faturados já existentes também exibam a comunicação.
+    router.get('/pedidos/:id/comunicacao-sefaz', async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const fmt = (d) => { if (!d) return '—'; const dt = new Date(d); return isNaN(dt) ? String(d) : dt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }); };
+            const padNum = (n) => n ? String(n).replace(/\D/g, '').padStart(8, '0') : '—';
+
+            const [[ped]] = await pool.query(
+                `SELECT id, numero_pedido, status, faturado_em, data_faturamento, created_at,
+                        nfe_chave, nfe_protocolo, nfe_faturamento_numero, nfe_remessa_numero
+                 FROM pedidos WHERE id = ?`, [id]
+            );
+            if (!ped) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+
+            // NF-e vinculada (nfes.pedido_id)
+            let nfe = null;
+            try {
+                const [rows] = await pool.query(
+                    `SELECT id, numero, serie, chave_acesso, status, data_emissao, protocolo_autorizacao, created_at, usuario_id
+                     FROM nfes WHERE pedido_id = ? ORDER BY id DESC LIMIT 1`, [id]
+                );
+                nfe = rows[0] || null;
+            } catch (_e) { nfe = null; }
+
+            let usuarioNome = 'Integração';
+            if (nfe && nfe.usuario_id) {
+                try { const [[u]] = await pool.query('SELECT nome FROM usuarios WHERE id = ?', [nfe.usuario_id]); if (u && u.nome) usuarioNome = u.nome; } catch (_e) { /* noop */ }
+            }
+
+            const numeroFmt  = padNum((nfe && nfe.numero) || ped.nfe_faturamento_numero || ped.nfe_remessa_numero);
+            const protocolo  = (nfe && nfe.protocolo_autorizacao) || ped.nfe_protocolo || null;
+            const statusPed  = String(ped.status || '').toLowerCase();
+            const faturado   = ['faturado', 'entregue', 'recibo', 'concluido', 'concluído', 'finalizado', 'emitida', 'autorizada'].includes(statusPed);
+            const eventos = [];
+
+            if (nfe) {
+                const dtBase    = nfe.data_emissao || nfe.created_at;
+                const statusNfe = String(nfe.status || '').toLowerCase();
+                eventos.push({ status: 'info', data: dtBase, descricao: `Enviando a NF-e Nº ${numeroFmt} para a SEFAZ`, usuario: usuarioNome });
+                if (statusNfe === 'cancelada') {
+                    eventos.push({ status: 'ok',    data: dtBase, descricao: `NF-e Nº ${numeroFmt} autorizada${protocolo ? `, protocolo ${protocolo}` : ''}.`, usuario: usuarioNome });
+                    eventos.push({ status: 'error', data: nfe.created_at, descricao: `NF-e Nº ${numeroFmt} cancelada.`, usuario: usuarioNome });
+                } else {
+                    eventos.push({ status: 'ok', data: dtBase, descricao: `NF-e Nº ${numeroFmt} autorizada${protocolo ? `, protocolo ${protocolo}` : ''}.`, usuario: usuarioNome });
+                }
+                // Eventos registrados (CC-e, cancelamento eletrônico, e-mail, etc.)
+                try {
+                    const [evs] = await pool.query(
+                        `SELECT tipo_evento, descricao_evento, COALESCE(data_evento, created_at) AS data, protocolo_evento, status
+                         FROM nfe_eventos WHERE nfe_id = ? ORDER BY COALESCE(data_evento, created_at) ASC`, [nfe.id]
+                    );
+                    evs.forEach(r => {
+                        const st = String(r.status || '').toLowerCase();
+                        const tp = String(r.tipo_evento || '').toLowerCase();
+                        const isErr = st.includes('err') || st.includes('rejeit') || tp.includes('cancel');
+                        eventos.push({ status: isErr ? 'error' : 'ok', data: r.data, descricao: r.descricao_evento || r.tipo_evento || 'Evento', usuario: usuarioNome });
+                    });
+                } catch (_e) { /* tabela pode não existir */ }
+            } else if (faturado) {
+                const dt = ped.faturado_em || ped.data_faturamento || ped.created_at;
+                if (ped.nfe_chave || ped.nfe_protocolo || ped.nfe_faturamento_numero) {
+                    eventos.push({ status: 'info', data: dt, descricao: `Enviando a NF-e Nº ${numeroFmt} para a SEFAZ`, usuario: 'Integração' });
+                    eventos.push({ status: 'ok',   data: dt, descricao: `NF-e Nº ${numeroFmt} autorizada${protocolo ? `, protocolo ${protocolo}` : ''}.`, usuario: 'Integração' });
+                } else {
+                    eventos.push({ status: 'ok', data: dt, descricao: 'Pedido faturado.', usuario: 'Integração' });
+                }
+            }
+
+            eventos.sort((a, b) => new Date(a.data) - new Date(b.data));
+            res.json({ success: true, data: eventos.map(e => ({ status: e.status, data_hora: fmt(e.data), descricao: e.descricao, usuario: e.usuario })) });
+        } catch (error) { next(error); }
+    });
+
+    // POST /pedidos/:id/devolucao - Emite NF-e de DEVOLUÇÃO (modelo 55, finNFe=4, entrada)
+    // referenciando a NF-e original autorizada do pedido. Transmite à SEFAZ de verdade.
+    // Admin-only + exige confirmar:true. Idempotente: não reemite se já houver devolução.
+    router.get('/pedidos/:id/devolucao', authenticateToken, async (req, res, next) => {
+        // Pré-visualização: itens elegíveis + chave da NF-e original.
+        try {
+            const { id } = req.params;
+            const [rows] = await pool.query(
+                `SELECT id, numero, serie, chave_acesso, status, valor_total, finalidade
+                 FROM nfes WHERE pedido_id = ? ORDER BY id DESC`, [id]
+            );
+            const original = rows.find(n => String(n.status).toLowerCase() === 'autorizada' && String(n.finalidade || '1') !== '4') || null;
+            const devolucaoExistente = rows.find(n => String(n.finalidade || '') === '4') || null;
+            if (!original) {
+                return res.json({ success: true, podeDevolver: false, motivo: 'Pedido sem NF-e autorizada para devolver.', itens: [] });
+            }
+            const [itens] = await pool.query(
+                `SELECT produto_id, codigo_produto, descricao, quantidade, valor_unitario
+                 FROM nfe_itens WHERE nfe_id = ?`, [original.id]
+            );
+            res.json({
+                success: true,
+                podeDevolver: !devolucaoExistente,
+                jaDevolvido: !!devolucaoExistente,
+                nfeOriginal: { id: original.id, numero: original.numero, chave: original.chave_acesso, valor_total: original.valor_total },
+                devolucao: devolucaoExistente ? { id: devolucaoExistente.id, numero: devolucaoExistente.numero, status: devolucaoExistente.status } : null,
+                itens
+            });
+        } catch (error) { next(error); }
+    });
+
+    router.post('/pedidos/:id/devolucao', authenticateToken, async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const { confirmar, itens: itensBody, cfop, naturezaOperacao, tipoOperacao } = req.body || {};
+            const usuarioId = req.user?.id || req.user?.userId || null;
+            const isAdmin = req.user?.isAdmin || req.user?.is_admin || req.user?.perfil === 'admin';
+            if (!isAdmin) return res.status(403).json({ success: false, message: 'Ação restrita a administradores.' });
+            if (confirmar !== true) return res.status(400).json({ success: false, message: 'Confirmação obrigatória (confirmar:true).' });
+
+            // NF-e original autorizada do pedido
+            const [rows] = await pool.query(
+                `SELECT id, numero, chave_acesso, status, finalidade FROM nfes WHERE pedido_id = ? ORDER BY id DESC`, [id]
+            );
+            const original = rows.find(n => String(n.status).toLowerCase() === 'autorizada' && String(n.finalidade || '1') !== '4') || null;
+            if (!original) return res.status(400).json({ success: false, message: 'Pedido não possui NF-e autorizada para devolver.' });
+            if (!original.chave_acesso || String(original.chave_acesso).replace(/\D/g, '').length !== 44) {
+                return res.status(400).json({ success: false, message: 'NF-e original sem chave de acesso válida (44 dígitos).' });
+            }
+            // Idempotência: já existe devolução?
+            const devExistente = rows.find(n => String(n.finalidade || '') === '4');
+            if (devExistente) {
+                return res.status(409).json({ success: false, message: `Já existe NF-e de devolução (Nº ${devExistente.numero}, ${devExistente.status}) para este pedido.`, devolucao: devExistente });
+            }
+
+            // Itens a devolver: do corpo, senão todos os itens da NF-e original
+            let itens = Array.isArray(itensBody) && itensBody.length ? itensBody : null;
+            if (!itens) {
+                const [orig] = await pool.query(
+                    `SELECT produto_id, quantidade, valor_unitario FROM nfe_itens WHERE nfe_id = ?`, [original.id]
+                );
+                itens = orig.map(i => ({ produto_id: i.produto_id, quantidade: Number(i.quantidade), valor_unitario: Number(i.valor_unitario) }));
+            }
+            itens = itens.filter(i => i.produto_id && Number(i.quantidade) > 0 && Number(i.valor_unitario) > 0);
+            if (!itens.length) return res.status(400).json({ success: false, message: 'Nenhum item válido para devolução.' });
+
+            // CFOP de devolução de venda (entrada): interna 1202 / interestadual 2202 (override por body.cfop).
+            let cfopDev = cfop || null;
+            if (!cfopDev) {
+                try {
+                    const FiscalProfileService = require('../modules/Faturamento/services/fiscal-profile.service');
+                    const emit = await FiscalProfileService.carregar(pool);
+                    const [[cli]] = await pool.query(
+                        `SELECT c.estado FROM pedidos p INNER JOIN clientes c ON p.cliente_id = c.id WHERE p.id = ?`, [id]
+                    );
+                    cfopDev = (emit && cli && emit.uf === cli.estado) ? '1202' : '2202';
+                } catch (_e) { cfopDev = '2202'; }
+            }
+
+            const { emitirNFePedido } = require('../services/nfe-emitter.service');
+            const emissao = await emitirNFePedido(pool, {
+                pedidoId: Number(id),
+                itens,
+                usuarioId,
+                naturezaOperacao: naturezaOperacao || 'Devolução de Venda',
+                cfopOverride: cfopDev,
+                finalidade: '4',
+                tipoOperacao: String(tipoOperacao || '0'), // 0 = entrada (mercadoria retornando)
+                nfRef: [original.chave_acesso],
+                transmitir: true
+            });
+
+            // Histórico
+            try {
+                await pool.query(
+                    `INSERT INTO pedido_historico (pedido_id, usuario_id, acao, descricao)
+                     VALUES (?, ?, 'devolucao', ?)`,
+                    [id, usuarioId, `NF-e de devolução Nº ${emissao.numero} ${emissao.autorizado ? 'autorizada' : (emissao.status || 'emitida')} (ref. NF-e ${original.numero}).`]
+                );
+            } catch (_e) { /* tabela de histórico pode variar */ }
+
+            return res.json({
+                success: !!emissao.autorizado || emissao.status === 'pendente',
+                autorizado: !!emissao.autorizado,
+                message: emissao.autorizado
+                    ? `NF-e de devolução Nº ${emissao.numero} autorizada${emissao.protocolo ? ` (protocolo ${emissao.protocolo})` : ''}.`
+                    : `NF-e de devolução Nº ${emissao.numero}: ${emissao.motivo || emissao.status}.`,
+                devolucao: emissao
+            });
+        } catch (error) {
+            if (error.code === 'IBGE_PREFLIGHT') {
+                return res.status(422).json({ success: false, message: error.message });
+            }
+            next(error);
+        }
+    });
+
+    // ====================== NF-e PAGAMENTO ANTECIPADO ======================
+    // Emite NF-e (modelo 55, finalidade 1) para venda com pagamento antecipado,
+    // antes do faturamento normal. Reusa o motor NF-e. Admin + confirmar. Idempotente.
+    router.get('/pedidos/:id/nfe-antecipada', authenticateToken, async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const [itens] = await pool.query(
+                `SELECT produto_id, codigo, descricao, quantidade, preco_unitario, desconto
+                 FROM pedido_itens WHERE pedido_id = ? AND produto_id IS NOT NULL`, [id]
+            );
+            const [nfes] = await pool.query(
+                `SELECT id, numero, status, natureza_operacao FROM nfes WHERE pedido_id = ? ORDER BY id DESC`, [id]
+            );
+            const jaEmitida = nfes.find(n => /antecipad/i.test(n.natureza_operacao || '')) || null;
+            const total = itens.reduce((s, i) => s + (Number(i.preco_unitario) * Number(i.quantidade) - (Number(i.desconto) || 0)), 0);
+            res.json({ success: true, podeEmitir: !jaEmitida && itens.length > 0, jaEmitida, itens, total });
+        } catch (error) { next(error); }
+    });
+
+    router.post('/pedidos/:id/nfe-antecipada', authenticateToken, async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const { confirmar } = req.body || {};
+            const usuarioId = req.user?.id || req.user?.userId || null;
+            const isAdmin = req.user?.isAdmin || req.user?.is_admin || req.user?.perfil === 'admin';
+            if (!isAdmin) return res.status(403).json({ success: false, message: 'Ação restrita a administradores.' });
+            if (confirmar !== true) return res.status(400).json({ success: false, message: 'Confirmação obrigatória (confirmar:true).' });
+
+            const [nfes] = await pool.query(`SELECT id, numero, status, natureza_operacao FROM nfes WHERE pedido_id = ? ORDER BY id DESC`, [id]);
+            const ja = nfes.find(n => /antecipad/i.test(n.natureza_operacao || ''));
+            if (ja) return res.status(409).json({ success: false, message: `Já existe NF-e de pagamento antecipado (Nº ${ja.numero}, ${ja.status}).` });
+
+            const [rows] = await pool.query(
+                `SELECT produto_id, quantidade, preco_unitario, desconto FROM pedido_itens WHERE pedido_id = ? AND produto_id IS NOT NULL`, [id]
+            );
+            const itens = rows.map(i => ({ produto_id: i.produto_id, quantidade: Number(i.quantidade), valor_unitario: Number(i.preco_unitario), desconto: Number(i.desconto) || 0 }))
+                              .filter(i => i.produto_id && i.quantidade > 0 && i.valor_unitario > 0);
+            if (!itens.length) return res.status(400).json({ success: false, message: 'Pedido sem itens válidos para emissão.' });
+
+            const { emitirNFePedido } = require('../services/nfe-emitter.service');
+            const emissao = await emitirNFePedido(pool, {
+                pedidoId: Number(id), itens, usuarioId,
+                naturezaOperacao: 'Venda - Pagamento Antecipado',
+                finalidade: '1', tipoOperacao: '1', transmitir: true
+            });
+            try {
+                await pool.query(`INSERT INTO pedido_historico (pedido_id, usuario_id, acao, descricao) VALUES (?, ?, 'nfe_antecipada', ?)`,
+                    [id, usuarioId, `NF-e de pagamento antecipado Nº ${emissao.numero} ${emissao.autorizado ? 'autorizada' : (emissao.status || 'emitida')}.`]);
+            } catch (_e) { /* noop */ }
+            res.json({ success: !!emissao.autorizado, autorizado: !!emissao.autorizado,
+                message: emissao.autorizado ? `NF-e antecipada Nº ${emissao.numero} autorizada${emissao.protocolo ? ` (protocolo ${emissao.protocolo})` : ''}.` : `NF-e antecipada Nº ${emissao.numero}: ${emissao.motivo || emissao.status}.`,
+                nfe: emissao });
+        } catch (error) {
+            if (error.code === 'IBGE_PREFLIGHT') return res.status(422).json({ success: false, message: error.message });
+            next(error);
+        }
+    });
+
+    // ====================== MDF-e (Manifesto Eletrônico, modelo 58) ======================
+    // Cria/lista o MDF-e do pedido a partir dos dados de transporte. Persiste como
+    // 'rascunho' (a transmissão modelo-58 à SEFAZ depende do webservice MDFe dedicado).
+    async function ensureMdfeTable() {
+        await pool.query(`CREATE TABLE IF NOT EXISTS mdfe_documentos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pedido_id INT NULL, numero INT NULL, serie INT DEFAULT 1, chave VARCHAR(60) NULL,
+            uf_ini VARCHAR(2) NULL, uf_fim VARCHAR(2) NULL, placa VARCHAR(10) NULL,
+            transportadora VARCHAR(180) NULL, modal VARCHAR(2) DEFAULT '01',
+            valor_carga DECIMAL(14,2) DEFAULT 0, status VARCHAR(20) DEFAULT 'rascunho',
+            payload JSON NULL, usuario_id INT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    }
+    router.get('/pedidos/:id/mdfe', authenticateToken, async (req, res, next) => {
+        try {
+            await ensureMdfeTable();
+            const { id } = req.params;
+            const [docs] = await pool.query(`SELECT * FROM mdfe_documentos WHERE pedido_id = ? ORDER BY id DESC`, [id]);
+            const [[ped]] = await pool.query(
+                `SELECT p.id, p.valor, p.transportadora_nome, p.estado_destino, c.estado AS cliente_uf
+                 FROM pedidos p LEFT JOIN clientes c ON p.cliente_id = c.id WHERE p.id = ?`, [id]);
+            res.json({ success: true, mdfe: docs, pedido: ped || null });
+        } catch (error) { next(error); }
+    });
+    router.post('/pedidos/:id/mdfe', authenticateToken, async (req, res, next) => {
+        try {
+            await ensureMdfeTable();
+            const { id } = req.params;
+            const usuarioId = req.user?.id || req.user?.userId || null;
+            const isAdmin = req.user?.isAdmin || req.user?.is_admin || req.user?.perfil === 'admin';
+            if (!isAdmin) return res.status(403).json({ success: false, message: 'Ação restrita a administradores.' });
+            const { placa, uf_ini, uf_fim, modal } = req.body || {};
+            const [[ped]] = await pool.query(
+                `SELECT p.id, p.valor, p.transportadora_nome, p.estado_destino, c.estado AS cliente_uf
+                 FROM pedidos p LEFT JOIN clientes c ON p.cliente_id = c.id WHERE p.id = ?`, [id]);
+            if (!ped) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+            const [[mx]] = await pool.query(`SELECT COALESCE(MAX(numero),0)+1 AS prox FROM mdfe_documentos`);
+            const payload = { itensCarga: ped.valor, origem: 'vendas' };
+            const [ins] = await pool.query(
+                `INSERT INTO mdfe_documentos (pedido_id, numero, uf_ini, uf_fim, placa, transportadora, modal, valor_carga, status, payload, usuario_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'rascunho', ?, ?)`,
+                [id, mx.prox, uf_ini || ped.cliente_uf || ped.estado_destino || null, uf_fim || ped.estado_destino || ped.cliente_uf || null,
+                 placa || null, ped.transportadora_nome || null, modal || '01', Number(ped.valor) || 0, JSON.stringify(payload), usuarioId]);
+            try { await pool.query(`INSERT INTO pedido_historico (pedido_id, usuario_id, acao, descricao) VALUES (?, ?, 'mdfe', ?)`,
+                [id, usuarioId, `MDF-e Nº ${mx.prox} criado (rascunho).`]); } catch (_e) {}
+            res.json({ success: true, message: `MDF-e Nº ${mx.prox} criado (rascunho). Transmissão modelo-58 pendente de webservice MDFe.`, id: ins.insertId, numero: mx.prox });
+        } catch (error) { next(error); }
+    });
+
+    // ====================== EVENTOS DA REFORMA TRIBUTÁRIA (IBS/CBS 2026) ======================
+    // Calcula e lista os tributos da reforma (IBS estadual/municipal + CBS federal) para a
+    // NF-e do pedido, no período de transição 2026, e registra eventos informativos.
+    async function ensureReformaTable() {
+        await pool.query(`CREATE TABLE IF NOT EXISTS reforma_tributaria_eventos (
+            id INT AUTO_INCREMENT PRIMARY KEY, pedido_id INT NULL, nfe_id INT NULL,
+            base DECIMAL(14,2) DEFAULT 0, ibs DECIMAL(14,2) DEFAULT 0, cbs DECIMAL(14,2) DEFAULT 0,
+            imposto_seletivo DECIMAL(14,2) DEFAULT 0,
+            aliq_ibs DECIMAL(6,4) DEFAULT 0.1000, aliq_cbs DECIMAL(6,4) DEFAULT 0.9000, aliq_is DECIMAL(6,4) DEFAULT 0.0000,
+            descricao VARCHAR(255) NULL, usuario_id INT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+        // Coluna IS pode faltar em tabela legada
+        await pool.query("ALTER TABLE reforma_tributaria_eventos ADD COLUMN imposto_seletivo DECIMAL(14,2) DEFAULT 0").catch(() => {});
+        await pool.query("ALTER TABLE reforma_tributaria_eventos ADD COLUMN aliq_is DECIMAL(6,4) DEFAULT 0.0000").catch(() => {});
+        // Config singleton de alíquotas (editável). Default = transição 2026 (EC 132/2023, LC 214/2025).
+        await pool.query(`CREATE TABLE IF NOT EXISTS reforma_tributaria_config (
+            id INT PRIMARY KEY DEFAULT 1,
+            aliq_cbs DECIMAL(6,4) DEFAULT 0.9000, aliq_ibs DECIMAL(6,4) DEFAULT 0.1000, aliq_is DECIMAL(6,4) DEFAULT 0.0000,
+            atualizado_por INT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+        await pool.query(`INSERT IGNORE INTO reforma_tributaria_config (id, aliq_cbs, aliq_ibs, aliq_is) VALUES (1, 0.9000, 0.1000, 0.0000)`);
+    }
+    // Lê as alíquotas configuradas (percentual: 0.9 = 0,9%).
+    async function getReformaConfig() {
+        await ensureReformaTable();
+        const [[c]] = await pool.query(`SELECT aliq_cbs, aliq_ibs, aliq_is FROM reforma_tributaria_config WHERE id = 1`);
+        return {
+            aliq_cbs: Number(c?.aliq_cbs ?? 0.9),
+            aliq_ibs: Number(c?.aliq_ibs ?? 0.1),
+            aliq_is: Number(c?.aliq_is ?? 0)
+        };
+    }
+    // Motor de cálculo CBS/IBS/IS sobre uma base (valor). Retorna valores arredondados em R$.
+    function calcReforma(base, cfg) {
+        base = Number(base) || 0;
+        const cbs = Math.round(base * cfg.aliq_cbs) / 100;
+        const ibs = Math.round(base * cfg.aliq_ibs) / 100;
+        const is  = Math.round(base * cfg.aliq_is) / 100;
+        return { base, cbs, ibs, imposto_seletivo: is, total_reforma: Math.round((cbs + ibs + is) * 100) / 100 };
+    }
+    // Overrides centrais: mantem compatibilidade dos endpoints antigos usando o novo motor.
+    const ensureReformaTableAtual = async function ensureReformaTableCentral() {
+        await ReformaTributariaService.ensureReformaTributariaSchema(pool);
+    };
+    const getReformaConfigAtual = async function getReformaConfigCentral() {
+        return ReformaTributariaService.getConfig(pool);
+    };
+    // Config das alíquotas — GET / PUT (admin)
+    router.get('/reforma-tributaria/config', authenticateToken, async (req, res, next) => {
+        try { res.json({ success: true, config: await getReformaConfigAtual() }); } catch (e) { next(e); }
+    });
+    router.put('/reforma-tributaria/config', authenticateToken, async (req, res, next) => {
+        try {
+            await ensureReformaTableAtual();
+            const cbs = Math.max(0, Number(req.body.aliq_cbs)); const ibs = Math.max(0, Number(req.body.aliq_ibs)); const is = Math.max(0, Number(req.body.aliq_is));
+            if ([cbs, ibs, is].some(n => !isFinite(n))) return res.status(400).json({ success: false, message: 'Alíquotas inválidas.' });
+            await pool.query(`UPDATE reforma_tributaria_config SET aliq_cbs=?, aliq_ibs=?, aliq_is=?, atualizado_por=? WHERE id=1`,
+                [cbs, ibs, is, req.user?.id || null]);
+            res.json({ success: true, message: 'Alíquotas atualizadas.', config: await getReformaConfigAtual() });
+        } catch (e) { next(e); }
+    });
+    // Apuração CBS/IBS/IS por período (para a página /Financeiro/impostos)
+    router.get('/reforma-tributaria/apuracao', authenticateToken, async (req, res, next) => {
+        try {
+            const cfg = await getReformaConfigAtual();
+            const { ano, mes } = req.query;
+            let where = '1=1'; const params = [];
+            if (ano) { where += ' AND YEAR(created_at) = ?'; params.push(ano); }
+            if (mes) { where += ' AND MONTH(created_at) = ?'; params.push(mes); }
+            const [[t]] = await pool.query(
+                `SELECT COALESCE(SUM(base),0) base, COALESCE(SUM(cbs),0) cbs, COALESCE(SUM(ibs),0) ibs,
+                        COALESCE(SUM(imposto_seletivo),0) imposto_seletivo, COUNT(*) eventos
+                 FROM reforma_tributaria_eventos WHERE ${where}`, params);
+            const cbs = Number(t.cbs), ibs = Number(t.ibs), is = Number(t.imposto_seletivo);
+            res.json({ success: true, config: cfg, apuracao: {
+                base: Number(t.base), cbs, ibs, imposto_seletivo: is,
+                total: Math.round((cbs + ibs + is) * 100) / 100, eventos: Number(t.eventos)
+            }});
+        } catch (e) { next(e); }
+    });
+    // Monta o grupo XML CBS/IBS/IS (layout reforma — NT 2025) para uma base.
+    // Usado no PREVIEW (dry-run) e, futuramente, na emissão real quando habilitado.
+    function buildIbsCbsXml(calc, cfg) {
+        const d = (n) => (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
+        const p = (n) => (Number(n) || 0).toFixed(4);
+        return (
+`    <IBSCBS>
+      <CST>000</CST>
+      <cClassTrib>000001</cClassTrib>
+      <gIBSCBS>
+        <vBC>${d(calc.base)}</vBC>
+        <gIBSUF><pIBSUF>${p(cfg.aliq_ibs / 2)}</pIBSUF><vIBSUF>${d(calc.ibs / 2)}</vIBSUF></gIBSUF>
+        <gIBSMun><pIBSMun>${p(cfg.aliq_ibs / 2)}</pIBSMun><vIBSMun>${d(calc.ibs / 2)}</vIBSMun></gIBSMun>
+        <vIBS>${d(calc.ibs)}</vIBS>
+        <gCBS><pCBS>${p(cfg.aliq_cbs)}</pCBS><vCBS>${d(calc.cbs)}</vCBS></gCBS>
+        ${calc.imposto_seletivo > 0 ? `<gIS><pIS>${p(cfg.aliq_is)}</pIS><vIS>${d(calc.imposto_seletivo)}</vIS></gIS>` : '<!-- IS isento -->'}
+      </gIBSCBS>
+    </IBSCBS>`
+        );
+    }
+    // PREVIEW dry-run: gera a NF-e do pedido com CBS/IBS/IS, NÃO transmite à SEFAZ (tpAmb=2 homologação).
+    router.get('/pedidos/:id/nfe-reforma-preview', authenticateToken, async (req, res, next) => {
+        try {
+            const cfg = await getReformaConfigAtual();
+            const { id } = req.params;
+            const calcPedido = await ReformaTributariaService.calcularPedido(pool, id, { config: cfg });
+            const calc = calcPedido;
+            const grupoItem = buildIbsCbsXml(calc, cfg);
+            const totalXml =
+`  <IBSCBSTot>
+    <vBCIBSCBS>${calc.base.toFixed(2)}</vBCIBSCBS>
+    <gIBS><vIBS>${calc.ibs.toFixed(2)}</vIBS></gIBS>
+    <gCBS><vCBS>${calc.cbs.toFixed(2)}</vCBS></gCBS>
+    <vIS>${calc.imposto_seletivo.toFixed(2)}</vIS>
+  </IBSCBSTot>`;
+            res.json({
+                success: true,
+                transmitido: false,
+                tpAmb: '2',
+                ambiente: 'PREVIEW (homologação) — NÃO enviado à SEFAZ',
+                pedido: { ...calcPedido.pedido, base: calc.base },
+                aliquotas: cfg,
+                calculo: { cbs: calc.cbs, ibs: calc.ibs, imposto_seletivo: calc.imposto_seletivo, total_reforma: calc.total_reforma, itens: calcPedido.itens },
+                xml_preview: { grupo_por_item: grupoItem, grupo_total: totalXml }
+            });
+        } catch (e) { next(e); }
+    });
+    router.get('/pedidos/:id/reforma-tributaria', authenticateToken, async (req, res, next) => {
+        try {
+            const cfg = await getReformaConfigAtual();
+            const { id } = req.params;
+            const r = await ReformaTributariaService.calcularPedido(pool, id, { config: cfg });
+            const [eventos] = await pool.query(`SELECT * FROM reforma_tributaria_eventos WHERE pedido_id = ? ORDER BY id DESC`, [id]);
+            res.json({ success: true, ...r, aliq_ibs: cfg.aliq_ibs, aliq_cbs: cfg.aliq_cbs, aliq_is: cfg.aliq_is, eventos });
+        } catch (error) { next(error); }
+    });
+    router.post('/pedidos/:id/reforma-tributaria', authenticateToken, async (req, res, next) => {
+        try {
+            const cfg = await getReformaConfigAtual();
+            const { id } = req.params;
+            const usuarioId = req.user?.id || req.user?.userId || null;
+            const [[nfe]] = await pool.query(`SELECT id FROM nfes WHERE pedido_id = ? ORDER BY id DESC LIMIT 1`, [id]);
+            const r = await ReformaTributariaService.calcularPedido(pool, id, { config: cfg });
+            const eventoId = await ReformaTributariaService.registrarEventoPedido(pool, id, usuarioId, r, nfe ? nfe.id : null);
+            res.json({ success: true, message: 'Apuração CBS/IBS/IS registrada.', id: eventoId, ...r });
+        } catch (error) { next(error); }
+    });
+
     // GET /pedidos/:id/historico - Buscar histórico do pedido
     router.get('/pedidos/:id/historico', async (req, res, next) => {
         try {
@@ -2080,6 +3153,103 @@ module.exports = function createVendasRoutes(deps) {
         }
     });
 
+    // ====================== TAREFAS DO PEDIDO ======================
+    // Garante que a tabela de tarefas exista (idempotente)
+    async function ensurePedidoTarefasTable() {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS pedido_tarefas (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                pedido_id INT NOT NULL,
+                texto VARCHAR(500) NOT NULL,
+                concluida TINYINT(1) NOT NULL DEFAULT 0,
+                usuario_id INT,
+                usuario_nome VARCHAR(100),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_pedido (pedido_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+    }
+
+    // GET /pedidos/:id/tarefas - Listar tarefas do pedido (retorna array puro)
+    router.get('/pedidos/:id/tarefas', async (req, res) => {
+        try {
+            const { id } = req.params;
+            await ensurePedidoTarefasTable();
+            const [rows] = await pool.query(
+                'SELECT id, texto, concluida FROM pedido_tarefas WHERE pedido_id = ? ORDER BY concluida ASC, created_at ASC',
+                [id]
+            );
+            res.json(rows.map(r => ({ id: r.id, texto: r.texto, concluida: !!r.concluida })));
+        } catch (error) {
+            console.error('❌ Erro ao buscar tarefas do pedido:', error.message);
+            res.json([]); // não quebra a UI
+        }
+    });
+
+    // POST /pedidos/:id/tarefas - Criar tarefa (retorna o objeto criado)
+    router.post('/pedidos/:id/tarefas', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const texto = (req.body && req.body.texto ? String(req.body.texto) : '').trim();
+            if (!texto) {
+                return res.status(400).json({ message: 'Descrição da tarefa é obrigatória' });
+            }
+            const user = req.user || {};
+            await ensurePedidoTarefasTable();
+            const [result] = await pool.query(
+                'INSERT INTO pedido_tarefas (pedido_id, texto, concluida, usuario_id, usuario_nome) VALUES (?, ?, 0, ?, ?)',
+                [id, texto, user.id || null, user.nome || user.name || 'Sistema']
+            );
+            res.status(201).json({ id: result.insertId, texto, concluida: false });
+        } catch (error) {
+            console.error('❌ Erro ao criar tarefa do pedido:', error.message);
+            res.status(500).json({ message: 'Erro ao adicionar tarefa' });
+        }
+    });
+
+    // PUT /tarefas/:tarefaId - Atualizar tarefa (concluída / texto)
+    router.put('/tarefas/:tarefaId', async (req, res) => {
+        try {
+            const { tarefaId } = req.params;
+            await ensurePedidoTarefasTable();
+            const campos = [];
+            const valores = [];
+            if (typeof req.body.concluida !== 'undefined') {
+                campos.push('concluida = ?');
+                valores.push(req.body.concluida ? 1 : 0);
+            }
+            if (typeof req.body.texto !== 'undefined') {
+                campos.push('texto = ?');
+                valores.push(String(req.body.texto).trim());
+            }
+            if (campos.length === 0) {
+                return res.status(400).json({ message: 'Nada para atualizar' });
+            }
+            valores.push(tarefaId);
+            await pool.query(`UPDATE pedido_tarefas SET ${campos.join(', ')} WHERE id = ?`, valores);
+            const [rows] = await pool.query('SELECT id, texto, concluida FROM pedido_tarefas WHERE id = ?', [tarefaId]);
+            if (rows.length === 0) return res.status(404).json({ message: 'Tarefa não encontrada' });
+            res.json({ id: rows[0].id, texto: rows[0].texto, concluida: !!rows[0].concluida });
+        } catch (error) {
+            console.error('❌ Erro ao atualizar tarefa do pedido:', error.message);
+            res.status(500).json({ message: 'Erro ao atualizar tarefa' });
+        }
+    });
+
+    // DELETE /tarefas/:tarefaId - Excluir tarefa
+    router.delete('/tarefas/:tarefaId', async (req, res) => {
+        try {
+            const { tarefaId } = req.params;
+            await ensurePedidoTarefasTable();
+            await pool.query('DELETE FROM pedido_tarefas WHERE id = ?', [tarefaId]);
+            res.json({ success: true, message: 'Tarefa removida' });
+        } catch (error) {
+            console.error('❌ Erro ao excluir tarefa do pedido:', error.message);
+            res.status(500).json({ message: 'Erro ao excluir tarefa' });
+        }
+    });
+
     // BUSCA UNIFICADA: CLIENTES + EMPRESAS (para autocomplete de dropdowns)
     router.get('/clientes-empresas/search', async (req, res, next) => {
         try {
@@ -2088,21 +3258,28 @@ module.exports = function createVendasRoutes(deps) {
             const queryLike = `%${q}%`;
             const qDigits = q.replace(/\D/g, '');
             const queryDigits = qDigits.length >= 3 ? `%${qDigits}%` : null;
+            const [empresaColumns, clienteColumns] = await Promise.all([
+                getTableColumns('empresas'),
+                getTableColumns('clientes')
+            ]);
+            const empresaUfSelect = firstExistingColumnSelect('e', empresaColumns, ['estado', 'uf'], 'uf');
+            const clienteUfSelect = firstExistingColumnSelect('c', clienteColumns, ['estado', 'uf'], 'uf');
+            const normalizeUf = value => String(value || '').trim().toUpperCase();
 
             // Buscar empresas (nome_fantasia, razao_social, cnpj com/sem formatação)
-            let sqlEmpresas = `SELECT id, nome_fantasia, razao_social, cnpj, 'empresa' as tipo
-                 FROM empresas WHERE nome_fantasia LIKE ? OR razao_social LIKE ? OR cnpj LIKE ?`;
+            let sqlEmpresas = `SELECT e.id, e.nome_fantasia, e.razao_social, e.cnpj, ${empresaUfSelect}, 'empresa' as tipo
+                 FROM empresas e WHERE e.nome_fantasia LIKE ? OR e.razao_social LIKE ? OR e.cnpj LIKE ?`;
             const paramsEmpresas = [queryLike, queryLike, queryLike];
             if (queryDigits) {
-                sqlEmpresas += ` OR REPLACE(REPLACE(REPLACE(cnpj, '.', ''), '-', ''), '/', '') LIKE ?`;
+                sqlEmpresas += ` OR REPLACE(REPLACE(REPLACE(e.cnpj, '.', ''), '-', ''), '/', '') LIKE ?`;
                 paramsEmpresas.push(queryDigits);
             }
-            sqlEmpresas += ` ORDER BY nome_fantasia LIMIT 15`;
+            sqlEmpresas += ` ORDER BY e.nome_fantasia LIMIT 15`;
             const [empresas] = await pool.query(sqlEmpresas, paramsEmpresas);
 
             // Buscar clientes (nome, nome_fantasia, razao_social, cnpj, cnpj_cpf, cpf, email)
             let sqlClientes = `SELECT c.id, c.nome, c.nome_fantasia, c.razao_social, c.email,
-                        c.telefone, c.cpf, c.cnpj, c.cnpj_cpf, c.empresa_id,
+                        c.telefone, c.cpf, c.cnpj, c.cnpj_cpf, ${clienteUfSelect}, c.empresa_id,
                         e.nome_fantasia as empresa_nome, 'cliente' as tipo
                  FROM clientes c LEFT JOIN empresas e ON c.empresa_id = e.id
                  WHERE c.nome LIKE ? OR c.nome_fantasia LIKE ? OR c.razao_social LIKE ?
@@ -2123,7 +3300,9 @@ module.exports = function createVendasRoutes(deps) {
                     nome: e.nome_fantasia || e.razao_social || `Empresa #${e.id}`,
                     razao_social: e.razao_social || '',
                     cnpj: e.cnpj || '',
-                    subtitulo: [e.razao_social, e.cnpj ? `CNPJ: ${e.cnpj}` : ''].filter(Boolean).join(' | '),
+                    uf: normalizeUf(e.uf),
+                    estado: normalizeUf(e.uf),
+                    subtitulo: [e.razao_social, e.cnpj ? `CNPJ: ${e.cnpj}` : '', e.uf ? `UF: ${normalizeUf(e.uf)}` : ''].filter(Boolean).join(' | '),
                     tipo: 'empresa',
                     empresa_id: e.id
                 })),
@@ -2134,9 +3313,12 @@ module.exports = function createVendasRoutes(deps) {
                     cnpj: c.cnpj || c.cnpj_cpf || '',
                     cpf: c.cpf || '',
                     email: c.email || '',
+                    uf: normalizeUf(c.uf),
+                    estado: normalizeUf(c.uf),
                     subtitulo: [
                         c.razao_social && c.razao_social !== (c.nome_fantasia || c.nome) ? c.razao_social : '',
                         c.cnpj || c.cnpj_cpf ? `CNPJ/CPF: ${c.cnpj || c.cnpj_cpf}` : (c.cpf ? `CPF: ${c.cpf}` : ''),
+                        c.uf ? `UF: ${normalizeUf(c.uf)}` : '',
                         c.empresa_nome ? `(${c.empresa_nome})` : ''
                     ].filter(Boolean).join(' | '),
                     tipo: 'cliente',
@@ -2182,8 +3364,11 @@ module.exports = function createVendasRoutes(deps) {
             }
 
             if (!isAdmin && req.user && req.user.id) {
-                // Vendedores podem buscar todas empresas para criar pedidos
-                // Filtro de vendedor_id removido para não restringir busca
+                // Não-admin: clientes do próprio vendedor + os ainda sem vendedor (recém-cadastrados).
+                // (Hoje as empresas estão com vendedor_id NULL, então todos continuam visíveis;
+                //  o filtro vai apertando conforme as empresas recebem um vendedor responsável.)
+                query += ` AND (vendedor_id = ? OR vendedor_id IS NULL)`;
+                params.push(req.user.id);
             }
 
             query += ` ORDER BY nome_fantasia LIMIT ?`;
@@ -2247,7 +3432,7 @@ module.exports = function createVendasRoutes(deps) {
 
     // CLIENTES (CONTATOS)
     // Busca de clientes (autocomplete) — DEVE ficar ANTES de /clientes/:id
-    router.get('/clientes/buscar', async (req, res, next) => {
+    router.get('/clientes/buscar', authenticateToken, async (req, res, next) => {
         try {
             const search = req.query.search || req.query.q || req.query.termo || '';
             const limit = parseInt(req.query.limit) || 20;
@@ -2263,7 +3448,7 @@ module.exports = function createVendasRoutes(deps) {
             res.json(rows);
         } catch (error) { next(error); }
     });
-    router.get('/clientes', cacheMiddleware('vendas_clientes', 120000, true), async (req, res, next) => {
+    router.get('/clientes', authenticateToken, cacheMiddleware('vendas_clientes', 120000, true), async (req, res, next) => {
         try {
             const { page = 1, limit = 2000 } = req.query;
             const isAdmin = req.user && (req.user.is_admin || req.user.role === 'admin' || req.user.role === 'administrador');
@@ -2272,7 +3457,7 @@ module.exports = function createVendasRoutes(deps) {
             res.json(rows);
         } catch (error) { next(error); }
     });
-    router.get('/clientes/:id', async (req, res, next) => {
+    router.get('/clientes/:id', authenticateToken, async (req, res, next) => {
         try {
             const cliente = await repos.cliente.findById(req.params.id);
             if (!cliente) return res.status(404).json({ message: 'Cliente não encontrado.' });
@@ -2280,7 +3465,7 @@ module.exports = function createVendasRoutes(deps) {
         } catch (error) { next(error); }
     });
     // Resumo/inteligência do cliente (KPIs, pedidos recentes, financeiro)
-    router.get('/clientes/:id/resumo', async (req, res, next) => {
+    router.get('/clientes/:id/resumo', authenticateToken, async (req, res, next) => {
         try {
             const clienteId = parseInt(req.params.id);
             if (isNaN(clienteId)) return res.status(400).json({ message: 'ID inválido.' });
@@ -2459,6 +3644,9 @@ module.exports = function createVendasRoutes(deps) {
 
     router.post('/clientes', authenticateToken, async (req, res, next) => {
         try {
+            if (!(await podeCadastrarVendas(req.user, 'clientes'))) {
+                return res.status(403).json({ success: false, message: 'Seu perfil nao tem permissao para cadastrar clientes.', code: 'SEM_PERMISSAO_CLIENTES' });
+            }
             // Field aliasing — frontend may send razao_social/cnpj_cpf/ie/logradouro/número
             const b = req.body;
             const nome = (b.nome || b.razao_social || '').trim();
@@ -2471,7 +3659,7 @@ module.exports = function createVendasRoutes(deps) {
                     complemento, bairro, cidade, uf, cep,
                     inscricao_municipal, limite_credito, ativo, empresa_id,
                     contato_nome, contato_cargo, observacoes,
-                    fax, ddd_fax, enviar_anexos, banco, agencia, conta, pix, titular_doc, titular_nome,
+                    fax, ddd_fax, enviar_anexos, banco, agencia, conta, pix, titular_doc, titular_nome, tipo_conta,
                     suframa, simples_nacional, produtor_rural, tipo_atividade, cnae,
                     obs_internas, obs_detalhadas, parcelas_padrao, vendedor_padrao,
                     email_nfe, transportadora, codigo_receita, bloquear_faturamento } = b;
@@ -2484,9 +3672,15 @@ module.exports = function createVendasRoutes(deps) {
             if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                 return res.status(400).json({ message: 'Email inválido.' });
             }
+            // BUG-VEND-008: rejeitar CNPJ/CPF inválido (só valida se informado — documento é opcional)
+            if (cnpj && onlyDigits(cnpj).length > 0 && !isValidDoc(cnpj)) {
+                return res.status(400).json({ message: 'CNPJ/CPF inválido — verifique os dígitos (14 díg. p/ CNPJ ou 11 p/ CPF).' });
+            }
 
             const [cols] = await pool.query('SHOW COLUMNS FROM clientes');
             const availableColumns = new Set(cols.map(col => col.Field));
+            const usuarioLogadoId = req.user?.id || null;
+            const usuarioLogadoNome = req.user?.nome || req.user?.name || req.user?.email || null;
 
             // Resolver empresa_id: body > user token > buscar primeira empresa
             let empresaIdFinal = empresa_id || req.user?.empresa_id || null;
@@ -2527,7 +3721,13 @@ module.exports = function createVendasRoutes(deps) {
                 empresa_id: empresaIdFinal,
                 observacoes: observacoes || null,
                 data_cadastro: new Date(),
-                incluido_por: req.user?.nome || 'Sistema',
+                vendedor_id: usuarioLogadoId,
+                usuario_id: usuarioLogadoId,
+                user_id: usuarioLogadoId,
+                created_by: usuarioLogadoId,
+                vendedor_responsavel: usuarioLogadoNome,
+                vendedor_proprietario: usuarioLogadoNome,
+                incluido_por: usuarioLogadoNome || 'Sistema',
                 fax: fax || null,
                 ddd_fax: ddd_fax || null,
                 enviar_anexos: enviar_anexos !== undefined ? (enviar_anexos ? 1 : 0) : 1,
@@ -2538,6 +3738,7 @@ module.exports = function createVendasRoutes(deps) {
                 pix: pix || null,
                 titular_doc: titular_doc || null,
                 titular_nome: titular_nome || null,
+                tipo_conta: tipo_conta || 'corrente',
                 suframa: suframa || null,
                 simples_nacional: simples_nacional ? 1 : 0,
                 produtor_rural: produtor_rural ? 1 : 0,
@@ -2546,12 +3747,67 @@ module.exports = function createVendasRoutes(deps) {
                 obs_internas: obs_internas || null,
                 obs_detalhadas: obs_detalhadas || null,
                 parcelas_padrao: parcelas_padrao || null,
-                vendedor_padrao: vendedor_padrao || null,
+                vendedor_padrao: vendedor_padrao || usuarioLogadoNome || null,
                 email_nfe: email_nfe || null,
                 transportadora: transportadora || null,
                 codigo_receita: codigo_receita || null,
                 bloquear_faturamento: bloquear_faturamento ? 1 : 0
             };
+
+            const documentoDigits = String(cnpj || '').replace(/\D/g, '');
+            if (documentoDigits) {
+                const docConditions = [];
+                const docParams = [];
+                ['cnpj', 'cnpj_cpf', 'cpf'].forEach(field => {
+                    if (availableColumns.has(field)) {
+                        docConditions.push(`REPLACE(REPLACE(REPLACE(COALESCE(${field}, ''), '.', ''), '/', ''), '-', '') = ?`);
+                        docParams.push(documentoDigits);
+                    }
+                });
+
+                if (docConditions.length) {
+                    const [clientesExistentes] = await pool.query(
+                        `SELECT id FROM clientes WHERE ${docConditions.join(' OR ')} LIMIT 1`,
+                        docParams
+                    );
+
+                    if (clientesExistentes.length) {
+                        const updateFields = [];
+                        const updateValues = [];
+                        ['vendedor_id', 'usuario_id', 'user_id'].forEach(field => {
+                            if (availableColumns.has(field) && usuarioLogadoId) {
+                                updateFields.push(`${field} = ?`);
+                                updateValues.push(usuarioLogadoId);
+                            }
+                        });
+                        ['vendedor_responsavel', 'vendedor_proprietario'].forEach(field => {
+                            if (availableColumns.has(field) && usuarioLogadoNome) {
+                                updateFields.push(`${field} = ?`);
+                                updateValues.push(usuarioLogadoNome);
+                            }
+                        });
+                        if (availableColumns.has('incluido_por') && usuarioLogadoNome) {
+                            updateFields.push(`incluido_por = COALESCE(NULLIF(incluido_por, ''), ?)`);
+                            updateValues.push(usuarioLogadoNome);
+                        }
+                        if (availableColumns.has('created_by') && usuarioLogadoId) {
+                            updateFields.push(`created_by = COALESCE(created_by, ?)`);
+                            updateValues.push(usuarioLogadoId);
+                        }
+
+                        if (updateFields.length) {
+                            updateValues.push(clientesExistentes[0].id);
+                            await pool.query(`UPDATE clientes SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
+                        }
+
+                        return res.status(200).json({
+                            message: 'Cliente já cadastrado e vinculado ao vendedor atual.',
+                            id: clientesExistentes[0].id,
+                            existente: true
+                        });
+                    }
+                }
+            }
 
             const insertColumns = [];
             const insertValues = [];
@@ -2610,7 +3866,7 @@ module.exports = function createVendasRoutes(deps) {
                     complemento, bairro, cidade, uf, cep,
                     inscricao_municipal, limite_credito, empresa_id,
                     contato_nome, contato_cargo, observacoes,
-                    fax, ddd_fax, enviar_anexos, banco, agencia, conta, pix, titular_doc, titular_nome,
+                    fax, ddd_fax, enviar_anexos, banco, agencia, conta, pix, titular_doc, titular_nome, tipo_conta,
                     suframa, simples_nacional, produtor_rural, tipo_atividade, cnae,
                     obs_internas, obs_detalhadas, parcelas_padrao, vendedor_padrao,
                     email_nfe, transportadora, codigo_receita, bloquear_faturamento } = body;
@@ -2658,6 +3914,7 @@ module.exports = function createVendasRoutes(deps) {
                 pix: pix || null,
                 titular_doc: titular_doc || null,
                 titular_nome: titular_nome || null,
+                tipo_conta: tipo_conta || 'corrente',
                 suframa: suframa || null,
                 simples_nacional: simples_nacional ? 1 : 0,
                 produtor_rural: produtor_rural ? 1 : 0,
@@ -3313,10 +4570,13 @@ module.exports = function createVendasRoutes(deps) {
         try {
             await ensurePedidoItensTable();
             const { id } = req.params;
+            if (!id || id === 'null' || id === 'undefined' || !Number.isFinite(Number(id))) {
+                return res.status(400).json({ error: 'ID do pedido inválido' });
+            }
             const [itens] = await pool.query(
                 `SELECT id, pedido_id, codigo, descricao, quantidade, quantidade_parcial, unidade, local_estoque,
                  preco_unitario, desconto, subtotal, produto_id, valor_ipi, valor_icms_st,
-                 aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes
+                 aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, nao_gerar_saida_estoque
                  FROM pedido_itens WHERE pedido_id = ? ORDER BY id ASC`,
                 [id]
             );
@@ -3363,6 +4623,9 @@ module.exports = function createVendasRoutes(deps) {
         try {
             await ensurePedidoItensTable();
             const { id } = req.params;
+            if (!id || id === 'null' || id === 'undefined' || !Number.isFinite(Number(id))) {
+                return res.status(400).json({ error: 'ID do pedido inválido' });
+            }
 
             // Lock: verificar status do pedido antes de permitir adicionar item
             const [[pedidoStatusCheck]] = await pool.query('SELECT status FROM pedidos WHERE id = ?', [parseInt(id)]);
@@ -3378,15 +4641,23 @@ module.exports = function createVendasRoutes(deps) {
             const codigo = b.codigo || b['código'] || '';
             const descricao = b.descricao || b['descrição'] || '';
             const { quantidade, quantidade_parcial, unidade, local_estoque, preco_unitario, desconto,
-                    produto_id, valor_ipi, valor_icms_st, aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, preco_custo } = b;
+                    produto_id, valor_ipi, valor_icms_st, aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, preco_custo,
+                    nao_gerar_saida_estoque } = b;
 
             if (!codigo || !descricao) {
                 return res.status(400).json({ message: 'Código e descrição são obrigatórios.' });
             }
 
             const qty = parseFloat(quantidade) || 1;
+            // BUG-VEND-011: quantidade deve ser > 0 (valor negativo gerava total negativo)
+            if (!(qty > 0)) {
+                return res.status(400).json({ message: 'Quantidade do item deve ser maior que zero.' });
+            }
             const qtyParcial = parseFloat(quantidade_parcial) || 0;
             const preco = parseFloat(preco_unitario) || 0;
+            if (preco < 0) {
+                return res.status(400).json({ message: 'Preço do item não pode ser negativo.' });
+            }
             const desc = parseFloat(desconto) || 0;
             let vIPI = parseFloat(valor_ipi) || 0;
             let vICMSST = parseFloat(valor_icms_st) || 0;
@@ -3434,12 +4705,13 @@ module.exports = function createVendasRoutes(deps) {
 
             const [result] = await pool.query(
                 `INSERT INTO pedido_itens (pedido_id, codigo, descricao, quantidade, quantidade_parcial, unidade, local_estoque,
-                 preco_unitario, desconto, subtotal, produto_id, valor_ipi, valor_icms_st, aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, preco_custo)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 preco_unitario, desconto, subtotal, produto_id, valor_ipi, valor_icms_st, aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, preco_custo, nao_gerar_saida_estoque)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [id, codigo, descricao, qty, qtyParcial, unidade || 'UN', local_estoque || 'PADRAO - Local de Estoque Padrão',
                  preco, desc, total, produto_id || null, vIPI, vICMSST,
                  aliqIPI, aliqICMS_local, mvaST_local,
-                 cfop || null, cenario_fiscal || null, observacoes || null, parseFloat(preco_custo) || 0]
+                 cfop || null, cenario_fiscal || null, observacoes || null, parseFloat(preco_custo) || 0,
+                 nao_gerar_saida_estoque ? 1 : 0]
             );
 
             // Recalcular totais de impostos e valor do pedido
@@ -3464,6 +4736,12 @@ module.exports = function createVendasRoutes(deps) {
         try {
             await ensurePedidoItensTable();
             const { pedidoId, itemId } = req.params;
+            if (!pedidoId || pedidoId === 'null' || pedidoId === 'undefined' || !Number.isFinite(Number(pedidoId))) {
+                return res.status(400).json({ error: 'ID do pedido inválido' });
+            }
+            if (!itemId || itemId === 'null' || itemId === 'undefined' || !Number.isFinite(Number(itemId))) {
+                return res.status(400).json({ error: 'ID do item inválido' });
+            }
 
             // Lock: verificar status do pedido antes de permitir edição de item
             const [[pedidoStatusCheck]] = await pool.query('SELECT status FROM pedidos WHERE id = ?', [parseInt(pedidoId)]);
@@ -3488,11 +4766,19 @@ module.exports = function createVendasRoutes(deps) {
             const codigo = b.codigo || b['código'] || '';
             const descricao = b.descricao || b['descrição'] || '';
             const { quantidade, quantidade_parcial, unidade, local_estoque, preco_unitario, desconto,
-                    produto_id, valor_ipi, valor_icms_st, aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, preco_custo } = b;
+                    produto_id, valor_ipi, valor_icms_st, aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, preco_custo,
+                    nao_gerar_saida_estoque } = b;
 
             const qty = parseFloat(quantidade) || 1;
+            // BUG-VEND-011: quantidade deve ser > 0 (valor negativo gerava total negativo)
+            if (!(qty > 0)) {
+                return res.status(400).json({ message: 'Quantidade do item deve ser maior que zero.' });
+            }
             const qtyParcial = parseFloat(quantidade_parcial) || 0;
             const preco = parseFloat(preco_unitario) || 0;
+            if (preco < 0) {
+                return res.status(400).json({ message: 'Preço do item não pode ser negativo.' });
+            }
             const desc = parseFloat(desconto) || 0;
             const vIPI = parseFloat(valor_ipi) || 0;
             const vICMSST = parseFloat(valor_icms_st) || 0;
@@ -3502,10 +4788,11 @@ module.exports = function createVendasRoutes(deps) {
                 `UPDATE pedido_itens SET codigo = ?, descricao = ?, quantidade = ?, quantidade_parcial = ?, unidade = ?,
                  local_estoque = ?, preco_unitario = ?, desconto = ?, subtotal = ?,
                  produto_id = ?, valor_ipi = ?, valor_icms_st = ?, aliquota_ipi = ?, aliquota_icms = ?, mva_st = ?,
-                 cfop = ?, cenario_fiscal = ?, observacoes = ?, preco_custo = ? WHERE id = ? AND pedido_id = ?`,
+                 cfop = ?, cenario_fiscal = ?, observacoes = ?, preco_custo = ?, nao_gerar_saida_estoque = ? WHERE id = ? AND pedido_id = ?`,
                 [codigo, descricao, qty, qtyParcial, unidade, local_estoque, preco, desc, total,
                  produto_id || null, vIPI, vICMSST, parseFloat(aliquota_ipi) || 0, parseFloat(aliquota_icms) || 0, parseFloat(mva_st) || 0,
-                 cfop || null, cenario_fiscal || null, observacoes || null, parseFloat(preco_custo) || 0, itemId, pedidoId]
+                 cfop || null, cenario_fiscal || null, observacoes || null, parseFloat(preco_custo) || 0,
+                 nao_gerar_saida_estoque ? 1 : 0, itemId, pedidoId]
             );
 
             // Recalcular totais de impostos e valor do pedido
@@ -3530,6 +4817,12 @@ module.exports = function createVendasRoutes(deps) {
         try {
             await ensurePedidoItensTable();
             const { pedidoId, itemId } = req.params;
+            if (!pedidoId || pedidoId === 'null' || pedidoId === 'undefined' || !Number.isFinite(Number(pedidoId))) {
+                return res.status(400).json({ error: 'ID do pedido inválido' });
+            }
+            if (!itemId || itemId === 'null' || itemId === 'undefined' || !Number.isFinite(Number(itemId))) {
+                return res.status(400).json({ error: 'ID do item inválido' });
+            }
             const [rows] = await pool.query(
                 'SELECT * FROM pedido_itens WHERE id = ? AND pedido_id = ?',
                 [itemId, pedidoId]
@@ -3884,28 +5177,55 @@ module.exports = function createVendasRoutes(deps) {
     // GET /vendedores - Lista vendedores para filtros e dashboards
     router.get('/vendedores', async (req, res, next) => {
         try {
-            // Buscar vendedores comerciais ativos
+            const columns = await getTableColumns('usuarios');
+            const selectCols = [
+                'u.id',
+                'u.nome',
+                ...selectExistingColumns('u', columns, [
+                    { column: 'email' },
+                    { column: 'apelido' },
+                    { column: 'avatar' },
+                    { column: 'foto' },
+                    { column: 'role' },
+                    { column: 'departamento' },
+                    { column: 'cargo' },
+                    { column: 'setor' }
+                ])
+            ];
+
+            const activeChecks = [];
+            if (columns.has('ativo')) activeChecks.push('(u.ativo = 1 OR u.ativo IS NULL)');
+            if (columns.has('status')) activeChecks.push("(u.status IS NULL OR LOWER(u.status) NOT IN ('inativo','bloqueado','desativado','excluido'))");
+            if (columns.has('deleted_at')) activeChecks.push('u.deleted_at IS NULL');
+            activeChecks.push("NOT EXISTS (SELECT 1 FROM funcionarios f WHERE f.email = u.email AND (LOWER(f.status) = 'demitido' OR f.ativo = 0 OR f.data_demissao IS NOT NULL))");
+
+            const vendedorChecks = [];
+            if (columns.has('role')) vendedorChecks.push("LOWER(COALESCE(u.role,'')) IN ('comercial','vendedor','sales')");
+            if (columns.has('departamento')) vendedorChecks.push("LOWER(COALESCE(u.departamento,'')) LIKE '%comercial%' OR LOWER(COALESCE(u.departamento,'')) LIKE '%vendas%'");
+            if (columns.has('cargo')) vendedorChecks.push("LOWER(COALESCE(u.cargo,'')) LIKE '%vendedor%' OR LOWER(COALESCE(u.cargo,'')) LIKE '%consultor%' OR LOWER(COALESCE(u.cargo,'')) LIKE '%comercial%'");
+            if (columns.has('setor')) vendedorChecks.push("LOWER(COALESCE(u.setor,'')) LIKE '%comercial%' OR LOWER(COALESCE(u.setor,'')) LIKE '%vendas%'");
+            if (columns.has('perfil')) vendedorChecks.push("LOWER(COALESCE(u.perfil,'')) LIKE '%vendedor%' OR LOWER(COALESCE(u.perfil,'')) LIKE '%comercial%'");
+            vendedorChecks.push("LOWER(COALESCE(u.nome,'')) LIKE '%melissa%navarro%'");
+
+            const activeWhere = activeChecks.length ? activeChecks.join(' AND ') : '1=1';
+            const vendedorWhere = vendedorChecks.length ? vendedorChecks.map(c => `(${c})`).join(' OR ') : '1=1';
             const [rows] = await pool.query(`
-                SELECT id, nome, email, apelido, avatar, foto, role
-                FROM usuarios
-                WHERE (role = 'comercial' OR role = 'vendedor' OR departamento = 'Comercial' OR departamento = 'Vendas')
-                  AND (ativo = 1 OR ativo IS NULL)
-                ORDER BY nome ASC
+                SELECT DISTINCT ${selectCols.join(', ')}
+                FROM usuarios u
+                WHERE ${activeWhere} AND (${vendedorWhere})
+                ORDER BY u.nome ASC
             `);
 
-            if (rows.length === 0) {
-                // Fallback - buscar todos usuários que podem vender
-                const [fallback] = await pool.query(`
-                    SELECT id, nome, email, apelido, avatar, foto, role
-                    FROM usuarios
-                    WHERE ativo = 1 OR ativo IS NULL
-                    ORDER BY nome ASC
-                    LIMIT 20
-                `);
-                return res.json(fallback);
-            }
+            if (rows.length > 0) return res.json(rows);
 
-            res.json(rows);
+            const [fallback] = await pool.query(`
+                SELECT DISTINCT ${selectCols.join(', ')}
+                FROM usuarios u
+                WHERE ${activeWhere}
+                ORDER BY u.nome ASC
+                LIMIT 50
+            `);
+            res.json(fallback);
         } catch (error) {
             console.error('❌ Erro ao buscar vendedores:', error);
             // Fallback em caso de erro
@@ -4259,6 +5579,53 @@ module.exports = function createVendasRoutes(deps) {
         }
     });
 
+    // PUT /condicoes-pagamento/:id - Editar condição de pagamento
+    router.put('/condicoes-pagamento/:id', async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const { nome, dias, descricao, ativo } = req.body;
+            if (!id || !Number.isFinite(Number(id))) {
+                return res.status(400).json({ message: 'ID da condição é obrigatório' });
+            }
+            if (!nome) {
+                return res.status(400).json({ message: 'Nome da condição é obrigatório' });
+            }
+
+            const [result] = await pool.query(
+                'UPDATE condicoes_pagamento SET nome = ?, dias = ?, descricao = ?, ativo = COALESCE(?, ativo) WHERE id = ?',
+                [nome, dias || '0', descricao || '', ativo === undefined ? null : (ativo ? 1 : 0), id]
+            );
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ message: 'Condição de pagamento não encontrada' });
+            }
+            res.json({ id: Number(id), nome, dias: dias || '0', descricao: descricao || '', ativo: ativo === undefined ? 1 : (ativo ? 1 : 0), message: 'Condição de pagamento atualizada com sucesso' });
+        } catch (error) {
+            console.error('❌ Erro ao editar condição de pagamento:', error);
+            next(error);
+        }
+    });
+
+    // DELETE /condicoes-pagamento/:id - Remover condição de pagamento
+    router.delete('/condicoes-pagamento/:id', async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            if (!id || !Number.isFinite(Number(id))) {
+                return res.status(400).json({ message: 'ID da condição é obrigatório' });
+            }
+            const [result] = await pool.query(
+                'UPDATE condicoes_pagamento SET ativo = 0 WHERE id = ?',
+                [id]
+            );
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ message: 'Condição de pagamento não encontrada' });
+            }
+            res.json({ success: true, message: 'Condição de pagamento removida com sucesso' });
+        } catch (error) {
+            console.error('❌ Erro ao remover condição de pagamento:', error);
+            next(error);
+        }
+    });
+
     // ========================================
     // ROTAS DE HISTÓRICO
     // Definidas ANTES do apiVendasRouter para ter prioridade
@@ -4391,6 +5758,13 @@ module.exports = function createVendasRoutes(deps) {
         }
     }
 
+    const faturamentoParcialHandlers = createFaturamentoParcialHandlers({
+        pool,
+        faturamentoShared
+    });
+    router.post('/pedidos/:id/faturamento-parcial', faturamentoParcialHandlers.faturar);
+    router.post('/pedidos/:id/remessa-entrega', faturamentoParcialHandlers.remessa);
+
     router.get('/faturamento/cfops', async (req, res, next) => {
         try {
             res.json({
@@ -4488,6 +5862,412 @@ module.exports = function createVendasRoutes(deps) {
     });
 
     // =============================================================
+    // ESPELHO da NF-e a partir do PEDIDO (prévia, ANTES do envio ao SEFAZ)
+    // GET /api/vendas/pedidos/:id/espelho-nfe?tipo=normal|parcial&pct=NN
+    // Render HTML (DANFE marca d'água) p/ conferência no modal de faturamento.
+    // Fica no router de Vendas (área 'vendas') p/ ser acessível a quem fatura no Kanban,
+    // sem depender da área 'nfe'. Não transmite nem persiste nada.
+    // =============================================================
+    router.get('/pedidos/:id/espelho-nfe', async (req, res) => {
+        try {
+            const pedidoId = parseInt(req.params.id, 10);
+            if (!pedidoId) return res.status(400).send('<html><body style="font-family:sans-serif;padding:40px;"><h2>Pedido inválido</h2></body></html>');
+
+            // BUG-FIX 2026-06-28: este endpoint reimplementava manualmente o ctx da DANFE
+            // (emitente errado via tabela `empresas`, impostos sempre zerados, sem fallback
+            // de cliente por nome). Agora reaproveita exatamente a mesma lógica comprovada de
+            // GET /pedidos/:id/danfe?preview=1 — mesmos JOINs de cliente/produto, mesmo
+            // resolvedor de emitente/logo, e buildDanfeCtx/renderDanfe — só adicionando o
+            // fator de meia-nota (tipo/pct) por cima. Ver memória nfe-emitente-empresas-bug-2026-06-28.
+            const [[ped]] = await pool.query(`
+                SELECT p.*, p.valor as valor_total,
+                       COALESCE(c.nome_fantasia, c.razao_social, c.nome, p.cliente_nome, p.cliente) AS cliente_nome,
+                       COALESCE(c.razao_social, c.nome, p.cliente_nome, p.cliente) AS cliente_razao_social,
+                       COALESCE(c.cnpj, c.cnpj_cpf) AS cliente_cnpj,
+                       COALESCE(c.cpf) AS cliente_cpf,
+                       c.inscricao_estadual AS cliente_ie,
+                       COALESCE(c.email, p.email_cliente) AS cliente_email,
+                       c.telefone AS cliente_telefone,
+                       c.endereco AS cliente_endereco, c.bairro AS cliente_bairro,
+                       c.cidade AS cliente_cidade, c.estado AS cliente_estado,
+                       c.cep AS cliente_cep,
+                       t.razao_social AS transportadora_razao_social,
+                       t.nome_fantasia AS transportadora_nome_fantasia,
+                       t.cnpj_cpf AS transportadora_cnpj_cpf
+                FROM pedidos p
+                LEFT JOIN clientes c ON p.cliente_id = c.id
+                LEFT JOIN transportadoras t ON p.transportadora_id = t.id
+                WHERE p.id = ? LIMIT 1
+            `, [pedidoId]);
+            if (!ped) return res.status(404).send('<html><body style="font-family:sans-serif;padding:40px;"><h2 style="color:#ef4444;">Pedido não encontrado</h2></body></html>');
+
+            // Se cliente_id NULL mas temos cliente_nome (caso dos pedidos de teste), tentar
+            // resolver o destinatário completo (endereço/CNPJ/IE) pelo nome.
+            if (!ped.cliente_cnpj && (ped.cliente_nome || ped.cliente)) {
+                try {
+                    const nomeBusca = ped.cliente_nome || ped.cliente;
+                    const [[clienteMatch]] = await pool.query(
+                        `SELECT COALESCE(cnpj, cnpj_cpf) AS cnpj, cpf, inscricao_estadual,
+                                endereco, bairro, cidade, estado, cep, telefone, email,
+                                razao_social, nome_fantasia
+                         FROM clientes WHERE razao_social = ? OR nome = ? OR nome_fantasia = ? LIMIT 1`,
+                        [nomeBusca, nomeBusca, nomeBusca]
+                    );
+                    if (clienteMatch) {
+                        ped.cliente_razao_social = clienteMatch.razao_social || ped.cliente_razao_social;
+                        ped.cliente_cnpj = clienteMatch.cnpj || '';
+                        ped.cliente_cpf = clienteMatch.cpf || '';
+                        ped.cliente_ie = clienteMatch.inscricao_estadual || '';
+                        ped.cliente_endereco = clienteMatch.endereco || '';
+                        ped.cliente_bairro = clienteMatch.bairro || '';
+                        ped.cliente_cidade = clienteMatch.cidade || '';
+                        ped.cliente_estado = clienteMatch.estado || '';
+                        ped.cliente_cep = clienteMatch.cep || '';
+                        ped.cliente_telefone = clienteMatch.telefone || '';
+                        ped.cliente_email = clienteMatch.email || '';
+                    }
+                } catch (_) { /* best-effort */ }
+            }
+
+            // Emitente — sempre a empresa configurada (mesma fonte da emissão real e do
+            // /danfe oficial), nunca a tabela `empresas` (que é, na prática, cadastro de
+            // CLIENTES — ver memória nfe-emitente-empresas-bug-2026-06-28).
+            const [[cfgEmpresa]] = await pool.query('SELECT * FROM configuracoes_empresa LIMIT 1');
+            if (cfgEmpresa) {
+                ped.empresa_razao_social = cfgEmpresa.razao_social;
+                ped.empresa_nome = cfgEmpresa.nome_fantasia;
+                ped.empresa_cnpj = cfgEmpresa.cnpj;
+                ped.empresa_ie = cfgEmpresa.inscricao_estadual;
+                ped.empresa_endereco = cfgEmpresa.endereco + (cfgEmpresa.numero ? ', ' + cfgEmpresa.numero : '');
+                ped.empresa_bairro = cfgEmpresa.bairro;
+                ped.empresa_cidade = cfgEmpresa.cidade;
+                ped.empresa_uf = cfgEmpresa.estado;
+                ped.empresa_cep = cfgEmpresa.cep;
+                ped.empresa_telefone = cfgEmpresa.telefone;
+            }
+            const [[cfgFiscal]] = await pool.query('SELECT * FROM config_fiscal_empresa LIMIT 1').catch(() => [[]]);
+
+            // Itens com dados fiscais reais do produto (NCM, CFOP, CST/CSOSN, alíquotas) —
+            // mesmo JOIN do /danfe oficial, em vez dos campos crus (e quase sempre vazios)
+            // de pedido_itens.
+            const [itensRaw] = await pool.query(`
+                SELECT pi.codigo, pi.descricao, pi.quantidade, pi.unidade, pi.preco_unitario,
+                       pi.desconto, pi.subtotal, pi.produto_id,
+                       pi.icms_percent, pi.icms_value, pi.aliquota_icms, pi.aliquota_ipi,
+                       pi.valor_ipi, pi.valor_icms_st, pi.cfop,
+                       pi.pis_percent, pi.pis_value, pi.cofins_percent, pi.cofins_value,
+                       COALESCE(pr_id.ncm, pr_cod.ncm) AS ncm,
+                       COALESCE(pr_id.cfop_saida_interna, pr_cod.cfop_saida_interna) AS produto_cfop,
+                       COALESCE(pr_id.cst_icms, pr_cod.cst_icms) AS produto_cst_icms,
+                       COALESCE(pr_id.csosn_icms, pr_cod.csosn_icms) AS produto_csosn_icms,
+                       COALESCE(pr_id.aliquota_icms, pr_cod.aliquota_icms) AS produto_aliquota_icms,
+                       COALESCE(pr_id.aliquota_ipi, pr_cod.aliquota_ipi) AS produto_aliquota_ipi,
+                       COALESCE(pr_id.aliquota_pis, pr_cod.aliquota_pis) AS produto_aliquota_pis,
+                       COALESCE(pr_id.aliquota_cofins, pr_cod.aliquota_cofins) AS produto_aliquota_cofins
+                FROM pedido_itens pi
+                LEFT JOIN produtos pr_id ON pi.produto_id = pr_id.id
+                LEFT JOIN produtos pr_cod ON pi.produto_id IS NULL AND pr_cod.codigo = pi.codigo
+                WHERE pi.pedido_id = ? ORDER BY pi.id ASC
+            `, [pedidoId]).catch(() => [[]]);
+
+            // Fator de meia-nota (faturamento parcial): escala valores monetários do item,
+            // mantendo quantidade/preço unitário reais (mesmo comportamento de antes).
+            const tipo = String(req.query.tipo || 'normal').toLowerCase();
+            const pct = Math.max(1, Math.min(100, parseFloat(req.query.pct) || 100));
+            const fator = (tipo === 'parcial' || tipo === 'meianota' || tipo === 'meia-nota') ? (pct / 100) : 1;
+            const itens = (itensRaw || []).map(it => ({
+                ...it,
+                subtotal: (parseFloat(it.subtotal) || 0) * fator,
+                icms_value: it.icms_value != null ? (parseFloat(it.icms_value) || 0) * fator : it.icms_value,
+                valor_ipi: it.valor_ipi != null ? (parseFloat(it.valor_ipi) || 0) * fator : it.valor_ipi,
+                pis_value: it.pis_value != null ? (parseFloat(it.pis_value) || 0) * fator : it.pis_value,
+                cofins_value: it.cofins_value != null ? (parseFloat(it.cofins_value) || 0) * fator : it.cofins_value
+            }));
+            if (fator < 1) {
+                ped.valor_total = (parseFloat(ped.valor_total) || 0) * fator;
+                ped.valor = ped.valor_total;
+            }
+
+            // Logo da empresa como data-URI (mesmo resolvedor do /danfe oficial)
+            const { resolverCaminhoLogo } = require('../modules/_shared/services/empresa-config.service');
+            let logoDataUri = '';
+            try {
+                const logoAbsPath = resolverCaminhoLogo(cfgEmpresa || {});
+                if (logoAbsPath && fs.existsSync(logoAbsPath)) {
+                    const logoBuffer = fs.readFileSync(logoAbsPath);
+                    const ext = path.extname(logoAbsPath).toLowerCase().replace('.', '');
+                    const mime = ext === 'png' ? 'image/png' : (ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg' : ext === 'svg' ? 'image/svg+xml' : 'image/png';
+                    logoDataUri = `data:${mime};base64,${logoBuffer.toString('base64')}`;
+                }
+            } catch (logoErr) {
+                console.warn('[Vendas/EspelhoNFe] Falha ao resolver logo:', logoErr.message);
+            }
+
+            const { renderDanfe, buildDanfeCtx } = require('./danfe-renderer');
+            const ctx = buildDanfeCtx(ped, itens, { preview: true, cfgFiscal, logoDataUri });
+            if (fator < 1) ctx.avisoTopo += ' — MEIA NOTA (' + pct + '%)';
+
+            const html = renderDanfe(ctx);
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            return res.send(html);
+        } catch (err) {
+            console.error('[Vendas/EspelhoNFe] Erro:', err);
+            res.status(500).send('<html><body style="font-family:sans-serif;padding:40px;"><h2 style="color:#ef4444;">Erro ao gerar espelho</h2><pre>' + String(err && err.message || err) + '</pre></body></html>');
+        }
+    });
+
+    // =============================================================
+    // ESPELHO NF-e EDITÁVEL — editor HTML em iframe antes do envio ao SEFAZ
+    // GET  /api/vendas/pedidos/:id/espelho-nfe-edit
+    // POST /api/vendas/pedidos/:id/espelho-nfe-patch
+    // =============================================================
+    router.get('/pedidos/:id/espelho-nfe-edit', async (req, res) => {
+        try {
+            const pedidoId = parseInt(req.params.id, 10);
+            if (!pedidoId) return res.status(400).send('<p style="color:red">Pedido inválido</p>');
+
+            const [[ped]] = await pool.query(
+                `SELECT p.*, c.nome AS cli_nome, c.razao_social AS cli_razao,
+                        c.cnpj AS cli_cnpj, c.inscricao_estadual AS cli_ie
+                 FROM pedidos p LEFT JOIN clientes c ON c.id = p.cliente_id
+                 WHERE p.id = ? LIMIT 1`, [pedidoId]
+            );
+            if (!ped) return res.status(404).send('<p style="color:red">Pedido não encontrado</p>');
+
+            const [itens] = await pool.query(
+                `SELECT i.id, i.codigo, i.descricao, i.quantidade, i.preco_unitario, i.subtotal, i.cfop,
+                        COALESCE(p.ncm,'') AS ncm, COALESCE(p.nome, i.descricao) AS produto_nome
+                 FROM pedido_itens i
+                 LEFT JOIN produtos p ON p.id = i.produto_id
+                 WHERE i.pedido_id = ? ORDER BY i.id ASC`, [pedidoId]
+            ).catch(() => [[]]);
+
+            const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const fmtV = v => (parseFloat(v)||0).toFixed(2);
+
+            const itensRows = (itens||[]).map((it, i) => `
+                <tr>
+                    <td style="padding:6px 4px;font-size:11px;color:#64748b;">${i+1}</td>
+                    <td style="padding:6px 4px;">
+                        <input name="item_${it.id}_descricao" value="${esc(it.descricao||it.produto_nome)}"
+                            style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;font-size:12px;" />
+                    </td>
+                    <td style="padding:6px 4px;">
+                        <input name="item_${it.id}_ncm" value="${esc(it.ncm)}" maxlength="8"
+                            placeholder="00000000"
+                            style="width:90px;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;font-size:12px;" />
+                    </td>
+                    <td style="padding:6px 4px;">
+                        <input name="item_${it.id}_cfop" value="${esc(it.cfop)}" maxlength="4"
+                            placeholder="5102"
+                            style="width:70px;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;font-size:12px;" />
+                    </td>
+                    <td style="padding:6px 4px;text-align:right;font-size:12px;color:#334155;">${fmtV(it.quantidade)}</td>
+                    <td style="padding:6px 4px;text-align:right;font-size:12px;color:#334155;">${fmtV(it.preco_unitario)}</td>
+                    <td style="padding:6px 4px;text-align:right;font-size:12px;font-weight:600;color:#1e40af;">${fmtV(it.subtotal)}</td>
+                </tr>`).join('');
+
+            const html = `<!DOCTYPE html><html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Editar NF-e — Pedido #${pedidoId}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#1e293b;font-size:13px}
+.header{background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10}
+.header h2{font-size:15px;font-weight:700;margin:0}
+.header small{font-size:11px;opacity:0.75}
+.body{padding:16px 20px 80px}
+.section{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:14px}
+.section h3{font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #f1f5f9}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+label{display:block;font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px}
+input,select,textarea{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:13px;color:#1e293b;background:#fff;outline:none;transition:border .15s}
+input:focus,select:focus,textarea:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+textarea{resize:vertical;min-height:70px}
+table{width:100%;border-collapse:collapse}
+th{padding:8px 4px;font-size:11px;font-weight:700;color:#475569;text-align:left;background:#f8fafc;border-bottom:2px solid #e2e8f0}
+tr:hover td{background:#f8fafc}
+.footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;box-shadow:0 -4px 20px rgba(0,0,0,.06)}
+.btn{padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn-primary{background:#1e40af;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-secondary{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}.btn-secondary:hover{background:#e2e8f0}
+.alert{padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:12px;display:none}
+.alert-success{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
+.alert-error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+</style></head><body>
+<div class="header">
+  <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+  </div>
+  <div>
+    <h2>Editar NF-e — Pedido #${pedidoId}</h2>
+    <small>Ajuste as informações fiscais antes de enviar ao SEFAZ</small>
+  </div>
+</div>
+<div class="body">
+  <div id="msg-success" class="alert alert-success">✓ Dados salvos! O espelho será atualizado.</div>
+  <div id="msg-error" class="alert alert-error">Erro ao salvar. Tente novamente.</div>
+
+  <form id="form-nfe-edit">
+    <input type="hidden" name="pedido_id" value="${pedidoId}" />
+
+    <div class="section">
+      <h3>Dados da NF-e</h3>
+      <div class="grid2">
+        <div>
+          <label>Natureza da Operação</label>
+          <input name="natureza_operacao" value="${esc(ped.natureza_operacao||'Venda de Mercadoria')}" placeholder="Venda de Mercadoria" />
+        </div>
+        <div>
+          <label>Tipo de Frete</label>
+          <select name="tipo_frete">
+            <option value="CIF" ${(ped.tipo_frete||'')=='CIF'?'selected':''}>CIF — Por conta do Emitente</option>
+            <option value="FOB" ${(ped.tipo_frete||'')=='FOB'?'selected':''}>FOB — Por conta do Destinatário</option>
+            <option value="3" ${(ped.tipo_frete||'')=='3'?'selected':''}>3 — Por conta de Terceiros</option>
+            <option value="9" ${(ped.tipo_frete||'')=='9'?'selected':''}>9 — Sem Frete</option>
+          </select>
+        </div>
+        <div>
+          <label>Transportadora</label>
+          <input name="transportadora_nome" value="${esc(ped.transportadora_nome)}" placeholder="Nome da transportadora" />
+        </div>
+        <div>
+          <label>Destinatário (Cliente)</label>
+          <input value="${esc(ped.cli_razao||ped.cli_nome||ped.cliente_nome)}" readonly style="background:#f8fafc;color:#64748b" />
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Itens da NF-e</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th style="width:30px">#</th>
+            <th>Descrição</th>
+            <th>NCM</th>
+            <th>CFOP</th>
+            <th style="text-align:right">Qtd</th>
+            <th style="text-align:right">V.Unit</th>
+            <th style="text-align:right">Total</th>
+          </tr></thead>
+          <tbody>${itensRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Informações Adicionais</h3>
+      <label>Informações Complementares (campo 61 da NF-e)</label>
+      <textarea name="campos_obs_nfe" rows="4" placeholder="Observações que constarão na NF-e...">${esc(ped.campos_obs_nfe)}</textarea>
+    </div>
+  </form>
+</div>
+
+<div class="footer">
+  <button type="button" class="btn btn-secondary" onclick="window.parent && window.parent.voltarEspelho ? window.parent.voltarEspelho() : history.back()">
+    Cancelar
+  </button>
+  <button type="button" class="btn btn-primary" id="btn-salvar" onclick="salvarEdicao()">
+    <span id="btn-salvar-txt">Salvar e Atualizar Espelho</span>
+  </button>
+</div>
+
+<script>
+async function salvarEdicao() {
+  const btn = document.getElementById('btn-salvar');
+  const txt = document.getElementById('btn-salvar-txt');
+  const msgOk = document.getElementById('msg-success');
+  const msgErr = document.getElementById('msg-error');
+  btn.disabled = true; txt.textContent = 'Salvando...';
+  msgOk.style.display = 'none'; msgErr.style.display = 'none';
+
+  const form = document.getElementById('form-nfe-edit');
+  const data = {};
+  new FormData(form).forEach((v, k) => { data[k] = v; });
+
+  try {
+    const r = await fetch('/api/vendas/pedidos/${pedidoId}/espelho-nfe-patch', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error(j.error || 'Erro ao salvar');
+    msgOk.style.display = 'block';
+    btn.disabled = false; txt.textContent = 'Salvar e Atualizar Espelho';
+    // notify parent to reload the DANFE preview
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'espelho-saved', pedidoId: ${pedidoId} }, '*');
+    }
+  } catch(e) {
+    msgErr.style.display = 'block'; msgErr.textContent = '✗ ' + e.message;
+    btn.disabled = false; txt.textContent = 'Salvar e Atualizar Espelho';
+  }
+}
+</script>
+</body></html>`;
+
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-store');
+            return res.send(html);
+        } catch (err) {
+            console.error('[Vendas/EspelhoEdit] Erro:', err);
+            res.status(500).send('<p style="color:red;padding:20px">Erro: ' + String(err.message) + '</p>');
+        }
+    });
+
+    // PATCH — salva campos editados da NF-e de volta ao pedido/itens
+    router.post('/pedidos/:id/espelho-nfe-patch', async (req, res) => {
+        try {
+            const pedidoId = parseInt(req.params.id, 10);
+            if (!pedidoId) return res.status(400).json({ ok: false, error: 'ID inválido' });
+
+            const { natureza_operacao, campos_obs_nfe, transportadora_nome, tipo_frete, ...rest } = req.body;
+
+            // Update pedido-level fields
+            await pool.query(
+                `UPDATE pedidos SET
+                    natureza_operacao = ?,
+                    campos_obs_nfe    = ?,
+                    transportadora_nome = ?,
+                    tipo_frete        = ?
+                 WHERE id = ?`,
+                [natureza_operacao || null, campos_obs_nfe || null,
+                 transportadora_nome || null, tipo_frete || null, pedidoId]
+            );
+
+            // Update item-level fields (item_<id>_<field>)
+            const itemUpdates = {};
+            for (const [key, val] of Object.entries(rest)) {
+                const m = key.match(/^item_(\d+)_(descricao|cfop)$/);
+                if (m) {
+                    const itemId = parseInt(m[1], 10);
+                    if (!itemUpdates[itemId]) itemUpdates[itemId] = {};
+                    itemUpdates[itemId][m[2]] = val;
+                }
+            }
+            for (const [itemId, fields] of Object.entries(itemUpdates)) {
+                const sets = [], vals = [];
+                if (fields.descricao !== undefined) { sets.push('descricao = ?'); vals.push(fields.descricao); }
+                if (fields.cfop !== undefined) { sets.push('cfop = ?'); vals.push(fields.cfop || null); }
+                if (sets.length) {
+                    vals.push(parseInt(itemId, 10), pedidoId);
+                    await pool.query(`UPDATE pedido_itens SET ${sets.join(', ')} WHERE id = ? AND pedido_id = ?`, vals);
+                }
+            }
+
+            return res.json({ ok: true });
+        } catch (err) {
+            console.error('[Vendas/EspelhoPatch] Erro:', err);
+            return res.status(500).json({ ok: false, error: err.message });
+        }
+    });
+
+    // =============================================================
     // FATURAMENTO NORMAL (100%) - Frontend chama POST /pedidos/:id/faturar
     // Usado por executarFaturamentoNormalKanban() e executarFaturamentoNormal()
     // Inclui: NF sequencial atômica, baixa de estoque, conta a receber, logística
@@ -4549,8 +6329,69 @@ module.exports = function createVendasRoutes(deps) {
                 return res.status(400).json({ message: `Pedido já está com status "${pedido.status}" e não pode ser faturado novamente.` });
             }
 
+            // Bloquear faturamento de pedido cujo cliente está bloqueado por inadimplência
+            if (pedido.cliente_id) {
+                try {
+                    const [bloqRows] = await connection.query(
+                        'SELECT bloqueado_inadimplencia FROM clientes WHERE id = ? LIMIT 1',
+                        [pedido.cliente_id]
+                    );
+                    if (bloqRows.length && Number(bloqRows[0].bloqueado_inadimplencia) === 1) {
+                        await connection.rollback();
+                        connection.release();
+                        return res.status(403).json({
+                            message: 'Cliente bloqueado por inadimplência. Regularize as contas a receber vencidas no módulo Financeiro (registre a baixa com comprovante) antes de faturar este pedido.',
+                            code: 'CLIENTE_INADIMPLENTE'
+                        });
+                    }
+                } catch (_inadimplenciaErr) {
+                    // Coluna bloqueado_inadimplencia ainda não existe neste schema — não bloquear
+                }
+            }
+
             // 2. Buscar itens
             const [itensRows] = await connection.query('SELECT * FROM pedido_itens WHERE pedido_id = ?', [id]);
+            // ========================================
+            // A3-NC-011: bloquear faturamento de pedido sem valor/sem itens
+            // NF-e com R$0 ou sem itens é inválida — bloquear antes de gerar.
+            // Orçamento vazio é permitido; aqui já estamos no faturamento.
+            // ========================================
+            {
+                const somaItensFat = (itensRows || []).reduce((acc, it) => acc + parseFloat(it.subtotal || 0), 0);
+                const valorCabFat = parseFloat(pedido.valor || 0);
+                const valorEfetivoFat = somaItensFat > 0 ? somaItensFat : valorCabFat;
+                if (!itensRows || itensRows.length === 0 || valorEfetivoFat <= 0) {
+                    console.log(`🚫 [A3] Bloqueado faturamento do pedido #${id}: itens=${(itensRows || []).length}, valor=${valorEfetivoFat}`);
+                    await connection.rollback();
+                    connection.release();
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Não é possível aprovar/faturar um pedido sem valor ou sem itens.'
+                    });
+                }
+            }
+
+            // ========================================
+            // CV-005: bloquear faturamento sem cenário fiscal definido.
+            // O cenário fiscal é quem determina a tributação (inclusive isenção/Simples, que são
+            // imposto zero LEGÍTIMO). Sem cenário, emitir NF-e geraria nota sem tributação por
+            // omissão — risco fiscal. Exigimos o cenário; impostos zerados COM cenário são válidos.
+            // ========================================
+            {
+                const cenarioFiscalDef = pedido.cenario_fiscal_id || pedido.cenario_fiscal;
+                const semCenario = cenarioFiscalDef === null || cenarioFiscalDef === undefined ||
+                    String(cenarioFiscalDef).trim() === '';
+                if (semCenario) {
+                    console.log(`🚫 [CV-005] Bloqueado faturamento do pedido #${id}: cenário fiscal não definido`);
+                    await connection.rollback();
+                    connection.release();
+                    return res.status(400).json({
+                        success: false,
+                        code: 'SEM_CENARIO_FISCAL',
+                        message: 'Defina o cenário fiscal do pedido antes de faturar. A nota fiscal precisa de uma classificação tributária (ex.: Venda Normal, Simples Nacional, Isento).'
+                    });
+                }
+            }
 
             let novaNf = null;
             let nfeData = null;
@@ -4606,7 +6447,9 @@ module.exports = function createVendasRoutes(deps) {
 
             try {
                 // 4a. NF sequencial via serviço compartilhado (usa colunas reais: nf, numero_nf)
-                if (!novaNf) {
+                // Quando vamos emitir NF-e real à SEFAZ (pós-commit), o número vem do emissor —
+                // não reservar aqui para não criar gap de numeração.
+                if (!novaNf && !gerarNFe) {
                     const nfData = await faturamentoShared.gerarProximoNumeroNFe(connection);
                     novaNf = nfData.numero;
                 }
@@ -4655,24 +6498,21 @@ module.exports = function createVendasRoutes(deps) {
                     }
 
                     if (valorFaturamento > 0) {
-                        // M-06 FIX: Check total already covered by existing CRs (partials may have created CRs for < full value)
                         const [existingCR] = await connection.query(
-                            'SELECT COALESCE(SUM(valor), 0) as total_coberto FROM contas_receber WHERE pedido_id = ? AND status != "cancelada"', [id]
+                            'SELECT id FROM contas_receber WHERE pedido_id = ? LIMIT 1', [id]
                         );
-                        const totalCoberto = parseFloat(existingCR[0].total_coberto) || 0;
-                        const valorFaltante = Math.round((valorFaturamento - totalCoberto) * 100) / 100;
-                        if (valorFaltante > 0.01) {
+                        if (existingCR.length === 0) {
                             contaReceberGerada = await faturamentoShared.gerarContaReceber(connection, {
                                 pedido_id: parseInt(id),
                                 cliente_id: pedido.cliente_id || null,
                                 descricao: `Faturamento Pedido #${id} - ${pedido.cliente || 'Cliente'}`,
-                                valor: valorFaltante,
+                                valor: valorFaturamento,
                                 tipo: 'faturamento',
                                 pedido
                             });
-                            console.log(`[FATURAR] Conta a receber #${contaReceberGerada?.insertId} gerada para pedido #${id} (R$${valorFaltante} de R$${valorFaturamento})`);
+                            console.log(`[FATURAR] Conta a receber #${contaReceberGerada?.insertId} gerada para pedido #${id} (R$${valorFaturamento})`);
                         } else {
-                            console.log(`[FATURAR] Contas a receber já cobrem R$${totalCoberto} de R$${valorFaturamento} para pedido #${id} — pulando`);
+                            console.log(`[FATURAR] Conta a receber já existe para pedido #${id} — pulando`);
                         }
                     }
                 } catch (financeiroError) {
@@ -4704,6 +6544,56 @@ module.exports = function createVendasRoutes(deps) {
             } catch (txError) {
                 await connection.rollback();
                 throw txError;
+            }
+
+            // 4g. EMISSÃO REAL DA NF-e À SEFAZ (in-process, fora da transação).
+            // Substitui o antigo POST a localhost:3003 (serviço inexistente). Usa o motor
+            // comprovado (cStat 100). Falha não desfaz o faturamento — NF fica pendente.
+            if (gerarNFe && !nfeData && itensRows.length > 0) {
+                try {
+                    const { emitirNFePedido } = require('../services/nfe-emitter.service');
+                    const itensEmitir = itensRows
+                        .filter(it => Number(it.produto_id) > 0)
+                        .map(it => ({
+                            produto_id: Number(it.produto_id),
+                            quantidade: Number(it.quantidade),
+                            valor_unitario: Number(it.preco_unitario || it.valor_unitario) || 0
+                        }))
+                        .filter(it => it.quantidade > 0 && it.valor_unitario > 0);
+                    if (itensEmitir.length > 0) {
+                        const em = await emitirNFePedido(pool, {
+                            pedidoId: parseInt(id), itens: itensEmitir, usuarioId: user.id || null
+                        });
+                        if (em.autorizado) {
+                            novaNf = em.numero;
+                            nfeData = { numero: em.numero, chave: em.chaveAcesso, protocolo: em.protocolo };
+                            await pool.query(
+                                'UPDATE pedidos SET nf = ?, numero_nf = ?, nfe_chave = ?, nfe_id = COALESCE(nfe_id, ?) WHERE id = ?',
+                                [String(em.numero), String(em.numero), em.chaveAcesso, em.nfeId, id]
+                            );
+                        } else {
+                            console.error(`[FATURAR] NF-e não autorizada p/ pedido ${id}: ${em.codigoStatus} ${em.motivo}`);
+                        }
+                    }
+                } catch (emitErr) {
+                    console.error('[FATURAR] Emissão SEFAZ falhou (pedido faturado, NF pendente):', emitErr.message);
+                }
+            }
+            // Fallback: se nenhuma NF-e real foi emitida, garante número legado ao pedido.
+            if (!novaNf) {
+                const conn2 = await pool.getConnection();
+                try {
+                    await conn2.beginTransaction();
+                    const nfData = await faturamentoShared.gerarProximoNumeroNFe(conn2);
+                    novaNf = nfData.numero;
+                    await conn2.query('UPDATE pedidos SET nf = ?, numero_nf = ? WHERE id = ?', [novaNf, novaNf, id]);
+                    await conn2.commit();
+                } catch (e) {
+                    await conn2.rollback().catch(() => {});
+                    console.error('[FATURAR] Falha ao reservar número fallback:', e.message);
+                } finally {
+                    conn2.release();
+                }
             }
 
             // 5. Notificação (fora da transação)
@@ -4739,7 +6629,7 @@ module.exports = function createVendasRoutes(deps) {
         }
     });
 
-    router.post('/pedidos/:id/faturamento-parcial', async (req, res, next) => {
+    router.post('/pedidos/:id/faturamento-parcial-legacy', async (req, res, next) => {
         // AUDIT-FIX R-07 + R-11: Transação completa com lock para evitar NF-e duplicada
         // FIX-2026-02-24: gerarNFe=true, faturamento por item, numeração unificada, validação estoque, CFOP inteligente
         const connection = await pool.getConnection();
@@ -4771,6 +6661,20 @@ module.exports = function createVendasRoutes(deps) {
             const pedido = pedidoRows[0];
             if (pedido.status === 'cancelado') { await connection.rollback(); connection.release(); return res.status(400).json({ success: false, message: 'Nao e possivel faturar pedido cancelado.' }); }
             if (pedido.percentual_faturado >= 100) { await connection.rollback(); connection.release(); return res.status(400).json({ success: false, message: 'Pedido ja esta 100% faturado.' }); }
+
+            // Bloquear faturamento de pedido cujo cliente está bloqueado por inadimplência
+            if (pedido.cliente_id) {
+                try {
+                    const [bloqRows] = await connection.query('SELECT bloqueado_inadimplencia FROM clientes WHERE id = ? LIMIT 1', [pedido.cliente_id]);
+                    if (bloqRows.length && Number(bloqRows[0].bloqueado_inadimplencia) === 1) {
+                        await connection.rollback();
+                        connection.release();
+                        return res.status(403).json({ success: false, message: 'Cliente bloqueado por inadimplência. Regularize as contas a receber vencidas no módulo Financeiro (registre a baixa com comprovante) antes de faturar este pedido.', code: 'CLIENTE_INADIMPLENTE' });
+                    }
+                } catch (_inadimplenciaErr) {
+                    // Coluna bloqueado_inadimplencia ainda não existe neste schema — não bloquear
+                }
+            }
 
             const valorTotal = parseFloat(pedido.valor) || 0;
             let percentualFaturar, valorFaturar;
@@ -4938,7 +6842,7 @@ module.exports = function createVendasRoutes(deps) {
         }
     });
 
-    router.post('/pedidos/:id/remessa-entrega', async (req, res, next) => {
+    router.post('/pedidos/:id/remessa-entrega-legacy', async (req, res, next) => {
         // AUDIT-FIX R-07 + R-11: Transação completa com lock para NF-e remessa
         // FIX-2026-02-24: Rollback estoque, numeração unificada, sync estoque table, CFOP inteligente
         const connection = await pool.getConnection();
@@ -4963,6 +6867,23 @@ module.exports = function createVendasRoutes(deps) {
             const pedido = pedidoRows[0];
             if (pedido.estoque_baixado === 1) { await connection.rollback(); connection.release(); return res.status(400).json({ success: false, message: 'Estoque ja foi baixado para este pedido.' }); }
             if (pedido.tipo_faturamento === 'normal') { await connection.rollback(); connection.release(); return res.status(400).json({ success: false, message: 'Este pedido nao e de faturamento parcial.' }); }
+
+            if (pedido.cliente_id) {
+                try {
+                    const [bloqRows] = await connection.query('SELECT bloqueado_inadimplencia FROM clientes WHERE id = ? LIMIT 1', [pedido.cliente_id]);
+                    if (bloqRows.length && Number(bloqRows[0].bloqueado_inadimplencia) === 1) {
+                        await connection.rollback();
+                        connection.release();
+                        return res.status(403).json({
+                            success: false,
+                            message: 'Cliente bloqueado por inadimplência. Regularize as contas a receber vencidas no módulo Financeiro (registre a baixa com comprovante) antes de faturar este pedido.',
+                            code: 'CLIENTE_INADIMPLENTE'
+                        });
+                    }
+                } catch (_) {
+                    // Coluna bloqueado_inadimplencia ainda não existe neste schema.
+                }
+            }
 
             const valorTotal = parseFloat(pedido.valor) || 0;
             const valorFaturado = parseFloat(pedido.valor_faturado) || 0;
@@ -5084,24 +7005,44 @@ module.exports = function createVendasRoutes(deps) {
             if (pedidoRows.length === 0) return res.status(404).json({ success: false, message: 'Pedido nao encontrado.' });
 
             const pedido = pedidoRows[0];
-            const [faturamentos] = await pool.query(`SELECT id, pedido_id, sequencia, tipo, valor, percentual, nfe_numero, nfe_chave, cfop, data_faturamento, status, observacoes, created_at FROM pedido_faturamentos WHERE pedido_id = ? ORDER BY sequencia ASC`, [id]);
+            const [faturamentos] = await pool.query(`SELECT id, pedido_id, sequencia, tipo, valor, percentual, nfe_numero, nfe_chave, nfe_cfop AS cfop, created_at AS data_faturamento, nfe_status AS status, observacoes, created_at FROM pedido_faturamentos WHERE pedido_id = ? ORDER BY sequencia ASC`, [id]);
 
             let proximaAcao = null, cfopSugerido = null;
             const ufClienteStatus = (pedido.cliente_uf || '').toUpperCase();
             const ufEmpresaStatus = (pedido.empresa_uf || 'MG').toUpperCase();
             // CFOP via serviço compartilhado (usa mapa centralizado com Zona Franca e interestadual)
+            let cfopRemessaSugerido = null;
+            if (pedido.tipo_faturamento && pedido.tipo_faturamento !== 'normal') {
+                const [origemRows] = await pool.query(
+                    `SELECT
+                        SUM(CASE WHEN COALESCE(p.controla_estoque, 1) = 0 THEN 1 ELSE 0 END) AS producao_propria,
+                        SUM(CASE WHEN COALESCE(p.controla_estoque, 1) <> 0 THEN 1 ELSE 0 END) AS terceiros
+                     FROM pedido_itens pi
+                     INNER JOIN produtos p ON p.id = pi.produto_id
+                     WHERE pi.pedido_id = ?`,
+                    [id]
+                );
+                const temProducaoPropria = Number(origemRows[0]?.producao_propria) > 0;
+                const temTerceiros = Number(origemRows[0]?.terceiros) > 0;
+                if (!(temProducaoPropria && temTerceiros)) {
+                    cfopRemessaSugerido = determineRemessaCfop(
+                        ufEmpresaStatus,
+                        ufClienteStatus,
+                        temProducaoPropria
+                    );
+                }
+            }
+
             if (pedido.tipo_faturamento === 'normal' || !pedido.tipo_faturamento) {
                 proximaAcao = 'faturamento_normal';
                 const r = await faturamentoShared.determinarCFOP('venda', ufEmpresaStatus, ufClienteStatus);
                 cfopSugerido = r.cfop;
             } else if (pedido.percentual_faturado < 100) {
                 proximaAcao = 'aguardando_remessa';
-                const r = await faturamentoShared.determinarCFOP('remessa', ufEmpresaStatus, ufClienteStatus);
-                cfopSugerido = r.cfop;
+                cfopSugerido = cfopRemessaSugerido;
             } else if (!pedido.estoque_baixado) {
                 proximaAcao = 'aguardando_baixa_estoque';
-                const r = await faturamentoShared.determinarCFOP('remessa', ufEmpresaStatus, ufClienteStatus);
-                cfopSugerido = r.cfop;
+                cfopSugerido = cfopRemessaSugerido;
             } else { proximaAcao = 'completo'; }
 
             res.json({
@@ -5221,7 +7162,29 @@ module.exports = function createVendasRoutes(deps) {
 
             // Em modo preview, NF não precisa estar emitida
             if (!isPreview) {
-                const nfNumero = pedido.nf || pedido.numero_nf;
+                let nfNumero = pedido.nf || pedido.numero_nf || pedido.nfe_faturamento_numero || pedido.nfe_remessa_numero;
+                // O fluxo real de emissão (/api/faturamento) grava na tabela `nfes` e seta
+                // pedido.nfe_id, mas NÃO preenche pedido.nf — resolver a NF-e autorizada aqui
+                // para o DANFE não bloquear pedidos faturados de verdade.
+                if (!nfNumero || !pedido.nfe_chave) {
+                    try {
+                        const [[nfeRow]] = await pool.query(
+                            `SELECT numero, chave_acesso, protocolo_autorizacao, status
+                               FROM nfes
+                              WHERE id = ? OR pedido_id = ?
+                           ORDER BY (status = 'autorizada') DESC, id DESC
+                              LIMIT 1`,
+                            [pedido.nfe_id || 0, id]
+                        );
+                        if (nfeRow && (nfeRow.chave_acesso || nfeRow.numero)) {
+                            nfNumero = nfNumero || nfeRow.numero;
+                            pedido.nf = pedido.nf || nfeRow.numero;
+                            pedido.numero_nf = pedido.numero_nf || nfeRow.numero;
+                            pedido.nfe_chave = pedido.nfe_chave || nfeRow.chave_acesso;
+                            pedido.nfe_protocolo = pedido.nfe_protocolo || nfeRow.protocolo_autorizacao;
+                        }
+                    } catch (_) { /* tabela nfes pode não existir nesta instância */ }
+                }
                 if (!nfNumero) {
                     return res.status(404).json({ message: 'Este pedido não possui Nota Fiscal emitida. Use ?preview=1 para visualizar sem NF.' });
                 }
@@ -5235,12 +7198,15 @@ module.exports = function createVendasRoutes(deps) {
                            pi.desconto, pi.subtotal, pi.produto_id,
                            pi.icms_percent, pi.icms_value, pi.aliquota_icms, pi.aliquota_ipi,
                            pi.valor_ipi, pi.valor_icms_st, pi.cfop,
+                           pi.pis_percent, pi.pis_value, pi.cofins_percent, pi.cofins_value,
                            COALESCE(pr_id.ncm, pr_cod.ncm) AS ncm,
                            COALESCE(pr_id.cfop_saida_interna, pr_cod.cfop_saida_interna) AS produto_cfop,
                            COALESCE(pr_id.cst_icms, pr_cod.cst_icms) AS produto_cst_icms,
                            COALESCE(pr_id.csosn_icms, pr_cod.csosn_icms) AS produto_csosn_icms,
                            COALESCE(pr_id.aliquota_icms, pr_cod.aliquota_icms) AS produto_aliquota_icms,
-                           COALESCE(pr_id.aliquota_ipi, pr_cod.aliquota_ipi) AS produto_aliquota_ipi
+                           COALESCE(pr_id.aliquota_ipi, pr_cod.aliquota_ipi) AS produto_aliquota_ipi,
+                           COALESCE(pr_id.aliquota_pis, pr_cod.aliquota_pis) AS produto_aliquota_pis,
+                           COALESCE(pr_id.aliquota_cofins, pr_cod.aliquota_cofins) AS produto_aliquota_cofins
                     FROM pedido_itens pi
                     LEFT JOIN produtos pr_id ON pi.produto_id = pr_id.id
                     LEFT JOIN produtos pr_cod ON pi.produto_id IS NULL AND pr_cod.codigo = pi.codigo
@@ -5289,6 +7255,144 @@ module.exports = function createVendasRoutes(deps) {
 
         } catch (error) {
             console.error('[DANFE] Erro ao gerar:', error);
+            next(error);
+        }
+    });
+
+    router.get('/pedidos/:id/recibo', authenticateToken, async (req, res, next) => {
+        try {
+            const { id } = req.params;
+
+            const [[pedido]] = await pool.query(`
+                SELECT p.*,
+                       COALESCE(c.nome_fantasia, c.razao_social, c.nome, p.cliente_nome, p.cliente, 'Cliente') AS cliente_nome,
+                       COALESCE(c.cnpj, c.cnpj_cpf, c.cpf, '') AS cliente_doc,
+                       COALESCE(c.endereco, '') AS cliente_endereco,
+                       COALESCE(c.cidade, '') AS cliente_cidade,
+                       COALESCE(c.estado, '') AS cliente_estado,
+                       COALESCE(u.nome, '') AS vendedor_nome
+                FROM pedidos p
+                LEFT JOIN clientes c ON p.cliente_id = c.id
+                LEFT JOIN usuarios u ON p.vendedor_id = u.id
+                WHERE p.id = ?
+                LIMIT 1
+            `, [id]);
+
+            if (!pedido) {
+                return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
+            }
+
+            const [[cfg]] = await pool.query('SELECT * FROM configuracoes_empresa LIMIT 1').catch(() => [[null]]);
+            const empresa = cfg || {
+                razao_social: 'ALUFORCE',
+                nome_fantasia: 'ALUFORCE',
+                cnpj: '',
+                endereco: '',
+                cidade: '',
+                estado: ''
+            };
+
+            const valor = Number(pedido.valor_total || pedido.valor || 0);
+            const valorFmt = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const dataEmissao = new Date(pedido.data_faturamento || pedido.updated_at || pedido.created_at || Date.now());
+            const dataFmt = dataEmissao.toLocaleDateString('pt-BR');
+
+            // Valor por extenso (simplificado)
+            function valorExtenso(v) {
+                const inteiro = Math.floor(v);
+                const cents = Math.round((v - inteiro) * 100);
+                return `${inteiro.toLocaleString('pt-BR')} reais${cents > 0 ? ` e ${cents} centavos` : ''}`;
+            }
+
+            const esc = s => String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Recibo Pedido #${esc(pedido.id)}</title>
+<style>
+  body { font-family: 'Inter', Arial, sans-serif; max-width: 780px; margin: 32px auto; padding: 0 24px; color: #111; }
+  .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 24px; }
+  .header h1 { margin: 0; font-size: 28px; letter-spacing: 2px; }
+  .empresa { font-size: 12px; color: #555; text-align: right; }
+  .numero { background: #f4f4f4; padding: 12px 16px; border-radius: 6px; display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 14px; }
+  .valor-destaque { font-size: 32px; font-weight: 700; color: #1e40af; text-align: center; margin: 24px 0; padding: 16px; background: #eff6ff; border-radius: 8px; }
+  .bloco { margin: 16px 0; padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; line-height: 1.6; }
+  .bloco strong { display: inline-block; min-width: 110px; color: #444; }
+  .assinatura { margin-top: 64px; text-align: center; }
+  .assinatura .linha { border-top: 1px solid #111; width: 60%; margin: 0 auto 8px; }
+  .footer { margin-top: 32px; text-align: center; font-size: 11px; color: #888; }
+  @media print {
+    body { margin: 0; }
+    .no-print { display: none; }
+  }
+  .print-btn { background: #1e40af; color: #fff; border: 0; padding: 10px 18px; border-radius: 6px; cursor: pointer; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+  <button class="no-print print-btn" onclick="window.print()">🖨️ Imprimir</button>
+
+  <div class="header">
+    <div>
+      <h1>RECIBO</h1>
+      <div style="font-size:11px;color:#666;">Comprovante de recebimento</div>
+    </div>
+    <div class="empresa">
+      <strong>${esc(empresa.razao_social || empresa.nome_fantasia)}</strong><br>
+      ${esc(empresa.cnpj ? 'CNPJ: ' + empresa.cnpj : '')}<br>
+      ${esc([empresa.endereco, empresa.cidade, empresa.estado].filter(Boolean).join(' - '))}
+    </div>
+  </div>
+
+  <div class="numero">
+    <div><strong>Recibo nº:</strong> ${String(pedido.id).padStart(6, '0')}</div>
+    <div><strong>Pedido:</strong> #${esc(pedido.numero_pedido || pedido.id)}</div>
+    <div><strong>Data:</strong> ${esc(dataFmt)}</div>
+  </div>
+
+  <div class="valor-destaque">
+    ${esc(valorFmt)}
+  </div>
+
+  <div class="bloco">
+    Recebi(emos) de <strong>${esc(pedido.cliente_nome)}</strong>${pedido.cliente_doc ? ' (CNPJ/CPF: ' + esc(pedido.cliente_doc) + ')' : ''},
+    a importância de <strong>${esc(valorFmt)}</strong> (${esc(valorExtenso(valor))}),
+    referente ao pedido nº <strong>#${esc(pedido.numero_pedido || pedido.id)}</strong>${pedido.nf || pedido.numero_nf ? ', NF-e nº ' + esc(pedido.nf || pedido.numero_nf) : ''},
+    emitido em ${esc(dataFmt)}.
+  </div>
+
+  <div class="bloco">
+    <strong>Cliente:</strong> ${esc(pedido.cliente_nome)}<br>
+    <strong>Documento:</strong> ${esc(pedido.cliente_doc || '—')}<br>
+    <strong>Endereço:</strong> ${esc([pedido.cliente_endereco, pedido.cliente_cidade, pedido.cliente_estado].filter(Boolean).join(' - ') || '—')}<br>
+    <strong>Vendedor:</strong> ${esc(pedido.vendedor_nome || '—')}<br>
+    <strong>Cond. pagto:</strong> ${esc(pedido.condicao_pagamento || '—')}
+  </div>
+
+  <div class="bloco">
+    Para clareza, firmo(amos) o presente recibo, dando plena, geral e irrevogável quitação
+    do valor acima descrito.
+  </div>
+
+  <div class="assinatura">
+    <div class="linha"></div>
+    <div>${esc(empresa.razao_social || empresa.nome_fantasia)}</div>
+    <div style="font-size:11px;color:#666;">${esc(empresa.cnpj ? 'CNPJ: ' + empresa.cnpj : '')}</div>
+  </div>
+
+  <div class="footer">
+    Documento gerado eletronicamente por Zyntra ERP em ${new Date().toLocaleString('pt-BR')}
+  </div>
+</body>
+</html>`;
+
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Content-Disposition', `inline; filename="recibo-pedido-${id}.html"`);
+            res.send(html);
+        } catch (error) {
+            console.error('[RECIBO] Erro ao gerar:', error.message);
             next(error);
         }
     });
@@ -5358,7 +7462,9 @@ module.exports = function createVendasRoutes(deps) {
     router.post('/pedidos/:id/enviar-email', async (req, res) => {
         try {
             const { id } = req.params;
-            const { destinatario, assunto, mensagem } = req.body;
+            // O frontend envia o campo como `email`; aceitamos ambos por robustez.
+            const destinatario = req.body.destinatario || req.body.email;
+            const { assunto, mensagem } = req.body;
             const user = req.user || {};
 
             if (!destinatario || !assunto) {
@@ -5377,19 +7483,16 @@ module.exports = function createVendasRoutes(deps) {
             try { nodemailer = require('nodemailer'); } catch(e) {
                 return res.status(500).json({ message: 'Serviço de e-mail não disponível' });
             }
-            if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-                return res.status(503).json({ message: 'SMTP não configurado para envio de e-mail' });
-            }
 
             const transporter = nodemailer.createTransport({
-                host: process.env.SMTP_HOST || 'mail.aluforce.ind.br',
-                port: parseInt(process.env.SMTP_PORT || '465', 10),
-                secure: process.env.SMTP_SECURE !== 'false',
+                host: 'mail.aluforce.ind.br',
+                port: 465,
+                secure: true,
                 auth: {
-                    user: process.env.SMTP_USER,
-                    pass: process.env.SMTP_PASS
+                    user: process.env.SMTP_USER || 'noreply@aluforce.ind.br',
+                    pass: process.env.SMTP_PASS || 'noreplyalu'
                 },
-                tls: { rejectUnauthorized: process.env.NODE_ENV === 'production' }
+                tls: { rejectUnauthorized: false }
             });
 
             const pedidoNum = String(pedido.id).padStart(5, '0');
@@ -5409,7 +7512,7 @@ module.exports = function createVendasRoutes(deps) {
             `;
 
             await transporter.sendMail({
-                from: `"Aluforce ERP" <${process.env.SMTP_USER}>`,
+                from: `"Aluforce ERP" <${process.env.SMTP_USER || 'noreply@aluforce.ind.br'}>`,
                 to: destinatario,
                 subject: assunto,
                 html: htmlBody

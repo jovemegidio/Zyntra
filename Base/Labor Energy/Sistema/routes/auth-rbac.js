@@ -389,12 +389,16 @@ router.post('/login', async (req, res) => {
             setor: user.setor
         };
 
+        const _emailLow = (user.email || '').toLowerCase();
+        const _isLaborPortal = _emailLow.endsWith('@labor.com.br') && user.role;
+        const redirectTo = _isLaborPortal ? '/Zyntra-SGE/Empresas/dashboard.html' : '/dashboard';
+
         res.json({
             success: true,
             message: 'Login realizado com sucesso',
             token,
             user: userResponse,
-            redirectTo: '/dashboard'
+            redirectTo
         });
 
     } catch (error) {
@@ -671,6 +675,15 @@ router.get('/admin/users', authMiddleware, adminOnly, async (req, res) => {
 
         let whereClause = 'WHERE 1=1';
         const params = [];
+
+        // Filtra usuários pelo mesmo domínio de email do admin logado
+        const adminEmail = req.user.email || '';
+        const atIdx = adminEmail.indexOf('@');
+        if (atIdx !== -1) {
+            const domain = adminEmail.substring(atIdx + 1);
+            whereClause += ' AND u.email LIKE ?';
+            params.push(`%@${domain}`);
+        }
 
         if (search) {
             whereClause += ' AND (u.nome LIKE ? OR u.email LIKE ?)';

@@ -88,7 +88,11 @@ router.get('/materiais-pcp', async (req, res) => {
             if (ativo === '1') sql += ' AND m.ativo = 1';
             else if (ativo === '0') sql += ' AND m.ativo = 0';
 
-            const countSql = sql.replace(/SELECT .* FROM/, 'SELECT COUNT(*) as total FROM');
+            let countSql = `SELECT COUNT(*) as total FROM materiais m LEFT JOIN estoque e ON e.material_id = m.id WHERE 1=1 AND m.tipo != 'MIGRADO_PARA_PRODUTOS'`;
+            if (busca) countSql += ' AND (m.codigo_material LIKE ? OR m.descricao LIKE ?)';
+            if (tipo)  countSql += ' AND m.tipo = ?';
+            if (ativo === '1') countSql += ' AND m.ativo = 1';
+            else if (ativo === '0') countSql += ' AND m.ativo = 0';
             const [countRows] = await db.query(countSql, params);
             total = countRows[0]?.total || 0;
 
@@ -121,7 +125,11 @@ router.get('/materiais-pcp', async (req, res) => {
                 if (ativo === '1') sql += ' AND ativo = 1';
                 else if (ativo === '0') sql += ' AND ativo = 0';
 
-                const countSql = sql.replace(/SELECT .* FROM/, 'SELECT COUNT(*) as total FROM');
+                let countSql = 'SELECT COUNT(*) as total FROM estoque_materias_primas WHERE 1=1';
+                if (busca) countSql += ' AND (codigo LIKE ? OR descricao LIKE ?)';
+                if (tipo)  countSql += ' AND tipo = ?';
+                if (ativo === '1') countSql += ' AND ativo = 1';
+                else if (ativo === '0') countSql += ' AND ativo = 0';
                 const [countRows] = await db.query(countSql, params);
                 total = countRows[0]?.total || 0;
 

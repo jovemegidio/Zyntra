@@ -150,62 +150,72 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==================== MULTI-COMPANY ROUTING ====================
-  // A tela de login é única. O domínio do email define apenas o destino pós-login.
+  // Mapeia domínios de email para o base path do backend que autentica o usuário.
+  // Mantemos os domínios legados (@laboreletric.com.br / @energy.com.br) durante a
+  // migração para o domínio unificado @labor.com.br.
+  // Usuários @labor.com.br existem em AMBAS as bases Labor (eletric + energy) com
+  // o mesmo email/senha — autenticamos contra labor-eletric e, após login, o hub
+  // exibe os dois cards (eletric + energy) para o usuário escolher onde entrar.
   const COMPANY_DOMAINS = {
-    '@labor.com.br': {
-      label: 'Labor Eletric / Energy Comercio',
-      destination: '/dashboard',
-      badge: '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(243,156,18,0.15);color:#F39C12;border:1px solid rgba(243,156,18,0.3);border-radius:20px;padding:5px 14px;font-size:0.78rem;font-weight:600;">Labor Eletric / Energy</span>'
-    },
-    '@laboreletric.com.br': {
-      label: 'Labor Eletric',
-      destination: '/dashboard',
-      badge: '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.15);color:#FF8C42;border:1px solid rgba(255,107,0,0.3);border-radius:20px;padding:5px 14px;font-size:0.78rem;font-weight:600;">Labor Eletric</span>'
-    },
-    '@laborenergy.com.br': {
-      label: 'Labor Energy',
-      destination: '/dashboard',
-      badge: '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,0.15);color:#4ADE80;border:1px solid rgba(34,197,94,0.3);border-radius:20px;padding:5px 14px;font-size:0.78rem;font-weight:600;">Labor Energy</span>'
-    },
-    '@energy.com.br': {
-      label: 'Energy Comercio',
-      destination: '/dashboard',
-      badge: '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,0.15);color:#4ADE80;border:1px solid rgba(34,197,94,0.3);border-radius:20px;padding:5px 14px;font-size:0.78rem;font-weight:600;">Energy Comercio</span>'
-    },
-    '@lumiereassesoria.com.br': {
-      label: 'Lumiere',
-      destination: '/dashboard',
-      badge: '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(99,102,241,0.15);color:#A5B4FC;border:1px solid rgba(99,102,241,0.3);border-radius:20px;padding:5px 14px;font-size:0.78rem;font-weight:600;">Lumiere</span>'
-    },
-    '@lumiereassessoria.com.br': {
-      label: 'Lumiere',
-      destination: '/dashboard',
-      badge: '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(99,102,241,0.15);color:#A5B4FC;border:1px solid rgba(99,102,241,0.3);border-radius:20px;padding:5px 14px;font-size:0.78rem;font-weight:600;">Lumiere</span>'
-    }
+    '@energy.com.br': '/labor-energy',
+    '@laboreletric.com.br': '/labor-eletric',
+    '@labor.com.br': '/labor-eletric'
   };
+  // Domínios multi-empresa: após login, vão para o hub (não direto ao tenant).
+  const MULTI_COMPANY_DOMAINS = ['@labor.com.br'];
 
-  function getCompanyInfo(email) {
-    if (!email) return null;
-    const emailLower = email.toLowerCase().trim();
-    for (const [domain, config] of Object.entries(COMPANY_DOMAINS)) {
-      if (emailLower.endsWith(domain)) return config;
+  // Hub multi-empresa que recebe logins multi-domínio (@labor.com.br hoje, talvez
+  // outros parceiros depois). A página decide quais cards de empresa exibir.
+  const COMPANY_HUB_PATH = '/Zyntra-SGE/Empresas/dashboard.html';
+  // URL ABSOLUTA usada na navegação: blinda contra interceptors de mount-path
+  // (window.location.assign/replace) que prefixariam o caminho com /labor-*/.
+  const COMPANY_HUB_URL =
+      (typeof window !== 'undefined' && window.location && window.location.origin)
+          ? window.location.origin + COMPANY_HUB_PATH
+          : COMPANY_HUB_PATH;
+  function isHubTarget(u) {
+    return u === COMPANY_HUB_URL || u === COMPANY_HUB_PATH;
+  }
+
+  // Dashboard direto da Aluforce — usado para usuários @aluforce.ind.br que NÃO
+  // devem passar pelo hub multi-empresa (cliente único, não multi-tenant).
+  const ALUFORCE_DASHBOARD_PATH = '/dashboard';
+  const ALUFORCE_DASHBOARD_URL =
+      (typeof window !== 'undefined' && window.location && window.location.origin)
+          ? window.location.origin + ALUFORCE_DASHBOARD_PATH
+          : ALUFORCE_DASHBOARD_PATH;
+  // Domínios que devem pular o hub e ir direto para o dashboard Aluforce.
+  const ALUFORCE_DIRECT_DOMAINS = ['@aluforce.ind.br', '@aluforce.com.br'];
+
+  /**
+   * Decide o destino padrão pós-login baseado no domínio do email.
+   * - @aluforce.ind.br → /dashboard (cliente único)
+   * - @labor.com.br    → hub multi-empresa (usuário escolhe eletric/energy)
+   * - @laboreletric.com.br / @energy.com.br → dashboard do tenant direto
+   * - Demais → hub multi-empresa
+   */
+  function getDefaultRedirectForEmail(email) {
+    if (!email) return COMPANY_HUB_URL;
+    const lower = String(email).toLowerCase().trim();
+    for (const dom of ALUFORCE_DIRECT_DOMAINS) {
+      if (lower.endsWith(dom)) return ALUFORCE_DASHBOARD_URL;
     }
-    return null;
+    for (const dom of MULTI_COMPANY_DOMAINS) {
+      if (lower.endsWith(dom)) return COMPANY_HUB_URL;
+    }
+    const companyBasePath = getCompanyBasePath(lower);
+    if (companyBasePath) return companyBasePath + '/dashboard';
+    return COMPANY_HUB_URL;
   }
 
   function getCompanyBasePath(email) {
     const mountedBasePath = window.__BASE_PATH || window.__MOUNT_PATH__ || '';
-    return mountedBasePath;
-  }
-
-  function getCompanyRedirectPath(email, fallback = '/dashboard') {
-    // On a branded instance (labor-energy, labor-eletric) go directly to that dashboard
-    // instead of the multi-company portal, which is only meaningful on the main aluforce instance.
-    if (window.__BASE_PATH || window.__MOUNT_PATH__) {
-      return fallback;
+    if (!email) return mountedBasePath;
+    const emailLower = email.toLowerCase();
+    for (const [domain, basePath] of Object.entries(COMPANY_DOMAINS)) {
+      if (emailLower.endsWith(domain)) return basePath;
     }
-    const companyInfo = getCompanyInfo(email);
-    return companyInfo?.destination || fallback;
+    return mountedBasePath;
   }
 
   function withCompanyBasePath(path, basePath) {
@@ -288,104 +298,13 @@ document.addEventListener('DOMContentLoaded', () => {
     return '#' + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
   }
 
-  // ==================== DYNAMIC AVATAR & GREETING ====================
+  // Do not expose a user's identity before successful authentication.
   if (emailInput && avatarBox) {
-    let avatarTimeout;
-
     emailInput.addEventListener('input', () => {
-      clearTimeout(avatarTimeout);
-      const email = emailInput.value.trim().toLowerCase();
-
-      // Se campo vazio, resetar tudo
-      if (email.length === 0) {
-        if (greetingEl) greetingEl.textContent = 'Bem-vindo de volta';
-        if (subtitleEl) subtitleEl.textContent = 'Entre na sua conta para continuar';
-        if (avatarContainer) avatarContainer.classList.remove('has-email');
-        const _badge = document.getElementById('company-badge');
-        if (_badge) { _badge.innerHTML = ''; _badge.style.display = 'none'; }
-        resetAvatar();
-        return;
-      }
-
-      // Só exibir avatar/saudação quando o email estiver 100% digitado
-      // (deve conter @ + domínio com pelo menos um ponto)
-      const isFullEmail = /^[^@]+@[^@]+\.[^@]+$/.test(email);
-      if (!isFullEmail) return;
-
-      avatarTimeout = setTimeout(() => {
-        showUserAvatar(email);
-      }, 400);
+      if (greetingEl) greetingEl.textContent = 'Bem-vindo de volta';
+      if (subtitleEl) subtitleEl.textContent = 'Entre na sua conta para continuar';
+      resetAvatar();
     });
-
-    emailInput.addEventListener('blur', () => {
-      const email = emailInput.value.trim().toLowerCase();
-      const isFullEmail = /^[^@]+@[^@]+\.[^@]+$/.test(email);
-      if (isFullEmail) showUserAvatar(email);
-    });
-  }
-
-  async function showUserAvatar(email) {
-    const emailParts = email.toLowerCase().split('@');
-    const fullUsername = emailParts[0];
-    const firstName = fullUsername.split('.')[0];
-
-    // Só prosseguir se o email estiver completo (user@dominio.ext)
-    if (!emailParts[1] || !emailParts[1].includes('.')) {
-      return;
-    }
-
-    // Ativar visual de saudação
-    const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
-    if (greetingEl) greetingEl.textContent = `Olá, ${displayName}`;
-    if (subtitleEl) subtitleEl.textContent = 'Digite sua senha para continuar';
-    if (avatarContainer) avatarContainer.classList.add('has-email');
-
-    // Exibir badge de empresa detectada pelo domínio
-    const companyBadgeEl = document.getElementById('company-badge');
-    if (companyBadgeEl) {
-      const companyInfo = getCompanyInfo(email);
-      const badgeHtml = companyInfo ? companyInfo.badge : '';
-      companyBadgeEl.innerHTML = badgeHtml;
-      companyBadgeEl.style.display = badgeHtml ? 'flex' : 'none';
-    }
-
-    // Try API first
-    const result = await fetchUserPhotoFromAPI(email);
-
-    // Update greeting with apelido or real name from DB
-    if (result && (result.apelido || result.nome)) {
-      let displayName;
-      if (result.apelido) {
-        // Usar apelido se disponível
-        displayName = result.apelido;
-      } else {
-        // Fallback: primeiro nome
-        const realFirstName = result.nome.split(' ')[0];
-        displayName = realFirstName.charAt(0).toUpperCase() + realFirstName.slice(1).toLowerCase();
-      }
-      if (greetingEl) greetingEl.textContent = `Olá, ${displayName}`;
-      if (subtitleEl) subtitleEl.textContent = 'Digite sua senha para continuar';
-    }
-
-    if (result && result.foto) {
-      setAvatarImage(result.foto, firstName, emailParts[1]);
-      return;
-    }
-
-    // Fallback: local avatars
-    const dominiosPermitidos = ['aluforce', 'lumiereassesoria', 'lumiereassessoria', 'labor', 'energy', 'laboreletric', 'laborenergy'];
-    const domainMatch = emailParts[1] && dominiosPermitidos.some(d => emailParts[1].includes(d));
-
-    if (domainMatch) {
-      const avatarPath = getUserAvatar(firstName, fullUsername);
-      if (avatarPath) {
-        setAvatarImage(avatarPath, firstName, emailParts[1]);
-      } else {
-        setAvatarInitials(firstName);
-      }
-    } else {
-      setAvatarInitials(firstName);
-    }
   }
 
   function setAvatarImage(src, firstName, domain) {
@@ -398,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
       avatarBox.appendChild(img);
     };
     img.onerror = () => {
-      const dominiosPermitidos = ['aluforce', 'lumiereassesoria', 'lumiereassessoria', 'energy', 'laboreletric', 'laborenergy'];
+      const dominiosPermitidos = ['aluforce', 'lumiereassesoria', 'lumiereassessoria', 'energy', 'laboreletric'];
       const domainMatch = domain && dominiosPermitidos.some(d => domain.includes(d));
       if (domainMatch) {
         setAvatarInitials(firstName);
@@ -630,10 +549,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.appendChild(banner);
 
     document.getElementById('remember-continue').addEventListener('click', () => {
-      // Multi-company: redirecionar para o dashboard correto baseado no email do usuário
-      const _rememberCompanyPath = getCompanyBasePath(userEmail);
-      const _rememberDestination = getCompanyRedirectPath(userEmail, '/dashboard');
-      window.location.href = withCompanyBasePath(_rememberDestination, _rememberCompanyPath);
+      // @aluforce.ind.br vai direto para /dashboard.html; demais domínios para o
+      // hub multi-empresa que filtra cards pelo domínio.
+      window.location.href = getDefaultRedirectForEmail(userEmail);
     });
 
     document.getElementById('remember-switch').addEventListener('click', async () => {
@@ -752,10 +670,10 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         loginPayload.email = username;
       }
-      // Multi-company: autenticação centralizada; domínio só define o destino pós-login
+      // Multi-company: detectar empresa pelo domínio do email
       const _companyPath = getCompanyBasePath(username);
       const _needsPrefix = _companyPath && !window.__BASE_PATH && !window.__MOUNT_PATH__;
-      const _loginUrl = withCompanyBasePath('/api/login', _companyPath);
+      const _loginUrl = _needsPrefix ? _companyPath + '/api/login' : '/api/login';
       const response = await apiFetch(_loginUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -824,13 +742,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Handle redirect
       if (data && data.redirectTo) {
-        let redirectTo = getCompanyRedirectPath(data.user?.email || username, data.redirectTo);
+        let redirectTo = data.redirectTo;
         try {
           const parsed = new URL(redirectTo, window.location.origin);
           redirectTo = parsed.pathname + parsed.search + parsed.hash;
         } catch (e) {}
-        // Multi-company: garantir que o redirect inclui o base path correto
-        if (_companyPath && !redirectTo.startsWith(_companyPath)) {
+        // Unifica: defaults genéricos do backend (/index.html, /dashboard) e o hub
+        // relativo viram a URL absoluta apropriada para o domínio do usuário
+        // (@aluforce.ind.br → /dashboard.html; demais → hub multi-empresa).
+        if (redirectTo === '/index.html' || redirectTo === '/index.html/' ||
+            redirectTo === '/dashboard'  || redirectTo === '/dashboard/'  ||
+            isHubTarget(redirectTo)) {
+          redirectTo = getDefaultRedirectForEmail(data.user && data.user.email);
+        }
+        // Multi-company: garantir base path correto (apenas se NÃO for o hub absoluto).
+        if (_companyPath && !isHubTarget(redirectTo) && !redirectTo.startsWith(_companyPath) && redirectTo.charAt(0) === '/') {
           redirectTo = _companyPath + redirectTo;
         }
 
@@ -913,7 +839,7 @@ document.addEventListener('DOMContentLoaded', () => {
           localStorage.setItem('userData', freshJson);
           sessionStorage.setItem('tabUserData', freshJson);
 
-          let finalRedirect = withCompanyBasePath(getCompanyRedirectPath(data.user?.email || username, '/dashboard'), _companyPath);
+          let finalRedirect = getDefaultRedirectForEmail(userData && userData.email);
           if (returnTo) {
             const decodedReturn = decodeURIComponent(returnTo);
             if (decodedReturn.startsWith('/') && !decodedReturn.startsWith('//')) {
@@ -1189,12 +1115,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Handle redirect
       setTimeout(() => {
-        let redirectTo = getCompanyRedirectPath(data.user?.email, data.redirectTo || '/dashboard');
+        const _defaultRedirect = getDefaultRedirectForEmail(data.user && data.user.email);
+        let redirectTo = (data.redirectTo || _defaultRedirect);
         try {
           const parsed = new URL(redirectTo, window.location.origin);
           redirectTo = parsed.pathname + parsed.search + parsed.hash;
         } catch (e) {}
-        redirectTo = withCompanyBasePath(redirectTo, _twoFAPath);
+        if (redirectTo === '/index.html' || redirectTo === '/index.html/' ||
+            redirectTo === '/dashboard'  || redirectTo === '/dashboard/'  ||
+            isHubTarget(redirectTo)) {
+          redirectTo = _defaultRedirect;
+        }
+        if (!isHubTarget(redirectTo)) {
+          redirectTo = withCompanyBasePath(redirectTo, _twoFAPath);
+        }
 
         // Remember me
         const rememberCheckbox = document.getElementById('remember-me');
@@ -1499,12 +1433,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 sessionStorage.setItem('tabUserData', userDataJson);
               }
 
-              // Redirecionar
-              let finalRedirect = getCompanyRedirectPath(userData?.email, redirectTo || '/dashboard');
+              // Redirecionar: @aluforce.ind.br → /dashboard.html; demais → hub multi-empresa.
+              const _defaultRedirect = getDefaultRedirectForEmail(userData && userData.email);
+              let finalRedirect = redirectTo || _defaultRedirect;
               try {
                 const parsed = new URL(finalRedirect, window.location.origin);
                 finalRedirect = parsed.pathname + parsed.search + parsed.hash;
               } catch (e) {}
+              if (finalRedirect === '/index.html' || finalRedirect === '/index.html/' ||
+                  finalRedirect === '/dashboard'  || finalRedirect === '/dashboard/'  ||
+                  isHubTarget(finalRedirect)) {
+                finalRedirect = _defaultRedirect;
+              }
               window.location.href = finalRedirect;
             }, 1500);
 

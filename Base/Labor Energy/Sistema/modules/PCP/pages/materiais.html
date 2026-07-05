@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
@@ -144,7 +144,8 @@
     <script src="/js/tooltips-professional.js?v=20260209"></script>
 
     <!-- Global Header & Sidebar -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260224">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260621b" defer></script>
 
     <!-- PCP Header & Sidebar  Design Refinado (DEVE SER O ÚLTIMO) -->
     <link rel="stylesheet" href="../css/pcp-header-sidebar.css?v=20260224">
@@ -168,6 +169,7 @@
                 <a href="gestao-producao.html" class="sidebar-btn" title="Gestão de Produção"><i class="fas fa-industry"></i></a>
                 <a href="faturamento.html" class="sidebar-btn" title="Faturamento"><i class="fas fa-file-invoice-dollar"></i></a>
                 <a href="../apontamentos.html" class="sidebar-btn" title="Apontamentos"><i class="fas fa-stopwatch"></i></a>
+                <a href="qualidade.html" class="sidebar-btn" title="Qualidade"><i class="fas fa-award"></i></a>
                 <a href="relatorios.html" class="sidebar-btn" title="Central de Relatórios"><i class="fas fa-chart-pie"></i></a>
             </nav>
             <div class="sidebar-bottom">
@@ -193,12 +195,11 @@
                     </div>
                 </div>
                 <div class="header-right">
-                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    
                     <div class="user-greeting">
                         <span id="saudacao">Bom dia,</span>
                         <strong id="userName">Usuário</strong>
                     </div>
-                    <div class="user-avatar"><span id="userInitial">U</span></div>
                 </div>
             </header>
 
@@ -249,7 +250,7 @@
                         <button class="btn btn-success" onclick="abrirEntradaRapidaMaterial()"><i class="fas fa-arrow-up"></i> Entrada Rápida</button>
                         <button class="btn btn-danger" onclick="abrirSaidaRapidaMaterial()"><i class="fas fa-arrow-down"></i> Saída Rápida</button>
                         <button class="btn btn-warning" onclick="abrirAjusteInventarioMaterial()"><i class="fas fa-sliders-h"></i> Ajuste de Inventário</button>
-                        <button class="btn btn-secondary" onclick="verHistoricoMaterial()"><i class="fas fa-history"></i> Histórico</button>
+                        <button class="btn btn-secondary" onclick="verHistóricoMaterial()"><i class="fas fa-history"></i> Histórico</button>
                     </div>
 
                     <!-- Busca -->
@@ -260,15 +261,19 @@
                         </div>
                         <select class="filter-select" id="filter-tipo-material">
                             <option value="">Todos os Tipos</option>
-                            <option value="veia">Veias</option>
-                            <option value="cabo">Cabos</option>
-                            <option value="corda">Cordas</option>
-                            <option value="cordinha">Cordinhas</option>
-                            <option value="pvc">PVC</option>
-                            <option value="polietileno">Polietileno</option>
-                            <option value="pigmento">Pigmentos</option>
-                            <option value="filamento">Filamentos</option>
-                            <option value="bobina">Bobinas</option>
+                            <option value="Veia Multiplex">Veia Multiplex</option>
+                            <option value="Veia Potência">Veia Potência</option>
+                            <option value="Cabo/Fio">Cabo / Fio</option>
+                            <option value="Bobina/Embalagem">Bobina / Embalagem</option>
+                            <option value="Corda de Alumínio">Corda de Alumínio</option>
+                            <option value="Cordinha">Cordinha</option>
+                            <option value="Filamento">Filamento</option>
+                            <option value="Polietileno">Polietileno</option>
+                            <option value="PVC">PVC</option>
+                            <option value="XLPE">XLPE</option>
+                            <option value="Pigmento">Pigmento</option>
+                            <option value="Serviço">Serviço</option>
+                            <option value="Outros">Outros</option>
                         </select>
                         <button class="btn btn-primary" onclick="buscarMateriais()"><i class="fas fa-search"></i> Buscar</button>
                     </div>
@@ -315,7 +320,6 @@
                 </div>
             </main>
         </div>
-    </div>
 
     <script src="../js/pcp-common.js"></script>
     <script>
@@ -342,11 +346,16 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    materiaisData = Array.isArray(data) ? data : (data.rows || data.materiais || []);
-                    materiaisData = materiaisData.map(m => ({
+                    let lista = Array.isArray(data) ? data : (data.rows || data.materiais || []);
+                    // Filtrar materiais migrados para a tabela produtos (status técnico de migração)
+                    lista = lista.filter(m => {
+                        const status = String(m.status || '').toUpperCase();
+                        return status !== 'MIGRADO_PARA_PRODUTOS';
+                    });
+                    materiaisData = lista.map(m => ({
                         ...m,
-                        codigo: m.codigo || m.codigo_material || '',
-                        descricao: m.descricao || m.nome || '',
+                        código: m.codigo || m.codigo_material || '',
+                        descrição: m.descricao || m.nome || '',
                         estoque: m.quantidade_estoque ?? m.estoque ?? 0,
                         estoque_minimo: m.estoque_minimo ?? 10,
                         unidade: m.unidade_medida || m.unidade || 'UN',
@@ -420,7 +429,7 @@
         function abrirEntradaRapidaMaterial() { abrirModalMovimentacaoMaterial('entrada'); }
         function abrirSaidaRapidaMaterial() { abrirModalMovimentacaoMaterial('saida'); }
         function abrirAjusteInventarioMaterial() { abrirModalMovimentacaoMaterial('ajuste'); }
-        function verHistoricoMaterial() { showToast('Histórico em desenvolvimento', 'info'); }
+        function verHistóricoMaterial() { showToast('Histórico em desenvolvimento', 'info'); }
 
         document.getElementById('search-materiais').addEventListener('keypress', e => { if (e.key === 'Enter') buscarMateriais(); });
 
@@ -453,3 +462,4 @@
     <script src="/js/user-dropdown.js?v=20260319" defer></script>
 </body>
 </html>
+

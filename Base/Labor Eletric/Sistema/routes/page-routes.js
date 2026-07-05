@@ -96,12 +96,34 @@ function setupPageRoutes(app, baseDir, authenticatePage, userPermissions) {
         const page = req.params.page;
         const fileName = page.endsWith('.html') ? page : `${page}.html`;
         const filePath = path.join(baseDir, 'modules', 'RH', 'public', 'pages', fileName);
-        
+
         if (fs.existsSync(filePath)) {
             res.sendFile(filePath);
         } else {
             res.status(404).send('<h1>Página não encontrada</h1>');
         }
+    });
+
+    // [FIX C6] /modules/RH/pages/... (sem /public/) era usado por links antigos e 404'ava.
+    // Agora redireciona para o caminho canônico /RH/pages/... que entrega o arquivo certo.
+    app.get(/^\/modules\/RH\/pages\/(.+)$/i, authenticatePage, (req, res) => {
+        const page = req.params[0];
+        return res.redirect(301, `/RH/pages/${page}`);
+    });
+    // Também serve /modules/RH/public/pages/* e /modules/RH/public/* explicitamente
+    app.get(/^\/modules\/RH\/public\/(.*)$/i, authenticatePage, (req, res) => {
+        const rest = req.params[0];
+        const filePath = path.join(baseDir, 'modules', 'RH', 'public', rest);
+        if (fs.existsSync(filePath)) return res.sendFile(filePath);
+        return res.status(404).send('<h1>Página não encontrada</h1>');
+    });
+    // Rota canônica /RH/pages/*
+    app.get(/^\/RH\/pages\/(.+)$/i, authenticatePage, (req, res) => {
+        const page = req.params[0];
+        const fileName = page.endsWith('.html') ? page : `${page}.html`;
+        const filePath = path.join(baseDir, 'modules', 'RH', 'public', 'pages', fileName);
+        if (fs.existsSync(filePath)) return res.sendFile(filePath);
+        return res.status(404).send('<h1>Página não encontrada</h1>');
     });
 
     // ========================================

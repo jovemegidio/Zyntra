@@ -7,6 +7,10 @@
 (function() {
     'use strict';
 
+    function withBasePath(path) {
+        return window.__withBasePath ? window.__withBasePath(path) : path;
+    }
+
     const DashboardEnhanced = {
         // Cache de dados
         cache: {
@@ -572,7 +576,7 @@
             };
 
             if (routes[type]) {
-                window.location.href = routes[type];
+                window.location.href = withBasePath(routes[type]);
             }
         },
 
@@ -588,7 +592,7 @@
             };
 
             if (routes[type]) {
-                window.location.href = routes[type];
+                window.location.href = withBasePath(routes[type]);
             }
         },
 

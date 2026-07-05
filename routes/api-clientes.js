@@ -36,8 +36,8 @@ function createClientesRouter(pool, authenticateToken, registrarAuditLog) {
                 const gestaoParams = [];
                 
                 if (isComercial && vendedorNome) {
-                    query += ` WHERE (vendedor_proprietario = ? OR vendedor_responsavel = ?)`;
-                    gestaoParams.push(vendedorNome, vendedorNome);
+                    query += ` WHERE (vendedor_proprietario = ? OR vendedor_responsavel = ? OR incluido_por = ?)`;
+                    gestaoParams.push(vendedorNome, vendedorNome, vendedorNome);
                 }
                 
                 query += ` ORDER BY nome LIMIT ? OFFSET ?`;
@@ -88,11 +88,6 @@ function createClientesRouter(pool, authenticateToken, registrarAuditLog) {
                 FROM clientes WHERE (ativo = 1 OR ativo IS NULL)`;
             let params = [];
             
-            if (isComercial && vendedorNome) {
-                query += ` AND (vendedor_proprietario = ? OR vendedor_responsavel = ?)`;
-                params.push(vendedorNome, vendedorNome);
-            }
-            
             if (termoBusca && termoBusca.length >= 2) {
                 query += ` AND (
                     razao_social LIKE ? OR 
@@ -102,7 +97,12 @@ function createClientesRouter(pool, authenticateToken, registrarAuditLog) {
                     cnpj LIKE ?
                 )`;
                 const termoLike = `%${termoBusca}%`;
-                params = [termoLike, termoLike, termoLike, termoLike, termoLike];
+                params.push(termoLike, termoLike, termoLike, termoLike, termoLike);
+            }
+
+            if (isComercial && vendedorNome) {
+                query += ` AND (vendedor_proprietario = ? OR vendedor_responsavel = ? OR incluido_por = ?)`;
+                params.push(vendedorNome, vendedorNome, vendedorNome);
             }
             
             // AUDIT-FIX S10.2: Parametrize LIMIT to prevent template-literal SQL injection

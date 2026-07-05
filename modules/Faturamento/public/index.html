@@ -1,11 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 
 <head>
     <link rel="icon" type="image/jpeg" href="/favicon-zyntra.jpg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Zyntra: Faturamento — NF-e</title>
+    <title>Zyntra · Faturamento · NF-e</title>
     <!-- Suprimir console.log em produção -->
     <script>if(location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){console.log=function(){}}</script>
     <script src="/js/auth-unified.js?v=20260326" defer></script>
@@ -14,8 +14,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="/Faturamento/css/faturamento-layout.css?v=20260413b">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/Faturamento/css/faturamento-layout.css?v=20260611">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260610">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <link rel="stylesheet" href="/css/skeleton-loader.css">
     <!-- Chat Widget BOB AI -->
@@ -37,7 +38,7 @@
         }
         .modal-content.modal-small { max-width: 480px; }
         .modal-header.orange {
-            background: linear-gradient(135deg, #f97316, #ea580c);
+            background: linear-gradient(135deg, #14b8a6, #0d9488);
             color: #fff;
             padding: 18px 20px;
             display: flex;
@@ -82,14 +83,17 @@
         }
         .btn-modal-cancel { background: #e5e7eb; color: #374151; }
         .btn-modal-cancel:hover { background: #d1d5db; }
-        .btn-modal-save { background: #f97316; color: #fff; }
-        .btn-modal-save:hover { background: #ea580c; }
+        .btn-modal-save { background: #14b8a6; color: #fff; }
+        .btn-modal-save:hover { background: #0d9488; }
         @keyframes modalSlideIn {
             from { opacity: 0; transform: scale(0.95) translateY(-8px); }
             to   { opacity: 1; transform: scale(1) translateY(0); }
         }
+        /* Bug 2/11: reserva espaço no rodapé para que os botões de ação da última
+           linha da tabela não fiquem sob o botão flutuante do chat Zyntra. */
+        .page-content { padding-bottom: 96px; }
     </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
 </head>
 
 <body>
@@ -117,11 +121,11 @@
                     <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i
                             class="fas fa-bars"></i></button>
                     <a href="/dashboard" class="header-brand" style="display:flex;align-items:center;gap:10px;text-decoration:none;" title="Voltar ao painel">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE"
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE"
                             style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.85);font-size:12px;margin-left:4px;">— Faturamento</span>
                     </a>
                 </div>
                 <div class="header-right">
@@ -144,9 +148,9 @@
                             </div>
                         </div>
                         <div class="page-actions">
-                            <button class="btn btn-primary" onclick="abrirModalNovaNovenfe()"><i
+                            <button type="button" class="btn btn-primary" id="btnNovaNFe" onclick="abrirModalNovaNFe()"><i
                                     class="fas fa-plus"></i> Nova NF-e</button>
-                            <button class="btn btn-secondary" onclick="limparFiltros()"><i class="fas fa-eraser"></i>
+                            <button class="btn btn-secondary" id="btnLimparFiltros" onclick="limparFiltros()" style="display:none;"><i class="fas fa-eraser"></i>
                                 Limpar Filtros</button>
                         </div>
                     </div>
@@ -158,7 +162,8 @@
                             <div class="metric-icon orange"><i class="fas fa-file-invoice"></i></div>
                             <span class="metric-trend" id="trend-total">&mdash;</span>
                         </div>
-                        <div class="metric-value" id="statTotal">0</div>
+                        <!-- FISCAL-09: valor inicial "—" evita mostrar 0 estático enquanto carrega -->
+                        <div class="metric-value" id="statTotal">&mdash;</div>
                         <div class="metric-label">Total NF-e</div>
                     </div>
                     <div class="metric-card green">
@@ -166,7 +171,7 @@
                             <div class="metric-icon green"><i class="fas fa-check-circle"></i></div>
                             <span class="metric-trend" id="trend-autorizadas">&mdash;</span>
                         </div>
-                        <div class="metric-value" id="statAutorizadas">0</div>
+                        <div class="metric-value" id="statAutorizadas">&mdash;</div>
                         <div class="metric-label">Autorizadas</div>
                     </div>
                     <div class="metric-card blue">
@@ -174,7 +179,7 @@
                             <div class="metric-icon blue"><i class="fas fa-clock"></i></div>
                             <span class="metric-trend" id="trend-pendentes">&mdash;</span>
                         </div>
-                        <div class="metric-value" id="statPendentes">0</div>
+                        <div class="metric-value" id="statPendentes">&mdash;</div>
                         <div class="metric-label">Pendentes</div>
                     </div>
                     <div class="metric-card purple">
@@ -182,7 +187,7 @@
                             <div class="metric-icon purple"><i class="fas fa-dollar-sign"></i></div>
                             <span class="metric-trend" id="trend-valor">&mdash;</span>
                         </div>
-                        <div class="metric-value" id="statValor">R$ 0,00</div>
+                        <div class="metric-value" id="statValor">&mdash;</div>
                         <div class="metric-label">Valor Total</div>
                     </div>
                 </div>
@@ -251,13 +256,13 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label>Selecione o Pedido Aprovado</label>
-                    <select class="form-control" id="pedidoIdSelect" onchange="document.getElementById('pedidoId').value=this.value">
+                    <select class="form-control" id="pedidoIdSelect" onchange="onSelectPedido()">
                         <option value="">Carregando pedidos...</option>
                     </select>
                 </div>
                 <div class="form-group" style="margin-top:8px;">
                     <label style="font-size:12px;color:#6b7280;">Ou informe o ID manualmente</label>
-                    <input type="number" class="form-control" id="pedidoId" placeholder="ID do pedido">
+                    <input type="number" class="form-control" id="pedidoId" placeholder="ID do pedido" oninput="onManualPedido()">
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -277,7 +282,7 @@
 
     <!-- Modal Editar NF-e -->
     <div class="modal-overlay" id="modalEditarNFe" style="display:none" onclick="if(event.target===this) fecharModalEditar()">
-        <div class="modal" style="max-width:720px;max-height:90vh;overflow-y:auto;">
+        <div class="modal-content" style="max-width:720px;max-height:90vh;overflow-y:auto;">
             <div class="modal-header">
                 <h3 id="modalEditarTitulo"><i class="fas fa-edit"></i> Editar NF-e</h3>
                 <button class="modal-close" onclick="fecharModalEditar()"><i class="fas fa-times"></i></button>
@@ -362,7 +367,7 @@
             <div class="modal-footer" style="display:flex;justify-content:space-between;">
                 <button class="btn" style="background:#dc2626;color:white;" onclick="excluirNFe()"><i class="fas fa-trash"></i> Excluir</button>
                 <div style="display:flex;gap:8px;">
-                    <button class="btn btn-secondary" onclick="fecharModalEditar()">Cancelar</button>
+                    <button class="btn btn-secondary" onclick="fecharModalEditar()"><i class="fas fa-arrow-left"></i> Fechar</button>
                     <button class="btn btn-primary" onclick="salvarEdicaoNFe()"><i class="fas fa-save"></i> Salvar Alterações</button>
                 </div>
             </div>
@@ -377,9 +382,50 @@
             overlay.classList.toggle('active');
         }
 
-        function abrirModalNovaNovenfe() {
-            document.getElementById('modalNovaNovenfe').classList.add('active');
+        function abrirModalNovaNFe() {
+            const modal = document.getElementById('modalNovaNovenfe');
+            if (!modal) return;
+            // Bug 8: resetar os dois campos exclusivos (dropdown OU ID manual) ao abrir
+            const sel = document.getElementById('pedidoIdSelect');
+            const man = document.getElementById('pedidoId');
+            if (sel) { sel.disabled = false; sel.style.opacity = ''; }
+            if (man) { man.value = ''; man.disabled = false; man.placeholder = 'ID do pedido'; }
+            modal.style.display = 'flex';
+            modal.classList.add('active');
             carregarPedidosAprovados();
+        }
+
+        // Bug 8: os campos "Selecione o Pedido" e "ID manual" são alternativas mutuamente exclusivas (OU).
+        // Ao usar um, o outro é desabilitado para não gerar conflito de validação.
+        function onSelectPedido() {
+            const sel = document.getElementById('pedidoIdSelect');
+            const man = document.getElementById('pedidoId');
+            if (!sel || !man) return;
+            if (sel.value) {
+                man.value = '';
+                man.disabled = true;
+                man.placeholder = 'Usando o pedido selecionado acima';
+            } else {
+                man.disabled = false;
+                man.placeholder = 'ID do pedido';
+            }
+        }
+
+        function onManualPedido() {
+            const sel = document.getElementById('pedidoIdSelect');
+            const man = document.getElementById('pedidoId');
+            if (!sel || !man) return;
+            if ((man.value || '').trim()) {
+                sel.disabled = true;
+                sel.style.opacity = '0.6';
+            } else {
+                sel.disabled = false;
+                sel.style.opacity = '';
+            }
+        }
+
+        function abrirModalNovaNovenfe() {
+            abrirModalNovaNFe();
         }
 
         async function carregarPedidosAprovados() {
@@ -404,7 +450,10 @@
         }
 
         function fecharModal(id) {
-            document.getElementById(id).classList.remove('active');
+            const m = document.getElementById(id);
+            if (!m) return;
+            m.classList.remove('active');
+            m.style.display = 'none';
         }
 
                 function _fat_toast(msg, tipo) {
@@ -484,17 +533,63 @@ function formatarMoeda(valor) {
             }
         }
 
+        // Bug 5: recalcular os cards de KPI a partir do conjunto atualmente filtrado
+        function atualizarCardsComLista(nfes) {
+            const lista = Array.isArray(nfes) ? nfes : [];
+            const autorizadas = lista.filter(n => statusClass(n.status) === 'autorizada').length;
+            const pendentes = lista.filter(n => statusClass(n.status) === 'pendente').length;
+            const valor = lista.reduce((s, n) => s + (Number(n.valor_total ?? n.valor) || 0), 0);
+            document.getElementById('statTotal').textContent = lista.length;
+            document.getElementById('statAutorizadas').textContent = autorizadas;
+            document.getElementById('statPendentes').textContent = pendentes;
+            document.getElementById('statValor').textContent = formatarMoeda(valor);
+        }
+
+        // Bug 5 e 13: detectar se há filtros aplicados (busca/status/datas)
+        function temFiltrosAtivos() {
+            return !!(
+                (document.getElementById('filtroStatus')?.value || '') ||
+                (document.getElementById('filtroDataInicio')?.value || '') ||
+                (document.getElementById('filtroDataFim')?.value || '') ||
+                (document.getElementById('filtroTexto')?.value || '').trim()
+            );
+        }
+
+        // Bug 20: mostrar/esconder botão "Limpar Filtros" conforme estado
+        function atualizarVisibilidadeLimparFiltros() {
+            const btn = document.getElementById('btnLimparFiltros');
+            if (btn) btn.style.display = temFiltrosAtivos() ? '' : 'none';
+        }
+
         async function carregarNFes() {
             try {
                 const status = document.getElementById('filtroStatus').value;
                 const inicio = document.getElementById('filtroDataInicio').value;
                 const fim = document.getElementById('filtroDataFim').value;
                 const busca = document.getElementById('filtroTexto').value.trim();
+                atualizarVisibilidadeLimparFiltros();
                 const r = await fetch(`/api/faturamento/nfes?status=${encodeURIComponent(status)}&data_inicio=${encodeURIComponent(inicio)}&data_fim=${encodeURIComponent(fim)}&busca=${encodeURIComponent(busca)}`, { credentials: 'include' });
                 if (r.ok) {
                     const resp = await r.json();
-                    const nfes = Array.isArray(resp) ? resp : (resp.data || resp.nfes || []);
+                    let nfes = Array.isArray(resp) ? resp : (resp.data || resp.nfes || []);
+                    // Bug 5: fallback client-side caso a API ignore o parâmetro ?busca
+                    if (busca) {
+                        const q = busca.toLowerCase();
+                        nfes = nfes.filter(n => {
+                            const campos = [
+                                String(n.numero || ''),
+                                String(n.destinatario || n.cliente_nome || n.cliente || ''),
+                                String(n.chave_acesso || n.chave || ''),
+                                String(n.pedido_id || ''),
+                                String(n.serie || '')
+                            ].join(' ').toLowerCase();
+                            return campos.includes(q);
+                        });
+                    }
                     renderizarNFes(nfes);
+                    // Bug 5: cards refletem o conjunto filtrado; sem filtros usam o total global do backend
+                    if (temFiltrosAtivos()) atualizarCardsComLista(nfes);
+                    else carregarEstatisticas();
                 } else {
                     console.warn('NF-es indisponíveis (HTTP ' + r.status + ')');
                     const tbody = document.getElementById('nfesList');
@@ -515,7 +610,11 @@ function formatarMoeda(valor) {
         function renderizarNFes(nfes) {
             const tbody = document.getElementById('nfesList');
             if (!nfes.length) {
-                tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-file-invoice"></i><h3>Nenhuma NF-e encontrada</h3><p>Emita sua primeira nota fiscal</p></div></td></tr>';
+                // Bug 13: mensagem contextual para "filtros sem resultado" vs "nenhuma nota cadastrada"
+                const subtitulo = temFiltrosAtivos()
+                    ? 'Nenhuma NF-e corresponde aos filtros aplicados. Ajuste os filtros ou <a href="#" onclick="limparFiltros();return false;" style="color:#14b8a6;font-weight:600;text-decoration:underline;cursor:pointer;">Limpar Filtros</a>.'
+                    : 'Emita sua primeira nota fiscal';
+                tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><i class="fas fa-file-invoice"></i><h3>Nenhuma NF-e encontrada</h3><p>${subtitulo}</p></div></td></tr>`;
                 return;
             }
             // Ordenar por número decrescente (NFs mais recentes primeiro)
@@ -528,6 +627,11 @@ function formatarMoeda(valor) {
             tbody.innerHTML = nfes.map(n => {
                 const origemTag = n.origem === 'pedido' ? `<span style="font-size:10px;color:#6b7280;display:block;">Pedido #${n.pedido_id}</span>` : '';
                 const numeroFmt = formatarNumeroNFe(n.numero);
+                const statusC = statusClass(n.status);
+                // Bug 3: ocultar botão SEFAZ quando já estiver autorizada/inutilizada/cancelada
+                const podeEnviarSefaz = n.origem !== 'pedido' && !['autorizada', 'cancelada', 'inutilizada'].includes(statusC);
+                const podeCancelar = n.origem !== 'pedido' && statusC !== 'cancelada' && statusC !== 'inutilizada';
+                const podeBaixarDanfe = n.origem !== 'pedido';
                 return `
         <tr ondblclick="abrirModalEditarNFe(${n.id}, '${n.origem || 'nfe'}')" style="cursor:pointer;" title="Duplo clique para editar">
             <td><span class="code">${numeroFmt}</span>${origemTag}</td>
@@ -535,13 +639,13 @@ function formatarMoeda(valor) {
             <td>${n.destinatario || n.cliente_nome || n.cliente || '-'}</td>
             <td><strong>${formatarMoeda(n.valor)}</strong></td>
             <td>${formatarData(n.data_emissao)}</td>
-            <td><span class="badge ${statusClass(n.status)}">${statusLabel(n.status)}</span></td>
+            <td><span class="badge ${statusC}">${statusLabel(n.status)}</span></td>
             <td>
                 <div style="display:flex;gap:4px;">
                     <button class="action-btn view" onclick="event.stopPropagation();abrirModalEditarNFe(${n.id}, '${n.origem || 'nfe'}')" title="Detalhes da NF-e ${numeroFmt}" aria-label="Ver detalhes da NF-e ${numeroFmt}"><i class="fas fa-eye"></i></button>
-                    ${n.origem !== 'pedido' ? `<button class="action-btn success" onclick="event.stopPropagation();enviarSEFAZ(${n.id})" title="Enviar NF-e ${numeroFmt} para SEFAZ" aria-label="Enviar NF-e ${numeroFmt} para SEFAZ"><i class="fas fa-paper-plane"></i></button>` : ''}
-                    ${n.origem !== 'pedido' ? `<button class="action-btn" onclick="event.stopPropagation();baixarDANFE(${n.id})" title="Baixar DANFE da NF-e ${numeroFmt}" aria-label="Baixar DANFE da NF-e ${numeroFmt}"><i class="fas fa-file-pdf"></i></button>` : ''}
-                    ${n.origem !== 'pedido' ? `<button class="action-btn delete" onclick="event.stopPropagation();cancelarNFe(${n.id})" title="Cancelar NF-e ${numeroFmt}" aria-label="Cancelar NF-e ${numeroFmt}"><i class="fas fa-times"></i></button>` : ''}
+                    ${podeEnviarSefaz ? `<button class="action-btn success" onclick="event.stopPropagation();enviarSEFAZ(${n.id})" title="Enviar NF-e ${numeroFmt} para SEFAZ" aria-label="Enviar NF-e ${numeroFmt} para SEFAZ"><i class="fas fa-paper-plane"></i></button>` : ''}
+                    ${podeBaixarDanfe ? `<button class="action-btn" onclick="event.stopPropagation();baixarDANFE(${n.id})" title="Baixar DANFE da NF-e ${numeroFmt}" aria-label="Baixar DANFE da NF-e ${numeroFmt}"><i class="fas fa-file-pdf"></i></button>` : ''}
+                    ${podeCancelar ? `<button class="action-btn delete" onclick="event.stopPropagation();cancelarNFe(${n.id})" title="Cancelar NF-e ${numeroFmt}" aria-label="Cancelar NF-e ${numeroFmt}"><i class="fas fa-times"></i></button>` : ''}
                 </div>
             </td>
         </tr>
@@ -556,8 +660,8 @@ function formatarMoeda(valor) {
             const btn = document.querySelector('[onclick="gerarNFe()"]');
             if (btn) btn.disabled = true;
             try {
-                const pedidoId = document.getElementById('pedidoId').value;
-                if (!pedidoId) { _fat_toast('Informe o ID do pedido'); return; }
+                const pedidoId = (document.getElementById('pedidoId')?.value || document.getElementById('pedidoIdSelect')?.value || '').trim();
+                if (!pedidoId) { _fat_toast('Informe ou selecione o ID do pedido', 'warning'); return; }
                 const r = await fetch('/api/faturamento/gerar-nfe', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -633,41 +737,79 @@ function formatarMoeda(valor) {
         let _nfesCache = [];
         let _editOrigem = 'nfe';
 
+        // Bug 1: preencher campos do modal com qualquer dado disponível (cache local ou API)
+        function _preencherCamposModalNFe(nfe) {
+            document.getElementById('edit-nfe-id').value = nfe.id || '';
+            document.getElementById('edit-nfe-numero').value = nfe.numero || '';
+            document.getElementById('edit-nfe-serie').value = nfe.serie || '1';
+            document.getElementById('edit-nfe-cliente-nome').value = nfe.cliente_nome || nfe.destinatario || nfe.cliente || '';
+            document.getElementById('edit-nfe-cliente-id').value = nfe.cliente_id || '';
+            // Valor: em pedido faturado (somente leitura) exibe moeda formatada (R$ 97.837,50);
+            // em edição mantém input numérico para permitir digitação.
+            const valorRaw = Number(nfe.valor_total ?? nfe.valor ?? 0) || 0;
+            const valorEl = document.getElementById('edit-nfe-valor');
+            if (valorEl) {
+                if (_editOrigem === 'pedido') {
+                    valorEl.type = 'text';
+                    valorEl.value = formatarMoeda(valorRaw);
+                } else {
+                    valorEl.type = 'number';
+                    valorEl.value = valorRaw;
+                }
+            }
+            document.getElementById('edit-nfe-status').value = (nfe.status || 'pendente').toLowerCase();
+            document.getElementById('edit-nfe-data-emissao').value = nfe.data_emissao ? String(nfe.data_emissao).slice(0,10) : '';
+            document.getElementById('edit-nfe-natureza').value = nfe.natureza_operacao || '';
+            const chaveVal = nfe.chave_acesso || nfe.chave || nfe.chave_nfe || nfe.chNFe || '';
+            const protocoloVal = nfe.protocolo || nfe.protocolo_autorizacao || nfe.numero_protocolo || nfe.nProt || '';
+            document.getElementById('edit-nfe-chave').value = chaveVal;
+            document.getElementById('edit-nfe-protocolo').value = protocoloVal;
+            const obsEl = document.getElementById('edit-nfe-observacoes');
+            obsEl.value = nfe.observacoes || nfe.observacao || '';
+            // Bug 17: garantir que o textarea inicie no topo do conteúdo, não no meio
+            obsEl.scrollTop = 0;
+            const chaveBadge = document.getElementById('edit-nfe-chave-badge');
+            const protBadge = document.getElementById('edit-nfe-protocolo-badge');
+            if (chaveBadge) chaveBadge.style.display = chaveVal ? 'none' : 'inline';
+            if (protBadge) protBadge.style.display = protocoloVal ? 'none' : 'inline';
+        }
+
         async function abrirModalEditarNFe(id, origem) {
-            origem = origem || 'nfe';
+            origem = origem === 'pedido' ? 'pedido' : 'nfe';
             _editOrigem = origem;
+            // FISCAL-03: abrir modal imediatamente com loading, em vez de aguardar API
+            // Bug 1: garantir display:flex pois o overlay tem style="display:none" inline
+            const modal = document.getElementById('modalEditarNFe');
+            const itensBodyPre = document.getElementById('edit-nfe-itens-body');
+            if (itensBodyPre) itensBodyPre.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:20px;"><i class="fas fa-spinner fa-spin"></i> Carregando...</td></tr>';
+            if (modal) { modal.style.display = 'flex'; modal.classList.add('active'); }
+
+            // Bug 1: pré-preencher com dados do cache enquanto a API responde — assim o usuário sempre vê algo
+            const cacheHit = (_nfesCache || []).find(n => String(n.id) === String(id));
+            if (cacheHit) _preencherCamposModalNFe(cacheHit);
+
             try {
-                const r = await fetch('/api/faturamento/nfes/' + id + '?origem=' + origem, { credentials: 'include' });
+                const r = await fetch('/api/faturamento/nfes/' + encodeURIComponent(id) + '?origem=' + encodeURIComponent(origem), { credentials: 'include' });
                 if (!r.ok) throw new Error('Erro ' + r.status);
                 const resp = await r.json();
                 const nfe = resp.data || resp;
 
-                document.getElementById('edit-nfe-id').value = nfe.id || '';
-                document.getElementById('edit-nfe-numero').value = nfe.numero || '';
-                document.getElementById('edit-nfe-serie').value = nfe.serie || '1';
-                document.getElementById('edit-nfe-cliente-nome').value = nfe.cliente_nome || nfe.destinatario || '';
-                document.getElementById('edit-nfe-cliente-id').value = nfe.cliente_id || '';
-                document.getElementById('edit-nfe-valor').value = nfe.valor_total || nfe.valor || 0;
-                document.getElementById('edit-nfe-status').value = (nfe.status || 'pendente').toLowerCase();
-                document.getElementById('edit-nfe-data-emissao').value = nfe.data_emissao ? String(nfe.data_emissao).slice(0,10) : '';
-                document.getElementById('edit-nfe-natureza').value = nfe.natureza_operacao || '';
-                const chaveVal = nfe.chave_acesso || nfe.chave || nfe.chave_nfe || nfe.chNFe || '';
-                const protocoloVal = nfe.protocolo || nfe.protocolo_autorizacao || nfe.numero_protocolo || nfe.nProt || '';
-                document.getElementById('edit-nfe-chave').value = chaveVal;
-                document.getElementById('edit-nfe-protocolo').value = protocoloVal;
-                document.getElementById('edit-nfe-observacoes').value = nfe.observacoes || nfe.observacao || '';
-                // BUG-020: exibir badge de aviso quando chave/protocolo não informados
-                const chaveBadge = document.getElementById('edit-nfe-chave-badge');
-                const protBadge = document.getElementById('edit-nfe-protocolo-badge');
-                if (chaveBadge) chaveBadge.style.display = chaveVal ? 'none' : 'inline';
-                if (protBadge) protBadge.style.display = protocoloVal ? 'none' : 'inline';
+                _preencherCamposModalNFe(nfe);
 
                 // Controle read-only para NF-e originadas de pedidos
                 const isReadOnly = (origem === 'pedido');
                 const editFields = ['edit-nfe-numero', 'edit-nfe-serie', 'edit-nfe-cliente-nome', 'edit-nfe-valor', 'edit-nfe-status', 'edit-nfe-data-emissao', 'edit-nfe-natureza', 'edit-nfe-chave', 'edit-nfe-protocolo', 'edit-nfe-observacoes'];
                 editFields.forEach(fid => {
                     const el = document.getElementById(fid);
-                    if (el) { el.readOnly = isReadOnly; el.disabled = isReadOnly; }
+                    if (el) {
+                        el.readOnly = isReadOnly;
+                        el.disabled = isReadOnly;
+                        // Visual: campos somente-leitura ganham fundo cinza e cursor padrão
+                        el.style.background = isReadOnly ? '#f3f4f6' : '';
+                        el.style.color = isReadOnly ? '#374151' : '';
+                        el.style.cursor = isReadOnly ? 'default' : '';
+                        el.style.opacity = isReadOnly ? '1' : '';
+                    }
                 });
 
                 // BUG-020: input[type=number] não aceita string formatada — manter valor numérico
@@ -689,7 +831,6 @@ function formatarMoeda(valor) {
 
                 // Itens
                 const itensBody = document.getElementById('edit-nfe-itens-body');
-                if (!itensBody) throw new Error('Tabela de itens da NF-e nao encontrada');
                 const itens = nfe.itens || [];
                 const fmtQtd = (q) => {
                     const n = parseFloat(q);
@@ -697,6 +838,9 @@ function formatarMoeda(valor) {
                     return n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
                 };
                 if (itens.length > 0) {
+                    // Bug 9: linha de total geral ao final da tabela de itens
+                    const totalQtd = itens.reduce((s, it) => s + (parseFloat(it.quantidade) || 0), 0);
+                    const totalGeral = itens.reduce((s, it) => s + (Number(it.valor_total) || 0), 0);
                     itensBody.innerHTML = itens.map((item, i) => `
                         <tr>
                             <td>${i + 1}</td>
@@ -705,20 +849,37 @@ function formatarMoeda(valor) {
                             <td style="text-align:right;">${formatarMoeda(item.valor_unitario || 0)}</td>
                             <td style="text-align:right;font-weight:600;">${formatarMoeda(item.valor_total || 0)}</td>
                         </tr>
-                    `).join('');
+                    `).join('') + `
+                        <tr style="background:#f9fafb;border-top:2px solid #e5e7eb;">
+                            <td colspan="2" style="text-align:right;font-weight:700;color:#374151;">Total Geral</td>
+                            <td style="text-align:center;font-weight:700;color:#374151;">${fmtQtd(totalQtd)}</td>
+                            <td></td>
+                            <td style="text-align:right;font-weight:800;color:#059669;">${formatarMoeda(totalGeral)}</td>
+                        </tr>
+                    `;
                 } else {
                     itensBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:20px;">Nenhum item registrado</td></tr>';
                 }
 
-                document.getElementById('modalEditarNFe').classList.add('active');
             } catch(e) {
                 console.error('[NF-e] Erro ao carregar:', e);
-                _fat_toast('Erro ao carregar dados da NF-e: ' + e.message);
+                const itensBodyErr = document.getElementById('edit-nfe-itens-body');
+                // Bug 1: se já preenchemos com cache, manter modal aberto e apenas avisar; caso contrário mostrar erro de carregamento
+                if (cacheHit) {
+                    if (itensBodyErr) itensBodyErr.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:20px;"><i class="fas fa-info-circle"></i> Itens detalhados indisponíveis no momento. Exibindo dados resumidos da listagem.</td></tr>';
+                    _fat_toast('Detalhes completos indisponíveis. Exibindo dados resumidos.', 'warning');
+                } else {
+                    if (itensBodyErr) itensBodyErr.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#dc2626;padding:20px;"><i class="fas fa-exclamation-triangle"></i> Erro ao carregar dados: ' + (e.message || 'Tente novamente') + '</td></tr>';
+                    _fat_toast('Erro ao carregar dados da NF-e: ' + (e.message || 'Tente novamente'));
+                }
             }
         }
 
         function fecharModalEditar() {
-            document.getElementById('modalEditarNFe').classList.remove('active');
+            const m = document.getElementById('modalEditarNFe');
+            if (!m) return;
+            m.classList.remove('active');
+            m.style.display = 'none';
         }
 
         async function salvarEdicaoNFe() {
@@ -828,23 +989,31 @@ function formatarMoeda(valor) {
         }
 
         function carregarUsuarioLogado() {
-            const avatarNameMap = { 'admin': 'AD', 'Admin': 'AD', 'usuario': 'US', 'João': 'JO', 'Maria': 'MA', 'Pedro': 'PE', 'Ana': 'AN', 'Carlos': 'CA', 'Lucas': 'LU', 'Mariana': 'MN', 'Fernanda': 'FE', 'Rafael': 'RA', 'Juliana': 'JU', 'Gabriel': 'GA', 'Beatriz': 'BE', 'Diego': 'DI', 'Camila': 'CM' };
-            const h = new Date().getHours();
-            const g = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
-            document.getElementById('greeting-text').textContent = g;
-            fetch('/api/me', { credentials: 'include' })
-                .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-                .then(u => {
-                    const nome = u.nome || u.name || 'Usuário';
-                    document.getElementById('user-name').textContent = nome.split(' ')[0];
-                    const initials = avatarNameMap[nome.split(' ')[0]] || nome.substring(0, 2).toUpperCase();
-                    document.getElementById('user-initials').textContent = initials;
-                    if (u.foto || u.avatar) {
-                        document.getElementById('user-photo').src = u.foto || u.avatar;
-                        document.getElementById('user-photo').style.display = 'block';
-                        document.getElementById('user-initials').style.display = 'none';
-                    }
-                }).catch(() => { });
+            try {
+                const avatarNameMap = { 'admin': 'AD', 'Admin': 'AD', 'usuario': 'US', 'João': 'JO', 'Maria': 'MA', 'Pedro': 'PE', 'Ana': 'AN', 'Carlos': 'CA', 'Lucas': 'LU', 'Mariana': 'MN', 'Fernanda': 'FE', 'Rafael': 'RA', 'Juliana': 'JU', 'Gabriel': 'GA', 'Beatriz': 'BE', 'Diego': 'DI', 'Camila': 'CM' };
+                const h = new Date().getHours();
+                const g = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+                const greetingEl = document.getElementById('greeting-text');
+                if (greetingEl) greetingEl.textContent = g;
+                fetch('/api/me', { credentials: 'include' })
+                    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+                    .then(u => {
+                        const nome = u.nome || u.name || 'Usuário';
+                        const nameEl = document.getElementById('user-name');
+                        if (nameEl) nameEl.textContent = nome.split(' ')[0];
+                        const initials = avatarNameMap[nome.split(' ')[0]] || nome.substring(0, 2).toUpperCase();
+                        const initialsEl = document.getElementById('user-initials');
+                        if (initialsEl) initialsEl.textContent = initials;
+                        if (u.foto || u.avatar) {
+                            const photoEl = document.getElementById('user-photo');
+                            if (photoEl) {
+                                photoEl.src = u.foto || u.avatar;
+                                photoEl.style.display = 'block';
+                                if (initialsEl) initialsEl.style.display = 'none';
+                            }
+                        }
+                    }).catch(() => { });
+            } catch (e) { /* cabeçalho renderizado pelo layout-component; ignora ausência de elementos */ }
         }
 
         document.addEventListener('DOMContentLoaded', () => {

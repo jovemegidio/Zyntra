@@ -19,7 +19,36 @@ let configModalsLoaded = false;
  */
 async function abrirConfiguracao(tipo) {
     console.log('[Config Modal] Abrindo configuracao:', tipo);
-    
+
+    // Guard admin-only: SEFAZ requer privilégio
+    const ADMIN_ONLY = new Set(['sefaz-status']);
+    if (ADMIN_ONLY.has(tipo)) {
+        const ADMIN_CODES = { admin: true, administrador: true, super_admin: true, ti: true, diretoria: true };
+        const norm = v => String(v || '').toLowerCase().trim().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9_-]+/g, '_');
+        let user = null;
+        for (const key of ['userData', 'user', 'usuarioLogado']) {
+            try {
+                const raw = localStorage.getItem(key);
+                if (raw) { user = JSON.parse(raw); if (user && typeof user === 'object') break; }
+            } catch (_) {}
+        }
+        let isAdmin = false;
+        if (user) {
+            if (user.is_admin === 1 || user.is_admin === true || user.isAdmin === true) isAdmin = true;
+            else if (ADMIN_CODES[norm(user.role || user.perfil || user.cargo || user.tipo_acesso)]) isAdmin = true;
+            else {
+                const perms = user.permissions || user.permissoes;
+                const list = Array.isArray(perms) ? perms : (perms && typeof perms === 'object' ? Object.keys(perms) : []);
+                isAdmin = list.some(p => { const c = norm(p); return c === 'admin_all' || ADMIN_CODES[c]; });
+            }
+        }
+        if (!isAdmin) {
+            if (typeof showNotification === 'function') showNotification('Acesso restrito a administradores', 'warning');
+            else alert('Acesso restrito a administradores');
+            return;
+        }
+    }
+
     // Mapeamento de tipos para IDs de modal
     const modalMap = {
         'empresa': 'modal-dados-empresa',
@@ -27,6 +56,7 @@ async function abrirConfiguracao(tipo) {
         'departamentos': 'modal-departamentos',
         'projetos': 'modal-projetos',
         'certificado-digital': 'modal-certificado',
+        'sefaz-status': 'modal-sefaz-status',
         'importacao-nfe': 'modal-nfe-import',
         'funcionarios': 'modal-funcionarios',
         'cargos': 'modal-cargos',
@@ -59,7 +89,8 @@ async function abrirConfiguracao(tipo) {
         'espelho-nf': 'modal-espelho-nf',
         'baixar-aplicativo': 'modal-baixar-aplicativo',
         'bloco-k': 'modal-bloco-k',
-        'pcp-carteira-pedidos': 'modal-pcp-carteira-pedidos'
+        'pcp-carteira-pedidos': 'modal-pcp-carteira-pedidos',
+        'assistente-fiscal-ia': 'modal-assistente-fiscal-ia'
     };
 
     const modalId = modalMap[tipo];
@@ -155,7 +186,8 @@ async function abrirConfiguracao(tipo) {
         'nfse': 'NFS-e',
         'espelho-nf': 'Espelho de Nota Fiscal',
         'bloco-k': 'Bloco K — SPED Fiscal',
-        'pcp-carteira-pedidos': 'Carteira de Pedidos — PCP'
+        'pcp-carteira-pedidos': 'Carteira de Pedidos — PCP',
+        'assistente-fiscal-ia': 'Assistente Fiscal IA'
     };
     if (titleMap[tipo]) {
         document.title = 'Zyntra: Configurações — ' + titleMap[tipo];
@@ -283,6 +315,9 @@ async function abrirConfiguracao(tipo) {
         case 'pcp-carteira-pedidos':
             loadCarteiraPedidosPCPData();
             break;
+        case 'assistente-fiscal-ia':
+            if (typeof window.fiscalAI !== 'undefined') fiscalAI.init();
+            break;
     }
 }
 
@@ -397,6 +432,18 @@ function populateEmpresaForm(data) {
         const faviconName = form.querySelector('#input-favicon')?.parentElement?.querySelector('.config-file-upload-name');
         if (faviconName) faviconName.textContent = 'Favicon atual carregado';
     }
+
+    const documentLogoUrl = data.document_logo_path || data.logo_documentos_path || data.logo_url_documentos;
+    if (documentLogoUrl) {
+        const documentLogoPreview = document.getElementById('document-logo-preview');
+        if (documentLogoPreview) {
+            const img = documentLogoPreview.querySelector('img');
+            if (img) img.src = documentLogoUrl + '?v=' + Date.now();
+            documentLogoPreview.style.display = 'block';
+        }
+        const documentLogoName = form.querySelector('#input-document-logo')?.parentElement?.querySelector('.config-file-upload-name');
+        if (documentLogoName) documentLogoName.textContent = 'Logo de documentos atual carregada';
+    }
 }
 
 /**
@@ -468,6 +515,27 @@ async function saveEmpresaConfig() {
                 // Atualizar favicon em todo o sistema imediatamente
                 atualizarFaviconSistema(result.url);
             }
+        }
+
+        // Upload da logo para documentos, relatórios e DANFE
+        const documentLogoInput = document.getElementById('input-document-logo');
+        if (documentLogoInput && documentLogoInput.files[0]) {
+            const documentLogoFormData = new FormData();
+            documentLogoFormData.append('document_logo', documentLogoInput.files[0]);
+
+            const documentLogoResponse = await fetch('/api/configuracoes/upload-document-logo', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+                body: documentLogoFormData
+            });
+
+            if (!documentLogoResponse.ok) {
+                throw new Error('Erro ao enviar logo de documentos');
+            }
+
+            const result = await documentLogoResponse.json();
+            localStorage.setItem('empresa_document_logo_url', result.url);
+            localStorage.setItem('empresa_document_logo_timestamp', Date.now().toString());
         }
 
         showNotification('Dados da empresa salvos com sucesso!', 'success');
@@ -1221,7 +1289,7 @@ async function loadCustosPrecificacaoData() {
  */
 async function loadCategoriasData() {
     try {
-        const response = await fetch('/api/configuracoes/categorias');
+        const response = await fetch('/api/configuracoes/categorias?incluirFinanceiro=1&limit=500');
         if (response.ok) {
             const result = await response.json();
             const categorias = Array.isArray(result) ? result : (result.data || []);
@@ -1252,26 +1320,51 @@ function displayCategorias(categorias) {
 
     // Cores para categorias
     const cores = ['#f97316', '#eab308', '#22c55e', '#06b6d4', '#8b5cf6', '#ec4899'];
+    const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[ch]));
 
     list.innerHTML = categorias.map((cat, index) => {
         const cor = cat.cor || cores[index % cores.length];
+        const origemFinanceira = cat.origem === 'financeiro' || cat.grupo_nome || cat.pai_id;
+        const tipoLabel = cat.tipo === 'receita' ? 'Receita' : cat.tipo === 'despesa' ? 'Despesa' : '';
+        const tipoCor = cat.tipo === 'receita' ? '#166534' : '#991b1b';
+        const tipoBg = cat.tipo === 'receita' ? '#dcfce7' : '#fee2e2';
+        const descricao = origemFinanceira
+            ? [cat.grupo_nome ? `Grupo: ${cat.grupo_nome}` : '', cat.descricao || 'Categoria financeira'].filter(Boolean).join(' • ')
+            : (cat.descrição || cat.descricao || 'Sem descrição');
+        const titulo = origemFinanceira && cat.grupo_nome ? `${cat.grupo_nome} / ${cat.nome}` : cat.nome;
+        const acoes = origemFinanceira ? `
+            <span title="Categoria gerenciada pelo módulo Financeiro" style="padding: 8px 10px; border-radius: 10px; background: #f1f5f9; color: #64748b; font-size: 12px; font-weight: 600; white-space: nowrap;">
+                Financeiro
+            </span>
+        ` : `
+            <button onclick="editarCategoria(${cat.id})" title="Editar" style="width: 38px; height: 38px; border: none; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);" onmouseenter="this.style.transform='scale(1.08)';" onmouseleave="this.style.transform='scale(1)';">
+                <i class="fas fa-pen" style="font-size: 14px;"></i>
+            </button>
+            <button onclick="excluirCategoria(${cat.id})" title="Excluir" style="width: 38px; height: 38px; border: none; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);" onmouseenter="this.style.transform='scale(1.08)';" onmouseleave="this.style.transform='scale(1)';">
+                <i class="fas fa-trash-alt" style="font-size: 14px;"></i>
+            </button>
+        `;
         return `
         <div class="config-item-premium" style="display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%); border-radius: 14px; margin-bottom: 12px; border: 1px solid #e5e7eb; transition: all 0.3s ease; position: relative; overflow: hidden;" onmouseenter="this.style.transform='translateX(4px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.08)'; this.style.borderColor='${cor}40';" onmouseleave="this.style.transform='translateX(0)'; this.style.boxShadow='none'; this.style.borderColor='#e5e7eb';">
             <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: ${cor};"></div>
             <div style="width: 46px; height: 46px; background: linear-gradient(135deg, ${cor}15, ${cor}25); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                <i class="fas fa-folder" style="font-size: 20px; color: ${cor};"></i>
+                <i class="fas ${esc(cat.icone || 'fa-folder')}" style="font-size: 20px; color: ${cor};"></i>
             </div>
             <div style="flex: 1; min-width: 0;">
-                <h4 style="margin: 0 0 4px 0; font-size: 15px; font-weight: 600; color: #1f2937;">${cat.nome}</h4>
-                <p style="margin: 0; font-size: 13px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${cat.descrição || cat.descricao || 'Sem descrição'}</p>
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                    <h4 style="margin: 0 0 4px 0; font-size: 15px; font-weight: 600; color: #1f2937; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${esc(titulo)}</h4>
+                    ${tipoLabel ? `<span style="padding: 3px 8px; border-radius: 999px; background: ${tipoBg}; color: ${tipoCor}; font-size: 11px; font-weight: 700; flex-shrink: 0;">${tipoLabel}</span>` : ''}
+                </div>
+                <p style="margin: 0; font-size: 13px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(descricao)}</p>
             </div>
             <div style="display: flex; gap: 8px;">
-                <button onclick="editarCategoria(${cat.id})" title="Editar" style="width: 38px; height: 38px; border: none; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);" onmouseenter="this.style.transform='scale(1.08)';" onmouseleave="this.style.transform='scale(1)';">
-                    <i class="fas fa-pen" style="font-size: 14px;"></i>
-                </button>
-                <button onclick="excluirCategoria(${cat.id})" title="Excluir" style="width: 38px; height: 38px; border: none; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);" onmouseenter="this.style.transform='scale(1.08)';" onmouseleave="this.style.transform='scale(1)';">
-                    <i class="fas fa-trash-alt" style="font-size: 14px;"></i>
-                </button>
+                ${acoes}
             </div>
         </div>
     `;
@@ -2036,6 +2129,38 @@ var showNotification = showConfigNotification;
 // EVENTOS DE UPLOAD DE ARQUIVOS
 // =========================
 
+function handleConfigImagePreview(input, emptyLabel, previewId) {
+    const file = input.files && input.files[0];
+    const label = input.parentElement?.querySelector('.config-file-upload-name');
+    if (label) label.textContent = file ? file.name : emptyLabel;
+
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.getElementById(previewId);
+            if (preview) {
+                preview.style.display = 'block';
+                const img = preview.querySelector('img');
+                if (img) img.src = e.target.result;
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+document.addEventListener('change', function(event) {
+    const input = event.target;
+    if (!input || input.type !== 'file') return;
+
+    if (input.id === 'input-logo') {
+        handleConfigImagePreview(input, 'Nenhum arquivo selecionado', 'logo-preview');
+    } else if (input.id === 'input-favicon') {
+        handleConfigImagePreview(input, 'Nenhum favicon selecionado', 'favicon-preview');
+    } else if (input.id === 'input-document-logo') {
+        handleConfigImagePreview(input, 'Nenhuma logo de documentos selecionada', 'document-logo-preview');
+    }
+});
+
 // Atualizar nome do arquivo quando selecionado
 document.addEventListener('DOMContentLoaded', function() {
     // Logo da empresa
@@ -2076,6 +2201,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const preview = document.getElementById('favicon-preview');
+                    if (preview) {
+                        preview.style.display = 'block';
+                        preview.querySelector('img').src = e.target.result;
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    // Logo para documentos
+    const documentLogoInput = document.getElementById('input-document-logo');
+    if (documentLogoInput) {
+        documentLogoInput.addEventListener('change', function() {
+            const file = this.files[0];
+            const fileName = file ? file.name : 'Nenhuma logo de documentos selecionada';
+            const label = this.parentElement.querySelector('.config-file-upload-name');
+            if (label) label.textContent = fileName;
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('document-logo-preview');
                     if (preview) {
                         preview.style.display = 'block';
                         preview.querySelector('img').src = e.target.result;
@@ -8430,9 +8578,14 @@ function editarCondicao(id) {
                                 <input type="text" id="editar-condicao-nome" value="${cond.nome || ''}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
                             </div>
                             <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                                <div class="form-group" style="flex: 2;">
+                                    <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Dias (parcelas)</label>
+                                    <input type="text" id="editar-condicao-dias" value="${cond.dias || ''}" placeholder="Ex: 21,28,35" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                                    <small style="color:#9ca3af;font-size:11px;">Separe os vencimentos por vírgula. Ex: <strong>28,35,42</strong></small>
+                                </div>
                                 <div class="form-group" style="flex: 1;">
-                                    <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Prazo (dias)</label>
-                                    <input type="number" id="editar-condicao-dias" value="${cond.dias || 0}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                                    <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Acréscimo (%)</label>
+                                    <input type="number" step="0.01" id="editar-condicao-acrescimo" value="${cond.acrescimo || 0}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -8465,16 +8618,21 @@ function editarCondicao(id) {
 async function salvarEdicaoCondicao() {
     const id = document.getElementById('editar-condicao-id').value;
     const nome = document.getElementById('editar-condicao-nome').value.trim();
-    const dias = parseInt(document.getElementById('editar-condicao-dias').value) || 0;
+    // dias é um texto multi-valor (ex.: "21,28,35"); não fazer parseInt para não truncar.
+    const dias = (document.getElementById('editar-condicao-dias').value || '').trim();
+    const acrescimo = parseFloat(document.getElementById('editar-condicao-acrescimo')?.value) || 0;
     const descricao = document.getElementById('editar-condicao-descricao').value.trim();
-    
+    // Parcelas = quantidade de vencimentos informados.
+    const parcelas = dias ? dias.split(/[/,;]/).map(s => s.trim()).filter(Boolean).length || 1 : 1;
+
     if (!nome) return showNotification('Nome é obrigatório', 'error');
-    
+
     try {
         const response = await fetch(`/api/configuracoes/condicoes-pagamento/${id}`, {
             method: 'PUT',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nome, dias, descricao })
+            body: JSON.stringify({ nome, dias, parcelas, acrescimo, descricao })
         });
         if (response.ok) {
             showNotification('Condição atualizada com sucesso!', 'success');
@@ -8496,7 +8654,7 @@ async function excluirCondicao(id) {
     if (!confirm('Deseja realmente excluir esta condição de pagamento?')) return;
     
     try {
-        const response = await fetch(`/api/configuracoes/condicoes-pagamento/${id}`, { method: 'DELETE' });
+        const response = await fetch(`/api/configuracoes/condicoes-pagamento/${id}`, { method: 'DELETE', credentials: 'include' });
         if (response.ok) {
             showNotification('Condição excluída com sucesso!', 'success');
             loadCondicoesPagamentoData();

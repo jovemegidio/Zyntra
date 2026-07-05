@@ -6,6 +6,10 @@
 (function() {
     'use strict';
 
+    function withBasePath(path) {
+        return window.__withBasePath ? window.__withBasePath(path) : path;
+    }
+
     // Cache de permissões carregadas do servidor
     let cachedPermissions = null;
     let permissionsLoaded = false;
@@ -257,7 +261,7 @@
                 alert('Você não tem permissão para acessar este módulo.');
             }
             
-            window.location.href = redirectUrl;
+            window.location.href = withBasePath(redirectUrl);
             return false;
         }
 

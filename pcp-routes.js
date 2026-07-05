@@ -200,138 +200,130 @@ module.exports = function createPCPRoutes(deps) {
             const alertas = [];
 
             // 1. Produtos com estoque CRÍTICO (zerado)
-            try {
-                const [produtosCriticos] = await pool.query(`
-                    SELECT codigo, nome,
-                        COALESCE(estoque_atual, quantidade_estoque, 0) as estoque_atual,
-                        COALESCE(estoque_minimo, 0) as estoque_minimo,
-                        COALESCE(unidade_medida, unidade, 'UN') as unidade, categoria
-                    FROM produtos
-                    WHERE COALESCE(estoque_atual, quantidade_estoque, 0) <= 0
-                    AND (ativo = 1 OR ativo IS NULL OR status = 'ativo')
-                    AND (categoria IS NULL OR categoria != 'GERAL')
-                    ORDER BY nome ASC
-                    LIMIT 50
-                `);
-                if (produtosCriticos && produtosCriticos.length > 0) {
-                    alertas.push({
-                        tipo: 'critico',
-                        titulo: 'Produtos sem Estoque',
-                        descricao: `${produtosCriticos.length} produto(s) com estoque zerado`,
-                        icone: 'fa-exclamation-circle',
-                        cor: '#ef4444',
-                        detalhes: produtosCriticos.slice(0, 3).map(p => p.nome || p.codigo).join(', '),
-                        total: produtosCriticos.length,
-                        navegarPara: 'estoque',
-                        itens: produtosCriticos.map(p => ({
-                            codigo: p.codigo,
-                            nome: p.nome || p.codigo,
-                            estoque: parseFloat(p.estoque_atual) || 0,
-                            minimo: parseFloat(p.estoque_minimo) || 0,
-                            unidade: p.unidade || 'UN'
-                        }))
-                    });
-                }
-            } catch (e) { console.log('[PCP/ALERTAS] Query produtos críticos:', e.message); }
+            // Exclui categoria 'GERAL' (suprimentos, limpeza, escritório) — não são itens de produção PCP
+            const [produtosCriticos] = await pool.query(`
+                SELECT codigo, nome, estoque_atual, estoque_minimo, unidade_medida as unidade, categoria
+                FROM produtos
+                WHERE (estoque_atual <= 0 OR quantidade_estoque <= 0)
+                AND (ativo = 1 OR ativo IS NULL OR status = 'ativo')
+                AND (categoria IS NULL OR categoria != 'GERAL')
+                ORDER BY nome ASC
+                LIMIT 50
+            `);
+
+            if (produtosCriticos && produtosCriticos.length > 0) {
+                alertas.push({
+                    tipo: 'critico',
+                    titulo: 'Produtos sem Estoque',
+                    descricao: `${produtosCriticos.length} produto(s) com estoque zerado`,
+                    icone: 'fa-exclamation-circle',
+                    cor: '#ef4444',
+                    detalhes: produtosCriticos.slice(0, 3).map(p => p.nome || p.codigo).join(', '),
+                    total: produtosCriticos.length,
+                    navegarPara: 'estoque',
+                    itens: produtosCriticos.map(p => ({
+                        codigo: p.codigo,
+                        nome: p.nome || p.codigo,
+                        estoque: parseFloat(p.estoque_atual) || 0,
+                        minimo: parseFloat(p.estoque_minimo) || 0,
+                        unidade: p.unidade || 'UN'
+                    }))
+                });
+            }
 
             // 2. Produtos com estoque BAIXO (abaixo do mínimo)
-            try {
-                const [produtosBaixo] = await pool.query(`
-                    SELECT codigo, nome,
-                        COALESCE(estoque_atual, quantidade_estoque, 0) as estoque_atual,
-                        COALESCE(estoque_minimo, 0) as estoque_minimo,
-                        COALESCE(unidade_medida, unidade, 'UN') as unidade, categoria
-                    FROM produtos
-                    WHERE COALESCE(estoque_atual, quantidade_estoque, 0) > 0
-                    AND COALESCE(estoque_atual, quantidade_estoque, 0) < COALESCE(estoque_minimo, 10)
-                    AND COALESCE(estoque_minimo, 10) > 0
-                    AND (ativo = 1 OR ativo IS NULL OR status = 'ativo')
-                    AND (categoria IS NULL OR categoria != 'GERAL')
-                    ORDER BY estoque_atual ASC
-                    LIMIT 50
-                `);
-                if (produtosBaixo && produtosBaixo.length > 0) {
-                    alertas.push({
-                        tipo: 'warning',
-                        titulo: 'Estoque Baixo',
-                        descricao: `${produtosBaixo.length} produto(s) abaixo do estoque mínimo`,
-                        icone: 'fa-box-open',
-                        cor: '#f59e0b',
-                        detalhes: produtosBaixo.slice(0, 3).map(p => p.nome || p.codigo).join(', '),
-                        total: produtosBaixo.length,
-                        navegarPara: 'estoque',
-                        itens: produtosBaixo.map(p => ({
-                            codigo: p.codigo,
-                            nome: p.nome || p.codigo,
-                            estoque: parseFloat(p.estoque_atual) || 0,
-                            minimo: parseFloat(p.estoque_minimo) || 0,
-                            unidade: p.unidade || 'UN'
-                        }))
-                    });
-                }
-            } catch (e) { console.log('[PCP/ALERTAS] Query produtos baixo estoque:', e.message); }
+            // Exclui categoria 'GERAL' (suprimentos, limpeza, escritório) — não são itens de produção PCP
+            const [produtosBaixo] = await pool.query(`
+                SELECT codigo, nome, estoque_atual, estoque_minimo, unidade_medida as unidade, categoria
+                FROM produtos
+                WHERE estoque_atual > 0
+                AND estoque_atual < COALESCE(estoque_minimo, 10)
+                AND COALESCE(estoque_minimo, 10) > 0
+                AND (ativo = 1 OR ativo IS NULL OR status = 'ativo')
+                AND (categoria IS NULL OR categoria != 'GERAL')
+                ORDER BY estoque_atual ASC
+                LIMIT 50
+            `);
+
+            if (produtosBaixo && produtosBaixo.length > 0) {
+                alertas.push({
+                    tipo: 'warning',
+                    titulo: 'Estoque Baixo',
+                    descricao: `${produtosBaixo.length} produto(s) abaixo do estoque mínimo`,
+                    icone: 'fa-box-open',
+                    cor: '#f59e0b',
+                    detalhes: produtosBaixo.slice(0, 3).map(p => p.nome || p.codigo).join(', '),
+                    total: produtosBaixo.length,
+                    navegarPara: 'estoque',
+                    itens: produtosBaixo.map(p => ({
+                        codigo: p.codigo,
+                        nome: p.nome || p.codigo,
+                        estoque: parseFloat(p.estoque_atual) || 0,
+                        minimo: parseFloat(p.estoque_minimo) || 0,
+                        unidade: p.unidade || 'UN'
+                    }))
+                });
+            }
 
             // 3. Ordens de Produção em atraso
-            try {
-                const [ordensAtraso] = await pool.query(`
-                    SELECT id, codigo, produto_nome, data_previsao_entrega, status, cliente
-                    FROM ordens_producao
-                    WHERE data_previsao_entrega < CURDATE()
-                    AND status NOT IN ('concluida', 'Concluída', 'cancelada', 'Cancelada', 'entregue', 'finalizada')
-                    ORDER BY data_previsao_entrega ASC
-                    LIMIT 20
-                `);
-                if (ordensAtraso && ordensAtraso.length > 0) {
-                    alertas.push({
-                        tipo: 'critico',
-                        titulo: 'Ordens em Atraso',
-                        descricao: `${ordensAtraso.length} ordem(s) com prazo vencido`,
-                        icone: 'fa-clock',
-                        cor: '#ef4444',
-                        detalhes: ordensAtraso.slice(0, 3).map(o => `OP #${o.id}`).join(', '),
-                        total: ordensAtraso.length,
-                        navegarPara: 'ordens',
-                        itens: ordensAtraso.map(o => ({
-                            codigo: `OP #${o.id}`,
-                            nome: o.produto_nome || o.codigo || `OP #${o.id}`,
-                            info: o.cliente || '',
-                            data: o.data_previsao_entrega,
-                            status: o.status
-                        }))
-                    });
-                }
-            } catch (e) { console.log('[PCP/ALERTAS] Query ordens atraso:', e.message); }
+            const [ordensAtraso] = await pool.query(`
+                SELECT id, codigo, produto_nome, data_previsao_entrega, status, cliente
+                FROM ordens_producao
+                WHERE data_previsao_entrega < CURDATE()
+                AND status NOT IN ('concluida', 'Concluída', 'cancelada', 'Cancelada', 'entregue', 'finalizada')
+                ORDER BY data_previsao_entrega ASC
+                LIMIT 20
+            `);
+
+            if (ordensAtraso && ordensAtraso.length > 0) {
+                alertas.push({
+                    tipo: 'critico',
+                    titulo: 'Ordens em Atraso',
+                    descricao: `${ordensAtraso.length} ordem(s) com prazo vencido`,
+                    icone: 'fa-clock',
+                    cor: '#ef4444',
+                    detalhes: ordensAtraso.slice(0, 3).map(o => `OP #${o.id}`).join(', '),
+                    total: ordensAtraso.length,
+                    navegarPara: 'ordens',
+                    itens: ordensAtraso.map(o => ({
+                        codigo: `OP #${o.id}`,
+                        nome: o.produto_nome || o.codigo || `OP #${o.id}`,
+                        info: o.cliente || '',
+                        data: o.data_previsao_entrega,
+                        status: o.status
+                    }))
+                });
+            }
 
             // 4. Ordens pendentes há mais de 7 dias
-            try {
-                const [ordensPendentes] = await pool.query(`
-                    SELECT id, codigo, produto_nome, created_at, status, cliente
-                    FROM ordens_producao
-                    WHERE status IN ('pendente', 'a_produzir', 'A Fazer')
-                    AND created_at < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-                    ORDER BY created_at ASC
-                    LIMIT 20
-                `);
-                if (ordensPendentes && ordensPendentes.length > 0) {
-                    alertas.push({
-                        tipo: 'warning',
-                        titulo: 'Ordens Pendentes',
-                        descricao: `${ordensPendentes.length} ordem(s) aguardando há mais de 7 dias`,
-                        icone: 'fa-hourglass-half',
-                        cor: '#f59e0b',
-                        detalhes: ordensPendentes.slice(0, 3).map(o => `OP #${o.id}`).join(', '),
-                        total: ordensPendentes.length,
-                        navegarPara: 'ordens',
-                        itens: ordensPendentes.map(o => ({
-                            codigo: `OP #${o.id}`,
-                            nome: o.produto_nome || o.codigo || `OP #${o.id}`,
-                            info: o.cliente || '',
-                            data: o.created_at,
-                            status: o.status
-                        }))
-                    });
-                }
-            } catch (e) { console.log('[PCP/ALERTAS] Query ordens pendentes:', e.message); }
+            const [ordensPendentes] = await pool.query(`
+                SELECT id, codigo, produto_nome, created_at, status, cliente
+                FROM ordens_producao
+                WHERE status IN ('pendente', 'a_produzir', 'A Fazer')
+                AND created_at < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                ORDER BY created_at ASC
+                LIMIT 20
+            `);
+
+            if (ordensPendentes && ordensPendentes.length > 0) {
+                alertas.push({
+                    tipo: 'warning',
+                    titulo: 'Ordens Pendentes',
+                    descricao: `${ordensPendentes.length} ordem(s) aguardando há mais de 7 dias`,
+                    icone: 'fa-hourglass-half',
+                    cor: '#f59e0b',
+                    detalhes: ordensPendentes.slice(0, 3).map(o => `OP #${o.id}`).join(', '),
+                    total: ordensPendentes.length,
+                    navegarPara: 'ordens',
+                    itens: ordensPendentes.map(o => ({
+                        codigo: `OP #${o.id}`,
+                        nome: o.produto_nome || o.codigo || `OP #${o.id}`,
+                        info: o.cliente || '',
+                        data: o.created_at,
+                        status: o.status
+                    }))
+                });
+            }
 
             // 5. Materiais com estoque baixo
             try {
@@ -1284,6 +1276,31 @@ module.exports = function createPCPRoutes(deps) {
                 }
             }
 
+            // FALHA 4: detectar OP duplicada quando NÃO há vínculo de pedido_id
+            // (mesmo produto + quantidade criados nos últimos 30 min). Sobreponível via confirmar_duplicata.
+            if (!pedido_id && !req.body.confirmar_duplicata) {
+                const nomeProdutoDup = produto || (produtos && produtos[0]?.descricao) || '';
+                const qtdDup = quantidade || (produtos && produtos[0]?.quantidade) || 0;
+                if (nomeProdutoDup && qtdDup) {
+                    const [dupRows] = await connection.query(
+                        `SELECT id, codigo FROM ordens_producao
+                         WHERE produto_nome LIKE ? AND quantidade = ?
+                         AND status NOT IN ('cancelada', 'concluida', 'finalizada')
+                         AND created_at >= DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+                         ORDER BY id DESC LIMIT 1`,
+                        [`%${nomeProdutoDup}%`, qtdDup]
+                    );
+                    if (dupRows.length > 0) {
+                        await connection.rollback();
+                        return res.status(409).json({
+                            duplicata: true,
+                            message: `Já existe uma OP recente (${dupRows[0].codigo}) para "${nomeProdutoDup}" com a mesma quantidade. Confirme para criar mesmo assim.`,
+                            op_existente: dupRows[0]
+                        });
+                    }
+                }
+            }
+
             // Gerar código da ordem (com FOR UPDATE para evitar race condition P-04)
             const [ultimaOrdem] = await connection.query(`
                 SELECT codigo FROM ordens_producao
@@ -2142,11 +2159,15 @@ module.exports = function createPCPRoutes(deps) {
             const q = (req.query.q || '').trim();
             const like = `%${q}%`;
 
-            let sql = 'SELECT id, codigo, nome, descricao, sku, gtin, unidade_medida as unidade, COALESCE(preco_venda, preco_custo, 0) as preco, status, familia, categoria, estoque_atual, estoque_minimo FROM produtos';
+            // FALHA 1: alinhar contagem do Estoque PCP com o dashboard
+            // (exclui inativos e categoria 'GERAL' — não são itens de produção PCP)
+            const baseFiltroProdutos = "(ativo = 1 OR ativo IS NULL) AND (categoria IS NULL OR categoria != 'GERAL')";
+
+            let sql = 'SELECT id, codigo, nome, descricao, sku, gtin, unidade_medida as unidade, COALESCE(preco_venda, preco_custo, 0) as preco, status, familia, categoria, estoque_atual, estoque_minimo FROM produtos WHERE ' + baseFiltroProdutos;
             let params = [];
 
             if (q) {
-                sql += ' WHERE codigo LIKE ? OR descricao LIKE ? OR nome LIKE ?';
+                sql += ' AND (codigo LIKE ? OR descricao LIKE ? OR nome LIKE ?)';
                 params.push(like, like, like);
             }
 
@@ -2155,11 +2176,11 @@ module.exports = function createPCPRoutes(deps) {
 
             const [rows] = await pool.query(sql, params);
 
-            // Contar total
-            let countSql = 'SELECT COUNT(*) as total FROM produtos';
+            // Contar total com o mesmo filtro do dashboard (FALHA 1 — consistência)
+            let countSql = 'SELECT COUNT(*) as total FROM produtos WHERE ' + baseFiltroProdutos;
             let countParams = [];
             if (q) {
-                countSql += ' WHERE codigo LIKE ? OR descricao LIKE ? OR nome LIKE ?';
+                countSql += ' AND (codigo LIKE ? OR descricao LIKE ? OR nome LIKE ?)';
                 countParams.push(like, like, like);
             }
             const [countResult] = await pool.query(countSql, countParams);

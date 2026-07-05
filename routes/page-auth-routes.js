@@ -276,8 +276,21 @@ module.exports = function mountPageRoutes(app, { authenticatePage, userPermissio
 
     app.get('/modules/Financeiro/financeiro.html', authenticatePage, (req, res) => res.redirect('/modules/Financeiro/index.html'));
 
-    // Faturamento / Logistica / Financeiro — rotas raiz tratadas em server.js
-    // (redirects anteriores removidos: conflitavam com wildcards e usavam permissoes inexistente no JWT)
+    // Faturamento
+    app.get('/modules/Faturamento/index.html', authenticatePage, (req, res) => {
+        if (req.user && req.user.permissoes && req.user.permissoes.includes('nfe')) {
+            res.sendFile(path.join(__dirname, '..', 'modules', 'Faturamento', 'public', 'dashboard.html'));
+        } else {
+            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Faturamento.</p>');
+        }
+    });
+
+    app.get('/Faturamento/', authenticatePage, (req, res) => res.redirect('/modules/Faturamento/index.html'));
+    app.get('/Financeiro/', authenticatePage, (req, res) => res.redirect('/modules/Financeiro/index.html'));
+    app.get('/Financeiro/centros-custo', authenticatePage, modulePageHandler('financeiro', 'modules/Financeiro/centros-custo.html'));
+    app.get('/Financeiro/centros-custo.html', authenticatePage, modulePageHandler('financeiro', 'modules/Financeiro/centros-custo.html'));
+    app.get('/Financeiro/contas-receber', authenticatePage, modulePageHandler('financeiro', 'modules/Financeiro/contas-receber.html'));
+    app.get('/Financeiro/contas-pagar', authenticatePage, modulePageHandler('financeiro', 'modules/Financeiro/contas-pagar.html'));
 
     // NFe legacy redirects
     app.get('/e-Nf-e/nfe.html', authenticatePage, (req, res) => res.redirect('/NFe/nfe.html'));
@@ -293,5 +306,38 @@ module.exports = function mountPageRoutes(app, { authenticatePage, userPermissio
         '/Compras/login', '/Compras/login.html'
     ], (req, res) => {
         return res.redirect('/login.html');
+    });
+
+    // =====================================================================
+    // ZYNTRA STORE + add-ons contratáveis
+    // A loja é visível a qualquer usuário autenticado. As páginas dos add-ons
+    // são servidas a autenticados; o gating real (ocultar/bloquear) acontece
+    // no client (store-entitlements.js) e na API (requireEntitlement).
+    // =====================================================================
+    const servePublic = (file) => (req, res) => {
+        if (!(req.user && (req.user.nome || req.user.email))) return res.redirect('/login.html');
+        const full = path.join(__dirname, '..', 'public', file);
+        if (fs.existsSync(full)) return res.sendFile(full);
+        return res.status(404).send('<h1>Página não encontrada</h1>');
+    };
+
+    // Loja
+    app.get(['/Loja', '/loja', '/store.html', '/Store'], authenticatePage, servePublic('store.html'));
+    // BI Avançado
+    app.get(['/BI', '/bi', '/bi.html'], authenticatePage, servePublic('bi.html'));
+    // Integração E-commerce
+    app.get(['/Ecommerce', '/ecommerce', '/ecommerce.html'], authenticatePage, servePublic('ecommerce.html'));
+    // Integração Bancária (UI de configuração)
+    app.get(['/Integracoes/bancaria', '/integracao-bancaria.html'], authenticatePage, servePublic('integracao-bancaria.html'));
+    // eSocial
+    app.get(['/eSocial', '/esocial', '/esocial.html'], authenticatePage, servePublic('esocial.html'));
+    // Emissão de CT-e (reusa a página existente do módulo Vendas)
+    app.get(['/CTe', '/cte', '/cte.html'], authenticatePage, (req, res) => {
+        const candidates = [
+            path.join(__dirname, '..', 'public', 'cte.html'),
+            path.join(__dirname, '..', 'modules', 'Vendas', 'public', 'cte.html')
+        ];
+        for (const c of candidates) { if (fs.existsSync(c)) return res.sendFile(c); }
+        return res.status(404).send('<h1>Página não encontrada</h1>');
     });
 };

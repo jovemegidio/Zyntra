@@ -78,7 +78,7 @@ function createClientesRouter(pool, authenticateToken, registrarAuditLog) {
                     cnpj LIKE ?
                 )`;
                 const termoLike = `%${termoBusca}%`;
-                params = [termoLike, termoLike, termoLike, termoLike, termoLike];
+                params.push(termoLike, termoLike, termoLike, termoLike, termoLike);
             }
             
             // AUDIT-FIX S10.2: Parametrize LIMIT to prevent template-literal SQL injection

@@ -177,7 +177,7 @@ function showLoading(message = 'Carregando...') {
         overlay.innerHTML = `
             <div class="loading-content">
                 <div class="loading-spinner" style="width: 48px; height: 48px;"></div>
-                <p class="loading-message">${message}</p>
+                <p class="loading-message"></p>
             </div>
         `;
         overlay.style.cssText = `
@@ -204,6 +204,9 @@ function showLoading(message = 'Carregando...') {
         `;
         document.body.appendChild(overlay);
     }
+    // Sempre atualizar a mensagem (overlay pode ter sido criado com mensagem antiga)
+    const msgEl = overlay.querySelector('.loading-message');
+    if (msgEl) msgEl.textContent = message;
     overlay.style.display = 'flex';
 }
 

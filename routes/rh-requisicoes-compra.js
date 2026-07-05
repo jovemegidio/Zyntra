@@ -46,27 +46,12 @@ module.exports = function createRHRequisicoesCompraRoutes(deps) {
     // GET /api/rh/requisicoes-compra — listar todas
     router.get('/requisicoes-compra', authenticateToken, async (req, res) => {
         try {
-            // CRIT-08: incluir requisições do módulo Compras (requisicoes_compra) além das do RH
-            const [rhRows] = await pool.query(`
-                SELECT r.id, r.numero_requisicao AS numero, r.solicitante,
-                       r.departamento AS centro_custo, r.data_pedido AS data_solicitacao,
-                       r.data_necessaria AS data_necessidade, r.prioridade, r.observacoes,
-                       r.status, r.valor_total AS valor_estimado, r.created_at,
-                       'rh' AS _origem, pc.numero_pedido AS numero_pedido_compras
+            const [requisicoes] = await pool.query(`
+                SELECT r.*, pc.numero_pedido AS numero_pedido_compras
                 FROM rh_requisicoes_compra r
                 LEFT JOIN pedidos_compra pc ON pc.origem = 'RH' AND pc.ordem_compra_pcp_id = r.id
+                ORDER BY r.created_at DESC
             `);
-            const [comprasRows] = await pool.query(`
-                SELECT r.id, r.numero, r.solicitante,
-                       r.centro_custo, r.data_solicitacao,
-                       r.data_necessidade, r.prioridade, r.observacoes,
-                       r.status, r.valor_estimado, r.created_at,
-                       'compras' AS _origem, NULL AS numero_pedido_compras
-                FROM requisicoes_compra r
-            `);
-            const requisicoes = [...rhRows, ...comprasRows].sort(
-                (a, b) => new Date(b.created_at) - new Date(a.created_at)
-            );
             res.json({ requisicoes });
         } catch (err) {
             console.error('[RH-REQUISICOES] Erro ao listar:', err);

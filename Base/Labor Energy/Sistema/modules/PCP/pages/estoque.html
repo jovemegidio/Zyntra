@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
@@ -150,7 +150,8 @@
     <script src="/js/tooltips-professional.js?v=20260209"></script>
 
     <!-- Global Header & Sidebar -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260224">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260621b" defer></script>
 
     <!-- PCP Header & Sidebar  Design Refinado (DEVE SER O ÚLTIMO) -->
     <link rel="stylesheet" href="../css/pcp-header-sidebar.css?v=20260224">
@@ -174,6 +175,7 @@
                 <a href="gestao-producao.html" class="sidebar-btn" title="Gestão de Produção"><i class="fas fa-industry"></i></a>
                 <a href="faturamento.html" class="sidebar-btn" title="Faturamento"><i class="fas fa-file-invoice-dollar"></i></a>
                 <a href="../apontamentos.html" class="sidebar-btn" title="Apontamentos"><i class="fas fa-stopwatch"></i></a>
+                <a href="qualidade.html" class="sidebar-btn" title="Qualidade"><i class="fas fa-award"></i></a>
                 <a href="relatorios.html" class="sidebar-btn" title="Central de Relatórios"><i class="fas fa-chart-pie"></i></a>
             </nav>
             <div class="sidebar-bottom">
@@ -199,12 +201,11 @@
                     </div>
                 </div>
                 <div class="header-right">
-                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    
                     <div class="user-greeting">
                         <span id="saudacao">Bom dia,</span>
                         <strong id="userName">Usuário</strong>
                     </div>
-                    <div class="user-avatar"><span id="userInitial">U</span></div>
                 </div>
             </header>
 
@@ -264,7 +265,7 @@
                     <div class="tabs">
                         <button class="tab-btn active" data-tab="todos"><i class="fas fa-list"></i> Todos os Produtos</button>
                         <button class="tab-btn" data-tab="estoque-baixo"><i class="fas fa-exclamation-triangle"></i> Estoque Baixo</button>
-                        <button class="tab-btn" data-tab="movimentacoes"><i class="fas fa-exchange-alt"></i> Movimentações</button>
+                        <button class="tab-btn" data-tab="movimentações"><i class="fas fa-exchange-alt"></i> Movimentações</button>
                         <button class="tab-btn" data-tab="categorias"><i class="fas fa-tags"></i> Categorias</button>
                     </div>
 
@@ -273,7 +274,7 @@
                         <button class="btn btn-success" onclick="abrirEntradaRapida()"><i class="fas fa-arrow-up"></i> Entrada Rápida</button>
                         <button class="btn btn-danger" onclick="abrirSaidaRapida()"><i class="fas fa-arrow-down"></i> Saída Rápida</button>
                         <button class="btn btn-warning" onclick="abrirAjusteInventario()"><i class="fas fa-sliders-h"></i> Ajuste de Inventário</button>
-                        <button class="btn btn-secondary" onclick="verHistorico()"><i class="fas fa-history"></i> Histórico</button>
+                        <button class="btn btn-secondary" onclick="verHistórico()"><i class="fas fa-history"></i> Histórico</button>
                     </div>
 
                     <!-- Barra de Busca + Tabela (switchable content) -->
@@ -347,7 +348,7 @@
                         <div class="card">
                             <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
                                 <h3 class="card-title"><i class="fas fa-exchange-alt"></i> Histórico de Movimentações</h3>
-                                <button class="btn btn-sm btn-secondary" onclick="movimentacoesCarregadas=false;carregarMovimentacoesGlobal()" title="Atualizar"><i class="fas fa-sync-alt"></i> Atualizar</button>
+                                <button class="btn btn-sm btn-secondary" onclick="movimentaçõesCarregadas=false;carregarMovimentaçõesGlobal()" title="Atualizar"><i class="fas fa-sync-alt"></i> Atualizar</button>
                             </div>
                             <div class="card-body" style="padding: 0;">
                                 <div id="tab-movimentacoes-content">
@@ -389,10 +390,9 @@
             </div>
             <div style="padding:16px 24px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:12px;">
                 <button onclick="fecharModalImportar()" style="padding:12px 24px;background:#f1f5f9;border:none;border-radius:10px;font-weight:600;color:#64748b;cursor:pointer;">Cancelar</button>
-                <button id="btn-confirmar-import-pcp" onclick="executarImportacao()" style="display:none;padding:12px 28px;background:linear-gradient(135deg,#7c3aed,#8b5cf6);border:none;border-radius:10px;font-weight:600;color:white;cursor:pointer;box-shadow:0 4px 14px rgba(124,58,237,0.3);align-items:center;gap:6px;"><i class="fas fa-upload"></i> Importar Dados</button>
+                <button id="btn-confirmar-import-pcp" onclick="executarImportação()" style="display:none;padding:12px 28px;background:linear-gradient(135deg,#7c3aed,#8b5cf6);border:none;border-radius:10px;font-weight:600;color:white;cursor:pointer;box-shadow:0 4px 14px rgba(124,58,237,0.3);align-items:center;gap:6px;"><i class="fas fa-upload"></i> Importar Dados</button>
             </div>
         </div>
-    </div>
     </div>
 
     <!-- ============================================
@@ -409,7 +409,7 @@
                         <i class="fas fa-circle" style="font-size: 6px; margin-right: 4px;"></i> Em Estoque
                     </span>
                 </div>
-                <button onclick="fecharModalVisualizacao()" style="color: #666; background: none; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <button onclick="fecharModalVisualização()" style="color: #666; background: none; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                     Fechar <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -464,7 +464,7 @@
                         <button class="view-tab" onclick="mudarAbaView('estoque', this)" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; white-space: nowrap;">Estoque</button>
                         <button class="view-tab" onclick="mudarAbaView('custos', this)" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; white-space: nowrap;">Custos</button>
                         <button class="view-tab" onclick="mudarAbaView('info', this)" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; white-space: nowrap;">Informações</button>
-                        <button class="view-tab" onclick="mudarAbaView('historico', this)" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; white-space: nowrap;">Movimentações</button>
+                        <button class="view-tab" onclick="mudarAbaView('histórico', this)" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; white-space: nowrap;">Movimentações</button>
                         <button class="view-tab" onclick="mudarAbaView('obs', this)" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; white-space: nowrap;">Observações</button>
                     </div>
 
@@ -1664,14 +1664,40 @@
             // API pode retornar estoque_atual ou estoque
             const baixo = produtosData.filter(p => {
                 const estoque = p.estoque_atual ?? p.estoque ?? 0;
-                const minimo = p.estoque_minimo ?? 10;
-                return estoque <= minimo;
+                const minimo = p.estoque_minimo ?? p.minimo ?? null;
+                return minimo !== null && estoque <= minimo;
             }).length;
             const normal = total - baixo;
 
             document.getElementById('produtos-total').textContent = total;
             document.getElementById('produtos-normal').textContent = normal;
             document.getElementById('produtos-baixo').textContent = baixo;
+
+            // Carregar total de materiais (mesma fonte da página de Materiais)
+            carregarTotalMateriais();
+        }
+
+        async function carregarTotalMateriais() {
+            const el = document.getElementById('materiais-total');
+            if (!el) return;
+            try {
+                const base = (window.getAPIBase && window.getAPIBase()) || '';
+                const r = await fetch(`${base}/api/pcp/materiais?com_recebimento=true&limit=1000`, {
+                    credentials: 'include'
+                });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const data = await r.json();
+                const arr = Array.isArray(data) ? data : (data.rows || data.materiais || []);
+                // Filtrar materiais migrados (mesmo critério da tela de Materiais)
+                const visiveis = arr.filter(m => {
+                    const status = String(m.status || '').toUpperCase();
+                    return status !== 'MIGRADO_PARA_PRODUTOS';
+                });
+                el.textContent = visiveis.length;
+            } catch (e) {
+                console.warn('[ESTOQUE] Total de materiais indisponível:', e.message);
+                el.textContent = '—';
+            }
         }
 
         function renderizarProdutos() {
@@ -1682,7 +1708,7 @@
 
             let filtrados = produtosData.filter(p => {
                 const estoque = p.estoque_atual ?? p.estoque ?? 0;
-                const minimo = p.estoque_minimo ?? 10;
+                const minimo = p.estoque_minimo ?? p.minimo ?? null;
                 const matchSearch = !searchTerm ||
                     (p.codigo && p.codigo.toLowerCase().includes(searchTerm)) ||
                     (p.nome && p.nome.toLowerCase().includes(searchTerm)) ||
@@ -1690,8 +1716,8 @@
                     (p.sku && p.sku.toLowerCase().includes(searchTerm));
                 const matchCategoria = !categoria || p.categoria === categoria;
                 const matchStatus = !statusEstoque ||
-                    (statusEstoque === 'baixo' && estoque <= minimo) ||
-                    (statusEstoque === 'normal' && estoque > minimo);
+                    (statusEstoque === 'baixo' && minimo !== null && estoque <= minimo) ||
+                    (statusEstoque === 'normal' && (minimo === null || estoque > minimo));
                 return matchSearch && matchCategoria && matchStatus;
             });
 
@@ -1710,7 +1736,8 @@
             tbody.innerHTML = filtrados.map(p => {
                 const estoque = p.estoque_atual ?? p.estoque ?? 0;
                 const cancelado = Number(p.estoque_cancelado || 0);
-                const minimo = p.estoque_minimo ?? 10;
+                const minimo = p.estoque_minimo ?? p.minimo ?? null;
+                const isBaixo = minimo !== null && estoque <= minimo;
                 return `
                 <tr>
                     <td><strong>${p.codigo || '-'}</strong></td>
@@ -1719,11 +1746,11 @@
                     <td><span class="badge badge-gray">${p.categoria || '-'}</span></td>
                     <td>${estoque}</td>
                     <td>${cancelado > 0 ? `<span class="badge" style="background: #ff9800; color: #fff; padding: 2px 8px; border-radius: 4px;" title="Estoque de pedidos cancelados">${cancelado}</span>` : '<span style="color: var(--gray-400);">-</span>'}</td>
-                    <td>${minimo}</td>
+                    <td>${minimo !== null ? minimo : '-'}</td>
                     <td>${formatarMoeda(p.preco_venda || p.preco)}</td>
                     <td>
-                        <span class="status-badge ${estoque <= minimo ? 'pendente' : 'concluido'}">
-                            ${estoque <= minimo ? 'Baixo' : 'Normal'}
+                        <span class="status-badge ${isBaixo ? 'pendente' : 'concluido'}">
+                            ${isBaixo ? 'Baixo' : 'Normal'}
                         </span>
                     </td>
                     <td>
@@ -1741,10 +1768,10 @@
         function abrirEntradaRapida() { abrirModalMovimentacao('entrada'); }
         function abrirSaidaRapida() { abrirModalMovimentacao('saida'); }
         function abrirAjusteInventario() { abrirModalMovimentacao('ajuste'); }
-        function verHistorico() {
+        function verHistórico() {
             // Toggle na seção de histórico se o modal estiver aberto
             if (produtoAtual) {
-                toggleHistorico();
+                toggleHistórico();
             }
         }
 
@@ -1757,14 +1784,14 @@
                 return;
             }
             produtoAtual = produto;
-            preencherModalVisualizacao(produto);
+            preencherModalVisualização(produto);
             document.getElementById('modal-visualizar-produto').classList.add('active');
 
             // Carregar histórico de movimentações
             carregarHistoricoProduto(produto.id);
         }
 
-        function preencherModalVisualizacao(p) {
+        function preencherModalVisualização(p) {
             // Header
             document.getElementById('view-produto-nome').textContent = p.nome || p.descricao || 'Produto';
             document.getElementById('view-produto-codigo').textContent = p.codigo || '-';
@@ -1853,7 +1880,7 @@
             // Observações (aba Obs)
             const elObs = document.getElementById('view-observacoes');
             if (elObs) {
-                elObs.textContent = (p.observacoes && p.observacoes.trim()) ? p.observacoes : 'Nenhuma observação registrada.';
+                elObs.textContent = (p.observações && p.observações.trim()) ? p.observações : 'Nenhuma observação registrada.';
             }
 
             // Datas (rodapé da aba Resumo)
@@ -1884,7 +1911,7 @@
             }
         }
 
-        function fecharModalVisualizacao() {
+        function fecharModalVisualização() {
             document.getElementById('modal-visualizar-produto').classList.remove('active');
         }
 
@@ -1901,7 +1928,7 @@
 
             try {
                 const API_BASE = getAPIBase();
-                const response = await fetch(`${API_BASE}/api/pcp/estoque/movimentacoes?produto_id=${produtoId}&limit=20`, {
+                const response = await fetch(`${API_BASE}/api/pcp/estoque/movimentações?produto_id=${produtoId}&limit=20`, {
                     credentials: 'include'
                 });
 
@@ -1909,7 +1936,7 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    const movs = data.rows || data.movimentacoes || data || [];
+                    const movs = data.rows || data.movimentações || data || [];
 
                     if (movs.length === 0) {
                         empty.style.display = 'flex';
@@ -1937,7 +1964,7 @@
                                 </div>
                                 <div class="history-info">
                                     <div class="history-title">${tipo.charAt(0).toUpperCase() + tipo.slice(1)}</div>
-                                    <div class="history-desc">${m.observacoes || m.motivo || m.referencia || 'Movimentação registrada'}</div>
+                                    <div class="history-desc">${m.observações || m.motivo || m.referencia || 'Movimentação registrada'}</div>
                                 </div>
                                 <div class="history-meta">
                                     <div class="history-qty ${qtyClass}">${qtyPrefix}${m.quantidade || 0}</div>
@@ -1960,21 +1987,21 @@
 
         // Ações do Modal de Visualização
         function abrirEdicaoProduto() {
-            fecharModalVisualizacao();
+            fecharModalVisualização();
             if (produtoAtual) {
                 editarProduto(produtoAtual.id);
             }
         }
 
         function registrarEntradaView() {
-            fecharModalVisualizacao();
+            fecharModalVisualização();
             if (produtoAtual && typeof abrirModalMovimentacao === 'function') {
                 abrirModalMovimentacao('entrada', produtoAtual);
             }
         }
 
         function registrarSaidaView() {
-            fecharModalVisualizacao();
+            fecharModalVisualização();
             if (produtoAtual && typeof abrirModalMovimentacao === 'function') {
                 abrirModalMovimentacao('saida', produtoAtual);
             }
@@ -2120,17 +2147,17 @@
             let etiquetas = [];
             produtos.forEach((p, i) => {
                 const qty = parseInt(document.getElementById('etq-qty-' + i)?.value || 1);
-                const codigoCores = p.codigo_cores || p.cor || '';
+                const códigoCores = p.codigo_cores || p.cor || '';
 
                 // Verificar se tem múltiplas cores (ex: "PT/CZ/AZ" ou "PT, CZ, AZ")
-                const coresArr = codigoCores ? codigoCores.split(/[\/,;\s]+/).map(c => c.trim().toUpperCase()).filter(c => c) : [];
+                const coresArr = códigoCores ? códigoCores.split(/[\/,;\s]+/).map(c => c.trim().toUpperCase()).filter(c => c) : [];
 
                 if (coresArr.length > 1) {
                     // Gerar uma etiqueta por cor disponível
-                    coresArr.forEach(corCodigo => {
-                        const corInfo = CORES_CABOS[corCodigo] || { nome: corCodigo, hex: '#64748b', textColor: '#fff' };
+                    coresArr.forEach(corCódigo => {
+                        const corInfo = CORES_CABOS[corCódigo] || { nome: corCódigo, hex: '#64748b', textColor: '#fff' };
                         for (let q = 0; q < qty; q++) {
-                            etiquetas.push({ ...p, _corAtual: corCodigo, _corInfo: corInfo });
+                            etiquetas.push({ ...p, _corAtual: corCódigo, _corInfo: corInfo });
                         }
                     });
                 } else {
@@ -2213,7 +2240,7 @@
         letter-spacing: 1.5px;
         text-transform: uppercase;
     }
-    .etq-top-bar .etq-codigo-pill {
+    .etq-top-bar .etq-código-pill {
         background: rgba(255,255,255,0.18);
         padding: 1mm 3mm;
         border-radius: 3px;
@@ -2363,7 +2390,7 @@
                     const idx = f + i;
                     if (idx < etiquetas.length) {
                         const p = etiquetas[idx];
-                        const codigo = p.codigo || '-';
+                        const código = p.codigo || '-';
                         const nome = p.nome || p.descricao || 'Produto';
                         const precoNum = parseFloat(p.preco_venda || p.preco || 0);
                         const preco = precoNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -2383,7 +2410,7 @@
 
                         // QR Code data: código do produto + localização
                         const qrData = JSON.stringify({
-                            cod: codigo,
+                            cod: código,
                             loc: { alm: almoxarifado, cor: corredor, prt: prateleira, pos: posicao },
                             nome: nome.substring(0, 50),
                             un: unidade
@@ -2398,7 +2425,7 @@
                         <div class="etq-logo-area">
                             <img class="etq-logo" src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" onerror="this.outerHTML='<span style=\'font-size:8pt;font-weight:800;letter-spacing:1.5px\'>ALUFORCE</span>'">
                         </div>
-                        <span class="etq-codigo-pill">
+                        <span class="etq-código-pill">
                             ${corInfo ? '<span class="etq-cor-dot" style="background:' + corInfo.hex + ';"></span>' : ''}
                             ${código}${corLabel ? ' · ' + corLabel : ''}
                         </span>
@@ -2474,7 +2501,7 @@ var qrDataMap = {`;
 
             // Add QR data for each etiqueta
             etiquetas.forEach((p, idx) => {
-                const codigo = p.codigo || '-';
+                const código = p.codigo || '-';
                 const nome = (p.nome || p.descricao || 'Produto').substring(0, 50);
                 const unidade = p.unidade_medida || p.unidade || 'm';
                 const almoxarifado = p.almoxarifado || p.localizacao_almoxarifado || 'Principal';
@@ -2482,7 +2509,7 @@ var qrDataMap = {`;
                 const prateleira = p.prateleira || p.localizacao_prateleira || '-';
                 const posicao = p.posicao || p.localizacao_posicao || '-';
                 const corAtual = p._corAtual || '';
-                const qrStr = codigo + '|' + almoxarifado + '|C' + corredor + '|P' + prateleira + '|' + posicao + (corAtual ? '|' + corAtual : '');
+                const qrStr = código + '|' + almoxarifado + '|C' + corredor + '|P' + prateleira + '|' + posicao + (corAtual ? '|' + corAtual : '');
                 html += `${idx}: '${qrStr.replace(/'/g, "\\'")}',`;
             });
 
@@ -2536,7 +2563,7 @@ var qrDataMap = {`;
 
         // Funções legadas (manter compatibilidade)
         function fecharModalProduto() {
-            fecharModalVisualizacao();
+            fecharModalVisualização();
             fecharModalEdicao();
         }
 
@@ -2551,7 +2578,7 @@ var qrDataMap = {`;
         function imprimirEtiqueta() { imprimirEtiquetaView(); }
         function duplicarProduto() { showToast('Duplicar em desenvolvimento', 'info'); }
         function verOrdensCompra() { showToast('Ordens de compra em desenvolvimento', 'info'); }
-        function verOrdensProducao() { showToast('Ordens de produção em desenvolvimento', 'info'); }
+        function verOrdensProdução() { showToast('Ordens de produção em desenvolvimento', 'info'); }
         function inativarProduto() {
             if (confirm('Inativar este produto?')) {
                 showToast('Produto inativado', 'warning');
@@ -2561,7 +2588,7 @@ var qrDataMap = {`;
 
         function abrirNovoProduto() {
             showToast('Redirecionando para cadastro...', 'info');
-            window.location.href = '../index.html?ação=novo-produto';
+            window.location.href = '../index.html?acao=novo-produto';
         }
 
         // Per-row movement shortcut
@@ -2584,10 +2611,10 @@ var qrDataMap = {`;
         // ============================================================
         // IMPORTAÇÃO DE PLANILHA EXCEL
         // ============================================================
-        let arquivoImportacao = null;
+        let arquivoImportação = null;
 
         function abrirModalImportarPlanilha() {
-            arquivoImportacao = null;
+            arquivoImportação = null;
             const overlay = document.getElementById('modal-importar-pcp');
             if (!overlay) return;
             document.getElementById('import-file-input-pcp').value = '';
@@ -2610,7 +2637,7 @@ var qrDataMap = {`;
             const file = input.files[0];
             if (!file) return;
             if (!file.name.match(/\.xlsx?$/i)) { showToast('Formato inválido. Use .xlsx', 'warning'); return; }
-            arquivoImportacao = file;
+            arquivoImportação = file;
             document.getElementById('import-file-name-pcp').textContent = file.name;
             document.getElementById('import-file-info-pcp').style.display = 'block';
             const fileSize = (file.size / 1024).toFixed(1);
@@ -2624,14 +2651,14 @@ var qrDataMap = {`;
             document.getElementById('btn-confirmar-import-pcp').style.display = 'inline-flex';
         }
 
-        async function executarImportacao() {
-            if (!arquivoImportacao) { showToast('Selecione um arquivo primeiro', 'warning'); return; }
+        async function executarImportação() {
+            if (!arquivoImportação) { showToast('Selecione um arquivo primeiro', 'warning'); return; }
             const btn = document.getElementById('btn-confirmar-import-pcp');
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando...';
             try {
                 const formData = new FormData();
-                formData.append('arquivo', arquivoImportacao);
+                formData.append('arquivo', arquivoImportação);
                 const response = await fetch('/api/estoque/template/importar', { credentials: 'include', method: 'POST', credentials: 'include', body: formData
                 });
                 const data = await response.json();
@@ -2673,19 +2700,19 @@ var qrDataMap = {`;
         // ============================================================
         // ABA MOVIMENTAÇÕES (histórico global)
         // ============================================================
-        let movimentacoesCarregadas = false;
+        let movimentaçõesCarregadas = false;
 
-        async function carregarMovimentacoesGlobal() {
-            if (movimentacoesCarregadas) return;
+        async function carregarMovimentaçõesGlobal() {
+            if (movimentaçõesCarregadas) return;
             const container = document.getElementById('tab-movimentacoes-content');
             if (!container) return;
             container.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;"><i class="fas fa-spinner fa-spin" style="font-size:24px;"></i><p>Carregando movimentações...</p></div>';
             try {
                 const API_BASE = getAPIBase();
-                const response = await fetch(`${API_BASE}/api/pcp/estoque/movimentacoes?limit=50`, { credentials: 'include' });
+                const response = await fetch(`${API_BASE}/api/pcp/estoque/movimentações?limit=50`, { credentials: 'include' });
                 if (!response.ok) throw new Error('Erro ao carregar');
                 const data = await response.json();
-                const movs = data.rows || data.movimentacoes || data || [];
+                const movs = data.rows || data.movimentações || data || [];
                 if (movs.length === 0) {
                     container.innerHTML = '<div style="text-align:center;padding:60px;color:#94a3b8;"><i class="fas fa-inbox" style="font-size:40px;margin-bottom:12px;display:block;"></i>Nenhuma movimentação registrada</div>';
                     return;
@@ -2710,12 +2737,12 @@ var qrDataMap = {`;
                                 <td>${parseFloat(m.quantidade_anterior||0).toFixed(2)}</td>
                                 <td style="font-weight:600;">${parseFloat(m.quantidade_atual||0).toFixed(2)}</td>
                                 <td>${m.local||'PRINCIPAL'}</td>
-                                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(m.observacoes||m.motivo||'').replace(/"/g,'&quot;')}">${m.observacoes||m.motivo||'-'}</td>
+                                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(m.observações||m.motivo||'').replace(/"/g,'&quot;')}">${m.observações||m.motivo||'-'}</td>
                                 <td>${m.documento||'-'}</td>
                             </tr>`;
                         }).join('')}</tbody>
                     </table></div>`;
-                movimentacoesCarregadas = true;
+                movimentaçõesCarregadas = true;
             } catch (err) {
                 container.innerHTML = `<div style="text-align:center;padding:40px;color:#dc2626;"><i class="fas fa-exclamation-triangle" style="font-size:24px;margin-bottom:8px;display:block;"></i>Erro ao carregar: ${err.message}</div>`;
             }
@@ -2732,10 +2759,10 @@ var qrDataMap = {`;
                 const movPanel = document.getElementById('tab-movimentacoes-panel');
                 const mainContent = document.getElementById('main-produtos-content');
 
-                if (tab === 'movimentacoes') {
+                if (tab === 'movimentações') {
                     if (mainContent) mainContent.style.display = 'none';
                     if (movPanel) movPanel.style.display = 'block';
-                    carregarMovimentacoesGlobal();
+                    carregarMovimentaçõesGlobal();
                 } else {
                     if (mainContent) mainContent.style.display = 'block';
                     if (movPanel) movPanel.style.display = 'none';
@@ -2786,3 +2813,4 @@ var qrDataMap = {`;
     <script src="/js/user-dropdown.js?v=20260319" defer></script>
 </body>
 </html>
+

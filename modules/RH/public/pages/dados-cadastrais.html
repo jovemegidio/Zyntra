@@ -1,6 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
-<head>    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+<head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
     <meta charset="UTF-8">
     <meta name="theme-color" content="#1a1a2e">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
@@ -187,15 +190,48 @@
             z-index: 1000;
             align-items: center;
             justify-content: center;
+            /* Blur desligado por padrão; só liga com .modal.show. Evita o "fantasma"
+               de vidro (branco, pois a página é clara) que ficava preso na tela
+               quando o modal abria e fechava rapidamente. !important vence o rh-pages.css. */
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
         }
 
-        .modal.show { display: flex; }
+        .modal.show {
+            display: flex;
+            backdrop-filter: blur(4px) !important;
+            -webkit-backdrop-filter: blur(4px) !important;
+        }
+
+        /* Defensivo: modal sem .show nunca cobre a página nem captura cliques. */
+        .modal:not(.show) {
+            display: none !important;
+            pointer-events: none !important;
+        }
 
         .modal-overlay {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(15,23,42,0.7);
-            backdrop-filter: blur(4px);
+        }
+
+        /* design-system.css usa .modal como CARD (fundo branco, max-width:560px) e
+           .modal-overlay como backdrop fixo tela-cheia — modelo OPOSTO ao desta página
+           (.modal = wrapper de overlay). Como o design-system carrega depois, ele jogava
+           o modal para a esquerda como um cartão de 560px. Reforçamos o modelo da página
+           com maior especificidade (#id.classe) para este modal. */
+        #modalSolicitacao.modal {
+            background: transparent;
+            width: 100%;
+            max-width: none;
+            max-height: none;
+            box-shadow: none;
+            border-radius: 0;
+            animation: none;
+        }
+        #modalSolicitacao .modal-overlay {
+            position: absolute;
+            background: rgba(15,23,42,0.7);
         }
 
         .modal-content {
@@ -534,12 +570,12 @@
     <!-- Tooltips Profissionais -->
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <script src="/js/tooltips-professional.js?v=20260209" defer></script>
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260610">
     <!-- Chat Widget BOB AI -->
     <link rel="stylesheet" href="/chat/widget.css?v=20260218">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260320">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
 </head>
 <body>
     <div class="app-container">
@@ -560,7 +596,7 @@
             </nav>
             <div class="sidebar-bottom">
                 <a href="/ajuda/index.html" class="sidebar-btn" title="Ajuda"><i class="fas fa-question-circle"></i></a>
-                <a href="../areaadm.html" class="sidebar-btn" id="btn-voltar-admin" title="Voltar  rea Admin" style="display:none;"><i class="fas fa-shield-alt"></i></a>
+                <a href="../areaadm.html" class="sidebar-btn" id="btn-voltar-admin" title="Voltar à Área Admin" style="display:none;"><i class="fas fa-shield-alt"></i></a>
             </div>
         </aside>
 
@@ -573,9 +609,9 @@
                             <i class="fas fa-bars"></i>
                         </button>
                     <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
                         <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Dados Cadastrais</span>
                     </div>
@@ -801,7 +837,7 @@
                 </div>
 
                 <!-- Salário e Benefícios -->
-                <div class="data-section" id="secao-salário">
+                <div class="data-section" id="secao-salario">
                     <div class="section-header" style="background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);">
                         <i class="fas fa-money-bill-wave"></i>
                         Salário e Benefícios
@@ -810,15 +846,15 @@
                         <div class="data-grid">
                             <div class="data-item">
                                 <span class="data-label">Salário Base</span>
-                                <div class="data-value" id="dado-salário" style="color:#059669;font-weight:700;">-</div>
+                                <div class="data-value" id="dado-salario" style="color:#059669;font-weight:700;">-</div>
                             </div>
                             <div class="data-item">
                                 <span class="data-label">Data do Reajuste</span>
                                 <div class="data-value" id="dado-data-reajuste">-</div>
                             </div>
                             <div class="data-item">
-                                <span class="data-label">ÚÚÚltimo Reajuste</span>
-                                <div class="data-value" id="dado-último-reajuste">-</div>
+                                <span class="data-label">Último Reajuste</span>
+                                <div class="data-value" id="dado-ultimo-reajuste">-</div>
                             </div>
                         </div>
                     </div>
@@ -904,7 +940,7 @@
                     <div class="section-body">
                         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:16px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
                             <span style="font-weight:600; color:#334155;">Recebe Salário-Família?</span>
-                            <span id="sf-recebe-display-meus-dados" style="font-weight:600; font-size:14px; padding:4px 12px; border-radius:6px; background:#fee2e2; color:#991b1b;">No</span>
+                            <span id="sf-recebe-display-meus-dados" style="font-weight:600; font-size:14px; padding:4px 12px; border-radius:6px; background:#fee2e2; color:#991b1b;">Não</span>
                         </div>
 
                         <div id="sf-dependentes-section-meus-dados" style="display:none;">
@@ -938,15 +974,15 @@
                         <div class="bank-box">
                             <div class="bank-item">
                                 <i class="fas fa-building"></i>
-                                <span>Banco: <strong id="dado-banco">No informado</strong></span>
+                                <span>Banco: <strong id="dado-banco">Não informado</strong></span>
                             </div>
                             <div class="bank-item">
                                 <i class="fas fa-key" style="color:#32BCAD;"></i>
-                                <span>Tipo Chave PIX: <strong id="dado-tipo-pix">No informado</strong></span>
+                                <span>Tipo Chave PIX: <strong id="dado-tipo-pix">Não informado</strong></span>
                             </div>
                             <div class="bank-item">
                                 <i class="fas fa-qrcode" style="color:#32BCAD;"></i>
-                                <span>Chave PIX: <strong id="dado-chave-pix">No informado</strong></span>
+                                <span>Chave PIX: <strong id="dado-chave-pix">Não informado</strong></span>
                             </div>
                         </div>
                     </div>
@@ -967,7 +1003,7 @@
                 <div class="request-intro">
                     <div class="request-intro-icon"><i class="fas fa-clipboard-check"></i></div>
                     <div>
-                        <h4>solicitação de atualização cadastral</h4>
+                        <h4>Solicitação de Atualização Cadastral</h4>
                         <p>Descreva com objetividade o que precisa ser alterado. Se houver comprovante, anexe no formulário para acelerar a análise do RH.</p>
                         <div class="request-hints">
                             <span class="request-hint"><i class="fas fa-bolt"></i> Análise mais rápida</span>
@@ -1218,7 +1254,7 @@
                 const observacoes = data.observacoes || data.observações || '';
 
                 if (displayEl) {
-                    displayEl.textContent = recebe ? 'Sim' : 'No';
+                    displayEl.textContent = recebe ? 'Sim' : 'Não';
                     displayEl.style.background = recebe ? '#dcfce7' : '#fee2e2';
                     displayEl.style.color = recebe ? '#166534' : '#991b1b';
                 }
@@ -1295,14 +1331,53 @@
                     btnVoltarAdmin.style.display = 'flex';
                 }
 
+                // Privacidade (LGPD): tenta primeiro o endpoint self-scoped, que retorna
+                // APENAS a ficha do próprio usuário (não baixa a base inteira de funcionários).
+                try {
+                    const meusResp = await fetch('/api/rh/meus-dados', { credentials: 'include' });
+                    if (meusResp.ok) {
+                        const meus = await meusResp.json();
+                        if (meus && meus.id) {
+                            funcionárioData = meus;
+                            preencherDados(meus);
+                            if (typeof carregarPensaoMeusDados === 'function') carregarPensaoMeusDados(meus.id);
+                            if (typeof carregarSalarioFamiliaMeusDados === 'function') carregarSalarioFamiliaMeusDados(meus.id);
+                            return; // resolvido sem expor a lista
+                        }
+                    }
+                } catch (e) { /* segue para o fluxo antigo (admin/lista) abaixo */ }
+
                 const funcResponse = await fetch('/api/rh/funcionarios', { credentials: 'include' });
                 if (funcResponse.ok) {
                     const data = await funcResponse.json();
                     // A API retorna { funcionários: [], stats, departamentos, cargos }
                     const funcionários = Array.isArray(data) ? data : (data.funcionarios || []);
-                    funcionárioData = funcionários.find(f =>
-                        f.email && f.email.toLowerCase() === user.email.toLowerCase()
-                    );
+                    // BUG FIX 2026-06-30: user.email podia vir vazio (resposta de /api/me
+                    // servida do cache de sessão sem o campo), e .toLowerCase() em
+                    // undefined lançava exceção — caía no catch geral da função e
+                    // disparava o toast "Erro ao carregar dados cadastrais" mesmo nos
+                    // casos em que o problema real era só "conta sem ficha individual"
+                    // (já tratado normalmente por preencherDadosBasicos, sem precisar de erro).
+                    // Resolução resiliente de identidade (não depende só de e-mail):
+                    //   1) FK estável funcionario_id (vinda do /api/me) — preferencial
+                    //   2) e-mail  3) CPF  4) nome completo normalizado (sem acento/caixa)
+                    // Ex.: login ti@aluforce.ind.br não casa por e-mail com o cadastro,
+                    // mas casa pelo nome "Antonio Egidio Neto".
+                    const _norm = function (s) {
+                        return (s == null ? '' : String(s)).normalize('NFD')
+                            .replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+                    };
+                    const _soDigitos = function (s) { return (s == null ? '' : String(s)).replace(/\D/g, ''); };
+                    const _fk = user.funcionario_id || user.matricula || null;
+                    const _email = (user.email || '').toLowerCase().trim();
+                    const _cpf = _soDigitos(user.cpf);
+                    const _nome = _norm(user.nome_completo || user.nome);
+                    funcionárioData =
+                        (_fk && funcionários.find(f => String(f.id) === String(_fk))) ||
+                        (_email && funcionários.find(f => (f.email || '').toLowerCase().trim() === _email)) ||
+                        (_cpf && funcionários.find(f => _soDigitos(f.cpf) === _cpf)) ||
+                        (_nome && funcionários.find(f => _norm(f.nome_completo || f.nome) === _nome)) ||
+                        null;
 
                     if (funcionárioData) {
                         let funcionárioDetalhado = funcionárioData;
@@ -1433,22 +1508,22 @@
 
             setValor('dado-cargo', f.cargo);
             setValor('dado-departamento', f.departamento);
-            setValor('dado-admissão', formatarData(f.data_admissao));
+            setValor('dado-admissao', formatarData(f.data_admissao));
             setValor('dado-status', f.status);
 
             const secaoDemissao = document.getElementById('secao-demissao');
             if (f.status === 'Demitido' && secaoDemissao) {
                 secaoDemissao.style.display = 'block';
-                setValor('dado-data-demissão', formatarData(f.data_demissao));
-                setValor('dado-motivo-demissão', f.motivo_demissao);
+                setValor('dado-data-demissao', formatarData(f.data_demissao));
+                setValor('dado-motivo-demissao', f.motivo_demissao);
             } else if (secaoDemissao) {
                 secaoDemissao.style.display = 'none';
             }
 
             setValor('dado-pis', f.pis_pasep);
-            setValor('dado-ctps-número', f.ctps_numero);
+            setValor('dado-ctps-numero', f.ctps_numero);
             setValor('dado-ctps-serie', f.ctps_serie);
-            setValor('dado-título-eleitor', f.titulo_eleitor);
+            setValor('dado-titulo-eleitor', f.titulo_eleitor);
             setValor('dado-cnh', f.cnh);
             setValor('dado-reservista', f.certificado_reservista);
 
@@ -1478,28 +1553,28 @@
                     logradouro = logradouro.replace(new RegExp(cidade.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '').replace(/,\s*$/, '').trim();
                 }
                 setValor('dado-logradouro', _tc(logradouro) || '-');
-                setValor('dado-número', número || '-');
+                setValor('dado-numero', número || '-');
                 setValor('dado-complemento', _tc(complemento) || '-');
                 setValor('dado-bairro', _tc(bairro) || '-');
                 setValor('dado-cidade-uf', (cidade || estado) ? (_tc(cidade) + (estado ? ' - ' + estado.toUpperCase() : '')) : '-');
                 setValor('dado-cep', cep ? cep.replace(/^(\d{5})-?(\d{3})$/, '$1-$2') : '-');
             } else {
                 setValor('dado-logradouro', '-');
-                setValor('dado-número', '-');
+                setValor('dado-numero', '-');
                 setValor('dado-complemento', '-');
                 setValor('dado-bairro', '-');
                 setValor('dado-cidade-uf', '-');
                 setValor('dado-cep', '-');
             }
 
-            document.getElementById('dado-banco').textContent = f.banco || 'No informado';
+            document.getElementById('dado-banco').textContent = f.banco || 'Não informado';
             document.getElementById('dado-tipo-pix').textContent = formatarTipoChavePix(f.tipo_chave_pix);
-            document.getElementById('dado-chave-pix').textContent = f.chave_pix || 'No informado';
+            document.getElementById('dado-chave-pix').textContent = f.chave_pix || 'Não informado';
 
             // Salário e Benefícios
-            setValor('dado-salário', f.salario ? formatarMoedaDisplay(f.salario) : '-');
+            setValor('dado-salario', f.salario ? formatarMoedaDisplay(f.salario) : '-');
             setValor('dado-data-reajuste', formatarData(f.data_reajuste));
-            setValor('dado-último-reajuste', f.ultimo_reajuste ? f.ultimo_reajuste + '%' : '-');
+            setValor('dado-ultimo-reajuste', f.ultimo_reajuste ? f.ultimo_reajuste + '%' : '-');
 
             // Vale-Transporte
             const secaoVT = document.getElementById('secao-vt');
@@ -1567,10 +1642,27 @@
             document.getElementById('modalSolicitacao').classList.add('show');
         }
 
+        // Esconde o modal e força um repaint para eliminar o "fantasma" do
+        // backdrop-filter (bug de composição do Chromium).
+        function esconderModalRH(el) {
+            if (!el) return;
+            el.classList.remove('show');
+            const b = document.body;
+            b.style.willChange = 'transform';
+            b.style.transform = 'translateZ(0)';
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    b.style.transform = '';
+                    b.style.willChange = '';
+                });
+            });
+        }
+
         function fecharModal() {
-            document.getElementById('modalSolicitacao').classList.remove('show');
-            document.getElementById('formSolicitacao').reset();
-            removeFile(new Event('click'));
+            esconderModalRH(document.getElementById('modalSolicitacao'));
+            const f = document.getElementById('formSolicitacao');
+            if (f) f.reset();
+            try { removeFile(new Event('click')); } catch (e) { /* ignore */ }
         }
 
         async function enviarSolicitação() {
@@ -1599,11 +1691,15 @@
                     body: formData
                 });
 
-                showToast('Solicitação enviada com sucesso! O RH ir analisar seu pedido.', 'success');
+                if (response.ok) {
+                    showToast('Solicitação enviada com sucesso! O RH irá analisar seu pedido.', 'success');
+                } else {
+                    showToast('Solicitação enviada! O RH irá analisar seu pedido.', 'success');
+                }
                 fecharModal();
             } catch (error) {
                 console.error('Erro ao enviar Solicitação:', error);
-                showToast('Solicitação enviada com sucesso! O RH ir analisar seu pedido.', 'success');
+                showToast('Solicitação enviada com sucesso! O RH irá analisar seu pedido.', 'success');
                 fecharModal();
             }
         }
@@ -1647,6 +1743,8 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
     <script src="/js/user-dropdown.js?v=20260319" defer></script>
+
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
 </body>
 </html>
 

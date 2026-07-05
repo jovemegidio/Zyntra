@@ -40,6 +40,7 @@ $SYSTEM_FILES = @(
     "routes/misc-routes.js",
     "routes/chat-routes.js",
     "routes/financeiro-core.js",
+    "middleware/zyntra-branding.js",
     "_shared/confirm-dialog.js",
     "_shared/accessibility-widget.js",
     "modules/_shared/accessibility-widget.js",
@@ -59,6 +60,10 @@ $SYSTEM_FILES = @(
     "public/js/kpis-executivo.js",
     "public/js/aluforce-turbo.js",
     "public/js/ios-native-bridge.js",
+    "public/js/config-modals.js",
+    "public/config-modals.html",
+    "public/config-modals-extended.html",
+    "public/modal-configuracoes-content.html",
     "modules/_shared/header-functions.js",
     "modules/_shared/pcp-standard.js",
     "Empresas/aluforce/painel.html",
@@ -82,6 +87,14 @@ $SYSTEM_FILES = @(
     ".eslintrc.json",
     "package.json",
     "package-lock.json"
+)
+
+$SYSTEM_DIRECTORIES = @(
+    "public/css",
+    "public/js",
+    "public/images",
+    "public/logos",
+    "public/relatorios"
 )
 
 $REMOTE_APPS = @(
@@ -391,6 +404,18 @@ function Sync-Branches {
             $synced++
         }
 
+        foreach ($directory in $SYSTEM_DIRECTORIES) {
+            $sourceDir = Join-Path $PROJECT_ROOT $directory
+            $targetDir = Join-Path $PROJECT_ROOT (Join-Path $base $directory)
+
+            if (-not (Test-Path $sourceDir -PathType Container)) {
+                continue
+            }
+
+            New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+            Copy-Item (Join-Path $sourceDir "*") $targetDir -Recurse -Force
+        }
+
         Write-OK "$base <= $synced arquivos"
     }
 
@@ -405,6 +430,16 @@ function Sync-Branches {
             if ((Test-Path $source -PathType Leaf) -and (Test-Path $targetDir)) {
                 Copy-Item $source $target -Force
                 $synced++
+            }
+        }
+
+        foreach ($directory in $SYSTEM_DIRECTORIES) {
+            $sourceDir = Join-Path $PROJECT_ROOT $directory
+            $targetDir = Join-Path $PROJECT_ROOT (Join-Path $base $directory)
+
+            if ((Test-Path $sourceDir -PathType Container) -and (Test-Path (Split-Path $targetDir -Parent))) {
+                New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+                Copy-Item (Join-Path $sourceDir "*") $targetDir -Recurse -Force
             }
         }
 

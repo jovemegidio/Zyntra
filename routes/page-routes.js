@@ -96,12 +96,34 @@ function setupPageRoutes(app, baseDir, authenticatePage, userPermissions) {
         const page = req.params.page;
         const fileName = page.endsWith('.html') ? page : `${page}.html`;
         const filePath = path.join(baseDir, 'modules', 'RH', 'public', 'pages', fileName);
-        
+
         if (fs.existsSync(filePath)) {
             res.sendFile(filePath);
         } else {
             res.status(404).send('<h1>Página não encontrada</h1>');
         }
+    });
+
+    // [FIX C6] /modules/RH/pages/... (sem /public/) era usado por links antigos e 404'ava.
+    // Agora redireciona para o caminho canônico /RH/pages/... que entrega o arquivo certo.
+    app.get(/^\/modules\/RH\/pages\/(.+)$/i, authenticatePage, (req, res) => {
+        const page = req.params[0];
+        return res.redirect(301, `/RH/pages/${page}`);
+    });
+    // Também serve /modules/RH/public/pages/* e /modules/RH/public/* explicitamente
+    app.get(/^\/modules\/RH\/public\/(.*)$/i, authenticatePage, (req, res) => {
+        const rest = req.params[0];
+        const filePath = path.join(baseDir, 'modules', 'RH', 'public', rest);
+        if (fs.existsSync(filePath)) return res.sendFile(filePath);
+        return res.status(404).send('<h1>Página não encontrada</h1>');
+    });
+    // Rota canônica /RH/pages/*
+    app.get(/^\/RH\/pages\/(.+)$/i, authenticatePage, (req, res) => {
+        const page = req.params[0];
+        const fileName = page.endsWith('.html') ? page : `${page}.html`;
+        const filePath = path.join(baseDir, 'modules', 'RH', 'public', 'pages', fileName);
+        if (fs.existsSync(filePath)) return res.sendFile(filePath);
+        return res.status(404).send('<h1>Página não encontrada</h1>');
     });
 
     // ========================================
@@ -157,20 +179,21 @@ function setupPageRoutes(app, baseDir, authenticatePage, userPermissions) {
     const comprasPages = ['index.html', 'compras.html', 'cotacoes.html', 'pedidos.html',
                           'recebimento.html', 'fornecedores.html', 'gestao-estoque.html',
                           'requisicoes.html', 'relatorios.html', 'alcadas.html',
-                          'otimizacao-estoque.html', 'dashboard-executivo.html', 'dashboard-pro.html'];
+                          'otimizacao-estoque.html', 'dashboard-executivo.html', 'dashboard-pro.html',
+                          'qrcode-estoque.html', 'importacao-mercadorias.html', 'devolucao-fornecedor.html',
+                          'etapas.html', 'notas-entrada.html', 'sugestao-compra.html'];
 
-    // BUG-011: estoque-mp.html não existe — redireciona para gestao-estoque.html
-    app.get('/Compras/estoque-mp.html', authenticatePage, (req, res) => res.redirect('/Compras/gestao-estoque.html'));
-
-    app.get('/Compras', authenticatePage, serveWithPermission('compras', 'modules/Compras/public/index.html'));
+    app.get('/Compras', authenticatePage, serveWithPermission('compras', 'modules/Compras/index.html'));
     app.get('/Compras/', authenticatePage, (req, res) => res.redirect('/Compras/compras.html'));
-    app.get('/Compras/compras.html', authenticatePage, serveWithPermission('compras', 'modules/Compras/public/index.html'));
-    
+    app.get('/Compras/compras.html', authenticatePage, serveWithPermission('compras', 'modules/Compras/index.html'));
+
     app.get('/Compras/:page', authenticatePage, (req, res) => {
         if (req.user && req.user.nome) {
             const firstName = req.user.nome.split(' ')[0].toLowerCase();
             if (userPermissions.hasAccess(firstName, 'compras')) {
                 const page = req.params.page;
+                // As páginas reais do módulo vivem em modules/Compras/*.html (não em /public/ —
+                // essa subpasta só tem um shell antigo de SPA que não é mais usado).
                 if (comprasPages.includes(page)) {
                     res.sendFile(path.join(baseDir, 'modules', 'Compras', page));
                 } else {

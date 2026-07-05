@@ -8,6 +8,8 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const CTeService = require(path.join(__dirname, '..', 'modules', 'Faturamento', 'services', 'cte.service.js'));
+let CTeSefazService = null;
+try { CTeSefazService = require(path.join(__dirname, '..', 'modules', 'Faturamento', 'services', 'cte-sefaz.service.js')); } catch (e) { console.warn('[CT-e] cte-sefaz.service indisponível:', e.message); }
 
 function createCTeRouter(pool, authenticateToken) {
 
@@ -18,10 +20,16 @@ function createCTeRouter(pool, authenticateToken) {
     router.get('/', authenticateToken, async (req, res) => {
         try {
             const { status, data_inicio, data_fim, pagina = 1, limite = 50 } = req.query;
+            // BUG-FIX 2026-06-28: a query usava nomes de coluna que nunca existiram em
+            // cte_emitidos (rem_razao_social/dest_razao_social/valor_icms/placa_veiculo/
+            // protocolo_autorizacao) — sempre dava "Unknown column" (500). Nomes reais:
+            // remetente_razao/destinatario_razao/icms_valor/veiculo_placa/protocolo_sefaz.
+            // Aliases mantêm compatibilidade com o que cte.html já espera no JSON.
             let query = 'SELECT id, chave_acesso, numero_cte, serie, cfop, natureza_operacao, tipo_cte, modal, ' +
-                        'rem_razao_social, dest_razao_social, valor_total_servico, valor_icms, ' +
-                        'municipio_inicio, uf_inicio, municipio_fim, uf_fim, placa_veiculo, ' +
-                        'status, data_emissao, protocolo_autorizacao FROM cte_emitidos WHERE 1=1';
+                        'remetente_razao AS remetente_nome, destinatario_razao AS destinatario_nome, ' +
+                        'valor_total_servico, icms_valor AS valor_icms, ' +
+                        'municipio_inicio, uf_inicio, municipio_fim, uf_fim, veiculo_placa AS placa_veiculo, ' +
+                        'status, data_emissao, protocolo_sefaz AS protocolo_autorizacao FROM cte_emitidos WHERE 1=1';
             const params = [];
 
             if (status) { query += ' AND status = ?'; params.push(status); }
@@ -35,7 +43,10 @@ function createCTeRouter(pool, authenticateToken) {
             params.push(parseInt(limite), (parseInt(pagina) - 1) * parseInt(limite));
 
             const [rows] = await pool.query(query, params);
-            res.json({ total: countRows[0].total, pagina: parseInt(pagina), ctes: rows });
+            // BUG-FIX 2026-06-28: cte.html só renderiza a lista se `data.sucesso` for true;
+            // faltava essa flag na resposta, então mesmo sem erro a tela ficava travada
+            // mostrando só o spinner inicial pra sempre.
+            res.json({ sucesso: true, total: countRows[0].total, pagina: parseInt(pagina), ctes: rows });
         } catch (error) {
             console.error('❌ Erro ao listar CT-e:', error);
             res.status(500).json({ error: 'Erro ao listar CT-e' });
@@ -58,7 +69,21 @@ function createCTeRouter(pool, authenticateToken) {
                 'SELECT * FROM cte_documentos WHERE cte_id = ?', [req.params.id]
             );
 
-            res.json({ ...ctes[0], componentes, documentos });
+            // Aliases para os mesmos nomes que a listagem expõe (ver bug-fix 2026-06-28
+            // na rota GET '/' acima) — cte.html usa esses nomes tanto na lista quanto no
+            // detalhe/impressão.
+            const cte = ctes[0];
+            res.json({
+                ...cte,
+                sucesso: true,
+                remetente_nome: cte.remetente_razao,
+                destinatario_nome: cte.destinatario_razao,
+                valor_icms: cte.icms_valor,
+                placa_veiculo: cte.veiculo_placa,
+                protocolo_autorizacao: cte.protocolo_sefaz,
+                componentes,
+                documentos
+            });
         } catch (error) {
             console.error('❌ Erro ao buscar CT-e:', error);
             res.status(500).json({ error: 'Erro ao buscar CT-e' });
@@ -380,6 +405,67 @@ function createCTeRouter(pool, authenticateToken) {
         } catch (error) {
             console.error('❌ Erro ao emitir CT-e:', error);
             res.status(500).json({ sucesso: false, erro: 'Erro ao emitir CT-e: ' + error.message });
+        }
+    });
+
+    // ============================================================
+    // TRANSMITIR — assina o CT-e e envia à SEFAZ (CTeRecepcaoSinc)
+    // Por padrão em HOMOLOGAÇÃO (CTE_AMBIENTE=2). Atualiza status real.
+    // ============================================================
+    router.post('/:id/transmitir', authenticateToken, async (req, res) => {
+        try {
+            if (!CTeSefazService) {
+                return res.status(503).json({ sucesso: false, erro: 'Serviço de transmissão CT-e indisponível.' });
+            }
+            const id = req.params.id;
+            const [ctes] = await pool.query('SELECT * FROM cte_emitidos WHERE id = ?', [id]);
+            if (ctes.length === 0) return res.status(404).json({ sucesso: false, erro: 'CT-e não encontrado' });
+            const cte = ctes[0];
+            if (cte.status === 'autorizado') {
+                return res.status(400).json({ sucesso: false, erro: 'CT-e já autorizado' });
+            }
+
+            const [comps] = await pool.query('SELECT * FROM cte_componentes_valor WHERE cte_id = ?', [id]);
+            const [docs] = await pool.query('SELECT * FROM cte_documentos WHERE cte_id = ?', [id]);
+            cte.componentes = comps;
+            cte.documentos = docs;
+
+            const [cfg] = await pool.query('SELECT * FROM empresa_config WHERE id = 1');
+            const empresa = cfg[0] || {};
+
+            const r = await CTeSefazService.transmitirCTe(cte, empresa);
+
+            // Persistir resultado (best-effort por coluna)
+            const novoStatus = r.sucesso ? 'autorizado' : 'rejeitado';
+            const sets = ['status = ?', 'chave_acesso = ?'];
+            const params = [novoStatus, r.chave];
+            const tryCol = async (col, val) => {
+                try {
+                    await pool.query(`UPDATE cte_emitidos SET ${col} = ? WHERE id = ?`, [val, id]);
+                } catch (_) { /* coluna pode não existir */ }
+            };
+            await pool.query(`UPDATE cte_emitidos SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
+            await tryCol('protocolo_autorizacao', r.protocolo);
+            await tryCol('xml_envio', r.xmlEnvio);
+            await tryCol('xml_autorizado', r.xmlProc);
+            await tryCol('motivo_rejeicao', r.sucesso ? null : (r.motivo || '').slice(0, 255));
+            await tryCol('ambiente', r.ambiente);
+
+            return res.json({
+                sucesso: r.sucesso,
+                status: novoStatus,
+                cStat: r.codigoStatus,
+                motivo: r.motivo,
+                protocolo: r.protocolo,
+                chave_acesso: r.chave,
+                ambiente: r.ambiente === 1 ? 'producao' : 'homologacao',
+                message: r.sucesso
+                    ? `CT-e autorizado (protocolo ${r.protocolo})`
+                    : `CT-e rejeitado: ${r.codigoStatus} — ${r.motivo}`
+            });
+        } catch (error) {
+            console.error('❌ Erro ao transmitir CT-e:', error);
+            res.status(500).json({ sucesso: false, erro: 'Erro ao transmitir CT-e: ' + error.message });
         }
     });
 

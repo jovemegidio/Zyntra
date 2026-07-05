@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zyntra — Selecionar Empresa</title>
+    <meta name="robots" content="noindex">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="/icons/favicon-32x32.png?v=20260612-roxo">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0f0f13;
+            --surface: #1a1a24;
+            --surface2: #22222f;
+            --border: rgba(255,255,255,0.08);
+            --primary: #6C5CE7;
+            --primary-hover: #5a4dd1;
+            --green: #00b894;
+            --orange: #f39c12;
+            --text: #f0f0f5;
+            --muted: #888899;
+            --radius: 16px;
+        }
+
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Background orbs */
+        body::before, body::after {
+            content: '';
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(120px);
+            pointer-events: none;
+            z-index: 0;
+        }
+        body::before {
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(108,92,231,0.12), transparent 70%);
+            top: -200px; left: -100px;
+        }
+        body::after {
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(0,184,148,0.08), transparent 70%);
+            bottom: -150px; right: -100px;
+        }
+
+        /* NAVBAR */
+        .nav {
+            position: sticky; top: 0; z-index: 100;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 32px;
+            height: 60px;
+            background: rgba(15,15,19,0.85);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+        }
+        .nav__logo img { height: 28px; display: block; }
+        .nav__user {
+            display: flex; align-items: center; gap: 10px;
+            position: relative;
+        }
+        .nav__avatar {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: var(--primary);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            color: #fff; flex-shrink: 0;
+        }
+        .nav__avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+        .nav__name { font-size: 14px; font-weight: 500; color: var(--text); }
+        .nav__dropdown-btn {
+            background: none; border: none; cursor: pointer;
+            color: var(--muted); padding: 4px; display: flex; align-items: center;
+        }
+        .nav__dropdown {
+            display: none;
+            position: absolute; top: calc(100% + 10px); right: 0;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            min-width: 200px;
+            padding: 8px 0;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+            z-index: 200;
+        }
+        .nav__dropdown.open { display: block; }
+        .dropdown-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .dropdown-header__name { font-size: 13px; font-weight: 600; }
+        .dropdown-header__email { font-size: 11px; color: var(--muted); margin-top: 2px; word-break: break-all; }
+        .dropdown-item {
+            display: flex; align-items: center; gap: 10px;
+            width: 100%; padding: 10px 16px;
+            background: none; border: none;
+            font-size: 13px; font-family: inherit;
+            color: var(--text); cursor: pointer;
+            text-align: left; transition: background 0.15s;
+        }
+        .dropdown-item:hover { background: rgba(255,255,255,0.05); }
+        .dropdown-item.danger { color: #ff6b6b; }
+        .dropdown-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+        /* MAIN */
+        .main {
+            position: relative; z-index: 1;
+            min-height: calc(100vh - 60px);
+            display: flex; flex-direction: column; align-items: center;
+            padding: 60px 24px 80px;
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 52px;
+        }
+        .page-header__badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(108,92,231,0.15);
+            border: 1px solid rgba(108,92,231,0.3);
+            border-radius: 99px;
+            padding: 5px 14px;
+            font-size: 12px; font-weight: 600;
+            color: #a29bfe;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+        .page-header h1 {
+            font-size: clamp(28px, 4vw, 40px);
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            line-height: 1.2;
+        }
+        .page-header p {
+            margin-top: 12px;
+            font-size: 16px;
+            color: var(--muted);
+            max-width: 420px;
+            margin-left: auto; margin-right: auto;
+        }
+
+        /* CARDS GRID */
+        .cards {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+            flex-wrap: wrap;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            width: 320px;
+            overflow: hidden;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+            display: flex; flex-direction: column;
+            position: relative;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .card--energy:hover  { border-color: rgba(0,184,148,0.4); box-shadow: 0 20px 60px rgba(0,184,148,0.1); }
+        .card--eletric:hover { border-color: rgba(243,156,18,0.4); box-shadow: 0 20px 60px rgba(243,156,18,0.1); }
+        .card--recommended { border-color: rgba(108,92,231,0.3); }
+
+        .card__accent {
+            height: 4px;
+            width: 100%;
+        }
+        .card--energy  .card__accent { background: linear-gradient(90deg, #00b894, #00cec9); }
+        .card--eletric .card__accent { background: linear-gradient(90deg, #f39c12, #fdcb6e); }
+
+        .card__body {
+            padding: 28px 28px 20px;
+            display: flex; flex-direction: column; flex: 1;
+        }
+
+        .card__logo-wrap {
+            width: 64px; height: 64px;
+            border-radius: 14px;
+            overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px;
+        }
+        .card--energy  .card__logo-wrap { background: linear-gradient(135deg, #00b894, #00cec9); }
+        .card--eletric .card__logo-wrap { background: linear-gradient(135deg, #f39c12, #fdcb6e); }
+        .card__logo-wrap img { width: 80%; height: 80%; object-fit: contain; filter: brightness(0) invert(1); }
+
+        .card__badge {
+            position: absolute; top: 16px; right: 16px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 3px 10px; border-radius: 99px;
+        }
+        .badge--recommended {
+            background: rgba(108,92,231,0.2);
+            color: #a29bfe;
+            border: 1px solid rgba(108,92,231,0.3);
+        }
+
+        .card__name {
+            font-size: 20px; font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+        .card__desc {
+            font-size: 13px; color: var(--muted);
+            margin-top: 6px; line-height: 1.5;
+            flex: 1;
+        }
+        .card__meta {
+            display: flex; align-items: center; gap: 8px;
+            margin-top: 16px;
+        }
+        .card__status {
+            display: flex; align-items: center; gap: 5px;
+            font-size: 12px; color: var(--green);
+        }
+        .card__status-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .card__plan {
+            font-size: 11px; color: var(--muted);
+            background: rgba(255,255,255,0.06);
+            border-radius: 6px; padding: 2px 8px;
+        }
+
+        .card__footer {
+            padding: 0 28px 28px;
+        }
+        .card__btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; padding: 13px;
+            border-radius: 10px; border: none;
+            font-size: 14px; font-weight: 600; font-family: inherit;
+            cursor: pointer; transition: all 0.2s; text-decoration: none;
+        }
+        .card--energy  .card__btn { background: var(--green);  color: #fff; }
+        .card--eletric .card__btn { background: var(--orange); color: #fff; }
+        .card__btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+        /* LOADING STATE */
+        .loading {
+            display: flex; flex-direction: column; align-items: center; gap: 16px;
+            padding: 60px 0;
+        }
+        .spinner {
+            width: 36px; height: 36px;
+            border: 3px solid rgba(108,92,231,0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* FOOTER */
+        .foot {
+            margin-top: 60px; text-align: center;
+            font-size: 12px; color: var(--muted);
+        }
+        .foot a { color: var(--muted); text-decoration: none; }
+        .foot a:hover { color: var(--text); }
+
+        @media (max-width: 700px) {
+            .nav { padding: 0 16px; }
+            .main { padding: 40px 16px 60px; }
+            .card { width: 100%; max-width: 360px; }
+            .nav__name { display: none; }
+        }
+    </style>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260615b">
+</head>
+<body>
+
+    <!-- NAVBAR -->
+    <nav class="nav">
+        <a href="/empresas" class="nav__logo">
+            <img src="/images/Logo Monocromatico - Branco - Zyntra.png" alt="Zyntra" onerror="this.style.display='none'">
+        </a>
+        <div class="nav__user" id="navUser">
+            <div class="nav__avatar" id="navAvatar">U</div>
+            <span class="nav__name" id="navName">Usuário</span>
+            <button class="nav__dropdown-btn" id="dropBtn" aria-label="Menu">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="nav__dropdown" id="dropdown">
+                <div class="dropdown-header">
+                    <div class="dropdown-header__name" id="dropName">—</div>
+                    <div class="dropdown-header__email" id="dropEmail">—</div>
+                </div>
+                <button class="dropdown-item danger" id="btnLogout">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Sair da conta
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- MAIN -->
+    <main class="main">
+
+        <div class="page-header">
+            <div class="page-header__badge">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                Zyntra SGE
+            </div>
+            <h1>Selecione sua empresa</h1>
+            <p>Escolha a empresa que deseja acessar para continuar.</p>
+        </div>
+
+        <div class="cards" id="cardsContainer">
+            <div class="loading">
+                <div class="spinner"></div>
+                <span style="font-size:14px;color:var(--muted)">Carregando empresas...</span>
+            </div>
+        </div>
+
+        <div class="foot">
+            <p>Zyntra SGE &mdash; Sistema de Gestão Empresarial &mdash; <a href="/login.html">Trocar conta</a></p>
+        </div>
+
+    </main>
+
+    <script>
+    (function () {
+        // ─── Auth check ───────────────────────────────────────────────────────
+        const tabKey   = 'tab_' + (sessionStorage._tabId || (sessionStorage._tabId = Date.now()));
+        const raw      = sessionStorage.getItem(tabKey + '_userData')
+                      || sessionStorage.getItem('userData')
+                      || localStorage.getItem('userData');
+        let user = null;
+        try { user = raw ? JSON.parse(raw) : null; } catch (_) {}
+
+        if (!user || !user.email) {
+            // Valida cookie no servidor antes de forçar logout
+            fetch('/api/me', { credentials: 'include' })
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (data && data.user) {
+                        user = data.user;
+                        renderPage(user);
+                    } else {
+                        window.location.href = '/login.html';
+                    }
+                })
+                .catch(() => { window.location.href = '/login.html'; });
+            return;
+        }
+        renderPage(user);
+
+        // ─── Render ───────────────────────────────────────────────────────────
+        function renderPage(u) {
+            const nome  = u.apelido || u.nome || 'Usuário';
+            const email = u.email || '';
+            const ini   = nome.charAt(0).toUpperCase();
+            const foto  = u.foto || u.avatar || null;
+
+            // Navbar
+            document.getElementById('navName').textContent  = nome;
+            document.getElementById('dropName').textContent = nome;
+            document.getElementById('dropEmail').textContent = email;
+
+            const avatarEl = document.getElementById('navAvatar');
+            if (foto) {
+                avatarEl.innerHTML = `<img src="${foto}" alt="${nome}">`;
+            } else {
+                avatarEl.textContent = ini;
+            }
+
+            // Detectar domínio para destacar empresa recomendada
+            const isEnergy  = email.includes('@energy.com.br');
+            const isEletric = email.includes('@laboreletric.com.br');
+
+            // Montar cards
+            document.getElementById('cardsContainer').innerHTML = buildCards(isEnergy, isEletric);
+        }
+
+        function buildCards(isEnergy, isEletric) {
+            return `
+                ${cardEnergy(isEnergy && !isEletric)}
+                ${cardEletric(isEletric && !isEnergy)}
+            `;
+        }
+
+        function cardEnergy(recommended) {
+            return `
+            <div class="card card--energy${recommended ? ' card--recommended' : ''}">
+                <div class="card__accent"></div>
+                <div class="card__body">
+                    ${recommended ? '<span class="card__badge badge--recommended">Sua empresa</span>' : ''}
+                    <div class="card__logo-wrap">
+                        <img src="/images/labor-energy-logo-branco.png" alt="Labor Energy"
+                             onerror="this.style.display='none'">
+                    </div>
+                    <div class="card__name">Labor Energy</div>
+                    <div class="card__desc">Gestão completa para a Labor Energy. Acesse o ERP, financeiro, vendas, estoque e muito mais.</div>
+                    <div class="card__meta">
+                        <span class="card__status">
+                            <span class="card__status-dot"></span>
+                            Online
+                        </span>
+                        <span class="card__plan">Profissional</span>
+                    </div>
+                </div>
+                <div class="card__footer">
+                    <button class="card__btn" onclick="acessarEmpresa('labor-energy')">
+                        Acessar
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </button>
+                </div>
+            </div>`;
+        }
+
+        function cardEletric(recommended) {
+            return `
+            <div class="card card--eletric${recommended ? ' card--recommended' : ''}">
+                <div class="card__accent"></div>
+                <div class="card__body">
+                    ${recommended ? '<span class="card__badge badge--recommended">Sua empresa</span>' : ''}
+                    <div class="card__logo-wrap">
+                        <img src="/images/labor-eletric-logo-branco.png" alt="Labor Eletric"
+                             onerror="this.style.display='none'">
+                    </div>
+                    <div class="card__name">Labor Eletric</div>
+                    <div class="card__desc">Gestão completa para a Labor Eletric. Acesse o ERP, financeiro, vendas, estoque e muito mais.</div>
+                    <div class="card__meta">
+                        <span class="card__status">
+                            <span class="card__status-dot"></span>
+                            Online
+                        </span>
+                        <span class="card__plan">Profissional</span>
+                    </div>
+                </div>
+                <div class="card__footer">
+                    <button class="card__btn" onclick="acessarEmpresa('labor-eletric')">
+                        Acessar
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </button>
+                </div>
+            </div>`;
+        }
+
+        // ─── Navegar para empresa ─────────────────────────────────────────────
+        window.acessarEmpresa = function(empresa) {
+            const urls = {
+                'labor-energy':  '/labor-energy/dashboard',
+                'labor-eletric': '/labor-eletric/dashboard'
+            };
+            const url = urls[empresa];
+            if (!url) return;
+            const btn = event && event.currentTarget;
+            if (btn) {
+                btn.textContent = 'Carregando...';
+                btn.disabled = true;
+            }
+            window.location.href = url;
+        };
+
+        // ─── Dropdown ─────────────────────────────────────────────────────────
+        document.getElementById('dropBtn').addEventListener('click', function (e) {
+            e.stopPropagation();
+            document.getElementById('dropdown').classList.toggle('open');
+        });
+        document.addEventListener('click', function () {
+            document.getElementById('dropdown').classList.remove('open');
+        });
+
+        // ─── Logout ──────────────────────────────────────────────────────────
+        document.getElementById('btnLogout').addEventListener('click', async function () {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            } catch (_) {}
+            localStorage.removeItem('userData');
+            sessionStorage.clear();
+            window.location.href = 'https://zyntraerp.com.br/login.html';
+        });
+
+    })();
+    </script>
+
+    <script defer src="/js/global-sidebar-submenu.js?v=20260703imp"></script>
+</body>
+</html>

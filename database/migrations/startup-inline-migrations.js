@@ -351,6 +351,42 @@ async function runInlineMigrations(pool) {
         }
     }
 
+    // ============================================================
+    // Módulo Compras (rotas reais: tabelas no singular) — colunas
+    // exigidas por modules/Compras/api/* que faltavam em produção.
+    // Auditoria 2026-06-07: recebimento, propostas e encerramento de
+    // cotação, e integração com estoque/movimentações (compartilhadas
+    // com PCP — alterações apenas aditivas + relaxa NOT NULL de `tipo`).
+    // ============================================================
+    const comprasModuloAlters = [
+        // Grupo A — tabelas exclusivas de Compras
+        `ALTER TABLE pedidos_compra ADD COLUMN valor_recebido DECIMAL(15,2) DEFAULT 0`,
+        `ALTER TABLE propostas_cotacao ADD COLUMN condicao_pagamento VARCHAR(255) NULL`,
+        `ALTER TABLE cotacoes ADD COLUMN data_encerramento DATETIME NULL`,
+        `ALTER TABLE cotacoes ADD COLUMN motivo_encerramento TEXT NULL`,
+        // Grupo B — estoque/movimentações (compartilhadas com PCP, aditivo)
+        `ALTER TABLE estoque ADD COLUMN data_ultima_entrada DATETIME NULL`,
+        `ALTER TABLE movimentacoes_estoque ADD COLUMN tipo_movimentacao VARCHAR(20) NULL`,
+        `ALTER TABLE movimentacoes_estoque ADD COLUMN saldo_anterior DECIMAL(15,4) NULL`,
+        `ALTER TABLE movimentacoes_estoque ADD COLUMN saldo_atual DECIMAL(15,4) NULL`,
+        `ALTER TABLE movimentacoes_estoque ADD COLUMN motivo VARCHAR(255) NULL`,
+        `ALTER TABLE movimentacoes_estoque ADD COLUMN data_movimentacao DATETIME NULL`,
+        // Permite que inserts do módulo Compras (que não preenchem `tipo` do PCP) funcionem
+        `ALTER TABLE movimentacoes_estoque MODIFY COLUMN tipo ENUM('ENTRADA','SAIDA','AJUSTE','RESERVA','TRANSFERENCIA') NULL`
+    ];
+
+    for (const sql of comprasModuloAlters) {
+        try {
+            await pool.query(sql);
+        } catch (e) {
+            // Duplicate column / já aplicado — OK, idempotente
+            if (!/Duplicate column|check that column/i.test(e.message || '')) {
+                console.warn('⚠️ Compras migration aviso:', e.message);
+            }
+        }
+    }
+    console.log('✅ Migrations do módulo Compras (singular) verificadas.');
+
     // Notificacoes_estoque table
     try {
         await pool.query(`
@@ -527,7 +563,30 @@ async function runInlineMigrations(pool) {
         { nome: 'status_logistica', sql: "ALTER TABLE pedidos ADD COLUMN status_logistica VARCHAR(50) DEFAULT NULL" },
         { nome: 'updated_at', sql: "ALTER TABLE pedidos ADD COLUMN updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP" },
         { nome: 'cliente', sql: "ALTER TABLE pedidos ADD COLUMN cliente VARCHAR(255) DEFAULT NULL" },
-        { nome: 'condicao_pagamento', sql: "ALTER TABLE pedidos ADD COLUMN condicao_pagamento VARCHAR(100) DEFAULT NULL" }
+        { nome: 'condicao_pagamento', sql: "ALTER TABLE pedidos ADD COLUMN condicao_pagamento VARCHAR(100) DEFAULT NULL" },
+        { nome: 'cliente_nome', sql: "ALTER TABLE pedidos ADD COLUMN cliente_nome VARCHAR(255) DEFAULT NULL" },
+        { nome: 'numero_pedido', sql: "ALTER TABLE pedidos ADD COLUMN numero_pedido INT DEFAULT NULL" },
+        { nome: 'condicoes_pagamento', sql: "ALTER TABLE pedidos ADD COLUMN condicoes_pagamento VARCHAR(255) DEFAULT NULL" },
+        { nome: 'cenario_fiscal', sql: "ALTER TABLE pedidos ADD COLUMN cenario_fiscal VARCHAR(100) DEFAULT NULL" },
+        { nome: 'transportadora_nome', sql: "ALTER TABLE pedidos ADD COLUMN transportadora_nome VARCHAR(255) DEFAULT NULL" },
+        { nome: 'tipo_frete', sql: "ALTER TABLE pedidos ADD COLUMN tipo_frete VARCHAR(20) DEFAULT NULL" },
+        { nome: 'frete', sql: "ALTER TABLE pedidos ADD COLUMN frete DECIMAL(15,2) DEFAULT 0" },
+        { nome: 'placa_veiculo', sql: "ALTER TABLE pedidos ADD COLUMN placa_veiculo VARCHAR(20) DEFAULT NULL" },
+        { nome: 'veiculo_uf', sql: "ALTER TABLE pedidos ADD COLUMN veiculo_uf VARCHAR(2) DEFAULT NULL" },
+        { nome: 'rntrc', sql: "ALTER TABLE pedidos ADD COLUMN rntrc VARCHAR(50) DEFAULT NULL" },
+        { nome: 'qtd_volumes', sql: "ALTER TABLE pedidos ADD COLUMN qtd_volumes DECIMAL(15,3) DEFAULT NULL" },
+        { nome: 'especie_volumes', sql: "ALTER TABLE pedidos ADD COLUMN especie_volumes VARCHAR(100) DEFAULT NULL" },
+        { nome: 'marca_volumes', sql: "ALTER TABLE pedidos ADD COLUMN marca_volumes VARCHAR(100) DEFAULT NULL" },
+        { nome: 'numeracao_volumes', sql: "ALTER TABLE pedidos ADD COLUMN numeracao_volumes VARCHAR(100) DEFAULT NULL" },
+        { nome: 'peso_liquido', sql: "ALTER TABLE pedidos ADD COLUMN peso_liquido DECIMAL(15,3) DEFAULT NULL" },
+        { nome: 'peso_bruto', sql: "ALTER TABLE pedidos ADD COLUMN peso_bruto DECIMAL(15,3) DEFAULT NULL" },
+        { nome: 'valor_seguro', sql: "ALTER TABLE pedidos ADD COLUMN valor_seguro DECIMAL(15,2) DEFAULT NULL" },
+        { nome: 'outras_despesas', sql: "ALTER TABLE pedidos ADD COLUMN outras_despesas DECIMAL(15,2) DEFAULT NULL" },
+        { nome: 'desconto_pct', sql: "ALTER TABLE pedidos ADD COLUMN desconto_pct DECIMAL(6,3) DEFAULT 0" },
+        { nome: 'origem', sql: "ALTER TABLE pedidos ADD COLUMN origem VARCHAR(50) DEFAULT NULL" },
+        { nome: 'observacao', sql: "ALTER TABLE pedidos ADD COLUMN observacao TEXT" },
+        { nome: 'parcelas', sql: "ALTER TABLE pedidos ADD COLUMN parcelas TEXT" },
+        { nome: 'version', sql: "ALTER TABLE pedidos ADD COLUMN version INT NOT NULL DEFAULT 1" }
     ];
     for (const col of pedidosFatCols) {
         try {

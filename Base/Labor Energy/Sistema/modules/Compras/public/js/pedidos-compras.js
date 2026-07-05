@@ -2,11 +2,6 @@
    PEDIDOS DE COMPRA
    ======================================== */
 
-// FIX-XSS: HTML escape utility
-function _escHtml(s) {
-    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
 class PedidosCompras {
     constructor() {
         this.pedidos = [];
@@ -203,10 +198,10 @@ class PedidosCompras {
                                         onmouseout="this.style.background='white'">
                                         <td style="padding: 16px;">
                                             <div style="font-weight: 700; color: #1e293b; font-size: 14px;">${pedido.id}</div>
-                                            ${pedido.observacao ? `<div style="font-size: 11px; color: #64748b; margin-top: 2px;">${_escHtml(pedido.observacao)}</div>` : ''}
+                                            ${pedido.observacao ? `<div style="font-size: 11px; color: #64748b; margin-top: 2px;">${pedido.observacao}</div>` : ''}
                                         </td>
                                         <td style="padding: 16px;">
-                                            <div style="font-weight: 600; color: #334155;">${_escHtml(pedido.fornecedor)}</div>
+                                            <div style="font-weight: 600; color: #334155;">${pedido.fornecedor}</div>
                                         </td>
                                         <td style="padding: 16px;">
                                             <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #f1f5f9; border-radius: 6px; font-size: 13px; font-weight: 600; color: #475569;">

@@ -465,8 +465,12 @@ const userPermissions = {
     // ============ FINANCEIRO / RH ============
     'hellen': { areas: ['financeiro', 'rh'], rhType: 'area', profile: 'funcionario' },
     'tatiane': { areas: ['financeiro', 'rh'], rhType: 'area', profile: 'funcionario' },
+    'financeiro': { areas: ['financeiro'], rhType: 'area', profile: 'financeiro_completo' },
+    'financeiro2': { areas: ['financeiro'], rhType: 'area', profile: 'financeiro_completo' },
+    'financeiro3': { areas: ['financeiro'], rhType: 'area', profile: 'financeiro_completo' },
 
     // ============ VENDAS / RH ============
+    'melissa': { areas: ['vendas', 'rh'], rhType: 'area', isAdmin: false, profile: 'vendedor' },
     'leidiane': { areas: ['vendas', 'rh'], rhType: 'area', isAdmin: false, profile: 'vendedor' },
     'leidiene': { areas: ['vendas', 'rh'], rhType: 'area', isAdmin: false, profile: 'vendedor' },
     'representantes': { areas: ['vendas', 'rh'], rhType: 'area', isAdmin: false, profile: 'vendedor' },
@@ -479,6 +483,9 @@ const userPermissions = {
     'christian': { areas: ['pcp', 'rh'], rhType: 'area', isAdmin: false, profile: 'producao_operador' },
     'clayton': { areas: ['pcp', 'rh'], rhType: 'area', isAdmin: false, profile: 'producao_operador' },
     'sergio': { areas: ['pcp', 'rh'], rhType: 'area', isAdmin: false, profile: 'producao_operador' },
+    'pcp': { areas: ['pcp', 'rh'], rhType: 'area', isAdmin: false, profile: 'producao_gerente' },
+    'pcp@aluforce.ind.br': { areas: ['pcp', 'rh'], rhType: 'area', isAdmin: false, profile: 'producao_gerente' },
+    'pcp@labor.com.br': { areas: ['pcp', 'rh'], rhType: 'area', isAdmin: false, profile: 'producao_gerente' },
     'ana': {
         areas: ['pcp', 'rh'],
         rhType: 'area',

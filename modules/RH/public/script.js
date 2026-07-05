@@ -376,7 +376,7 @@ function initEmployeePage () {
       hasUserData: !!userData,
       userData: userData
     })
-    if (typeof safeRedirectToLogin === 'function') safeRedirectToLogin(); else window.location.href = '/login.html'
+    if (typeof safeRedirectToLogin === 'function') safeRedirectToLogin(); else window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html'
     return // Para a execução
   }
 
@@ -466,7 +466,7 @@ function initEmployeePage () {
     localStorage.removeItem('authToken')
     localStorage.removeItem('userData')
     showToast('Você foi desconectado.', 'success')
-    window.location.href = '/login.html'
+    window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html'
   }
 
   function enableFormEditing () {

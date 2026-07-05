@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
@@ -138,9 +138,9 @@
     <script src="/js/tooltips-professional.js?v=20260209"></script>
 
     <!-- Global Header & Sidebar -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
-    <link rel="stylesheet" href="../css/pcp-header-sidebar.css?v=20260224">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260616n">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
+<link rel="stylesheet" href="/css/design-system.css?v=20260628g">
 </head>
 <body>
     <div class="app-container">
@@ -172,9 +172,9 @@
                 <div class="header-left">
                     <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
                     <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Qualidade</span>
                     </div>
                 </div>
@@ -666,6 +666,7 @@
     }
 
     function abrirModalInspecao(id) {
+        if (typeof _resetInspecaoFormEnabled === 'function') _resetInspecaoFormEnabled();
         document.getElementById('form-inspecao').reset();
         document.getElementById('insp-id').value = '';
         document.getElementById('insp-data').value = new Date().toISOString().split('T')[0];
@@ -676,6 +677,7 @@
     }
 
     async function editarInspecao(id) {
+        if (typeof _resetInspecaoFormEnabled === 'function') _resetInspecaoFormEnabled();
         try {
             const resp = await fetch(`${API_BASE}/inspecoes/${encodeURIComponent(id)}`, {
                 headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
@@ -752,8 +754,37 @@
         }
     }
 
+    // [FIX C4] verInspecao agora abre modal em modo SOMENTE-LEITURA
     async function verInspecao(id) {
         await editarInspecao(id);
+        // Após carregar os dados, bloquear edição
+        const form = document.getElementById('form-inspecao');
+        if (form) {
+            form.querySelectorAll('input, select, textarea').forEach(el => {
+                el.setAttribute('readonly', 'readonly');
+                el.setAttribute('disabled', 'disabled');
+                el.dataset.readonlyMode = '1';
+            });
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.style.display = 'none';
+        }
+        const titulo = document.getElementById('modal-insp-titulo');
+        if (titulo) titulo.textContent = titulo.textContent.replace('Editar', 'Visualizar');
+    }
+
+    // [FIX C4] Re-habilita os campos quando uma nova/edita inspeção é aberta
+    function _resetInspecaoFormEnabled() {
+        const form = document.getElementById('form-inspecao');
+        if (!form) return;
+        form.querySelectorAll('input, select, textarea').forEach(el => {
+            if (el.dataset.readonlyMode === '1') {
+                el.removeAttribute('readonly');
+                el.removeAttribute('disabled');
+                delete el.dataset.readonlyMode;
+            }
+        });
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.style.display = '';
     }
 
     // ============================================
@@ -1174,6 +1205,8 @@
         await carregarChecklists();
     });
     </script>
+
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
 </body>
 </html>
 

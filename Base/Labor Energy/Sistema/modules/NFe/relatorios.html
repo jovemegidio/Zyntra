@@ -7,7 +7,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#1e1e1e">
     <meta name="format-detection" content="telephone=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -33,7 +33,7 @@
     <link rel="stylesheet" href="/modules/Faturamento/css/faturamento-layout.css?v=20260325">
 
     <!-- Global Header & Sidebar é Padrão Institucional -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260325">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260610">
 
     <!-- Performance: Skeleton Loaders -->
     <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260325">
@@ -52,7 +52,7 @@
         .quick-action .action-text { display: flex; flex-direction: column; gap: 3px; }
         .quick-action .action-text span:first-child { font-size: 13px; font-weight: 600; color: #111827; }
         .quick-action .action-desc { font-size: 11px; color: #6b7280; line-height: 1.4; font-weight: 400; }
-        .modal-overlay { display: none; }
+        .modal-overlay { display: none; position: fixed; inset: 0; z-index: 1060; background: rgba(0,0,0,.55); align-items: center; justify-content: center; }
         .modal-overlay.active { display: flex; }
         .report-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px; }
         .summary-card { background: #f9fafb; border-radius: 6px; padding: 14px; text-align: center; }
@@ -61,7 +61,7 @@
     </style>
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260325">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260325">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260608g">
 </head>
 <body>
 
@@ -77,9 +77,12 @@
         <a href="relatorios.html" class="sidebar-btn active" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
         <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-history"></i></a>
         <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+        <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+        <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+        <a href="logistica.html" class="sidebar-btn" title="Logística & Expedição"><i class="fas fa-truck"></i></a>
     </nav>
     <div class="sidebar-bottom">
-        <button class="sidebar-btn" title="Configurações" onclick="abrirModalConfiguracoes()"><i class="fas fa-cog"></i></button>
+        <button class="sidebar-btn" title="Configurações" onclick="abrirModalConfigurações()"><i class="fas fa-cog"></i></button>
     </div>
 </aside>
 
@@ -88,22 +91,18 @@
         <div class="header-left">
             <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
             <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                 <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
                 <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
                 <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Relatórios</span>
             </div>
         </div>
         <div class="header-right">
             <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
-            <button class="header-btn" title="Notificações" onclick="toggleNotificacoes()"><i class="fas fa-bell"></i></button>
+            
             <div class="user-greeting">
                 <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
-                <div class="user-avatar" id="user-avatar">
-                    <img alt="Foto" id="user-photo" style="display:none">
-                    <span id="user-initials">U</span>
-                </div>
             </div>
         </div>
     </header>
@@ -142,32 +141,32 @@
                 </div>
                 <div class="card-body">
                     <div class="quick-actions" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr));">
-                        <button class="quick-action" onclick="gerarRelatorio('os_abertas')">
+                        <button class="quick-action" onclick="gerarRelatório('os_abertas')">
                             <div class="action-icon"><i class="fas fa-clipboard"></i></div>
                             <div class="action-text">
                                 <span>OS Abertas</span>
                                 <span class="action-desc">Ordens de serviço em aberto</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('os_periodo')">
+                        <button class="quick-action" onclick="gerarRelatório('os_periodo')">
                             <div class="action-icon"><i class="fas fa-calendar"></i></div>
                             <div class="action-text">
                                 <span>OS por Período</span>
                                 <span class="action-desc">Filtrar por data de abertura</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('os_tecnico')">
+                        <button class="quick-action" onclick="gerarRelatório('os_tecnico')">
                             <div class="action-icon"><i class="fas fa-user-cog"></i></div>
                             <div class="action-text">
                                 <span>OS por Técnico</span>
                                 <span class="action-desc">Agrupado por técnico responsável</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('os_status')">
+                        <button class="quick-action" onclick="gerarRelatório('os_status')">
                             <div class="action-icon"><i class="fas fa-tasks"></i></div>
                             <div class="action-text">
                                 <span>OS por Status</span>
-                                <span class="action-desc">Distribuião por status atual</span>
+                                <span class="action-desc">Distribuição por status atual</span>
                             </div>
                         </button>
                     </div>
@@ -181,53 +180,53 @@
                 </div>
                 <div class="card-body">
                     <div class="quick-actions" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr));">
-                        <button class="quick-action" onclick="gerarRelatorio('contratos_ativos')">
+                        <button class="quick-action" onclick="gerarRelatório('contratos_ativos')">
                             <div class="action-icon"><i class="fas fa-file-signature"></i></div>
                             <div class="action-text">
                                 <span>Contratos Ativos</span>
                                 <span class="action-desc">Contratos vigentes</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('contratos_vencimento')">
+                        <button class="quick-action" onclick="gerarRelatório('contratos_vencimento')">
                             <div class="action-icon"><i class="fas fa-clock"></i></div>
                             <div class="action-text">
                                 <span>Contratos por Vencimento</span>
                                 <span class="action-desc">Próximos a vencer</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('contratos_valor')">
+                        <button class="quick-action" onclick="gerarRelatório('contratos_valor')">
                             <div class="action-icon"><i class="fas fa-dollar-sign"></i></div>
                             <div class="action-text">
                                 <span>Contratos por Valor</span>
                                 <span class="action-desc">Ordenados por valor mensal</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('contratos_cliente')">
+                        <button class="quick-action" onclick="gerarRelatório('contratos_cliente')">
                             <div class="action-icon"><i class="fas fa-users"></i></div>
                             <div class="action-text">
                                 <span>Contratos por Cliente</span>
                                 <span class="action-desc">Agrupado por cliente</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('renovacoes')">
+                        <button class="quick-action" onclick="gerarRelatório('renovações')">
                             <div class="action-icon"><i class="fas fa-redo"></i></div>
                             <div class="action-text">
                                 <span>Renovações Pendentes</span>
                                 <span class="action-desc">Contratos para renovação</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('contratos_cancelados')">
+                        <button class="quick-action" onclick="gerarRelatório('contratos_cancelados')">
                             <div class="action-icon"><i class="fas fa-times-circle"></i></div>
                             <div class="action-text">
                                 <span>Contratos Cancelados</span>
                                 <span class="action-desc">Histórico de cancelamentos</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('receita_recorrente')">
+                        <button class="quick-action" onclick="gerarRelatório('receita_recorrente')">
                             <div class="action-icon"><i class="fas fa-chart-line"></i></div>
                             <div class="action-text">
                                 <span>Receita Recorrente</span>
-                                <span class="action-desc">MRR e evoluão mensal</span>
+                                <span class="action-desc">MRR e evolução mensal</span>
                             </div>
                         </button>
                     </div>
@@ -241,42 +240,42 @@
                 </div>
                 <div class="card-body">
                     <div class="quick-actions" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr));">
-                        <button class="quick-action" onclick="gerarRelatorio('faturamento_mensal')">
+                        <button class="quick-action" onclick="gerarRelatório('faturamento_mensal')">
                             <div class="action-icon"><i class="fas fa-calendar-alt"></i></div>
                             <div class="action-text">
                                 <span>Faturamento Mensal</span>
                                 <span class="action-desc">Total faturado por mês</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('nfe_status')">
+                        <button class="quick-action" onclick="gerarRelatório('nfe_status')">
                             <div class="action-icon"><i class="fas fa-check-circle"></i></div>
                             <div class="action-text">
                                 <span>NFe por Status</span>
                                 <span class="action-desc">Autorizadas, canceladas, etc</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('top_clientes')">
+                        <button class="quick-action" onclick="gerarRelatório('top_clientes')">
                             <div class="action-icon"><i class="fas fa-trophy"></i></div>
                             <div class="action-text">
                                 <span>Top Clientes</span>
                                 <span class="action-desc">Maiores compradores</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('produtos_vendidos')">
+                        <button class="quick-action" onclick="gerarRelatório('produtos_vendidos')">
                             <div class="action-icon"><i class="fas fa-box"></i></div>
                             <div class="action-text">
                                 <span>Produtos Mais Vendidos</span>
                                 <span class="action-desc">Ranking de produtos</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('impostos')">
+                        <button class="quick-action" onclick="gerarRelatório('impostos')">
                             <div class="action-icon"><i class="fas fa-percentage"></i></div>
                             <div class="action-text">
                                 <span>Impostos Recolhidos</span>
                                 <span class="action-desc">ICMS, IPI, PIS, COFINS</span>
                             </div>
                         </button>
-                        <button class="quick-action" onclick="gerarRelatorio('comparativo_anual')">
+                        <button class="quick-action" onclick="gerarRelatório('comparativo_anual')">
                             <div class="action-icon"><i class="fas fa-chart-area"></i></div>
                             <div class="action-text">
                                 <span>Comparativo Anual</span>
@@ -296,13 +295,13 @@
 <div class="modal-overlay" id="previewSection">
     <div class="modal modal-lg">
         <div class="modal-header">
-            <h3><i class="fas fa-chart-bar"></i> <span id="previewTitle">Relatério</span></h3>
+            <h3><i class="fas fa-chart-bar"></i> <span id="previewTitle">Relatório</span></h3>
             <button class="modal-close" onclick="fecharPreview()" title="Fechar"><i class="fas fa-times"></i></button>
         </div>
         <div class="modal-body" id="previewContent"></div>
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="fecharPreview()">Fechar</button>
-            <button class="btn btn-secondary" onclick="imprimirRelatorio()"><i class="fas fa-print"></i> Imprimir</button>
+            <button class="btn btn-secondary" onclick="imprimirRelatório()"><i class="fas fa-print"></i> Imprimir</button>
             <button class="btn btn-primary" onclick="exportarPDF()"><i class="fas fa-file-pdf"></i> Exportar PDF</button>
         </div>
     </div>
@@ -313,7 +312,7 @@ function toggleMobileSidebar() {
     document.getElementById('mobile-sidebar').classList.toggle('open');
     document.getElementById('sidebar-overlay').classList.toggle('active');
 }
-function toggleNotificacoes() {}
+function toggleNotificações() {}
 
 var _relOriginalTitle = document.title;
 
@@ -360,9 +359,9 @@ function showAlert(msg, type) {
     setTimeout(function() { if (d.parentNode) d.remove(); }, 5000);
 }
 
-var dadosRelatorioAtual = null;
+var dadosRelatórioAtual = null;
 
-function gerarRelatorio(tipo) {
+function gerarRelatório(tipo) {
     var di = document.getElementById('reportDataInicio').value;
     var df = document.getElementById('reportDataFim').value;
     var params = new URLSearchParams();
@@ -371,7 +370,7 @@ function gerarRelatorio(tipo) {
     if (df) params.append('dataFim', df);
 
     document.getElementById('previewTitle').textContent = 'Carregando...';
-    document.getElementById('previewContent').innerHTML = '<div style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:32px;color:var(--primary-500);"></i><p style="margin-top:12px;color:var(--text-secondary);font-size:13px;">Carregando relatério...</p></div>';
+    document.getElementById('previewContent').innerHTML = '<div style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin" style="font-size:32px;color:var(--primary-500);"></i><p style="margin-top:12px;color:var(--text-secondary);font-size:13px;">Carregando relatório...</p></div>';
     document.getElementById('previewSection').classList.add('active');
     document.getElementById('currentReportType').value = tipo;
 
@@ -382,23 +381,23 @@ function gerarRelatorio(tipo) {
     })
     .then(function(dados) {
         if (!dados || (!dados.colunas && !dados.resumo)) throw new Error('Dados vazios');
-        dadosRelatorioAtual = dados;
-        renderizarRelatorio(dados);
+        dadosRelatórioAtual = dados;
+        renderizarRelatório(dados);
     })
     .catch(function(err) {
-        dadosRelatorioAtual = null;
-        document.getElementById('previewTitle').textContent = 'Relatério Indisponível';
+        dadosRelatórioAtual = null;
+        document.getElementById('previewTitle').textContent = 'Relatório Indisponível';
         document.getElementById('previewContent').innerHTML = '<div style="text-align:center;padding:48px 24px;">' +
             '<i class="fas fa-database" style="font-size:48px;color:var(--text-muted);margin-bottom:16px;"></i>' +
             '<h3 style="color:var(--text-primary);font-size:16px;margin-bottom:8px;">Dados não disponíveis</h3>' +
-            '<p style="color:var(--text-secondary);font-size:13px;max-width:400px;margin:0 auto;">Este relatério requer dados do servidor. Verifique se o endpoint da API está configurado ou tente novamente mais tarde.</p>' +
+            '<p style="color:var(--text-secondary);font-size:13px;max-width:400px;margin:0 auto;">Este relatório requer dados do servidor. Verifique se o endpoint da API está configurado ou tente novamente mais tarde.</p>' +
             '</div>';
     });
 }
 
-function renderizarRelatorio(dados) {
-    document.getElementById('previewTitle').textContent = dados.título || 'Relatério';
-    document.title = 'Zyntra: ' + (dados.titulo || 'Relatério');
+function renderizarRelatório(dados) {
+    document.getElementById('previewTitle').textContent = dados.titulo || 'Relatório';
+    document.title = 'Zyntra: ' + (dados.titulo || 'Relatório');
 
     var período = '';
     var di = document.getElementById('reportDataInicio').value;
@@ -453,8 +452,8 @@ document.addEventListener('click', function(e) {
 });
 
 function exportarPDF() {
-    var dados = dadosRelatorioAtual;
-    if (!dados) { showAlert('Nenhum relatério carregado para exportar', 'warning'); return; }
+    var dados = dadosRelatórioAtual;
+    if (!dados) { showAlert('Nenhum relatório carregado para exportar', 'warning'); return; }
 
     var período = '';
     var di = document.getElementById('reportDataInicio').value;
@@ -462,7 +461,7 @@ function exportarPDF() {
     if (di && df) {
         período = new Date(di + 'T00:00:00').toLocaleDateString('pt-BR') + ' a ' + new Date(df + 'T00:00:00').toLocaleDateString('pt-BR');
     }
-    var dataGeracao = new Date().toLocaleString('pt-BR');
+    var dataGeração = new Date().toLocaleString('pt-BR');
 
     var win = window.open('', '_blank', 'width=900,height=700');
     var tableHtml = '';
@@ -489,7 +488,7 @@ function exportarPDF() {
 
     win.document.write(
         '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">' +
-        '<title>' + _escHtml(dados.título) + ' - ALUFORCE</title>' +
+        '<title>' + _escHtml(dados.titulo) + ' - ALUFORCE</title>' +
         '<style>' +
             ':root{--ink:#0c1726;--text:#385062;--muted:#6d8092;--line:#d8e4ed;--soft:#f6fafc;--brand:#0b2842;--brand-2:#103758;--accent:#18b6c8;--accent-soft:#e7fbfd}' +
             '@page{margin:10mm;size:A4 landscape}' +
@@ -530,8 +529,7 @@ function exportarPDF() {
             '.btn-print:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(11,40,66,.3)}' +
             '.btn-close{background:var(--soft);color:var(--text);border:1px solid var(--line)}' +
             '.btn-close:hover{background:#fff}' +
-        '</style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body>' +
+            '</style><link rel="stylesheet" href="/css/design-system.css?v=20260608g"></head><body>' +
         '<div class="btn-bar no-print">' +
             '<button class="btn-print" onclick="window.print()">Imprimir / Salvar PDF</button>' +
             '<button class="btn-close" onclick="window.close()">Fechar</button>' +
@@ -542,11 +540,11 @@ function exportarPDF() {
             '<div><div class="brand-name">ALUFORCE</div><div class="brand-sub">Zyntra &mdash; M\u00f3dulo NFe</div></div>' +
             '<div class="rpt-meta">' +
                 '<div class="doc-tag">Relat\u00f3rio</div>' +
-                '<div class="meta-line">Emitido em: ' + dataGeracao + '</div>' +
+                '<div class="meta-line">Emitido em: ' + dataGeração + '</div>' +
                 (período ? '<div class="meta-line">Per\u00edodo: ' + período + '</div>' : '') +
             '</div>' +
         '</div>' +
-        '<div class="doc-card"><h1>' + _escHtml(dados.título) + '</h1><div class="subtitle">M\u00f3dulo NFe &mdash; Sistema Integrado de Gest\u00e3o Empresarial</div></div>' +
+        '<div class="doc-card"><h1>' + _escHtml(dados.titulo) + '</h1><div class="subtitle">M\u00f3dulo NFe &mdash; Sistema Integrado de Gest\u00e3o Empresarial</div></div>' +
         summaryHtml +
         '<div class="section-card"><div class="s-head">Dados do Relat\u00f3rio</div><div style="padding:0">' +
         tableHtml +
@@ -561,11 +559,11 @@ function exportarPDF() {
     showAlert('PDF gerado com sucesso. Use "Salvar como PDF" na janela de impress\u00e3o', 'success');
 }
 
-function imprimirRelatorio() {
+function imprimirRelatório() {
     exportarPDF();
 }
 
-function abrirModalConfiguracoes() { showAlert('Configurações é Em desenvolvimento', 'info'); }
+function abrirModalConfigurações() { showAlert('Configurações é Em desenvolvimento', 'info'); }
 
 document.addEventListener('DOMContentLoaded', function() {
     carregarUsuario();
@@ -579,7 +577,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Sistema de Notificações Global -->
 <script src="/js/notification-manager.js?v=20260325"></script>
-<script src="/_shared/connection-monitor.js?v=20260325"></script>
+<script src="/_shared/connection-monitor.js?v=20260325" defer></script>
 <script src="/js/popup-confirmacao.js?v=20260325"></script>
 
 <!-- Utilitários Compartilhados -->
@@ -587,7 +585,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="/js/mobile-auto-enhance.js?v=20260325" defer></script>
 
 <!-- Chat Widget BOB AI -->
-<script src="/chat/widget.js?v=20260325" defer></script>
+<script src="/chat/widget.js?v=20260418" defer></script>
 
 <!-- Zyntra Chat Teams -->
 <script src="/socket.io/socket.io.js"></script>
@@ -595,7 +593,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Enterprise Shared -->
 <script src="/js/sidebar-click-animation.js?v=20260325"></script>
-<script src="/_shared/accessibility-widget.js?v=20260325"></script>
+<script src="/_shared/accessibility-widget.js?v=20260325" defer></script>
     <script src="/js/user-dropdown.js?v=20260325" defer></script>
+
+    <script src="/js/global-sidebar-submenu.js?v=20260610b" defer></script>
 </body>
 </html>
+

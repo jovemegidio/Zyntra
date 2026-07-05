@@ -9,6 +9,10 @@
 
 (function() {
     'use strict';
+
+    function withBasePath(path) {
+        return window.__withBasePath ? window.__withBasePath(path) : path;
+    }
     
     // Detectar módulo atual pelo script tag ou URL
     const scriptTag = document.currentScript;
@@ -90,7 +94,7 @@
                 { id: 'dashboard', icon: 'fa-th-large', tooltip: 'Dashboard', href: '/rh' },
                 { id: 'funcionarios', icon: 'fa-users', tooltip: 'Funcionários', href: '/rh' },
                 { id: 'solicitacoes', icon: 'fa-clipboard-list', tooltip: 'Solicitações', href: '/rh/solicitacoes.html' },
-                { id: 'dados', icon: 'fa-id-card', tooltip: 'Dados Pessoais', href: '/rh/dados-pessoais.html' }
+                { id: 'dados', icon: 'fa-id-card', tooltip: 'Dados Cadastrais', href: '/RH/pages/dados-cadastrais.html' }
             ]
         },
         nfe: {
@@ -332,7 +336,7 @@
                 document.cookie = 'authToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
-                window.location.href = '/login.html';
+                window.location.href = withBasePath('/login.html');
             });
         }
         

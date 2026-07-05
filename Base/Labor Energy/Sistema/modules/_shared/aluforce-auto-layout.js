@@ -9,6 +9,10 @@
 
 (function() {
     'use strict';
+
+    function withBasePath(path) {
+        return window.__withBasePath ? window.__withBasePath(path) : path;
+    }
     
     // Detectar módulo atual pelo script tag ou URL
     const scriptTag = document.currentScript;
@@ -332,7 +336,7 @@
                 document.cookie = 'authToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
-                window.location.href = '/login.html';
+                window.location.href = withBasePath('/login.html');
             });
         }
         

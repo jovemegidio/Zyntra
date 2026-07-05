@@ -111,7 +111,7 @@
             items: [
                 { icon: 'fas fa-chart-pie',         title: 'Dashboard RH',     page: 'areaadm.html',             key: 'areaadm' },
                 { icon: 'fas fa-users',              title: 'Funcionários',     page: 'admin-funcionarios.html',  key: 'admin-funcionarios' },
-                { icon: 'fas fa-user',               title: 'Dados Pessoais',   page: 'dados-pessoais.html',     key: 'dados-pessoais' },
+                { icon: 'fas fa-id-card',            title: 'Dados Cadastrais', page: 'pages/dados-cadastrais.html', key: 'dados-cadastrais' },
                 { icon: 'fas fa-file-invoice-dollar', title: 'Holerites',       page: 'holerites.html',          key: 'holerites' },
                 { icon: 'fas fa-clock',              title: 'Ponto',            page: 'admin-ponto.html',        key: 'admin-ponto', adminOnly: true },
                 { icon: 'fas fa-clipboard-list',     title: 'Solicitações',     page: 'solicitacoes.html',       key: 'solicitacoes' },
@@ -320,8 +320,8 @@
                             <div class="name" id="alf-dropdown-name">${userName}</div>
                             <div class="email" id="alf-dropdown-email">${currentUser?.email || ''}</div>
                         </div>
-                        <a href="/RH/dados-pessoais.html" class="alf-user-dropdown-item">
-                            <i class="fas fa-user"></i> Meu Perfil
+                        <a href="/RH/pages/dados-cadastrais.html" class="alf-user-dropdown-item">
+                            <i class="fas fa-id-card"></i> Meu Perfil
                         </a>
                         <a href="/dashboard" class="alf-user-dropdown-item">
                             <i class="fas fa-th-large"></i> Painel Principal

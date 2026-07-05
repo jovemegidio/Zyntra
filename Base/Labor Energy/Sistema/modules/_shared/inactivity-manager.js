@@ -14,6 +14,10 @@
 (function() {
     'use strict';
 
+    function withBasePath(path) {
+        return window.__withBasePath ? window.__withBasePath(path) : path;
+    }
+
     // ==========================================
     // CONFIGURAÇÕES
     // ==========================================
@@ -347,7 +351,7 @@
         sessionStorage.clear();
         
         // Redirecionar para login
-        window.location.href = '/login.html';
+        window.location.href = withBasePath('/login.html');
     }
 
     // ==========================================

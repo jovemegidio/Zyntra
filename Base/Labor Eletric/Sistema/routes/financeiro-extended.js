@@ -315,6 +315,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                        COALESCE(ativo, ativa, 1) as ativo,
                        observacoes, created_at
                 FROM contas_bancarias
+                WHERE nome IS NOT NULL AND nome != ''
                 ORDER BY nome ASC
             `);
             res.json(contas);

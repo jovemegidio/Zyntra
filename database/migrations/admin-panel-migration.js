@@ -279,8 +279,7 @@ async function adminPanelMigration(pool) {
                 ],
                 'vendedor': [
                     { modulo: 'vendas', v:1, c:1, e:1, x:0, a:0 },
-                    { modulo: 'dashboard', v:1, c:0, e:0, x:0, a:0 },
-                    { modulo: 'nfe', v:1, c:0, e:0, x:0, a:0 }
+                    { modulo: 'dashboard', v:1, c:0, e:0, x:0, a:0 }
                 ],
                 'comprador': [
                     { modulo: 'compras', v:1, c:1, e:1, x:0, a:0 },

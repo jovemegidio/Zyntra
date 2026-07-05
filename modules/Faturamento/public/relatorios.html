@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 
 <head>
@@ -12,14 +12,15 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/Faturamento/css/faturamento-layout.css?v=20260413b">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
     <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260320">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 
 <body>
@@ -34,8 +35,12 @@
                 <a href="/Faturamento/consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
                 <a href="/Faturamento/eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
                 <a href="/Faturamento/inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+                <a href="/Faturamento/contratos.html" class="sidebar-btn" title="Contratos"><i class="fas fa-file-signature"></i></a>
+                <a href="/Faturamento/logistica.html" class="sidebar-btn" title="Logística CT-e/MDF-e"><i class="fas fa-truck"></i></a>
+                <a href="/Faturamento/cenario-fiscal.html" class="sidebar-btn" title="Cenário Fiscal"><i class="fas fa-gavel"></i></a>
             </nav>
             <div class="sidebar-bottom">
+                <a href="/Faturamento/painel-contador.html" class="sidebar-btn" title="Painel do Contador"><i class="fas fa-calculator"></i></a>
                 <a href="/Faturamento/relatorios.html" class="sidebar-btn active" title="Relatórios"><i
                         class="fas fa-chart-bar"></i></a>
             </div>
@@ -100,8 +105,9 @@
                     </div>
                 </div>
 
-                <!-- Categorias de Relatórios -->
-                <div class="card fade-in-delay-2">
+                <!-- BUG-013: Seção 'Ordens de Serviço' oculta — módulo OS não está integrado.
+                     Quando o módulo for ativado, basta remover o style="display:none". -->
+                <div class="card fade-in-delay-2" style="display:none">
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-tools"></i> Ordens de Serviço</h3>
                     </div>
@@ -136,37 +142,39 @@
                     </div>
                 </div>
 
+                <!-- Contratos — integrado via /api/faturamento/contratos. -->
                 <div class="card fade-in-delay-3">
-                    <div class="card-header">
+                    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
                         <h3 class="card-title"><i class="fas fa-file-signature"></i> Contratos</h3>
+                        <a href="/Faturamento/contratos.html" class="btn btn-outline btn-sm"><i class="fas fa-cog"></i> Gerenciar contratos</a>
                     </div>
                     <div class="card-body">
                         <div class="report-grid">
                             <div class="option-card" onclick="gerarRelatório('contratos_ativos')">
                                 <div class="option-card-icon green"><i class="fas fa-file-alt"></i></div>
                                 <div class="option-card-title">Contratos Ativos</div>
-                                <div class="option-card-desc">Contratos em vigência</div>
+                                <div class="option-card-desc">Contratos em vigência no período</div>
                             </div>
                             <div class="option-card" onclick="gerarRelatório('contratos_vencer')">
                                 <div class="option-card-icon yellow"><i class="fas fa-calendar-exclamation"></i></div>
                                 <div class="option-card-title">A Vencer</div>
-                                <div class="option-card-desc">Próximos vencimentos</div>
+                                <div class="option-card-desc">Vencimento nos próximos 30 dias</div>
                             </div>
                             <div class="option-card" onclick="gerarRelatório('contratos_vencidos')">
                                 <div class="option-card-icon" style="background:#fef2f2;color:#ef4444;"><i
                                         class="fas fa-calendar-times"></i></div>
                                 <div class="option-card-title">Vencidos</div>
-                                <div class="option-card-desc">Contratos já vencidos</div>
+                                <div class="option-card-desc">Contratos com vigência expirada</div>
                             </div>
                             <div class="option-card" onclick="gerarRelatório('contratos_receita')">
                                 <div class="option-card-icon"><i class="fas fa-chart-line"></i></div>
                                 <div class="option-card-title">Receita Contratos</div>
-                                <div class="option-card-desc">Receita mensal recorrente</div>
+                                <div class="option-card-desc">Receita recorrente por periodicidade</div>
                             </div>
                             <div class="option-card" onclick="gerarRelatório('contratos_clientes')">
                                 <div class="option-card-icon cyan"><i class="fas fa-users"></i></div>
                                 <div class="option-card-title">Contratos por Cliente</div>
-                                <div class="option-card-desc">Agrupamento por cliente</div>
+                                <div class="option-card-desc">Distribuição e valor por cliente</div>
                             </div>
                         </div>
                     </div>
@@ -258,6 +266,15 @@
             impostos: 'Resumo de Impostos', faturamento_cliente: 'Faturamento por Cliente',
             logistica: 'Relatório de Logística', inadimplencia: 'Inadimplência'
         };
+
+        // #11/#18: módulos ainda não integrados mostram um toast leve, não o overlay de preview.
+        function _modIndisponivel(nome) {
+            var t = document.createElement('div');
+            t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.2);z-index:99999;font-family:Inter,sans-serif;font-size:13px;';
+            t.textContent = 'Módulo de ' + nome + ' será integrado em breve.';
+            document.body.appendChild(t);
+            setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 4000);
+        }
 
         function gerarRelatório(tipo) {
             const preview = document.getElementById('report-preview');
@@ -539,7 +556,7 @@
         @media print { body { padding:8mm; } }
         @page { margin:8mm; size:A4 portrait; }
     </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body>
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628"></head><body>
     <div class="print-header">
         <div class="brand">
             <div style="background:#1e40af;color:white;padding:6px 14px;border-radius:4px;"><span class="brand-name">ZYNTRA</span></div>
@@ -816,6 +833,138 @@ document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 
                         return;
                     }
 
+                    // ===== Contratos =====
+                    if (['contratos_ativos', 'contratos_vencer', 'contratos_vencidos', 'contratos_receita', 'contratos_clientes'].includes(tipo)) {
+                        const response = await fetch('/api/faturamento/contratos', { credentials: 'include' });
+                        const data = response.ok ? await response.json() : [];
+                        const contratos = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+
+                        const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+                        const em30Dias = new Date(hoje); em30Dias.setDate(em30Dias.getDate() + 30);
+                        const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+                        const ativo = (c) => String(c.status || '').toLowerCase() !== 'cancelado' && String(c.status || '').toLowerCase() !== 'encerrado';
+                        const fimDe = (c) => c.data_fim ? new Date(c.data_fim) : null;
+                        const labelStatus = (c) => {
+                            const f = fimDe(c);
+                            if (!ativo(c)) return 'Encerrado';
+                            if (f && f < hoje) return 'Vencido';
+                            if (f && f <= em30Dias) return 'A vencer';
+                            return 'Ativo';
+                        };
+
+                        // contratos_receita — receita recorrente por periodicidade
+                        if (tipo === 'contratos_receita') {
+                            const fator = { mensal: 1, bimestral: 1 / 2, trimestral: 1 / 3, semestral: 1 / 6, anual: 1 / 12 };
+                            const ativos = contratos.filter(c => ativo(c) && (!fimDe(c) || fimDe(c) >= hoje));
+                            const porPer = {};
+                            let mrr = 0;
+                            ativos.forEach(c => {
+                                const per = String(c.periodicidade || 'mensal').toLowerCase();
+                                if (!porPer[per]) porPer[per] = { qtd: 0, total: 0 };
+                                porPer[per].qtd += 1;
+                                porPer[per].total += Number(c.valor) || 0;
+                                mrr += (Number(c.valor) || 0) * (fator[per] != null ? fator[per] : 1);
+                            });
+                            content.innerHTML = montarCabecalhoRelatório(título, di, df) + `
+                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+                                    <div style="background:#f0f9ff;padding:12px;border-radius:6px;text-align:center;border:1px solid #bae6fd;">
+                                        <div style="font-size:22px;font-weight:700;color:#0369a1;">${ativos.length}</div>
+                                        <div style="font-size:11px;color:#64748b;">Contratos Ativos</div>
+                                    </div>
+                                    <div style="background:#f0fdf4;padding:12px;border-radius:6px;text-align:center;border:1px solid #bbf7d0;">
+                                        <div style="font-size:22px;font-weight:700;color:#15803d;">${formatarMoedaSeguro(mrr)}</div>
+                                        <div style="font-size:11px;color:#64748b;">Receita Mensal (MRR)</div>
+                                    </div>
+                                    <div style="background:#faf5ff;padding:12px;border-radius:6px;text-align:center;border:1px solid #e9d5ff;">
+                                        <div style="font-size:22px;font-weight:700;color:#7e22ce;">${formatarMoedaSeguro(mrr * 12)}</div>
+                                        <div style="font-size:11px;color:#64748b;">Receita Anual (ARR)</div>
+                                    </div>
+                                </div>
+                                <table style="${tabelaStyle}">
+                                    <thead><tr><th style="${thStyle}">Periodicidade</th><th style="${thStyle}text-align:right;">Contratos</th><th style="${thStyle}text-align:right;">Valor/Ciclo</th></tr></thead>
+                                    <tbody>${Object.keys(porPer).length ? Object.entries(porPer).map(([per, d]) => `
+                                        <tr><td style="${tdStyle}">${escaparHtml(per.charAt(0).toUpperCase() + per.slice(1))}</td><td style="${tdRightStyle}">${d.qtd}</td><td style="${tdRightStyle}"><strong>${formatarMoedaSeguro(d.total)}</strong></td></tr>
+                                    `).join('') : '<tr><td colspan="3" style="padding:24px;text-align:center;color:#94a3b8;">Nenhum contrato ativo cadastrado</td></tr>'}</tbody>
+                                </table>
+                            `;
+                            return;
+                        }
+
+                        // contratos_clientes — distribuição por cliente
+                        if (tipo === 'contratos_clientes') {
+                            const porCliente = {};
+                            contratos.filter(ativo).forEach(c => {
+                                const cli = c.cliente_nome || 'Não informado';
+                                if (!porCliente[cli]) porCliente[cli] = { qtd: 0, total: 0 };
+                                porCliente[cli].qtd += 1;
+                                porCliente[cli].total += Number(c.valor) || 0;
+                            });
+                            const clientes = Object.entries(porCliente).sort((a, b) => b[1].total - a[1].total);
+                            const totalGeral = clientes.reduce((s, [, d]) => s + d.total, 0);
+                            content.innerHTML = montarCabecalhoRelatório(título, di, df) + `
+                                <table style="${tabelaStyle}">
+                                    <thead><tr><th style="${thStyle}">#</th><th style="${thStyle}">Cliente</th><th style="${thStyle}text-align:right;">Contratos</th><th style="${thStyle}text-align:right;">Valor</th><th style="${thStyle}text-align:right;">% do Total</th></tr></thead>
+                                    <tbody>${clientes.length ? clientes.map(([nome, d], i) => `
+                                        <tr>
+                                            <td style="${tdStyle}">${i + 1}</td>
+                                            <td style="${tdStyle}"><strong>${escaparHtml(nome)}</strong></td>
+                                            <td style="${tdRightStyle}">${d.qtd}</td>
+                                            <td style="${tdRightStyle}"><strong>${formatarMoedaSeguro(d.total)}</strong></td>
+                                            <td style="${tdRightStyle}">${totalGeral ? ((d.total / totalGeral) * 100).toFixed(1) + '%' : '-'}</td>
+                                        </tr>
+                                    `).join('') : '<tr><td colspan="5" style="padding:24px;text-align:center;color:#94a3b8;">Nenhum contrato cadastrado</td></tr>'}</tbody>
+                                </table>
+                            `;
+                            return;
+                        }
+
+                        // contratos_ativos / contratos_vencer / contratos_vencidos — listagens
+                        let lista;
+                        if (tipo === 'contratos_vencer') {
+                            lista = contratos.filter(c => ativo(c) && fimDe(c) && fimDe(c) >= hoje && fimDe(c) <= em30Dias);
+                        } else if (tipo === 'contratos_vencidos') {
+                            lista = contratos.filter(c => fimDe(c) && fimDe(c) < hoje);
+                        } else { // contratos_ativos
+                            lista = contratos.filter(c => ativo(c) && (!fimDe(c) || fimDe(c) >= hoje));
+                        }
+                        const totalValor = lista.reduce((s, c) => s + (Number(c.valor) || 0), 0);
+                        const corStatus = { 'Ativo': '#15803d', 'A vencer': '#b45309', 'Vencido': '#dc2626', 'Encerrado': '#64748b' };
+                        content.innerHTML = montarCabecalhoRelatório(título, di, df) + `
+                            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;">
+                                <div style="background:#f0f9ff;padding:12px;border-radius:6px;text-align:center;border:1px solid #bae6fd;">
+                                    <div style="font-size:22px;font-weight:700;color:#0369a1;">${lista.length}</div>
+                                    <div style="font-size:11px;color:#64748b;">Contratos</div>
+                                </div>
+                                <div style="background:#f0fdf4;padding:12px;border-radius:6px;text-align:center;border:1px solid #bbf7d0;">
+                                    <div style="font-size:22px;font-weight:700;color:#15803d;">${formatarMoedaSeguro(totalValor)}</div>
+                                    <div style="font-size:11px;color:#64748b;">Valor Total</div>
+                                </div>
+                            </div>
+                            <table style="${tabelaStyle}">
+                                <thead><tr>
+                                    <th style="${thStyle}">Contrato</th><th style="${thStyle}">Cliente</th><th style="${thStyle}">Início</th>
+                                    <th style="${thStyle}">Vencimento</th><th style="${thStyle}">Situação</th><th style="${thStyle}text-align:right;">Valor</th>
+                                </tr></thead>
+                                <tbody>${lista.length ? lista.map(c => {
+                                    const st = labelStatus(c);
+                                    return `<tr>
+                                        <td style="${tdStyle}"><strong>${escaparHtml(c.numero || ('#' + c.id))}</strong></td>
+                                        <td style="${tdStyle}">${escaparHtml(c.cliente_nome || '—')}</td>
+                                        <td style="${tdStyle}">${fmtData(c.data_inicio)}</td>
+                                        <td style="${tdStyle}">${fmtData(c.data_fim)}</td>
+                                        <td style="${tdStyle}"><span style="color:${corStatus[st] || '#475569'};font-weight:600;">${st}</span></td>
+                                        <td style="${tdRightStyle}"><strong>${formatarMoedaSeguro(c.valor)}</strong></td>
+                                    </tr>`;
+                                }).join('') : '<tr><td colspan="6" style="padding:24px;text-align:center;color:#94a3b8;">Nenhum contrato encontrado</td></tr>'}</tbody>
+                                <tfoot><tr style="background:#f8fafc;font-weight:700;">
+                                    <td colspan="5" style="padding:10px 8px;border-top:2px solid #cbd5e1;">Total: ${lista.length} contrato(s)</td>
+                                    <td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;color:#1e40af;">${formatarMoedaSeguro(totalValor)}</td>
+                                </tr></tfoot>
+                            </table>
+                        `;
+                        return;
+                    }
+
                     content.innerHTML = montarCabecalhoRelatório(título, di, df) + `
                         <div style="text-align:center;padding:40px;color:#64748b;">
                             <i class="fas fa-chart-pie" style="font-size:48px;color:#cbd5e1;margin-bottom:16px;display:block;"></i>
@@ -920,7 +1069,7 @@ document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 
                     .rpt-footer span { font-size:9px; color:#94a3b8; }
                     .confidential { font-size:8px; color:#cbd5e1; text-align:center; margin-top:10px; letter-spacing:1px; text-transform:uppercase; }
                 </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body>
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628"></head><body>
                 <div class="print-bar">
                     <button class="btn-print" onclick="window.print()"><i class="fas fa-print"></i> Imprimir / Salvar PDF</button>
                     <button class="btn-close" onclick="window.close()"><i class="fas fa-times"></i> Fechar</button>

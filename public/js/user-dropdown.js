@@ -13,6 +13,33 @@
             cursor: pointer;
             user-select: none;
         }
+        /* Avatar do cabecalho injetado quando a pagina nao tem um */
+        .user-greeting.zc-has-hdr-avatar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .zc-hdr-avatar {
+            width: 38px;
+            height: 38px;
+            min-width: 38px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 600;
+            font-size: 13px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .zc-hdr-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
         .user-dropdown-menu {
             display: none;
             position: absolute;
@@ -146,7 +173,30 @@
 
     function createDropdown() {
         const greetingEl = document.querySelector('.user-greeting');
-        if (!greetingEl || document.getElementById('user-dropdown-menu')) return;
+        if (!greetingEl) return;
+
+        // Garantir avatar no cabecalho: se a saudacao nao tem avatar, injeta um.
+        // loadUserData() abaixo preenche #user-avatar com a foto (ou iniciais).
+        if (!greetingEl.querySelector('#user-avatar, .user-avatar')) {
+            const hdrAvatar = document.createElement('div');
+            hdrAvatar.className = 'user-avatar zc-hdr-avatar';
+            hdrAvatar.id = 'user-avatar';
+            hdrAvatar.textContent = 'U';
+            greetingEl.classList.add('zc-has-hdr-avatar');
+            greetingEl.appendChild(hdrAvatar);
+        }
+        const headerAvatar = greetingEl.querySelector('#user-avatar, .user-avatar');
+        const existingDropdown = greetingEl.querySelector('#gh-user-dropdown, #user-dropdown-menu');
+        if (headerAvatar && headerAvatar.parentElement === greetingEl) {
+            greetingEl.insertBefore(headerAvatar, existingDropdown || null);
+        }
+
+        // Guard mutuo: se outro script ja anexou o dropdown, ainda atualiza nome/avatar
+        // e evita duplicar o menu.
+        if (document.getElementById('user-dropdown-menu') || greetingEl.querySelector('#gh-user-dropdown')) {
+            loadUserData();
+            return;
+        }
 
         // Criar dropdown HTML
         const dropdown = document.createElement('div');
@@ -162,7 +212,7 @@
                 </div>
             </div>
             <div class="dropdown-menu-items">
-                <button class="dropdown-menu-item" onclick="window.location.href='/dashboard'">
+                <button class="dropdown-menu-item" onclick="window.location.href=(window.__withBasePath?window.__withBasePath('/dashboard'):'/dashboard')">
                     <i class="fas fa-home"></i>
                     <span>Painel Principal</span>
                 </button>
@@ -208,11 +258,30 @@
             // Limpar cookie de sessão
             document.cookie = 'connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
             // Redirecionar para login (location.assign permite intercepção pelo MOUNT_SCRIPT)
-            window.location.assign('/login.html');
+            const loginPath = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
+            window.location.assign(loginPath);
         });
 
         // Carregar dados do usuário para o dropdown
         loadUserData();
+    }
+
+    function applyAvatarToElement(target, foto, iniciais, altText) {
+        if (!target) return;
+        if (foto) {
+            var img = document.createElement('img');
+            img.src = foto;
+            img.alt = altText || 'Avatar';
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
+            img.onerror = function () {
+                target.replaceChildren();
+                target.textContent = iniciais;
+            };
+            target.replaceChildren(img);
+        } else {
+            target.replaceChildren();
+            target.textContent = iniciais;
+        }
     }
 
     async function loadUserData() {
@@ -280,7 +349,13 @@
 
             if (avatarEl) {
                 if (foto) {
-                    avatarEl.innerHTML = '<img src="' + foto + '" alt="Foto">';
+                    var _img = document.createElement('img');
+                    _img.src = foto;
+                    _img.alt = 'Foto';
+                    // Fallback: se a foto falhar ao carregar, mostra as iniciais
+                    // em vez de deixar o círculo vazio.
+                    _img.onerror = function () { avatarEl.textContent = iniciais; };
+                    avatarEl.replaceChildren(_img);
                 } else {
                     avatarEl.textContent = iniciais;
                 }
@@ -295,20 +370,17 @@
             var hGreetEl = document.getElementById('greeting-text');
             var hInitEl = document.getElementById('user-initials');
             var hAvatarEl = document.getElementById('user-avatar');
+            var zcAvatarEl = document.getElementById('zc-user-avatar');
             var hPhotoEl = document.getElementById('user-photo');
 
             if (hNameEl) hNameEl.textContent = primeiroNome;
             if (hGreetEl) hGreetEl.textContent = saudacao;
             if (hInitEl) hInitEl.textContent = iniciais;
-            if (hAvatarEl) {
-                if (foto) {
-                    hAvatarEl.innerHTML = '<img src="' + foto + '" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
-                } else {
-                    hAvatarEl.textContent = iniciais;
-                }
-            }
+            applyAvatarToElement(hAvatarEl, foto, iniciais, 'Avatar');
+            applyAvatarToElement(zcAvatarEl, foto, iniciais, 'Avatar');
             if (hPhotoEl && hPhotoEl.tagName === 'IMG' && foto) {
                 hPhotoEl.src = foto;
+                hPhotoEl.onerror = function () { hPhotoEl.style.display = 'none'; if (hAvatarEl) hAvatarEl.textContent = iniciais; };
             }
         } catch (err) {
             console.log('[Dropdown] Erro ao carregar dados:', err.message);

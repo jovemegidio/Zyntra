@@ -66,7 +66,7 @@ async function carregarPedidosDaAPI() {
         });
         if (!resp.ok) {
             if (resp.status === 401) {
-                window.location.href = '/login.html';
+                window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
                 return;
             }
             throw new Error(`Erro ${resp.status}`);
@@ -356,6 +356,11 @@ function handleDrop(e) {
         const novaColuna = this.id.replace('col-', '');
         const statusAnterior = draggedCard.dataset.status;
 
+        if (statusAnterior === novaColuna) {
+            this.style.background = '';
+            return false;
+        }
+
         // Verificar permissão de movimentação
         if (typeof VendasAuth.podeMoverPedido === 'function' && !VendasAuth.podeMoverPedido(usuarioLogado, statusAnterior, novaColuna)) {
             mostrarNotificacao('Você não tem permissão para mover este pedido para esta etapa.', 'error');
@@ -467,9 +472,12 @@ async function excluirPedidoAtual() {
 
 // Novo pedido
 function abrirModalNovoPedido(tipo = 'orcamento') {
-
+    console.log('[Kanban] abrirModalNovoPedido - tipo:', tipo);
     const modal = document.getElementById('modal-novo-pedido');
     const form = document.getElementById('form-novo-pedido');
+
+    console.log('[Kanban] Modal encontrado:', !!modal);
+    console.log('[Kanban] Form encontrado:', !!form);
 
     if (form) {
         form.reset();
@@ -506,7 +514,7 @@ function abrirModalNovoPedido(tipo = 'orcamento') {
 
     if (modal) {
         modal.classList.add('aberto');
-
+        console.log('[Kanban] Modal aberto com sucesso!');
     } else {
         console.error('[Kanban] Modal #modal-novo-pedido não encontrado no DOM!');
         alert('Erro: Modal não encontrado. Verifique o HTML.');
@@ -515,13 +523,13 @@ function abrirModalNovoPedido(tipo = 'orcamento') {
 
 // Atalho para novo orçamento
 function abrirModalNovoOrcamento() {
-
+    console.log('[Kanban] abrirModalNovoOrcamento chamado');
     abrirModalNovoPedido('orcamento');
 }
 
 // Atalho para novo pedido de venda
 function abrirModalNovoPedidoVenda() {
-
+    console.log('[Kanban] abrirModalNovoPedidoVenda chamado');
     abrirModalNovoPedido('venda');
 }
 
@@ -532,6 +540,8 @@ function fecharModalNovoPedido() {
 
 function popularFormPedido(pedido) {
     const form = document.getElementById('form-novo-pedido');
+    console.log('[Kanban] popularFormPedido - Form encontrado:', !!form);
+    console.log('[Kanban] popularFormPedido - Dados recebidos:', pedido);
 
     if (!form) {
         console.error('[Kanban] Form não encontrado!');
@@ -551,7 +561,7 @@ function popularFormPedido(pedido) {
     // Campos do formulário - com verificação de existência
     const setInputValue = (name, value) => {
         const input = form.querySelector(`[name="${name}"]`);
-
+        console.log(`[Kanban] setInputValue - ${name}:`, value, '- Input encontrado:', !!input);
         if (input) {
             input.value = value ?? '';
         }
@@ -661,9 +671,22 @@ function preencherResumoModal(pedido = {}) {
 
 async function abrirModalEditarPedido(id) {
     try {
+        console.log('[Kanban] Abrindo modal para pedido ID:', id);
 
         // Primeiro busca os dados locais do kanban (sempre disponíveis)
         const pedidoLocal = pedidos.find(p => p.id == id);
+        console.log('[Kanban] Pedido local encontrado:', pedidoLocal);
+
+        // Lock comercial: vendedor só fica bloqueado durante Análise de Crédito.
+        const STATUS_BLOQUEADO = ['analise', 'análise', 'analise-credito', 'análise-crédito'];
+        if (pedidoLocal && STATUS_BLOQUEADO.includes((pedidoLocal.status || '').toLowerCase())) {
+            const emailTI = 'ti@aluforce.ind.br';
+            const userEmail = (window.usuarioLogado && window.usuarioLogado.email || '').toLowerCase();
+            if (userEmail !== emailTI) {
+                mostrarNotificacao('Pedido em Análise de Crédito não pode ser editado por vendedor.', 'error');
+                return;
+            }
+        }
 
         // Tenta buscar dados atualizados da API
         let pedidoDetalhe = pedidoLocal || {};
@@ -675,6 +698,7 @@ async function abrirModalEditarPedido(id) {
 
             if (resp.ok) {
                 const dados = await resp.json();
+                console.log('[Kanban] Dados da API:', dados);
 
                 // Se a API retornou dados válidos, usar eles
                 if (dados && (dados.id || dados.valor_total || dados.valor || dados.cliente_nome)) {
@@ -693,6 +717,8 @@ async function abrirModalEditarPedido(id) {
         } catch (apiError) {
             console.warn('[Kanban] Erro ao buscar API, usando dados locais:', apiError);
         }
+
+        console.log('[Kanban] Dados finais para o modal:', pedidoDetalhe);
 
         // IMPORTANTE: Primeiro abre o modal (que reseta o form), depois popula os dados
         const modal = document.getElementById('modal-novo-pedido');
@@ -735,6 +761,8 @@ function salvarNovoPedido(event) {
     const id = form.dataset.pedidoId || null;
 
     // Construir payload com campos corretos da tabela
+    const condicaoPagamento = dados.condicao_pagamento || dados.condicoes_pagamento || dados.parcelas || null;
+
     const payload = {
         cliente_id: dados.cliente_id ? Number(dados.cliente_id) : null,
         empresa_id: dados.empresa_id ? Number(dados.empresa_id) : null,
@@ -747,6 +775,8 @@ function salvarNovoPedido(event) {
         endereco_entrega: dados.endereco_entrega || null,
         municipio_entrega: dados.municipio_entrega || null,
         metodo_envio: dados.transportadora || null,
+        condicao_pagamento: condicaoPagamento,
+        parcelas: condicaoPagamento,
         produtos: dados.produtos ? safeParseJSON(dados.produtos, []) : []
     };
 
@@ -984,3 +1014,4 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Log de inicialização
+console.log('✅ Módulo de Vendas Kanban Omie Style carregado com sucesso!');

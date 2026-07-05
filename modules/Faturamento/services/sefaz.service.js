@@ -13,7 +13,10 @@
 'use strict';
 
 const axios = require('axios');
+const fs = require('fs');
 const https = require('https');
+const path = require('path');
+const tls = require('tls');
 const crypto = require('crypto');
 const builder = require('xmlbuilder2');
 const nfeConfig = require('../config/nfe.config');
@@ -23,6 +26,38 @@ const certificadoService = require('./certificado.service');
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 2000;
 const MAX_DELAY_MS = 30000;
+
+function carregarCadeiasConfiaveis() {
+    const caminhos = [
+        process.env.NFE_CA_CERT_PATH,
+        path.resolve(__dirname, '../../../cert/icp-brasil/ICP-Brasilv10.pem')
+    ].filter(Boolean);
+    const extras = [];
+
+    for (const caminho of caminhos) {
+        const absoluto = path.isAbsolute(caminho) ? caminho : path.resolve(process.cwd(), caminho);
+        if (!fs.existsSync(absoluto)) continue;
+        try {
+            extras.push(fs.readFileSync(absoluto, 'utf8'));
+        } catch (error) {
+            console.warn(`[SEFAZ] Não foi possível carregar a cadeia CA ${absoluto}: ${error.message}`);
+        }
+    }
+
+    return extras.length ? [...tls.rootCertificates, ...extras] : undefined;
+}
+
+// [FIX SOAP 1.2] Operação de cada serviço (sufixo do soapAction), conforme WSDL oficial NF-e 4.00.
+// O endpoint ASMX da SEFAZ exige o parâmetro action no Content-Type; sem ele retorna HTTP 500.
+// Chave = sufixo do namespace wsdl (...wsdl/<chave>); valor = nome da operação.
+const SOAP_OPS = {
+    NFeAutorizacao4: 'nfeAutorizacaoLote',
+    NFeRetAutorizacao4: 'nfeRetAutorizacaoLote',
+    NFeConsultaProtocolo4: 'nfeConsultaNF',
+    NFeStatusServico4: 'nfeStatusServicoNF',
+    NFeInutilizacao4: 'nfeInutilizacaoNF',
+    NFeRecepcaoEvento4: 'nfeRecepcaoEvento'
+};
 
 class SefazService {
 
@@ -35,16 +70,28 @@ class SefazService {
      */
     async autorizarNFe(xmlNFe, uf) {
         try {
-            const idLote = this.gerarIdLote();
-            const xmlEnvio = this.criarEnvioLote(idLote, [xmlNFe]);
+            // [GUARD identidade fiscal] O CNPJ do emitente da nota DEVE ser o mesmo do
+            // certificado digital carregado (cada empresa emite com o SEU e-CNPJ).
+            // Evita misturar empresas/instâncias — a SEFAZ rejeitaria, mas falhamos
+            // antes, com mensagem clara, sem consumir numeração.
+            const emitCnpj = ((xmlNFe.match(/<emit>[\s\S]*?<CNPJ>(\d{14})<\/CNPJ>/) || [])[1]) || '';
+            certificadoService.validarParaEmitente(emitCnpj);
 
-            // Assinar XML
-            const xmlAssinado = await certificadoService.assinarXML(xmlEnvio, 'infNFe');
+            // [FIX dupla-assinatura] Cada NF-e deve ter EXATAMENTE uma <Signature> em infNFe.
+            // O chamador (faturamento.js) já assina a NF-e antes de enviar; assinar de novo
+            // produzia duas assinaturas → rejeição SEFAZ. Assina aqui apenas se ainda não assinada.
+            const xmlNFeAssinada = /<Signature[\s>]/.test(xmlNFe)
+                ? xmlNFe
+                : await certificadoService.assinarXML(xmlNFe, 'infNFe');
+
+            const idLote = this.gerarIdLote();
+            // O lote enviNFe NÃO é assinado — apenas as NF-e individuais.
+            const xmlEnvio = this.criarEnvioLote(idLote, [xmlNFeAssinada]);
 
             // Resolver URL dinâmica
             const url = this.resolverURL(uf, 'autorizacao');
 
-            const soapEnvelope = this.criarSOAPEnvelope('NFeAutorizacao4', xmlAssinado);
+            const soapEnvelope = this.criarSOAPEnvelope('NFeAutorizacao4', xmlEnvio);
             const response = await this.enviarRequisicaoSOAP(url, soapEnvelope);
 
             const resultado = this.parseXmlResponse(response.data, ['cStat', 'xMotivo', 'nRec', 'nProt', 'chNFe']);
@@ -54,17 +101,48 @@ class SefazService {
                 return await this.consultarRecibo(resultado.nRec, uf);
             }
 
-            return {
-                codigoStatus: resultado.cStat,
-                motivo: resultado.xMotivo,
-                numeroProtocolo: resultado.nProt || null,
-                chaveAcesso: resultado.chNFe || null,
-                autorizado: resultado.cStat === '100',
-                xmlCompleto: response.data
-            };
+            // [FIX cStat-lote] Com indSinc=1 a SEFAZ devolve retEnviNFe já com o protNFe
+            // embutido. O cStat de topo é o do LOTE (104 = "Lote processado"), NÃO o da
+            // NF-e. O status real (100 autorizada / 2xx-5xx rejeição) está em
+            // protNFe/infProt/cStat. parseXmlResponse pega o 1º cStat (lote) → corrigimos
+            // lendo o protocolo individual quando presente.
+            return this.montarResultadoAutorizacao(resultado, response.data);
         } catch (error) {
             throw new Error(`Erro ao autorizar NFe: ${error.message}`);
         }
+    }
+
+    /**
+     * Extrai o resultado do protocolo individual (protNFe/infProt) da resposta da SEFAZ.
+     * Retorna null se não houver protNFe (ex.: rejeição no nível do lote).
+     */
+    extrairResultadoProtocolo(xmlString) {
+        const bloco = (String(xmlString).match(/<infProt[\s\S]*?<\/infProt>/) || [])[0];
+        if (!bloco) return null;
+        const get = (tag) => {
+            const m = bloco.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`));
+            return m ? m[1].trim() : null;
+        };
+        return { cStat: get('cStat'), xMotivo: get('xMotivo'), nProt: get('nProt'), chNFe: get('chNFe') };
+    }
+
+    /**
+     * Decide o status final da NF-e: usa o protNFe/infProt quando presente (status real),
+     * caindo para o cStat de topo (lote) quando não houver protocolo individual.
+     */
+    montarResultadoAutorizacao(resultadoLote, xmlCompleto) {
+        const prot = this.extrairResultadoProtocolo(xmlCompleto);
+        const cStatFinal = (prot && prot.cStat) || resultadoLote.cStat;
+        const AUTORIZADAS = ['100', '150']; // 150 = autorizada fora de prazo
+        return {
+            codigoStatus: cStatFinal,
+            motivo: (prot && prot.xMotivo) || resultadoLote.xMotivo,
+            numeroProtocolo: (prot && prot.nProt) || resultadoLote.nProt || null,
+            chaveAcesso: (prot && prot.chNFe) || resultadoLote.chNFe || null,
+            autorizado: AUTORIZADAS.includes(cStatFinal),
+            statusLote: resultadoLote.cStat,
+            xmlCompleto
+        };
     }
 
     /**
@@ -80,14 +158,9 @@ class SefazService {
 
             const resultado = this.parseXmlResponse(response.data, ['cStat', 'xMotivo', 'nProt', 'chNFe']);
 
-            return {
-                codigoStatus: resultado.cStat,
-                motivo: resultado.xMotivo,
-                numeroProtocolo: resultado.nProt || null,
-                chaveAcesso: resultado.chNFe || null,
-                autorizado: resultado.cStat === '100',
-                xmlCompleto: response.data
-            };
+            // [FIX cStat-lote] retConsReciNFe traz cStat 104 (lote) no topo; o status real
+            // da NF-e está em protNFe/infProt/cStat. Mesma correção do caminho síncrono.
+            return this.montarResultadoAutorizacao(resultado, response.data);
         } catch (error) {
             throw new Error(`Erro ao consultar recibo: ${error.message}`);
         }
@@ -101,7 +174,7 @@ class SefazService {
             const xmlConsulta = this.criarConsultaNFe(chaveAcesso);
 
             const url = this.resolverURL(uf, 'consulta');
-            const soapEnvelope = this.criarSOAPEnvelope('NfeConsultaProtocolo4', xmlConsulta);
+            const soapEnvelope = this.criarSOAPEnvelope('NFeConsultaProtocolo4', xmlConsulta);
             const response = await this.enviarRequisicaoSOAP(url, soapEnvelope);
 
             const resultado = this.parseXmlResponse(response.data, ['cStat', 'xMotivo', 'nProt', 'chNFe']);
@@ -186,7 +259,7 @@ class SefazService {
             const xmlAssinado = await certificadoService.assinarXML(xmlInutilizacao, 'infInut');
 
             const url = this.resolverURL(uf, 'inutilizacao');
-            const soapEnvelope = this.criarSOAPEnvelope('NfeInutilizacao4', xmlAssinado);
+            const soapEnvelope = this.criarSOAPEnvelope('NFeInutilizacao4', xmlAssinado);
             const response = await this.enviarRequisicaoSOAP(url, soapEnvelope);
 
             const resultado = this.parseXmlResponse(response.data, ['cStat', 'xMotivo']);
@@ -214,7 +287,7 @@ class SefazService {
             const xmlConsulta = this.criarConsultaStatus(codigoUF);
 
             const url = this.resolverURL(uf, 'statusServico');
-            const soapEnvelope = this.criarSOAPEnvelope('NfeStatusServico4', xmlConsulta);
+            const soapEnvelope = this.criarSOAPEnvelope('NFeStatusServico4', xmlConsulta);
             const response = await this.enviarRequisicaoSOAP(url, soapEnvelope);
 
             const resultado = this.parseXmlResponse(response.data, ['cStat', 'xMotivo']);
@@ -239,7 +312,7 @@ class SefazService {
             const xmlEnvio = this.criarEnvioEvento(xmlAssinado);
 
             const url = this.resolverURL(uf, 'eventos');
-            const soapEnvelope = this.criarSOAPEnvelope('RecepcaoEvento4', xmlEnvio);
+            const soapEnvelope = this.criarSOAPEnvelope('NFeRecepcaoEvento4', xmlEnvio);
             const response = await this.enviarRequisicaoSOAP(url, soapEnvelope);
 
             const resultado = this.parseXmlResponse(response.data, ['cStat', 'xMotivo', 'nProt']);
@@ -261,20 +334,16 @@ class SefazService {
     // ============================================================
 
     criarEnvioLote(idLote, xmlsNFe) {
-        const root = builder.create({ version: '1.0', encoding: 'UTF-8' })
-            .ele('enviNFe', {
-                versao: '4.00',
-                xmlns: 'http://www.portalfiscal.inf.br/nfe'
-            });
-
-        root.ele('idLote').txt(idLote);
-        root.ele('indSinc').txt('1'); // Síncrono
-
-        xmlsNFe.forEach(xml => {
-            root.import(builder.create(xml).first());
-        });
-
-        return root.end({ prettyPrint: false });
+        // [FIX schema 225 / assinatura] NUNCA re-parsear/re-serializar XML já assinado:
+        // `builder.create(xmlAssinado).first()` re-codifica acentos (ex.: "São João") e
+        // reordena namespaces, alterando os bytes de infNFe → quebra digest/estrutura.
+        // Concatenamos a(s) NF-e assinada(s) como string, preservando os bytes exatos.
+        const nfes = xmlsNFe
+            .map(x => String(x || '').replace(/^\s*<\?xml[^>]*\?>\s*/i, ''))
+            .join('');
+        return `<?xml version="1.0" encoding="UTF-8"?>` +
+            `<enviNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">` +
+            `<idLote>${idLote}</idLote><indSinc>1</indSinc>${nfes}</enviNFe>`;
     }
 
     criarConsultaRecibo(numeroRecibo) {
@@ -419,7 +488,7 @@ class SefazService {
      * [BUG-011 FIX] httpsAgent recebe PEM strings, não forge objects
      */
     async enviarRequisicaoSOAP(url, soapEnvelope) {
-        const isProduction = process.env.NODE_ENV === 'production';
+        const rejectUnauthorized = process.env.NFE_TLS_REJECT_UNAUTHORIZED !== '0';
 
         // Validar certificado antes de tentar usar
         if (!certificadoService.certificadoCarregado) {
@@ -441,13 +510,26 @@ class SefazService {
             throw new Error(`Certificado expirado ou fora do período de validade: ${valErr.message}`);
         }
 
+        const trustedCa = carregarCadeiasConfiaveis();
         const httpsAgent = new https.Agent({
-            rejectUnauthorized: isProduction,
+            rejectUnauthorized,
             minVersion: 'TLSv1.2',
             maxVersion: 'TLSv1.3',
             cert: certPem,   // PEM string
-            key: keyPem       // PEM string
+            key: keyPem,      // PEM string
+            ...(trustedCa ? { ca: trustedCa } : {})
         });
+
+        // [FIX SOAP 1.2] O endpoint ASMX da SEFAZ exige o parâmetro action no Content-Type.
+        // Derivamos o action do namespace do <nfeDadosMsg> + a operação do WSDL (SOAP_OPS).
+        // Sem isso a SEFAZ retorna HTTP 500. Ver WSDL oficial NF-e 4.00.
+        const nsMatch = String(soapEnvelope).match(/nfeDadosMsg\s+xmlns="([^"]+)"/);
+        const wsdlNs = nsMatch ? nsMatch[1] : '';
+        const metodo = wsdlNs ? wsdlNs.split('/').pop() : '';
+        const operacao = SOAP_OPS[metodo];
+        const contentType = operacao
+            ? `application/soap+xml; charset=utf-8; action="${wsdlNs}/${operacao}"`
+            : 'application/soap+xml; charset=utf-8';
 
         let lastError = null;
 
@@ -456,7 +538,7 @@ class SefazService {
             try {
                 const response = await axios.post(url, soapEnvelope, {
                     headers: {
-                        'Content-Type': 'application/soap+xml; charset=utf-8'
+                        'Content-Type': contentType
                     },
                     httpsAgent,
                     timeout: nfeConfig.timeout || 30000
@@ -567,7 +649,10 @@ class SefazService {
      * [BUG-007 FIX] Gerar ID de lote via CSPRNG
      */
     gerarIdLote() {
-        return String(crypto.randomInt(100000000000000, 999999999999999));
+        // idLote: 1 a 15 dígitos numéricos. [FIX] crypto.randomInt exige range <= 2^48-1
+        // (281.474.976.710.655); o intervalo anterior (~9e14) estourava esse limite.
+        // Usamos o maior intervalo seguro do CSPRNG (12 a 15 dígitos).
+        return String(crypto.randomInt(100000000000, 281474976710655));
     }
 
     formatarDataHoraEvento() {
@@ -577,6 +662,105 @@ class SefazService {
         const offsetHours = -Math.floor(offsetMinutes / 60);
         const sign = offsetHours >= 0 ? '+' : '-';
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${pad(Math.abs(offsetHours))}:00`;
+    }
+
+    // ============================================================
+    // MD-e — MANIFESTAÇÃO DO DESTINATÁRIO (eventos no Ambiente Nacional)
+    // Reusa cert + assinatura + SOAP do motor NF-e (NFeRecepcaoEvento4).
+    // ============================================================
+
+    /** Descrições oficiais dos eventos de manifestação (NT 2012.002). */
+    static get DESC_EVENTO_MANIFESTACAO() {
+        return {
+            '210200': 'Confirmacao da Operacao',
+            '210210': 'Ciencia da Operacao',
+            '210220': 'Desconhecimento da Operacao',
+            '210240': 'Operacao nao Realizada'
+        };
+    }
+
+    /**
+     * Monta o XML <evento> de manifestação do destinatário.
+     * cOrgao = 91 (Ambiente Nacional). tpAmb segue nfeConfig.ambiente.
+     */
+    criarEventoManifestacao(dados) {
+        const { chaveAcesso, cnpj, tpEvento, sequenciaEvento = 1, justificativa } = dados;
+        const desc = SefazService.DESC_EVENTO_MANIFESTACAO[tpEvento];
+        if (!desc) throw new Error(`Tipo de evento de manifestação inválido: ${tpEvento}`);
+        if (tpEvento === '210240' && (!justificativa || justificativa.length < 15)) {
+            throw new Error('Operação não Realizada exige justificativa de no mínimo 15 caracteres');
+        }
+        const seq = String(sequenciaEvento).padStart(2, '0');
+        const id = `ID${tpEvento}${chaveAcesso}${seq}`;
+        const cnpjLimpo = String(cnpj || '').replace(/\D/g, '');
+
+        const detEvento = builder.create({ version: '1.0', encoding: 'UTF-8' })
+            .ele('detEvento', { versao: '1.00' })
+            .ele('descEvento').txt(desc).up();
+        if (tpEvento === '210240') {
+            detEvento.ele('xJust').txt(justificativa).up();
+        }
+
+        const evento = builder.create({ version: '1.0', encoding: 'UTF-8' })
+            .ele('evento', { versao: '1.00', xmlns: 'http://www.portalfiscal.inf.br/nfe' })
+            .ele('infEvento', { Id: id })
+            .ele('cOrgao').txt('91').up()
+            .ele('tpAmb').txt(String(nfeConfig.ambiente)).up()
+            .ele('CNPJ').txt(cnpjLimpo).up()
+            .ele('chNFe').txt(chaveAcesso).up()
+            .ele('dhEvento').txt(this.formatarDataHoraEvento()).up()
+            .ele('tpEvento').txt(tpEvento).up()
+            .ele('nSeqEvento').txt(String(sequenciaEvento)).up()
+            .ele('verEvento').txt('1.00').up();
+        evento.import(detEvento.first());
+        return evento.end({ prettyPrint: false });
+    }
+
+    /** Resolve a URL do webservice de Manifestação (Ambiente Nacional). */
+    resolverURLManifestacao(servico = 'eventos') {
+        const ambiente = parseInt(nfeConfig.ambiente) === 1 ? 'producao' : 'homologacao';
+        const url = nfeConfig.webservices[ambiente]?.AN?.[servico];
+        if (!url) throw new Error(`Webservice AN '${servico}' não configurado (ambiente: ${ambiente})`);
+        return url;
+    }
+
+    /**
+     * Transmite um evento de manifestação do destinatário ao Ambiente Nacional.
+     * @returns {{codigoStatus, motivo, numeroProtocolo, sucesso, xmlCompleto}}
+     */
+    async enviarManifestacao(dados) {
+        const xmlEvento = this.criarEventoManifestacao(dados);
+        const xmlAssinado = await certificadoService.assinarXML(xmlEvento, 'infEvento');
+        const xmlEnvio = this.criarEnvioEvento(xmlAssinado);
+
+        const url = this.resolverURLManifestacao('eventos');
+        const soapEnvelope = this.criarSOAPEnvelope('NFeRecepcaoEvento4', xmlEnvio);
+        const response = await this.enviarRequisicaoSOAP(url, soapEnvelope);
+
+        // cStat de topo (128) é do LOTE; o status real está em retEvento/infEvento/cStat.
+        const lote = this.parseXmlResponse(response.data, ['cStat', 'xMotivo', 'nProt']);
+        let cStatEvento = lote.cStat;
+        let xMotivoEvento = lote.xMotivo;
+        let nProt = lote.nProt || null;
+        try {
+            const m = String(response.data).match(/<retEvento[\s\S]*?<\/retEvento>/i);
+            if (m) {
+                const cs = m[0].match(/<cStat>(\d+)<\/cStat>/i);
+                const xm = m[0].match(/<xMotivo>([\s\S]*?)<\/xMotivo>/i);
+                const np = m[0].match(/<nProt>(\d+)<\/nProt>/i);
+                if (cs) cStatEvento = cs[1];
+                if (xm) xMotivoEvento = xm[1];
+                if (np) nProt = np[1];
+            }
+        } catch (_) { /* mantém valores do lote */ }
+
+        return {
+            codigoStatus: cStatEvento,
+            motivo: xMotivoEvento,
+            numeroProtocolo: nProt,
+            sucesso: cStatEvento === '135' || cStatEvento === '136',
+            xmlCompleto: response.data
+        };
     }
 }
 

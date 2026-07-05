@@ -13,8 +13,41 @@ module.exports = function createLogisticaRoutes(deps) {
     // Auto-migration: garantir colunas e tabelas auxiliares do módulo logística
     (async () => {
         try {
-            await pool.query(`ALTER TABLE ctes ADD COLUMN IF NOT EXISTS empresa_id INT NOT NULL DEFAULT 1 AFTER id`).catch(() => {});
-            await pool.query(`ALTER TABLE mdfes ADD COLUMN IF NOT EXISTS empresa_id INT NOT NULL DEFAULT 1 AFTER id`).catch(() => {});
+            await pool.query(`ALTER TABLE ctes ADD COLUMN empresa_id INT NOT NULL DEFAULT 1 AFTER id`).catch(e => {
+                if (e.code !== 'ER_DUP_FIELDNAME' && !String(e.message || '').includes('Duplicate')) throw e;
+            });
+            await pool.query(`ALTER TABLE mdfes ADD COLUMN empresa_id INT NOT NULL DEFAULT 1 AFTER id`).catch(e => {
+                if (e.code !== 'ER_DUP_FIELDNAME' && !String(e.message || '').includes('Duplicate')) throw e;
+            });
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS expedicoes (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    empresa_id INT NOT NULL DEFAULT 1,
+                    pedido_id INT NULL,
+                    nfe_numero VARCHAR(60),
+                    cliente_nome VARCHAR(255),
+                    transportadora_id INT NULL,
+                    transportadora VARCHAR(255),
+                    endereco_entrega TEXT,
+                    cidade_uf VARCHAR(120),
+                    data_saida DATETIME NULL,
+                    data_entrega_prevista DATE NULL,
+                    data_entrega DATETIME NULL,
+                    custo_frete DECIMAL(15,2) NOT NULL DEFAULT 0,
+                    status VARCHAR(40) NOT NULL DEFAULT 'pendente',
+                    prioridade VARCHAR(30),
+                    observacoes TEXT,
+                    codigo_rastreio VARCHAR(100),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uk_expedicao_pedido_empresa (empresa_id, pedido_id),
+                    INDEX idx_empresa (empresa_id),
+                    INDEX idx_pedido (pedido_id),
+                    INDEX idx_status (status),
+                    INDEX idx_transportadora (transportadora_id),
+                    INDEX idx_data_saida (data_saida)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            `);
             await pool.query(`
                 CREATE TABLE IF NOT EXISTS mdfe_documentos (
                     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -437,6 +470,8 @@ module.exports = function createLogisticaRoutes(deps) {
                 // LOG-02: buscar dados do pedido + cliente para auto-popular endereço e prazo
                 const [pedRows] = await pool.query(`
                     SELECT p.id, p.endereco_entrega, p.data_prevista, p.prazo_entrega,
+                           p.valor, p.frete, p.nf, p.numero_nf, p.cliente_nome as pedido_cliente_nome,
+                           c.nome as cliente_nome, c.nome_fantasia as cliente_fantasia,
                            c.endereco as cli_endereco, c.cidade as cli_cidade, c.estado as cli_uf
                     FROM pedidos p
                     LEFT JOIN clientes c ON p.cliente_id = c.id
@@ -466,6 +501,20 @@ module.exports = function createLogisticaRoutes(deps) {
                     || (pedData.cli_endereco
                         ? `${pedData.cli_endereco}${pedData.cli_cidade ? ', ' + pedData.cli_cidade : ''}${pedData.cli_uf ? '/' + pedData.cli_uf : ''}`
                         : null);
+                const cidadeUfFinal = pedData.cli_cidade && pedData.cli_uf ? `${pedData.cli_cidade}/${pedData.cli_uf}` : null;
+                const clienteFinal = cliente || pedData.cliente_fantasia || pedData.cliente_nome || pedData.pedido_cliente_nome || null;
+                const nfeFinal = nfe || pedData.nf || pedData.numero_nf || null;
+                const statusFinal = status || 'pendente';
+                let transportadoraNome = null;
+
+                if (transportadora_id) {
+                    const [transpRows] = await pool.query(`
+                        SELECT COALESCE(NULLIF(nome_fantasia, ''), razao_social) as nome
+                        FROM transportadoras
+                        WHERE id = ?
+                    `, [transportadora_id]);
+                    transportadoraNome = transpRows[0]?.nome || null;
+                }
 
                 await pool.query(`
                     UPDATE pedidos SET
@@ -476,26 +525,50 @@ module.exports = function createLogisticaRoutes(deps) {
                         prioridade = ?,
                         observacao = CONCAT(COALESCE(observacao, ''), ?)
                     WHERE id = ? AND empresa_id = ?
-                `, [status || 'pendente', transportadora_id, previsaoFinal, enderecoFinal, prioridade, observacoes ? `\n[EXP] ${observacoes}` : '', pedido, req.user.empresa_id]);
+                `, [statusFinal, transportadora_id, previsaoFinal, enderecoFinal, prioridade, observacoes ? `\n[EXP] ${observacoes}` : '', pedido, req.user.empresa_id]);
+
+                await pool.query(`
+                    INSERT INTO expedicoes (
+                        empresa_id, pedido_id, nfe_numero, cliente_nome, transportadora_id, transportadora,
+                        endereco_entrega, cidade_uf, data_saida, data_entrega_prevista, custo_frete,
+                        status, prioridade, observacoes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, IF(? IN ('em_expedicao', 'em_transporte', 'entregue'), NOW(), NULL), ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE
+                        nfe_numero = VALUES(nfe_numero),
+                        cliente_nome = VALUES(cliente_nome),
+                        transportadora_id = VALUES(transportadora_id),
+                        transportadora = VALUES(transportadora),
+                        endereco_entrega = VALUES(endereco_entrega),
+                        cidade_uf = VALUES(cidade_uf),
+                        data_saida = COALESCE(expedicoes.data_saida, VALUES(data_saida)),
+                        data_entrega_prevista = VALUES(data_entrega_prevista),
+                        custo_frete = VALUES(custo_frete),
+                        status = VALUES(status),
+                        prioridade = VALUES(prioridade),
+                        observacoes = VALUES(observacoes)
+                `, [
+                    req.user.empresa_id,
+                    pedido,
+                    nfeFinal,
+                    clienteFinal,
+                    transportadora_id || null,
+                    transportadoraNome,
+                    enderecoFinal,
+                    cidadeUfFinal,
+                    statusFinal,
+                    previsaoFinal,
+                    pedData.frete || 0,
+                    statusFinal,
+                    prioridade || 'normal',
+                    observacoes || null
+                ]);
 
                 const responseBody = { success: true, message: 'Expedição criada com sucesso', pedido_id: pedido };
                 if (aviso) responseBody.aviso = aviso;
                 return res.json(responseBody);
             }
 
-            // LOG001: Criar expedição standalone (sem pedido ou NF-e vinculados)
-            try {
-                const [expResult] = await pool.query(
-                    `INSERT INTO expedicoes (cliente, transportadora_id, status, previsao, prioridade, observacoes, empresa_id, criado_por)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [cliente || null, transportadora_id || null, status || 'pendente', previsao || null,
-                     prioridade || 'normal', observacoes || null, req.user.empresa_id, req.user.id]
-                );
-                return res.json({ success: true, message: 'Expedição criada com sucesso', id: expResult.insertId });
-            } catch (expErr) {
-                console.error('[LOGISTICA/EXPEDICAO] Erro ao criar expedição standalone:', expErr.message);
-                return res.status(400).json({ success: false, message: 'Pedido ou NF-e é obrigatório para criar expedição' });
-            }
+            res.status(400).json({ success: false, message: 'Pedido ou NF-e é obrigatório' });
         } catch (error) {
             console.error('[LOGISTICA/EXPEDICAO] Erro:', error);
             next(error);

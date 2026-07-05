@@ -400,7 +400,7 @@
          // Fallback: limpar manualmente
          try { localStorage.clear(); } catch (e) { }
          try { sessionStorage.clear(); } catch (e) { }
-         window.location.href = '/login.html?reason=inactivity';
+         window.location.href = window.__withBasePath ? window.__withBasePath('/login.html?reason=inactivity') : '/login.html?reason=inactivity';
       }
    }
 
@@ -416,7 +416,7 @@
       } else {
          try { localStorage.clear(); } catch (e) { }
          try { sessionStorage.clear(); } catch (e) { }
-         window.location.href = '/login.html';
+         window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
       }
    }
 

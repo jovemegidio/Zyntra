@@ -41,6 +41,11 @@ router.get('/', async (req, res) => {
     }
 });
 
+// Pluralização correta em português
+function pl(n, singular, plural) {
+    return n === 1 ? `1 ${singular}` : `${n} ${plural}`;
+}
+
 /**
  * GET /api/notificacoes/alertas
  * Retorna alertas dos módulos do sistema (contas vencidas, pedidos pendentes, etc.)
@@ -60,7 +65,7 @@ router.get('/alertas', async (req, res) => {
             if (vencidas[0]?.total > 0) {
                 alertas.push({
                     modulo: 'financeiro',
-                    titulo: `${vencidas[0].total} conta(s) a receber vencida(s)`,
+                    titulo: pl(vencidas[0].total, 'conta a receber vencida', 'contas a receber vencidas'),
                     mensagem: `Valor total: R$ ${Number(vencidas[0].valor_total).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`,
                     tipo: 'danger',
                     link: '/modules/Financeiro/contas-receber.html?filtro=vencidos',
@@ -80,7 +85,7 @@ router.get('/alertas', async (req, res) => {
             if (vencidas[0]?.total > 0) {
                 alertas.push({
                     modulo: 'financeiro',
-                    titulo: `${vencidas[0].total} conta(s) a pagar vencida(s)`,
+                    titulo: pl(vencidas[0].total, 'conta a pagar vencida', 'contas a pagar vencidas'),
                     mensagem: `Valor total: R$ ${Number(vencidas[0].valor_total).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`,
                     tipo: 'danger',
                     link: '/modules/Financeiro/contas-pagar.html?filtro=vencidos',
@@ -100,7 +105,7 @@ router.get('/alertas', async (req, res) => {
             if (vencendo[0]?.total > 0) {
                 alertas.push({
                     modulo: 'financeiro',
-                    titulo: `${vencendo[0].total} conta(s) vencendo em 7 dias`,
+                    titulo: pl(vencendo[0].total, 'conta vencendo em 7 dias', 'contas vencendo em 7 dias'),
                     mensagem: 'Verifique as contas a pagar próximas do vencimento',
                     tipo: 'warning',
                     link: '/modules/Financeiro/contas-pagar.html',
@@ -120,7 +125,7 @@ router.get('/alertas', async (req, res) => {
             if (pendentes[0]?.total > 0) {
                 alertas.push({
                     modulo: 'vendas',
-                    titulo: `${pendentes[0].total} pedido(s) pendente(s) há mais de 7 dias`,
+                    titulo: pl(pendentes[0].total, 'pedido pendente há mais de 7 dias', 'pedidos pendentes há mais de 7 dias'),
                     mensagem: 'Pedidos aguardando ação',
                     tipo: 'warning',
                     link: '/Vendas/',

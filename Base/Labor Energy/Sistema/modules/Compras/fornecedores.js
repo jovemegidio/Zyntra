@@ -14,7 +14,6 @@ class FornecedoresManager {
 
     async init() {
         await this.carregarFornecedores();
-        this.renderizarTabela();
         this.inicializarUsuario();
     }
 
@@ -31,7 +30,9 @@ class FornecedoresManager {
 
     async carregarFornecedores() {
         try {
+            const token = localStorage.getItem('token') || this.getAuthToken();
             const response = await fetch('/api/compras/fornecedores', {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                 credentials: 'include'
             });
             if (!response.ok) throw new Error('Erro ao carregar fornecedores');
@@ -70,7 +71,7 @@ class FornecedoresManager {
                 observacoes: f.observacoes || '',
                 pedidos: f.total_pedidos || 0,
                 totalComprado: f.valor_total_compras || 0,
-                avaliacao: parseFloat(f.avaliacao) || 4.0,
+                avaliacao: parseFloat(f.avaliacao) || 0,
                 status: f.ativo == 1 || f.ativo === true || f.ativo === 'true' || f.ativo === '1' ? 'ativo' : 'inativo',
                 ultimaCompra: f.ultima_compra || null,
                 dataCadastro: f.data_cadastro || f.created_at || null
@@ -79,10 +80,12 @@ class FornecedoresManager {
             console.log('[Fornecedores] Fornecedores mapeados:', this.fornecedores.length);
             
             this.atualizarEstatisticas();
+            this.renderizarTabela();
         } catch (error) {
             console.error('Erro ao carregar fornecedores:', error);
             this.fornecedores = [];
             this.atualizarEstatisticas();
+            this.renderizarTabela();
         }
     }
     

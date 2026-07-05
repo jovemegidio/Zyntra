@@ -352,11 +352,11 @@ module.exports = function createPCPRoutes(deps) {
                  WHERE status IN ('ativa', 'em_producao', 'Em Produção', 'em_andamento', 'A Fazer', 'pendente')`
             );
 
-            // Produtos COM estoque (estoque_atual > 0)
+            // Produtos COM estoque (estoque_atual > 0, com fallback para quantidade_estoque)
             // Exclui categoria 'GERAL' (suprimentos, limpeza, escritório) — não são itens de produção PCP
             const [[produtosComEstoqueResult]] = await pool.query(
                 `SELECT COUNT(*) as total FROM produtos
-                 WHERE estoque_atual > 0
+                 WHERE COALESCE(estoque_atual, quantidade_estoque, 0) > 0
                  AND (ativo = 1 OR ativo IS NULL)
                  AND (categoria IS NULL OR categoria != 'GERAL')`
             );
@@ -614,12 +614,13 @@ module.exports = function createPCPRoutes(deps) {
         body('produto_nome').trim().notEmpty().withMessage('Nome do produto é obrigatório')
             .isLength({ max: 255 }).withMessage('Nome muito longo (máx 255 caracteres)'),
         body('quantidade').isFloat({ min: 0.01 }).withMessage('Quantidade deve ser um número positivo'),
-        body('data_previsao_entrega').isDate().withMessage('Data de previsão inválida'),
+        body('data_previsao_entrega').optional({ nullable: true, checkFalsy: true }).isDate().withMessage('Data de previsão inválida'),
         body('observacoes').optional().trim().isLength({ max: 1000 }).withMessage('Observações muito longas (máx 1000 caracteres)'),
         validate
     ], async (req, res, next) => {
         try {
-            const { codigo, produto_nome, quantidade, data_previsao_entrega, observacoes } = req.body;
+            const { codigo, produto_nome, quantidade, observacoes } = req.body;
+            const data_previsao_entrega = req.body.data_previsao_entrega || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             const sql = 'INSERT INTO ordens_producao (codigo, produto_nome, quantidade, data_previsao_entrega, observacoes, status) VALUES (?, ?, ?, ?, ?, \'pendente\')';
             const [result] = await pool.query(sql, [codigo, produto_nome, quantidade, data_previsao_entrega, observacoes]);
             res.status(201).json({ message: 'Ordem criada com sucesso!', id: result.insertId });
@@ -1022,6 +1023,24 @@ module.exports = function createPCPRoutes(deps) {
                     END
                 LIMIT ?
             `, [searchPattern, searchPattern, searchPattern, searchPattern, query, `${query}%`, `${query}%`, limit]);
+            res.json(rows);
+        } catch (error) { next(error); }
+    });
+
+    // Alias: /produtos/autocomplete → mesma lógica de /produtos/search (__FIX_AUTOCOMPLETE_ALIAS__)
+    router.get('/produtos/autocomplete', async (req, res, next) => {
+        try {
+            const query = req.query.q || req.query.termo || req.query.search || '';
+            const limit = parseInt(req.query.limit) || 15;
+            if (!query) {
+                const [rows] = await pool.query('SELECT id, codigo, nome, descricao, sku, unidade_medida as unidade, preco_venda, estoque_atual, quantidade_estoque, estoque_minimo, categoria, status FROM produtos WHERE status = "ativo" LIMIT ?', [limit]);
+                return res.json(rows);
+            }
+            const sp = '%' + query + '%';
+            const [rows] = await pool.query(
+                'SELECT id, codigo, nome, descricao, sku, unidade_medida as unidade, preco_venda, estoque_atual, quantidade_estoque, estoque_minimo, categoria, status FROM produtos WHERE status = "ativo" AND (codigo LIKE ? OR nome LIKE ? OR sku LIKE ?) ORDER BY CASE WHEN codigo = ? THEN 1 WHEN codigo LIKE ? THEN 2 WHEN nome LIKE ? THEN 3 ELSE 4 END LIMIT ?',
+                [sp, sp, sp, query, query + '%', query + '%', limit]
+            );
             res.json(rows);
         } catch (error) { next(error); }
     });
@@ -5052,18 +5071,117 @@ module.exports = function createPCPRoutes(deps) {
             const [rows] = await pool.query(`
                 SELECT
                     p.id, p.cliente_id, p.empresa_id, p.vendedor_id,
-                    p.valor, p.valor_total, p.status, p.prioridade,
+                    p.valor, p.valor AS valor_total, p.status, p.prioridade,
                     p.prazo_entrega, p.condicao_pagamento, p.cenario_fiscal,
                     p.descricao, p.created_at, p.updated_at, p.version,
                     c.nome as cliente_nome,
-                    e.nome as empresa_nome
+                    COALESCE(e.nome_fantasia, e.razao_social) as empresa_nome
                 FROM pedidos p
                 LEFT JOIN clientes c ON p.cliente_id = c.id
-                LEFT JOIN empresas_emissoras e ON p.empresa_id = e.id
+                LEFT JOIN empresas e ON p.empresa_id = e.id
                 ORDER BY p.id DESC LIMIT ? OFFSET ?`, [limit, offset]);
             const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM pedidos');
 
             res.json({ pedidos: rows, total, page, limit });
+        } catch (error) { next(error); }
+    });
+
+    // PEDIDOS DE VENDAS PARA PCP - aprovados em diante, sem restringir pelo vendedor logado
+    router.get('/pedidos-vendas', async (req, res, next) => {
+        try {
+            const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 500, 1), 1000);
+            const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+            const defaultStatuses = [
+                'aprovado',
+                'pedido-aprovado',
+                'pedido_aprovado',
+                'pedido aprovado',
+                'faturar',
+                'faturado',
+                'parcial',
+                'faturamento-parcial',
+                'faturamento_parcial',
+                'faturamento parcial',
+                'recibo',
+                'entregue',
+                'finalizado',
+                'em-producao',
+                'em produção',
+                'em producao',
+                'em_producao'
+            ];
+            const includeAll = ['1', 'true', 'sim', 'all', 'todos'].includes(
+                String(req.query.all || req.query.todos || req.query.include_all || '').trim().toLowerCase()
+            );
+            const requestedStatuses = String(req.query.statuses || '')
+                .split(',')
+                .map(s => s.trim().toLowerCase())
+                .filter(Boolean);
+            const statusList = requestedStatuses.length ? requestedStatuses : (includeAll ? [] : defaultStatuses);
+
+            const pedidoColumns = await getTableColumnsSet('pedidos');
+            const clienteColumns = await getTableColumnsSet('clientes').catch(() => new Set());
+            const hasPedido = column => pedidoColumns.has(column);
+            const hasCliente = column => clienteColumns.has(column);
+            const selectOrNull = (column, alias) => hasPedido(column)
+                ? `p.\`${column}\` AS \`${alias || column}\``
+                : `NULL AS \`${alias || column}\``;
+            const firstExistingExpression = (columns, fallback) => {
+                const expressions = columns.filter(hasPedido).map(column => `p.\`${column}\``);
+                return expressions.length ? `COALESCE(${expressions.join(', ')}, ${fallback})` : fallback;
+            };
+
+            const clienteExpressions = [];
+            if (hasPedido('cliente_nome')) clienteExpressions.push('p.`cliente_nome`');
+            if (hasPedido('cliente')) clienteExpressions.push('p.`cliente`');
+            const joins = [];
+            if (hasPedido('cliente_id') && clienteColumns.size) {
+                joins.push('LEFT JOIN clientes c ON c.id = p.cliente_id');
+                if (hasCliente('nome')) clienteExpressions.push('c.`nome`');
+                if (hasCliente('razao_social')) clienteExpressions.push('c.`razao_social`');
+                if (hasCliente('nome_fantasia')) clienteExpressions.push('c.`nome_fantasia`');
+            }
+
+            const clienteSelect = clienteExpressions.length
+                ? `COALESCE(${clienteExpressions.join(', ')}, 'Cliente nao informado') AS cliente_nome`
+                : `'Cliente nao informado' AS cliente_nome`;
+            const numeroPedidoSelect = `${firstExistingExpression(['numero_pedido', 'num_pedido', 'numero'], 'p.id')} AS numero_pedido`;
+            const valorSelect = `${firstExistingExpression(['valor', 'valor_total', 'total'], '0')} AS valor_total`;
+            const dataSelect = `${firstExistingExpression(['updated_at', 'data_faturamento', 'data_aprovacao', 'data_pedido', 'created_at'], 'NULL')} AS data_referencia`;
+
+            const where = [];
+            const params = [];
+            if (statusList.length) {
+                where.push('LOWER(TRIM(p.`status`)) IN (?)');
+                params.push(statusList);
+            }
+            const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+            const [rows] = await pool.query(`
+                SELECT
+                    p.id,
+                    ${numeroPedidoSelect},
+                    ${clienteSelect},
+                    ${valorSelect},
+                    ${selectOrNull('valor', 'valor')},
+                    ${selectOrNull('status', 'status')},
+                    ${selectOrNull('vendedor_id', 'vendedor_id')},
+                    ${selectOrNull('vendedor_nome', 'vendedor_nome')},
+                    ${selectOrNull('created_at', 'created_at')},
+                    ${selectOrNull('updated_at', 'updated_at')},
+                    ${selectOrNull('data_faturamento', 'data_faturamento')},
+                    ${selectOrNull('prazo_entrega', 'prazo_entrega')},
+                    ${dataSelect},
+                    NULL AS op_id,
+                    NULL AS op_codigo
+                FROM pedidos p
+                ${joins.join('\n')}
+                ${whereSql}
+                ORDER BY data_referencia DESC, p.id DESC
+                LIMIT ? OFFSET ?
+            `, [...params, limit, offset]);
+
+            res.json({ success: true, data: rows, total: rows.length, limit, offset });
         } catch (error) { next(error); }
     });
 
@@ -5073,7 +5191,7 @@ module.exports = function createPCPRoutes(deps) {
             const [rows] = await pool.query(`
                 SELECT
                     p.id, p.cliente_id, p.empresa_id, p.vendedor_id,
-                    p.valor, p.valor_total, p.status, p.prioridade,
+                    p.valor, p.valor AS valor_total, p.status, p.prioridade,
                     p.prazo_entrega, p.nfe_numero, p.nfe_chave,
                     p.created_at, p.updated_at,
                     c.nome as cliente_nome
@@ -8877,32 +8995,95 @@ module.exports = function createPCPRoutes(deps) {
         }
     });
 
+    // Cache de detecção de colunas opcionais da tabela apontamentos_producao
+    // (evita falha de SQL parse quando colunas não existem no schema)
+    let _apColsCache = null;
+    async function detectApontamentosColumns() {
+        if (_apColsCache) return _apColsCache;
+        const cols = {
+            hora_inicio: false, hora_fim: false, data_apontamento: false,
+            data_inicio: false, data_fim: false, created_at: false,
+            duracao_segundos: false, tempo_producao: false,
+            operador: false, operador_id: false, usuario_id: false,
+            tipo_atividade: false, nome_atividade: false,
+            pedido_id: false, produto_descricao: false, observacoes: false,
+            ordem_producao_id: false, maquina: false, quantidade_produzida: false
+        };
+        try {
+            const [rows] = await pool.query(`SHOW COLUMNS FROM apontamentos_producao`);
+            for (const r of rows) {
+                if (cols.hasOwnProperty(r.Field)) cols[r.Field] = true;
+            }
+        } catch (e) {
+            // Tabela não existe - todos false
+        }
+        // Detectar foto/avatar em usuarios (uma vez)
+        let userFoto = null;
+        try {
+            const [u] = await pool.query(`SHOW COLUMNS FROM usuarios`);
+            const names = new Set(u.map(r => r.Field));
+            if (names.has('foto')) userFoto = 'u.foto';
+            else if (names.has('avatar')) userFoto = 'u.avatar';
+        } catch (e) {}
+        cols._userFoto = userFoto || `''`;
+        _apColsCache = cols;
+        return cols;
+    }
+
+    // Helper: monta expressão SQL para "data do apontamento" usando colunas
+    // que realmente existem no schema. Sempre retorna uma expressão válida.
+    function buildApDataExpr(c) {
+        const parts = [];
+        if (c.hora_inicio)        parts.push('ap.hora_inicio');
+        if (c.data_apontamento)   parts.push('ap.data_apontamento');
+        if (c.data_inicio)        parts.push('ap.data_inicio');
+        if (c.created_at)         parts.push('ap.created_at');
+        if (parts.length === 0)   return 'NULL';
+        if (parts.length === 1)   return parts[0];
+        return `COALESCE(${parts.join(', ')})`;
+    }
+    function buildApDuracaoExpr(c) {
+        const parts = [];
+        if (c.duracao_segundos) parts.push('ap.duracao_segundos');
+        if (c.tempo_producao)   parts.push('(ap.tempo_producao * 60)'); // minutos -> segundos
+        if (c.hora_inicio && c.hora_fim) parts.push('TIMESTAMPDIFF(SECOND, ap.hora_inicio, ap.hora_fim)');
+        if (c.data_inicio && c.data_fim) parts.push('TIMESTAMPDIFF(SECOND, ap.data_inicio, ap.data_fim)');
+        parts.push('0');
+        return `COALESCE(${parts.join(', ')})`;
+    }
+
     // Relatório de apontamentos (para supervisores/gerentes)
     router.get('/apontamentos/relatorio', async (req, res) => {
         console.log('[API_APONTAMENTOS] Gerando relatório...');
         try {
             const { dataInicio, dataFim, usuario, atividade, pedido } = req.query;
 
+            // Detectar colunas existentes (evita SQL parse error)
+            const c = await detectApontamentosColumns();
+            const dataExpr = buildApDataExpr(c);
+            const duracaoExpr = buildApDuracaoExpr(c);
+            const userFoto = c._userFoto;
+
             let whereClause = 'WHERE 1=1';
             const params = [];
 
-            if (dataInicio) {
-                whereClause += ' AND DATE(COALESCE(ap.hora_inicio, ap.data_apontamento)) >= ?';
+            if (dataInicio && dataExpr !== 'NULL') {
+                whereClause += ` AND DATE(${dataExpr}) >= ?`;
                 params.push(dataInicio);
             }
-            if (dataFim) {
-                whereClause += ' AND DATE(COALESCE(ap.hora_inicio, ap.data_apontamento)) <= ?';
+            if (dataFim && dataExpr !== 'NULL') {
+                whereClause += ` AND DATE(${dataExpr}) <= ?`;
                 params.push(dataFim);
             }
-            if (usuario) {
-                whereClause += ' AND ap.usuario_id = ?';
+            if (usuario && (c.usuario_id || c.operador_id)) {
+                whereClause += c.usuario_id ? ' AND ap.usuario_id = ?' : ' AND ap.operador_id = ?';
                 params.push(usuario);
             }
-            if (atividade) {
+            if (atividade && c.tipo_atividade) {
                 whereClause += ' AND ap.tipo_atividade = ?';
                 params.push(atividade);
             }
-            if (pedido) {
+            if (pedido && c.pedido_id) {
                 whereClause += ' AND ap.pedido_id = ?';
                 params.push(pedido);
             }
@@ -8928,51 +9109,75 @@ module.exports = function createPCPRoutes(deps) {
                 });
             }
 
+            // Selects condicionais por coluna existente
+            const selId          = 'ap.id';
+            const selUsuarioId   = c.usuario_id ? 'ap.usuario_id' : (c.operador_id ? 'ap.operador_id' : 'NULL') + ' as usuario_id';
+            const selUsuarioNome = `COALESCE(u.nome${c.operador ? ', ap.operador' : ''}, 'Desconhecido') as usuario_nome`;
+            const selUsuarioFoto = `${userFoto} as usuario_foto`;
+            const selTipo        = c.tipo_atividade ? `COALESCE(ap.tipo_atividade, 'outros') as tipo` : `'outros' as tipo`;
+            const selNome        = c.nome_atividade
+                ? `COALESCE(ap.nome_atividade${c.tipo_atividade ? ', ap.tipo_atividade' : ''}, 'Sem nome') as nome`
+                : (c.tipo_atividade ? `COALESCE(ap.tipo_atividade, 'Sem nome') as nome` : `'Sem nome' as nome`);
+            const selData        = `DATE(${dataExpr}) as data`;
+            const selHoraIni     = c.hora_inicio ? `TIME_FORMAT(ap.hora_inicio, '%H:%i') as hora_inicio` : `NULL as hora_inicio`;
+            const selHoraFim     = c.hora_fim ? `TIME_FORMAT(ap.hora_fim, '%H:%i') as hora_fim` : `NULL as hora_fim`;
+            const selDuracao     = `${duracaoExpr} as duracao`;
+            const selOpCodigo    = c.ordem_producao_id ? `op.codigo as op_codigo` : `NULL as op_codigo`;
+            const selPedidoId    = c.pedido_id ? `ap.pedido_id` : `NULL as pedido_id`;
+            const selPedidoNum   = c.pedido_id ? `COALESCE(ped.numero, ap.pedido_id) as pedido_numero` : `NULL as pedido_numero`;
+            const selProdDesc    = c.produto_descricao ? `ap.produto_descricao` : `NULL as produto_descricao`;
+            const selObs         = c.observacoes ? `ap.observacoes` : `NULL as observacoes`;
+
+            const joinUsuarios = `LEFT JOIN usuarios u ON ap.${c.usuario_id ? 'usuario_id' : (c.operador_id ? 'operador_id' : 'id')} = u.id`;
+            const joinOrdens   = c.ordem_producao_id ? `LEFT JOIN ordens_producao op ON ap.ordem_producao_id = op.id` : '';
+            const joinPedidos  = c.pedido_id ? `LEFT JOIN pedidos ped ON ap.pedido_id = ped.id` : '';
+
             // Buscar apontamentos
             const [apontamentos] = await pool.query(`
                 SELECT
-                    ap.id,
-                    ap.usuario_id,
-                    COALESCE(u.nome, ap.operador, 'Desconhecido') as usuario_nome,
-                    COALESCE(u.foto, u.avatar, '') as usuario_foto,
-                    COALESCE(ap.tipo_atividade, 'outros') as tipo,
-                    COALESCE(ap.nome_atividade, ap.tipo_atividade, 'Sem nome') as nome,
-                    DATE(COALESCE(ap.hora_inicio, ap.data_apontamento)) as data,
-                    TIME_FORMAT(ap.hora_inicio, '%H:%i') as hora_inicio,
-                    TIME_FORMAT(ap.hora_fim, '%H:%i') as hora_fim,
-                    COALESCE(ap.duracao_segundos, TIMESTAMPDIFF(SECOND, ap.hora_inicio, ap.hora_fim), 0) as duracao,
-                    op.codigo as op_codigo,
-                    ap.pedido_id,
-                    COALESCE(ped.numero, ap.pedido_id) as pedido_numero,
-                    ap.produto_descricao,
-                    ap.observacoes
+                    ${selId},
+                    ${selUsuarioId},
+                    ${selUsuarioNome},
+                    ${selUsuarioFoto},
+                    ${selTipo},
+                    ${selNome},
+                    ${selData},
+                    ${selHoraIni},
+                    ${selHoraFim},
+                    ${selDuracao},
+                    ${selOpCodigo},
+                    ${selPedidoId},
+                    ${selPedidoNum},
+                    ${selProdDesc},
+                    ${selObs}
                 FROM apontamentos_producao ap
-                LEFT JOIN usuarios u ON ap.usuario_id = u.id
-                LEFT JOIN ordens_producao op ON ap.ordem_producao_id = op.id
-                LEFT JOIN pedidos ped ON ap.pedido_id = ped.id
+                ${joinUsuarios}
+                ${joinOrdens}
+                ${joinPedidos}
                 ${whereClause}
-                ORDER BY COALESCE(ap.hora_inicio, ap.data_apontamento, ap.created_at) DESC
+                ORDER BY ${dataExpr} DESC
                 LIMIT 500
             `, params);
 
             // Buscar funcionários únicos que fizeram apontamentos
+            const userIdCol = c.usuario_id ? 'ap.usuario_id' : (c.operador_id ? 'ap.operador_id' : 'NULL');
             const [funcionarios] = await pool.query(`
                 SELECT DISTINCT
-                    COALESCE(ap.usuario_id, 0) as id,
-                    COALESCE(u.nome, ap.operador, 'Desconhecido') as nome,
-                    COALESCE(u.foto, u.avatar, '') as foto,
-                    COALESCE(u.departamento, u.setor, '') as departamento,
-                    COALESCE(u.role, 'user') as role
+                    COALESCE(${userIdCol}, 0) as id,
+                    COALESCE(u.nome${c.operador ? ', ap.operador' : ''}, 'Desconhecido') as nome,
+                    ${userFoto} as foto,
+                    '' as departamento,
+                    'user' as role
                 FROM apontamentos_producao ap
-                LEFT JOIN usuarios u ON ap.usuario_id = u.id
+                ${joinUsuarios}
                 ${whereClause}
             `, params);
 
             // Calcular estatísticas
-            const totalSegundos = apontamentos.reduce((acc, a) => acc + (a.duracao || 0), 0);
+            const totalSegundos = apontamentos.reduce((acc, a) => acc + (Number(a.duracao) || 0), 0);
             const producaoSegundos = apontamentos
                 .filter(a => ['producao', '1', '1A'].includes(a.tipo))
-                .reduce((acc, a) => acc + (a.duracao || 0), 0);
+                .reduce((acc, a) => acc + (Number(a.duracao) || 0), 0);
 
             res.json({
                 success: true,
@@ -8985,7 +9190,17 @@ module.exports = function createPCPRoutes(deps) {
             });
         } catch (error) {
             console.error('[API_APONTAMENTOS] Erro no relatório:', error.message);
-            res.status(500).json({ success: false, message: 'Erro ao gerar relatório' });
+            // Fallback: retorna estrutura vazia em vez de 500 para não quebrar a UI
+            res.json({
+                success: true,
+                apontamentos: [],
+                funcionarios: [],
+                totalFuncionarios: 0,
+                totalHoras: 0,
+                horasProducao: 0,
+                totalApontamentos: 0,
+                _warning: 'Apontamentos indisponíveis no momento'
+            });
         }
     });
 
@@ -9085,11 +9300,11 @@ module.exports = function createPCPRoutes(deps) {
                 return res.json({ success: true, apontamentos: [] });
             }
 
-            let whereClause = 'WHERE usuario_id = ?';
+            let whereClause = 'WHERE ap.usuario_id = ?';
             const params = [usuario_id];
 
             if (data) {
-                whereClause += ' AND DATE(hora_inicio) = ?';
+                whereClause += ' AND DATE(ap.hora_inicio) = ?';
                 params.push(data);
             }
 
@@ -10027,62 +10242,115 @@ tr:nth-child(even){background:#f8fafc}
             const fim = data_fim || new Date().toISOString().slice(0, 10);
             const inicio = data_inicio || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-            const [apontamentosDiarios] = await pool.query(`
-                SELECT
-                    DATE(ap.data_apontamento) as data,
-                    SUM(ap.quantidade_produzida) as quantidade_produzida,
-                    SUM(ap.tempo_producao) as tempo_total_min,
-                    COUNT(*) as total_apontamentos,
-                    GROUP_CONCAT(DISTINCT ap.maquina SEPARATOR ', ') as maquinas,
-                    GROUP_CONCAT(DISTINCT ap.operador SEPARATOR ', ') as operadores
-                FROM apontamentos_producao ap
-                WHERE ap.data_apontamento BETWEEN ? AND ?
-                GROUP BY DATE(ap.data_apontamento)
-                ORDER BY data ASC
-            `, [inicio, fim]);
+            // Detecta colunas disponíveis em apontamentos_producao
+            const c = await detectApontamentosColumns();
+            const dataExpr = buildApDataExpr(c);
+            const hasQtd = c.quantidade_produzida;
+            const hasTempo = c.tempo_producao || c.duracao_segundos;
 
-            const [ordensConcluidasDia] = await pool.query(`
-                SELECT
-                    DATE(COALESCE(data_conclusao, data_inicio)) as data,
-                    SUM(metragem) as total_metragem,
-                    SUM(quantidade) as total_quantidade,
-                    COUNT(*) as total_ordens,
-                    GROUP_CONCAT(DISTINCT produto_nome SEPARATOR ', ') as produtos
-                FROM ordens_producao
-                WHERE (data_conclusao BETWEEN ? AND ? OR data_inicio BETWEEN ? AND ?)
-                GROUP BY DATE(COALESCE(data_conclusao, data_inicio))
-                ORDER BY data ASC
-            `, [inicio, fim, inicio, fim]);
+            // Apontamentos diários — usa colunas existentes
+            let apontamentosDiarios = [];
+            let resumoApontamentos = {};
+            if (dataExpr !== 'NULL') {
+                try {
+                    const tempoExpr = c.tempo_producao
+                        ? 'SUM(ap.tempo_producao)'
+                        : (c.duracao_segundos ? 'SUM(ap.duracao_segundos)/60' : '0');
+                    const qtdExpr = hasQtd ? 'SUM(ap.quantidade_produzida)' : '0';
+                    const maquinaExpr = c.maquina ? `GROUP_CONCAT(DISTINCT ap.maquina SEPARATOR ', ')` : `''`;
+                    const operadorExpr = c.operador ? `GROUP_CONCAT(DISTINCT ap.operador SEPARATOR ', ')` : `''`;
 
-            const [resumoApontamentos] = await pool.query(`
-                SELECT
-                    SUM(quantidade_produzida) as total_produzido,
-                    AVG(quantidade_produzida) as media_diaria,
-                    MAX(quantidade_produzida) as max_dia,
-                    MIN(quantidade_produzida) as min_dia,
-                    SUM(tempo_producao) as tempo_total,
-                    COUNT(DISTINCT DATE(data_apontamento)) as dias_com_producao
-                FROM apontamentos_producao
-                WHERE data_apontamento BETWEEN ? AND ?
-            `, [inicio, fim]);
+                    [apontamentosDiarios] = await pool.query(`
+                        SELECT
+                            DATE(${dataExpr}) as data,
+                            ${qtdExpr} as quantidade_produzida,
+                            ${tempoExpr} as tempo_total_min,
+                            COUNT(*) as total_apontamentos,
+                            ${maquinaExpr} as maquinas,
+                            ${operadorExpr} as operadores
+                        FROM apontamentos_producao ap
+                        WHERE DATE(${dataExpr}) BETWEEN ? AND ?
+                        GROUP BY DATE(${dataExpr})
+                        ORDER BY data ASC
+                    `, [inicio, fim]);
 
-            const [resumoOrdens] = await pool.query(`
-                SELECT
-                    SUM(metragem) as total_metragem,
-                    SUM(quantidade) as total_quantidade,
-                    COUNT(*) as total_ordens,
-                    COUNT(CASE WHEN status = 'concluida' THEN 1 END) as ordens_concluidas,
-                    COUNT(CASE WHEN status = 'em_producao' THEN 1 END) as ordens_em_producao
-                FROM ordens_producao
-                WHERE data_inicio BETWEEN ? AND ? OR data_conclusao BETWEEN ? AND ?
-            `, [inicio, fim, inicio, fim]);
+                    const qtdResumoExpr = hasQtd ? 'ap.quantidade_produzida' : '0';
+                    const [resumo] = await pool.query(`
+                        SELECT
+                            COALESCE(SUM(${qtdResumoExpr}), 0) as total_produzido,
+                            COALESCE(AVG(${qtdResumoExpr}), 0) as media_diaria,
+                            COALESCE(MAX(${qtdResumoExpr}), 0) as max_dia,
+                            COALESCE(MIN(${qtdResumoExpr}), 0) as min_dia,
+                            ${tempoExpr} as tempo_total,
+                            COUNT(DISTINCT DATE(${dataExpr})) as dias_com_producao
+                        FROM apontamentos_producao ap
+                        WHERE DATE(${dataExpr}) BETWEEN ? AND ?
+                    `, [inicio, fim]);
+                    resumoApontamentos = resumo[0] || {};
+                } catch (e) {
+                    console.warn('[PCP_RELATORIOS] Apontamentos indisponíveis:', e.message);
+                }
+            }
+
+            // Ordens concluídas por dia — fonte primária quando apontamentos vazios
+            let ordensConcluidasDia = [];
+            let resumoOrdens = {};
+            try {
+                [ordensConcluidasDia] = await pool.query(`
+                    SELECT
+                        DATE(COALESCE(data_conclusao, data_inicio, created_at)) as data,
+                        COALESCE(SUM(metragem), 0) as total_metragem,
+                        COALESCE(SUM(quantidade), 0) as total_quantidade,
+                        COUNT(*) as total_ordens,
+                        GROUP_CONCAT(DISTINCT produto_nome SEPARATOR ', ') as produtos
+                    FROM ordens_producao
+                    WHERE deleted_at IS NULL
+                      AND (
+                            DATE(COALESCE(data_conclusao, data_inicio, created_at)) BETWEEN ? AND ?
+                          )
+                    GROUP BY DATE(COALESCE(data_conclusao, data_inicio, created_at))
+                    ORDER BY data ASC
+                `, [inicio, fim]);
+
+                const [resumoOp] = await pool.query(`
+                    SELECT
+                        COALESCE(SUM(metragem), 0) as total_metragem,
+                        COALESCE(SUM(quantidade), 0) as total_quantidade,
+                        COUNT(*) as total_ordens,
+                        COUNT(CASE WHEN LOWER(status) IN ('concluida','concluído','concluido','finalizada','finalizado') THEN 1 END) as ordens_concluidas,
+                        COUNT(CASE WHEN LOWER(status) IN ('em_producao','em produção','produzindo','iniciada') THEN 1 END) as ordens_em_producao
+                    FROM ordens_producao
+                    WHERE deleted_at IS NULL
+                      AND DATE(COALESCE(data_conclusao, data_inicio, created_at)) BETWEEN ? AND ?
+                `, [inicio, fim]);
+                resumoOrdens = resumoOp[0] || {};
+            } catch (e) {
+                console.warn('[PCP_RELATORIOS] Ordens indisponíveis:', e.message);
+            }
+
+            // Se apontamentos não tiveram dados, usa ordens como resumo
+            const semApontamentos = !apontamentosDiarios.length
+                || (Number(resumoApontamentos.total_produzido || 0) === 0 && !hasQtd);
+
+            if (semApontamentos && ordensConcluidasDia.length) {
+                const totais = ordensConcluidasDia.map(d => Number(d.total_quantidade || d.total_metragem || 0));
+                const totalProd = totais.reduce((a, b) => a + b, 0);
+                resumoApontamentos = {
+                    total_produzido: totalProd,
+                    media_diaria: totais.length ? totalProd / totais.length : 0,
+                    max_dia: totais.length ? Math.max(...totais) : 0,
+                    min_dia: totais.length ? Math.min(...totais) : 0,
+                    tempo_total: 0,
+                    dias_com_producao: ordensConcluidasDia.length
+                };
+            }
 
             res.json({
                 success: true,
                 apontamentos_diarios: apontamentosDiarios,
                 ordens_por_dia: ordensConcluidasDia,
-                resumo_apontamentos: resumoApontamentos[0] || {},
-                resumo_ordens: resumoOrdens[0] || {},
+                resumo_apontamentos: resumoApontamentos,
+                resumo_ordens: resumoOrdens,
                 periodo: { data_inicio: inicio, data_fim: fim }
             });
         } catch (err) {
@@ -10124,23 +10392,44 @@ tr:nth-child(even){background:#f8fafc}
                 ORDER BY mes_num ASC
             `, [anoFiltro]);
 
-            const [faturamentoAnoAnterior] = await pool.query(`
+            // Resumo anual: tenta pedidos_faturados primeiro, depois fallback
+            // para pedidos (status faturado/entregue/convertido)
+            const [faturamentoAnoAnteriorPF] = await pool.query(`
                 SELECT
-                    SUM(total) as valor_total,
+                    COALESCE(SUM(total), 0) as valor_total,
                     COUNT(*) as total_pedidos
                 FROM pedidos_faturados
                 WHERE YEAR(data_faturamento) = ?
             `, [anoFiltro - 1]);
 
-            const [faturamentoAnoAtual] = await pool.query(`
+            const [faturamentoAnoAtualPF] = await pool.query(`
                 SELECT
-                    SUM(total) as valor_total,
+                    COALESCE(SUM(total), 0) as valor_total,
                     COUNT(*) as total_pedidos
                 FROM pedidos_faturados
                 WHERE YEAR(data_faturamento) = ?
             `, [anoFiltro]);
 
-            const [topClientes] = await pool.query(`
+            const [faturamentoAnoAtualPed] = await pool.query(`
+                SELECT
+                    COALESCE(SUM(p.valor), 0) as valor_total,
+                    COUNT(*) as total_pedidos
+                FROM pedidos p
+                WHERE p.status IN ('faturado', 'entregue', 'convertido')
+                  AND YEAR(p.created_at) = ?
+            `, [anoFiltro]);
+
+            const [faturamentoAnoAnteriorPed] = await pool.query(`
+                SELECT
+                    COALESCE(SUM(p.valor), 0) as valor_total,
+                    COUNT(*) as total_pedidos
+                FROM pedidos p
+                WHERE p.status IN ('faturado', 'entregue', 'convertido')
+                  AND YEAR(p.created_at) = ?
+            `, [anoFiltro - 1]);
+
+            // Top clientes — tenta pedidos_faturados, fallback para pedidos
+            const [topClientesPF] = await pool.query(`
                 SELECT
                     cliente,
                     COUNT(*) as total_pedidos,
@@ -10152,9 +10441,40 @@ tr:nth-child(even){background:#f8fafc}
                 LIMIT 10
             `, [anoFiltro]);
 
-            const totalAtual = faturamentoAnoAtual[0]?.valor_total || 0;
-            const totalAnterior = faturamentoAnoAnterior[0]?.valor_total || 0;
-            const variacao = totalAnterior > 0 ? ((totalAtual - totalAnterior) / totalAnterior * 100).toFixed(2) : 0;
+            let topClientes = topClientesPF;
+            if (!topClientes || topClientes.length === 0) {
+                const [topClientesPed] = await pool.query(`
+                    SELECT
+                        COALESCE(c.nome, p.cliente_nome, 'Cliente sem nome') as cliente,
+                        COUNT(*) as total_pedidos,
+                        COALESCE(SUM(p.valor), 0) as valor_total
+                    FROM pedidos p
+                    LEFT JOIN clientes c ON p.cliente_id = c.id
+                    WHERE p.status IN ('faturado', 'entregue', 'convertido')
+                      AND YEAR(p.created_at) = ?
+                    GROUP BY COALESCE(c.nome, p.cliente_nome, 'Cliente sem nome')
+                    ORDER BY valor_total DESC
+                    LIMIT 10
+                `, [anoFiltro]).catch(() => [[]]);
+                topClientes = topClientesPed;
+            }
+
+            // Escolhe a fonte que tem dados (PF preferida; senão pedidos)
+            const pfAtual = Number(faturamentoAnoAtualPF[0]?.valor_total || 0);
+            const pedAtual = Number(faturamentoAnoAtualPed[0]?.valor_total || 0);
+            const usarPF = pfAtual >= pedAtual && pfAtual > 0;
+
+            const totalAtual = usarPF ? pfAtual : pedAtual;
+            const totalPedidosAtual = usarPF
+                ? (faturamentoAnoAtualPF[0]?.total_pedidos || 0)
+                : (faturamentoAnoAtualPed[0]?.total_pedidos || 0);
+            const totalAnterior = usarPF
+                ? Number(faturamentoAnoAnteriorPF[0]?.valor_total || 0)
+                : Number(faturamentoAnoAnteriorPed[0]?.valor_total || 0);
+
+            const variacao = totalAnterior > 0
+                ? ((totalAtual - totalAnterior) / totalAnterior * 100).toFixed(2)
+                : 0;
 
             res.json({
                 success: true,
@@ -10164,9 +10484,10 @@ tr:nth-child(even){background:#f8fafc}
                 resumo: {
                     ano: anoFiltro,
                     valor_total_ano: totalAtual,
-                    total_pedidos_ano: faturamentoAnoAtual[0]?.total_pedidos || 0,
+                    total_pedidos_ano: totalPedidosAtual,
                     valor_ano_anterior: totalAnterior,
-                    variacao_percentual: `${variacao}%`
+                    variacao_percentual: `${variacao}%`,
+                    fonte: usarPF ? 'pedidos_faturados' : 'pedidos'
                 }
             });
         } catch (err) {
@@ -10202,7 +10523,7 @@ tr:nth-child(even){background:#f8fafc}
                     COALESCE(c.nome, p.cliente_nome)   AS cliente,
                     p.descricao,
                     p.valor,
-                    p.valor_total,
+                    p.valor AS valor_total,
                     p.status,
                     p.prioridade,
                     p.prazo_entrega,

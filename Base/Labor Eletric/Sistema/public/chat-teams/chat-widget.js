@@ -877,7 +877,7 @@
         let html = '', lastDate = '';
         messages.forEach(msg => {
             const date = fmtDate(msg.createdAt);
-            if (date !== lastDate) { html += `<div class="ct-date-divider">${date}</div>`; lastDate = date; }
+            if (date !== lastDate) { html += `<div class="ct-date-divider"><span>${date}</span></div>`; lastDate = date; }
             html += renderMsg(msg);
         });
         container.innerHTML = html;
@@ -926,7 +926,8 @@
         if (isMine) {
             ctxBtn = `<div class="ct-msg-actions"><button class="ct-msg-action-btn" data-msg-id="${msg.id}" data-msg-type="${msgType}" title="Opções">⋯</button></div>`;
         }
-        return `<div class="ct-message${botClass}" data-msg-id="${msg.id}" data-msg-type="${msgType}" data-msg-user="${msg.userId || msg.fromId}">${ctxBtn}${avatarHtml}<div class="ct-msg-body"><div class="ct-msg-header"><span class="ct-msg-author${authorCls}">${esc(displayName)}</span>${badge}<span class="ct-msg-time">${time}</span>${editedTag}</div>${content ? `<div class="ct-msg-content">${content}</div>` : ''}${attachmentHtml}</div></div>`;
+        const mineClass = isMine ? ' ct-mine' : '';
+        return `<div class="ct-message${botClass}${mineClass}" data-msg-id="${msg.id}" data-msg-type="${msgType}" data-msg-user="${msg.userId || msg.fromId}">${ctxBtn}${avatarHtml}<div class="ct-msg-body"><div class="ct-msg-header"><span class="ct-msg-author${authorCls}">${esc(displayName)}</span>${badge}<span class="ct-msg-time">${time}</span>${editedTag}</div>${content ? `<div class="ct-msg-content">${content}</div>` : ''}${attachmentHtml}</div></div>`;
     }
 
     function renderAudioPlayer(url, name) {
@@ -1356,26 +1357,26 @@
     function toggleChatTheme() {
         const panel = document.getElementById('ct-panel');
         if (!panel) return;
-        const isLight = panel.classList.toggle('ct-light');
-        localStorage.setItem('ct-theme', isLight ? 'light' : 'dark');
+        const isDark = panel.classList.toggle('ct-dark');
+        localStorage.setItem('ct-theme', isDark ? 'dark' : 'light');
         const btn = document.getElementById('ct-btn-theme');
         if (btn) {
-            btn.innerHTML = isLight
-                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
-                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
-            btn.title = isLight ? 'Modo escuro' : 'Modo claro';
+            btn.innerHTML = isDark
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>'
+                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+            btn.title = isDark ? 'Modo claro' : 'Modo escuro';
         }
     }
 
     function applySavedTheme() {
         const saved = localStorage.getItem('ct-theme');
-        if (saved === 'light') {
+        if (saved === 'dark') {
             const panel = document.getElementById('ct-panel');
-            if (panel) panel.classList.add('ct-light');
+            if (panel) panel.classList.add('ct-dark');
             const btn = document.getElementById('ct-btn-theme');
             if (btn) {
-                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
-                btn.title = 'Modo escuro';
+                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+                btn.title = 'Modo claro';
             }
         }
     }
@@ -1387,4 +1388,19 @@
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
+
+    // Expor globalmente para botões externos chamarem toggleChatWidget()
+    window.toggleChatWidget = function () {
+        const panel = document.getElementById('ct-panel');
+        if (panel) {
+            togglePanel();
+        } else {
+            // Widget ainda não foi construído — inicializa e abre
+            init().then ? init() : null;
+            setTimeout(() => {
+                const p = document.getElementById('ct-panel');
+                if (p) togglePanel();
+            }, 800);
+        }
+    };
 })();

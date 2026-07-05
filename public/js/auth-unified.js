@@ -12,6 +12,55 @@
 // FIX v7.6: 502/504 entram no mesmo caminho resiliente de retry/fallback.
 
 // =============================================================================
+// 🚦 DEDUP DE /api/me — fix F6 (14/jun/2026)
+// Vários scripts (layout, header, perfil, kpis, sidebar...) chamam GET /api/me
+// de forma independente — observado 8+ requisições por carregamento de página.
+// Este interceptor envolve window.fetch APENAS para GET /api/me: requisições
+// concorrentes compartilham a mesma promise e o resultado é cacheado por uma
+// janela curta. Qualquer outra URL/método passa direto pelo fetch nativo, e
+// qualquer erro inesperado degrada para o fetch nativo (sem regressão de auth).
+// =============================================================================
+;(function dedupMeFetch() {
+    try {
+        if (typeof window === 'undefined' || !window.fetch || window.__meDedupInstalled) return;
+        window.__meDedupInstalled = true;
+        var nativeFetch = window.fetch.bind(window);
+        var TTL_MS = 2500;
+        var cachedResponse = null;
+        var cachedAt = 0;
+        var inflight = null;
+
+        function isMeGet(input, init) {
+            try {
+                var url = typeof input === 'string' ? input : (input && input.url) || '';
+                var method = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+                return method === 'GET' && /(^|\/)api\/me(\?|#|$)/.test(url);
+            } catch (e) { return false; }
+        }
+
+        window.fetch = function (input, init) {
+            if (!isMeGet(input, init)) return nativeFetch(input, init);
+            try {
+                var now = Date.now();
+                if (cachedResponse && (now - cachedAt) < TTL_MS) {
+                    return Promise.resolve(cachedResponse.clone());
+                }
+                if (inflight) return inflight.then(function (r) { return r.clone(); });
+                inflight = nativeFetch(input, init).then(function (r) {
+                    cachedResponse = r; cachedAt = Date.now(); inflight = null;
+                    return r;
+                }, function (err) {
+                    inflight = null; throw err;
+                });
+                return inflight.then(function (r) { return r.clone(); });
+            } catch (e) {
+                return nativeFetch(input, init);
+            }
+        };
+    } catch (e) { /* fetch indisponível: nada a fazer */ }
+})();
+
+// =============================================================================
 // ANTI-FOUC: restaurar somente header/sidebar escuros.
 // Não aplica `dark-mode` no body para não alterar o conteúdo das páginas.
 // =============================================================================
@@ -36,6 +85,15 @@
 ;(function frontendPolish() {
     const suspiciousPattern = /(Ã.|Â.|â.|ðŸ)/;
     const modalSelector = '.modal-overlay, .modal, [role="dialog"]';
+    // FIX 04/07/2026: modais do sistema usam '.modal-overlay > .modal'. O overlay e o modal
+    // gerenciado; o .modal interno NAO deve ser inertizado nem receber backdrop-close (senao o
+    // conteudo fica visivel porem morto). Ignorar qualquer .modal aninhado sob um .modal-overlay.
+    function isNestedModal(el) {
+        return el instanceof Element &&
+               !el.classList.contains('modal-overlay') &&
+               !!el.closest('.modal-overlay') &&
+               !!(el.parentElement && el.parentElement.closest('.modal-overlay'));
+    }
     const registeredModals = new WeakSet();
     const modalState = new WeakMap();
 
@@ -105,8 +163,9 @@
 
     function isModalOpen(modal) {
         if (!(modal instanceof Element)) return false;
-        if (modal.hasAttribute('hidden') || modal.getAttribute('aria-hidden') === 'true') return false;
+        if (modal.hasAttribute('hidden')) return false;
         if (modal.classList.contains('show') || modal.classList.contains('active') || modal.classList.contains('open')) return true;
+        if (modal.getAttribute('aria-hidden') === 'true') return false;
 
         const styles = window.getComputedStyle(modal);
         const rect = modal.getBoundingClientRect();
@@ -126,6 +185,7 @@
     function syncModalState(modal, force = false) {
         if (!(modal instanceof Element)) return;
         if (!modal.matches(modalSelector)) return;
+        if (isNestedModal(modal)) return; // FIX: overlay pai ja gerencia; nao inertizar .modal interno
 
         const state = modalState.get(modal) || {};
         const isOpen = isModalOpen(modal);
@@ -138,6 +198,8 @@
             if (!modal.hasAttribute('role')) modal.setAttribute('role', 'dialog');
             modal.setAttribute('aria-modal', 'true');
             modal.removeAttribute('aria-hidden');
+            modal.removeAttribute('inert');
+            if ('inert' in modal) modal.inert = false;
 
             if (!state.previousFocus && document.activeElement instanceof HTMLElement) {
                 state.previousFocus = document.activeElement;
@@ -155,11 +217,33 @@
             return;
         }
 
+        const activeElement = document.activeElement;
+        const focusInsideModal = activeElement instanceof HTMLElement && modal.contains(activeElement);
+        const restoreTarget = state.previousFocus instanceof HTMLElement &&
+            document.contains(state.previousFocus) &&
+            !modal.contains(state.previousFocus)
+            ? state.previousFocus
+            : null;
+
+        if (focusInsideModal) {
+            if (restoreTarget && typeof restoreTarget.focus === 'function') {
+                restoreTarget.focus({ preventScroll: true });
+            }
+            if (document.activeElement === activeElement && typeof activeElement.blur === 'function') {
+                activeElement.blur();
+            }
+        }
+
         modal.setAttribute('aria-hidden', 'true');
+        if ('inert' in modal) {
+            modal.inert = true;
+        } else {
+            modal.setAttribute('inert', '');
+        }
         syncBodyOverflow();
 
-        if (state.previousFocus && document.contains(state.previousFocus) && typeof state.previousFocus.focus === 'function') {
-            state.previousFocus.focus({ preventScroll: true });
+        if (!focusInsideModal && restoreTarget && typeof restoreTarget.focus === 'function') {
+            restoreTarget.focus({ preventScroll: true });
         }
         state.previousFocus = null;
     }
@@ -175,6 +259,7 @@
 
     function registerModal(modal) {
         if (!(modal instanceof Element) || registeredModals.has(modal)) return;
+        if (isNestedModal(modal)) return; // FIX: nao registrar backdrop-close no .modal interno
 
         registeredModals.add(modal);
         if (!modal.hasAttribute('role')) modal.setAttribute('role', 'dialog');
@@ -988,9 +1073,59 @@
         }
     };
 
+    const EMPRESA_LOGO_SELECTOR = '.logo-empresa, .company-logo, #logo-sidebar, #logo-header, img[src*="logo"]';
+
+    function isFixedBrandInstance() {
+        return typeof window !== 'undefined' && !!window.__BRAND_LOGO__;
+    }
+
+    function isBrandLogoLocked(el) {
+        return el && (
+            el.getAttribute('data-brand-logo-locked') === 'true' ||
+            el.id === 'zc-empresa-logo' ||
+            el.id === 'alf-brand-logo'
+        );
+    }
+
+    function forEachMutableEmpresaLogo(callback) {
+        document.querySelectorAll(EMPRESA_LOGO_SELECTOR).forEach(img => {
+            if (isBrandLogoLocked(img)) return;
+            callback(img);
+        });
+    }
+
+    function aplicarLogoFixoDaMarca() {
+        if (!isFixedBrandInstance()) return false;
+
+        localStorage.removeItem('empresa_logo_url');
+        localStorage.removeItem('empresa_logo_timestamp');
+
+        document.querySelectorAll('[data-brand-logo-locked="true"], #zc-empresa-logo, #alf-brand-logo').forEach(img => {
+            if (img.tagName === 'IMG') {
+                img.src = window.__BRAND_LOGO__;
+                if (window.__BRAND_NAME__) img.alt = window.__BRAND_NAME__;
+            }
+        });
+
+        return true;
+    }
+
     // === BRANDING: Aplicar logo e favicon da empresa em todas as páginas ===
     function aplicarBrandingEmpresa() {
         try {
+            const faviconFixo = window.__ZYNTRA_FAVICON_URL__;
+            if (faviconFixo) {
+                localStorage.removeItem('empresa_favicon_url');
+                localStorage.removeItem('empresa_favicon_timestamp');
+                document.querySelectorAll('link[rel*="icon"]').forEach(l => l.href = faviconFixo);
+                if (!document.querySelector('link[rel="icon"]')) {
+                    const link = document.createElement('link');
+                    link.rel = 'icon';
+                    link.href = faviconFixo;
+                    document.head.appendChild(link);
+                }
+            }
+
             // Aplicar favicon do localStorage
             const faviconUrl = localStorage.getItem('empresa_favicon_url');
             if (faviconUrl) {
@@ -1006,12 +1141,16 @@
                 }
             }
 
-            // Aplicar logo do localStorage
-            const logoUrl = localStorage.getItem('empresa_logo_url');
+            const usaLogoFixaDaMarca = aplicarLogoFixoDaMarca();
+
+            // Aplicar logo do localStorage apenas na instância Aluforce multiempresa.
+            // Nas instâncias Labor, a marca do tenant vem de window.__BRAND_LOGO__
+            // injetado pelo middleware e não pode ser sobrescrita por cache/API.
+            const logoUrl = usaLogoFixaDaMarca ? null : localStorage.getItem('empresa_logo_url');
             if (logoUrl) {
                 const ts = localStorage.getItem('empresa_logo_timestamp') || '';
                 const url = logoUrl + '?v=' + ts;
-                document.querySelectorAll('.logo-empresa, .company-logo, #logo-sidebar, #logo-header, img[src*="logo"]').forEach(img => {
+                forEachMutableEmpresaLogo(img => {
                     if (img.tagName === 'IMG') img.src = url;
                 });
             }
@@ -1020,19 +1159,19 @@
             // Pular requisição quando o usuário ainda não está autenticado (login page ou sem cookie)
             // — isso evita o 401 "Unauthorized" na rota /api/configuracoes/empresa antes do login.
             const hasAuthCookie = !!getCookie('authToken') || !!getCookie('token');
-            if (!faviconUrl && !logoUrl && !isLoginPage() && hasAuthCookie) {
+            if (((!faviconFixo && !faviconUrl) || !logoUrl) && !isLoginPage() && hasAuthCookie) {
                 fetch('/api/configuracoes/empresa', { credentials: 'include' })
                     .then(r => r.ok ? r.json() : null)
                     .then(data => {
                         if (!data) return;
-                        if (data.logo_url) {
+                        if (data.logo_url && !usaLogoFixaDaMarca) {
                             localStorage.setItem('empresa_logo_url', data.logo_url);
                             localStorage.setItem('empresa_logo_timestamp', Date.now().toString());
-                            document.querySelectorAll('.logo-empresa, .company-logo, #logo-sidebar, #logo-header, img[src*="logo"]').forEach(img => {
+                            forEachMutableEmpresaLogo(img => {
                                 if (img.tagName === 'IMG') img.src = data.logo_url + '?v=' + Date.now();
                             });
                         }
-                        if (data.favicon_url) {
+                        if (data.favicon_url && !faviconFixo) {
                             localStorage.setItem('empresa_favicon_url', data.favicon_url);
                             localStorage.setItem('empresa_favicon_timestamp', Date.now().toString());
                             document.querySelectorAll('link[rel*="icon"]').forEach(l => l.href = data.favicon_url + '?v=' + Date.now());
@@ -1057,4 +1196,45 @@
 
     debugLog('Sistema de autenticacao v7.6 (Tab-Isolated + Server Validation + Token Refresh) inicializado');
 
+})();
+
+/* === /api/me request dedup (auditoria 13/jun/2026) ===
+ * Envolve o window.fetch ja instalado pelo auth-unified e coalesce/cacheia
+ * GET /api/me por ~10s, eliminando 8+ chamadas identicas por pagina.
+ * __noMeDedup evita re-entrada no retry interno (503) do wrapper de auth. */
+(function installApiMeDedup(){
+    try {
+        if (typeof window === 'undefined' || typeof window.fetch !== 'function') return;
+        if (window.__meDedupInstalled) return;
+        window.__meDedupInstalled = true;
+        var _authFetch = window.fetch;
+        var _inflight = null, _cache = null, TTL = 10000;
+        function isMe(u){ try { return /(^|\/)api\/me(\/?(\?|$))/.test(u); } catch(e){ return false; } }
+        window.fetch = function(input, init){
+            try {
+                var u = (typeof input === 'string') ? input : (input && input.url) || '';
+                var m = ((init && init.method) || (typeof input === 'object' && input && input.method) || 'GET').toUpperCase();
+                if (m === 'GET' && !(init && init.__noMeDedup) && isMe(u)) {
+                    var now = Date.now();
+                    if (_cache && (now - _cache.ts) < TTL) {
+                        return Promise.resolve(new Response(_cache.body, { status: _cache.status, headers: _cache.headers }));
+                    }
+                    if (_inflight) { return _inflight.then(function(r){ return r.clone(); }); }
+                    var callInit = Object.assign({}, init, { __noMeDedup: true });
+                    _inflight = Promise.resolve(_authFetch(input, callInit)).then(function(resp){
+                        return Promise.resolve().then(function(){
+                            if (resp && resp.ok) {
+                                return resp.clone().text().then(function(body){
+                                    _cache = { ts: Date.now(), body: body, status: resp.status,
+                                        headers: { 'Content-Type': (resp.headers && resp.headers.get && resp.headers.get('Content-Type')) || 'application/json' } };
+                                }).catch(function(){});
+                            }
+                        }).then(function(){ _inflight = null; return resp; });
+                    }).catch(function(e){ _inflight = null; throw e; });
+                    return _inflight.then(function(r){ return r.clone(); });
+                }
+            } catch(e){ /* qualquer erro: cai no fetch original */ }
+            return _authFetch(input, init);
+        };
+    } catch(e){ /* nunca quebrar o fetch */ }
 })();

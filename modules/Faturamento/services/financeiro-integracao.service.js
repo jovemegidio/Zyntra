@@ -102,9 +102,13 @@ class FinanceiroIntegracaoService {
 
             // FUNC-01: Atualizar nfes (era UPDATE nfe — tabela errada)
             // Adicionar coluna dinamicamente se não existir para garantir idempotência
-            await connection.query(`
-                ALTER TABLE nfes ADD COLUMN IF NOT EXISTS conta_receber_id INT NULL
-            `).catch(() => {}); // silencioso: pode já existir ou não ter permissão
+            await connection.query(
+                `ALTER TABLE nfes ADD COLUMN conta_receber_id INT NULL`
+            ).catch(e => {
+                if (e.code !== 'ER_DUP_FIELDNAME' && !String(e.message || '').includes('Duplicate')) {
+                    console.warn('[FINANCEIRO-INT] ALTER nfes ADD conta_receber_id:', e.message);
+                }
+            });
 
             await connection.query(
                 'UPDATE nfes SET conta_receber_id = ? WHERE id = ?',

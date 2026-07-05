@@ -88,23 +88,40 @@
             
             console.log('[AdminPermissions] Found', adminOnlyElements.length, 'admin-only elements');
 
+            // aria-hidden em <option>/<select>/inputs disparam aviso de acessibilidade
+            // ("Blocked aria-hidden on an element..."). Para esses controles focáveis,
+            // basta esconder via display:none, sem aplicar aria-hidden.
+            const FOCUSABLE_FORM_TAGS = new Set(['OPTION', 'SELECT', 'INPUT', 'TEXTAREA', 'BUTTON']);
+
             adminOnlyElements.forEach(element => {
+                const isFocusableFormControl = FOCUSABLE_FORM_TAGS.has(element.tagName);
+
                 if (isAdmin) {
                     // Show element for admins
                     element.style.display = '';
                     element.removeAttribute('aria-hidden');
-                    
+
                     // Log which elements are being shown
                     console.log('[AdminPermissions] Showing admin element:', element.id || element.className);
                 } else {
                     // Keep hidden for non-admins
                     element.style.display = 'none';
-                    element.setAttribute('aria-hidden', 'true');
-                    
+
+                    if (!isFocusableFormControl) {
+                        element.setAttribute('aria-hidden', 'true');
+                    } else {
+                        // Garantir que não fique resíduo de aria-hidden em controles focáveis
+                        element.removeAttribute('aria-hidden');
+                    }
+
                     // Remove click handlers for security
                     element.style.pointerEvents = 'none';
                 }
             });
+
+            // Limpeza defensiva: remover aria-hidden de qualquer <option> existente
+            // (independente da origem) — evita warnings WAI-ARIA do Chrome.
+            document.querySelectorAll('option[aria-hidden]').forEach(opt => opt.removeAttribute('aria-hidden'));
 
             // Store admin status globally for other scripts
             window.isUserAdmin = isAdmin;

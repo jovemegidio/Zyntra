@@ -10,6 +10,10 @@ let kpisCarregados = false;
 let modalKpisAberto = false;
 let usuarioPodeVerKPIs = false;
 
+function withBasePath(path) {
+    return window.__withBasePath ? window.__withBasePath(path) : path;
+}
+
 // Emails de consultoria e admins que podem ver os KPIs
 const consultoriaEmailsKPIs = [
     'mauricio@lumiereassessoria.com.br',
@@ -216,17 +220,53 @@ async function carregarKPIs() {
 }
 
 /**
- * Carregar KPIs zerados quando API não disponível (sem dados fictícios)
+ * Carregar KPIs simulados quando API não disponível
  */
 function carregarKPIsSimulados() {
-    console.warn('[KPIs] API indisponível — exibindo zeros.');
-
-    atualizarResumoFinanceiro({ receitas: 0, despesas: 0, lucro_estimado: 0, margem_percentual: 0, faturamento_periodo: 0 });
-    atualizarKPIsVendas({ total_pedidos: 0, taxa_conversao: 0, ticket_medio: 0 });
-    atualizarKPIsCompras({ total_pedidos: 0, pedidos_pendentes: 0, economia_gerada: 0 });
-    atualizarKPIsPCP({ ordens_producao: 0, eficiencia_percentual: 0, alertas_estoque: 0 });
-    atualizarKPIsRH({ total_funcionarios: 0, ferias_programadas: 0, aniversariantes_mes: 0 });
-    atualizarAlertas([{ tipo: 'warning', modulo: 'Sistema', mensagem: 'Sem conexão com o servidor. Dados indisponíveis.', link: '#' }]);
+    console.log('[KPIs] Carregando dados simulados...');
+    
+    // Resumo Financeiro
+    atualizarResumoFinanceiro({
+        receitas: 385000,
+        despesas: 245000,
+        lucro_estimado: 140000,
+        margem_percentual: 36.4,
+        faturamento_periodo: 320000
+    });
+    
+    // Vendas
+    atualizarKPIsVendas({
+        total_pedidos: 87,
+        taxa_conversao: 68.5,
+        ticket_medio: 4500
+    });
+    
+    // Compras
+    atualizarKPIsCompras({
+        total_pedidos: 34,
+        pedidos_pendentes: 8,
+        economia_gerada: 12500
+    });
+    
+    // PCP
+    atualizarKPIsPCP({
+        ordens_producao: 23,
+        eficiencia_percentual: 82.3,
+        alertas_estoque: 5
+    });
+    
+    // RH
+    atualizarKPIsRH({
+        total_funcionarios: 42,
+        ferias_programadas: 3,
+        aniversariantes_mes: 4
+    });
+    
+    // Alertas simulados
+    atualizarAlertas([
+        { tipo: 'warning', modulo: 'Financeiro', mensagem: '3 títulos vencendo hoje', link: '/modules/Financeiro/index.html' },
+        { tipo: 'info', modulo: 'Vendas', mensagem: '5 pedidos aguardando aprovação', link: '/modules/Vendas/public/index.html' }
+    ]);
 }
 
 /**
@@ -500,10 +540,19 @@ function renderizarPedidosAprovacao(pedidos) {
 }
 
 /**
- * Renderizar pedidos vazios quando API não disponível (sem dados fictícios)
+ * Renderizar pedidos simulados (fallback)
  */
 function renderizarPedidosSimulados() {
-    renderizarPedidosAprovacao([]);
+    const pedidosSimulados = [
+        { id: 1, numero: '2026001', cliente: 'ABC Construtora Ltda', valor_total: 15750.00, data_pedido: new Date() },
+        { id: 2, numero: '2026002', cliente: 'Metalúrgica Delta S.A.', valor_total: 8320.50, data_pedido: new Date() },
+        { id: 3, numero: '2026003', cliente: 'Indústria Omega', valor_total: 23100.00, data_pedido: new Date(Date.now() - 86400000) },
+        { id: 4, numero: '2026004', cliente: 'Comércio Silva & Filhos', valor_total: 4580.00, data_pedido: new Date(Date.now() - 86400000) },
+        { id: 5, numero: '2026005', cliente: 'Tech Solutions Brasil', valor_total: 12200.00, data_pedido: new Date(Date.now() - 172800000) },
+        { id: 6, numero: '2026006', cliente: 'Distribuidora Nacional', valor_total: 6750.00, data_pedido: new Date(Date.now() - 172800000) }
+    ];
+    
+    renderizarPedidosAprovacao(pedidosSimulados);
 }
 
 /**
@@ -548,7 +597,7 @@ document.addEventListener('DOMContentLoaded', function() {
  * Visualizar pedido em detalhes
  */
 function visualizarPedido(id) {
-    window.location.href = `/modules/Vendas/pedido.html?id=${id}`;
+    window.location.href = withBasePath(`/modules/Vendas/pedido.html?id=${id}`);
 }
 
 /**
@@ -707,7 +756,7 @@ document.addEventListener('DOMContentLoaded', function() {
         card.addEventListener('click', function() {
             const modulo = this.dataset.modulo;
             if (moduloLinks[modulo]) {
-                window.location.href = moduloLinks[modulo];
+                window.location.href = withBasePath(moduloLinks[modulo]);
             }
         });
     });

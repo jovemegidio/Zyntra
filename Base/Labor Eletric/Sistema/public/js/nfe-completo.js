@@ -4,9 +4,6 @@
  */
 
 const NFeCompleto = {
-    // Helpers
-    _esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; },
-
     // Configuração
     API_BASE: '/api/nfe',
     
@@ -23,6 +20,12 @@ const NFeCompleto = {
         pagina: 1,
         limite: 20,
         total: 0
+    },
+
+    extrairData(payload, fallback = null) {
+        if (Array.isArray(payload)) return payload;
+        if (!payload || typeof payload !== 'object') return fallback;
+        return payload.data ?? payload.result ?? payload.items ?? fallback;
     },
 
     // =====================================================
@@ -81,7 +84,20 @@ const NFeCompleto = {
             const resp = await fetch(`${this.API_BASE}/dashboard`, { credentials: 'include' });
             if (resp.ok) {
                 const data = await resp.json();
-                this.dashboard = data.data;
+                const dashboard = this.extrairData(data, data);
+                this.dashboard = {
+                    resumo_mes: dashboard?.resumo_mes || {
+                        total_nfes: dashboard?.emitidas || 0,
+                        valor_total: dashboard?.valor || 0
+                    },
+                    impostos_mes: dashboard?.impostos_mes || {
+                        total_iss: 0,
+                        total_pis: 0,
+                        total_cofins: 0,
+                        total_irrf: 0
+                    },
+                    ...dashboard
+                };
                 return this.dashboard;
             }
         } catch (error) {
@@ -168,7 +184,9 @@ const NFeCompleto = {
             const resp = await fetch(`${this.API_BASE}/notas?${params}`, { credentials: 'include' });
             if (resp.ok) {
                 const data = await resp.json();
-                this.notas = data.data?.notas || [];
+                const payload = this.extrairData(data, data);
+                this.notas = payload?.notas || payload?.nfes || data.notas || data.nfes || [];
+                this.paginacao.total = payload?.total || data.total || this.notas.length;
             }
         } catch (error) {
             console.error('Erro ao carregar notas:', error);
@@ -223,8 +241,8 @@ const NFeCompleto = {
                     <span style="font-weight: 600; color: #3b82f6;">${nota.numero || '-'}</span>
                 </td>
                 <td style="padding: 16px 20px;">
-                    <p style="font-weight: 500;">${this._esc(nota.cliente_nome || '-')}</p>
-                    <p style="font-size: 11px; color: #64748b;">${this._esc(nota.cliente_cnpj || '')}</p>
+                    <p style="font-weight: 500;">${nota.cliente_nome || '-'}</p>
+                    <p style="font-size: 11px; color: #64748b;">${nota.cliente_cnpj || ''}</p>
                 </td>
                 <td style="padding: 16px 20px;">
                     <span style="display: inline-block; padding: 4px 12px; border-radius: 20px; background: ${statusColor}22; color: ${statusColor}; font-size: 11px; font-weight: 600;">
@@ -667,7 +685,7 @@ const NFeCompleto = {
         const toast = document.createElement('div');
         toast.innerHTML = `
             <i class="fas fa-${tipo === 'success' ? 'check-circle' : tipo === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-            <span>${this._esc(mensagem)}</span>
+            <span>${mensagem}</span>
         `;
         toast.style.cssText = `
             position: fixed; bottom: 20px; right: 20px; padding: 16px 24px;

@@ -274,9 +274,12 @@ class ValidacaoFiscal {
             throw new Error(`${pre} Valor unitário deve ser maior que zero`);
         }
         this.validarNCM(item.ncm);
-        if (item.cfop) this.validarCFOP(item.cfop);
+        this.validarCFOP(item.cfop);
         if (item.ean) this.validarGTIN(item.ean);
         if (item.cest) this.validarCEST(item.cest);
+        if (!/^[0-8]$/.test(String(item.origem ?? ''))) {
+            throw new Error(`${pre} Origem da mercadoria deve ser informada (codigo 0 a 8)`);
+        }
     }
 }
 
@@ -386,8 +389,8 @@ class CalculoTributosService {
         const { item, valorProduto, emitente, destinatario, operacaoInterna, destinatarioContribuinte } = dados;
 
         const resultado = {
-            origem: item.origem || '0',
-            cst: item.cst || (emitente.regimeTributario === 1 ? '102' : '00'),
+            origem: String(item.origem),
+            cst: item.cst ? String(item.cst).padStart(2, '0') : null,
             modalidadeBC: 3,
             baseCalculo: 0, aliquota: 0, valorICMS: 0,
             valorICMSST: 0, valorFCP: 0
@@ -395,9 +398,17 @@ class CalculoTributosService {
 
         // Simples Nacional
         if (emitente.regimeTributario === 1) {
-            resultado.csosn = item.csosn || '102';
+            resultado.csosn = item.csosn ? String(item.csosn).padStart(3, '0') : null;
+            if (!['101', '102', '103', '300', '400'].includes(resultado.csosn)) {
+                throw new Error(
+                    `CSOSN ${resultado.csosn || 'nao informado'} nao e suportado com seguranca por este emissor`
+                );
+            }
             if (resultado.csosn === '101') {
-                const aliqCred = Decimal.from(item.aliquotaCreditoSN || 1.25);
+                if (item.aliquotaCredito === null || item.aliquotaCredito === undefined) {
+                    throw new Error('CSOSN 101 exige alíquota de crédito do Simples explícita');
+                }
+                const aliqCred = Decimal.from(item.aliquotaCredito);
                 resultado.aliquotaCredito = aliqCred.toNumber();
                 resultado.valorCredito = parseFloat(valorProduto.percent(aliqCred).toFixed(2));
             }
@@ -405,13 +416,28 @@ class CalculoTributosService {
         }
 
         // Regime Normal
+        if (resultado.cst !== '00') {
+            throw new Error(
+                `ICMS CST ${resultado.cst || 'nao informado'} nao e suportado com seguranca por este emissor`
+            );
+        }
+        if (item.aliquotaICMS === null || item.aliquotaICMS === undefined || Number(item.aliquotaICMS) <= 0) {
+            throw new Error(`ICMS CST ${resultado.cst} exige alíquota explícita no produto ou perfil fiscal`);
+        }
+        if (item.calcularICMSST) {
+            throw new Error('ICMS-ST bloqueado: calculo e XML completos ainda nao foram homologados neste emissor');
+        }
+        if (!operacaoInterna && !destinatarioContribuinte) {
+            throw new Error('DIFAL bloqueado: calculo e grupo ICMSUFDest ainda nao foram homologados neste emissor');
+        }
+
         let aliquota;
         if (operacaoInterna) {
-            aliquota = Decimal.from(this.getAliquotaICMSInterna(emitente.uf, item));
+            aliquota = Decimal.from(item.aliquotaICMS);
         } else {
-            aliquota = destinatarioContribuinte
-                ? Decimal.from(this.getAliquotaICMSInterestadual(emitente.uf, destinatario.uf))
-                : Decimal.from(this.getAliquotaICMSInterna(destinatario.uf, item));
+            aliquota = Decimal.from(
+                this.getAliquotaICMSInterestadual(emitente.uf, destinatario.uf, item.origem)
+            );
         }
 
         const percentualReducao = Decimal.from(item.reducaoBC || 0);
@@ -421,37 +447,6 @@ class CalculoTributosService {
         resultado.baseCalculo = parseFloat(baseCalculo.toFixed(2));
         resultado.aliquota = aliquota.toNumber();
         resultado.valorICMS = parseFloat(baseCalculo.percent(aliquota).toFixed(2));
-
-        // ICMS-ST
-        if (item.calcularICMSST) {
-            const mva = Decimal.from(item.mva || 30);
-            const bcST = valorProduto.mul(Decimal.from(1).add(mva.div(Decimal.from(100))));
-            const aliqInterna = Decimal.from(this.getAliquotaICMSInterna(destinatario.uf, item));
-
-            resultado.baseCalculoST = parseFloat(bcST.toFixed(2));
-            resultado.aliquotaST = aliqInterna.toNumber();
-            const valorST = parseFloat(bcST.percent(aliqInterna).sub(Decimal.from(resultado.valorICMS)).toFixed(2));
-            resultado.valorICMSST = Math.max(0, valorST); // ST não pode ser negativo
-        }
-
-        // DIFAL — EC 87/2015 (100% destino a partir de 2019)
-        if (!operacaoInterna && !destinatarioContribuinte) {
-            const aliqInterna = Decimal.from(this.getAliquotaICMSInterna(destinatario.uf, item));
-            const aliqInter = Decimal.from(this.getAliquotaICMSInterestadual(emitente.uf, destinatario.uf));
-            const difAliq = aliqInterna.sub(aliqInter);
-
-            resultado.baseCalculoDIFAL = parseFloat(valorProduto.toFixed(2));
-            resultado.aliquotaDIFAL = difAliq.toNumber();
-            resultado.valorDIFAL = parseFloat(valorProduto.percent(difAliq).toFixed(2));
-            resultado.valorICMSDestinatario = resultado.valorDIFAL;
-            resultado.valorICMSRemetente = 0;
-
-            const aliqFCP = Decimal.from(this.getAliquotaFCP(destinatario.uf));
-            if (aliqFCP.isPositive()) {
-                resultado.aliquotaFCP = aliqFCP.toNumber();
-                resultado.valorFCP = parseFloat(valorProduto.percent(aliqFCP).toFixed(2));
-            }
-        }
 
         return resultado;
     }
@@ -470,35 +465,43 @@ class CalculoTributosService {
     }
 
     static calcularPIS(dados) {
-        const { item, valorProduto, emitente } = dados;
-        const resultado = { cst: item.cstPIS || '01', baseCalculo: 0, aliquota: 0, valorPIS: 0 };
+        const { item, valorProduto } = dados;
+        const resultado = {
+            cst: item.cstPIS ? String(item.cstPIS).padStart(2, '0') : null,
+            baseCalculo: 0, aliquota: 0, valorPIS: 0
+        };
 
-        const naoCumulativo = emitente.regimeTributario === 3;
-        let aliq = Decimal.from(0);
         if (resultado.cst === '01' || resultado.cst === '02') {
-            aliq = Decimal.from(naoCumulativo ? 1.65 : 0.65);
-        }
-        if (aliq.isPositive()) {
+            if (item.aliquotaPIS === null || item.aliquotaPIS === undefined || Number(item.aliquotaPIS) <= 0) {
+                throw new Error(`PIS CST ${resultado.cst} exige alíquota explícita no produto ou perfil fiscal`);
+            }
+            const aliq = Decimal.from(item.aliquotaPIS);
             resultado.baseCalculo = parseFloat(valorProduto.toFixed(2));
             resultado.aliquota = aliq.toNumber();
             resultado.valorPIS = parseFloat(valorProduto.percent(aliq).toFixed(2));
+        } else if (!['04', '05', '06', '07', '08', '09'].includes(resultado.cst)) {
+            throw new Error(`PIS CST ${resultado.cst || 'nao informado'} nao e suportado com seguranca`);
         }
         return resultado;
     }
 
     static calcularCOFINS(dados) {
-        const { item, valorProduto, emitente } = dados;
-        const resultado = { cst: item.cstCOFINS || '01', baseCalculo: 0, aliquota: 0, valorCOFINS: 0 };
+        const { item, valorProduto } = dados;
+        const resultado = {
+            cst: item.cstCOFINS ? String(item.cstCOFINS).padStart(2, '0') : null,
+            baseCalculo: 0, aliquota: 0, valorCOFINS: 0
+        };
 
-        const naoCumulativo = emitente.regimeTributario === 3;
-        let aliq = Decimal.from(0);
         if (resultado.cst === '01' || resultado.cst === '02') {
-            aliq = Decimal.from(naoCumulativo ? 7.6 : 3.0);
-        }
-        if (aliq.isPositive()) {
+            if (item.aliquotaCOFINS === null || item.aliquotaCOFINS === undefined || Number(item.aliquotaCOFINS) <= 0) {
+                throw new Error(`COFINS CST ${resultado.cst} exige alíquota explícita no produto ou perfil fiscal`);
+            }
+            const aliq = Decimal.from(item.aliquotaCOFINS);
             resultado.baseCalculo = parseFloat(valorProduto.toFixed(2));
             resultado.aliquota = aliq.toNumber();
             resultado.valorCOFINS = parseFloat(valorProduto.percent(aliq).toFixed(2));
+        } else if (!['04', '05', '06', '07', '08', '09'].includes(resultado.cst)) {
+            throw new Error(`COFINS CST ${resultado.cst || 'nao informado'} nao e suportado com seguranca`);
         }
         return resultado;
     }
@@ -508,20 +511,14 @@ class CalculoTributosService {
     // ============================================================
 
     static getAliquotaICMSInterna(uf, item) {
-        if (item.aliquotaICMS) return parseFloat(item.aliquotaICMS);
-        // Alíquotas modais padrão 2025/2026
-        const tabela = {
-            'AC': 19, 'AL': 19, 'AM': 20, 'AP': 18, 'BA': 20.5,
-            'CE': 20, 'DF': 20, 'ES': 17, 'GO': 19, 'MA': 22,
-            'MG': 18, 'MS': 17, 'MT': 17, 'PA': 19, 'PB': 20,
-            'PE': 20.5, 'PI': 21, 'PR': 19.5, 'RJ': 22, 'RN': 20,
-            'RO': 19.5, 'RR': 20, 'RS': 17, 'SC': 17, 'SE': 19,
-            'SP': 18, 'TO': 20
-        };
-        return tabela[uf] || 18;
+        if (item?.aliquotaICMS && Number(item.aliquotaICMS) > 0) {
+            return parseFloat(item.aliquotaICMS);
+        }
+        throw new Error(`Aliquota interna de ICMS nao configurada para ${uf}`);
     }
 
-    static getAliquotaICMSInterestadual(ufOrigem, ufDestino) {
+    static getAliquotaICMSInterestadual(ufOrigem, ufDestino, origemMercadoria) {
+        if (['1', '2', '3', '8'].includes(String(origemMercadoria))) return 4;
         const sulSudeste = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS'];
         const origemSS = sulSudeste.includes(ufOrigem) && ufOrigem !== 'ES';
         const destinoSS = sulSudeste.includes(ufDestino) && ufDestino !== 'ES';
@@ -530,17 +527,8 @@ class CalculoTributosService {
         return 12;
     }
 
-    /** [BUG-015 FIX] Tabela FCP atualizada */
-    static getAliquotaFCP(uf) {
-        const tabela = {
-            'AC': 2, 'AL': 2, 'AM': 0, 'AP': 0, 'BA': 2,
-            'CE': 2, 'DF': 2, 'ES': 2, 'GO': 2, 'MA': 2,
-            'MG': 2, 'MS': 2, 'MT': 2, 'PA': 2, 'PB': 2,
-            'PE': 2, 'PI': 2, 'PR': 2, 'RJ': 4, 'RN': 2,
-            'RO': 2, 'RR': 2, 'RS': 2, 'SC': 2, 'SE': 2,
-            'SP': 2, 'TO': 2
-        };
-        return tabela[uf] || 0;
+    static getAliquotaFCP(_uf, item) {
+        return Number(item?.aliquotaFCP || 0);
     }
 
     /**

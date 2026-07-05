@@ -1,6 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
     <meta charset="UTF-8">
     <meta name="theme-color" content="#1a1a2e">
@@ -94,11 +97,11 @@
         .action-btn.delete:hover { background: #ef4444; color: white; border-color: #ef4444; }
 
         /* Modal SAAS Empresarial - Padrão Unificado */
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: none !important; align-items: center; justify-content: center; padding: 20px; }
+        .modal { position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; z-index: 1050 !important; display: none !important; align-items: center !important; justify-content: center !important; padding: 20px !important; box-sizing: border-box !important; }
         .modal.show { display: flex !important; }
-        .modal .modal-overlay { position: absolute !important; opacity: 1 !important; pointer-events: auto !important; }
+        .modal .modal-overlay { position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; background: rgba(15,23,42,0.7) !important; backdrop-filter: blur(4px) !important; opacity: 1 !important; pointer-events: auto !important; z-index: 1 !important; }
         .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.7); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
-        .modal-content { background: #fff; border-radius: 16px; width: 100%; max-width: 600px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; position: relative; z-index: 1001; box-shadow: 0 20px 50px rgba(0,0,0,0.2); transform: scale(0.95) translateY(10px); opacity: 0; transition: all 0.25s ease-out; }
+        .modal-content { background: #fff; border-radius: 16px; width: 100%; max-width: 600px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; position: relative; z-index: 2 !important; box-shadow: 0 20px 50px rgba(0,0,0,0.2); transform: scale(0.95) translateY(10px); opacity: 0; transition: all 0.25s ease-out; }
         .modal.show .modal-content { transform: scale(1) translateY(0); opacity: 1; }
         body.modal-open { overflow: hidden !important; }
         .modal-header { padding: 20px 24px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%); }
@@ -172,12 +175,12 @@
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <link rel="stylesheet" href="/css/popup-confirmacao.css">
     <script src="/js/tooltips-professional.js?v=20260209" defer></script>
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260610">
     <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
     <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260326">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628g">
 </head>
 <body>
     <div class="app-container">
@@ -209,9 +212,9 @@
                             <i class="fas fa-bars"></i>
                         </button>
                     <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
                         <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Gestão de Ponto</span>
                     </div>
@@ -225,7 +228,10 @@
 
             <div class="content-area">
                 <div class="page-header">
-                    <div></div>
+                    <div>
+                        <h1 class="page-title"><i class="fas fa-clock"></i> Gestão do Ponto</h1>
+                        <p class="page-subtitle" style="color:#64748b;margin-top:4px;font-size:0.875rem;">Registros de marcações e histórico de ponto dos funcionários</p>
+                    </div>
                     <div class="header-actions">
                         <button class="btn btn-outline" onclick="exportarRelatório()"><i class="fas fa-download"></i> Exportar</button>
                         <button class="btn btn-success" onclick="sincronizarRhid()" id="btn-sync-rhid"><i class="fas fa-cloud-download-alt"></i> Sincronizar RHiD</button>
@@ -783,8 +789,17 @@
                 updateSyncStatus(true, marcaçõesCache.length);
                 renderMarcações(marcaçõesCache, 'tbody-registros', 'empty-registros', 'total-registros');
 
-                var uniqueFuncs = new Set(marcaçõesCache.map(function(m) { return m.funcionario_id; }));
-                document.getElementById('stat-presentes').textContent = uniqueFuncs.size;
+                var uniqueFuncs = new Set(marcaçõesCache.map(function(m) { return m.funcionario_id; }).filter(Boolean));
+                var statPresentes = document.getElementById('stat-presentes');
+                if (marcaçõesCache.length === 0 && funcionáriosList.length > 0) {
+                    statPresentes.textContent = 'Sem dados';
+                    statPresentes.style.fontSize = '1.05rem';
+                    statPresentes.title = 'Nenhuma marcação sincronizada para a data selecionada';
+                } else {
+                    statPresentes.textContent = uniqueFuncs.size;
+                    statPresentes.style.fontSize = '';
+                    statPresentes.title = '';
+                }
                 document.getElementById('stat-marcacoes').textContent = marcaçõesCache.length;
 
             } catch (e) {
@@ -947,9 +962,12 @@
                     var faltas = data.total_faltas !== undefined ? data.total_faltas :
                         (data.faltas !== undefined ? data.faltas : 0);
                     document.getElementById('stat-faltas').textContent = faltas;
+                } else {
+                    // NC-030: resposta não-ok → mostra 0, nunca "--"
+                    document.getElementById('stat-faltas').textContent = '0';
                 }
             } catch (e) {
-                document.getElementById('stat-faltas').textContent = '-';
+                document.getElementById('stat-faltas').textContent = '0';
             }
         }
 
@@ -1144,11 +1162,19 @@
 
         document.querySelectorAll('.tab-btn').forEach(function(btn) {
             btn.addEventListener('click', function() {
-                document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('show'); });
-                document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('show'); });
-                btn.classList.add('show');
-                document.getElementById('tab-' + btn.dataset.tab).classList.add('show');
+                document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+                document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
             });
+        });
+
+        // Fechar modais com ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                fecharModal('modal-ajuste');
+                fecharModal('modal-excluir');
+            }
         });
 
         // ============= RHID CLOUD SYNC =============
@@ -1338,6 +1364,8 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
     <script src="/js/user-dropdown.js?v=20260319" defer></script>
+
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
 </body>
 </html>
 

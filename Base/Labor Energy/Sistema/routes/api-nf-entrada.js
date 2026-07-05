@@ -158,6 +158,68 @@ function createNFEntradaRouter(pool, authenticateToken) {
     });
 
     // ============================================================
+    // SINCRONIZAR SEFAZ — NF-e emitidas contra o CNPJ (faturado pelo fornecedor)
+    // Puxa todas as notas via DistDFe (distribuição de DF-e) e importa em nf_entrada.
+    // Ativa quando o certificado A1 está configurado em empresa_config.
+    // ============================================================
+    router.post('/sincronizar-sefaz', authenticateToken, async (req, res) => {
+        try {
+            const { ManifestacaoSefazService } = require('../modules/Faturamento/services/manifestacao-sefaz.service');
+            const zlib = require('zlib');
+
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS nf_entrada_sefaz_state (
+                    empresa_id INT PRIMARY KEY,
+                    ult_nsu VARCHAR(20) DEFAULT '0',
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            `).catch(() => {});
+
+            const empresaId = Number(req.user?.empresa_id || 1);
+            const [[st]] = await pool.query('SELECT ult_nsu FROM nf_entrada_sefaz_state WHERE empresa_id = ?', [empresaId]);
+            let ultNSU = (st && st.ult_nsu) || '0';
+
+            let importadas = 0, resumos = 0, lotes = 0;
+            // A SEFAZ devolve em lotes; itera até alcançar o maxNSU (limite de segurança: 20 lotes).
+            for (let i = 0; i < 20; i++) {
+                const r = await ManifestacaoSefazService.consultarNFeDestinatario(pool, { ultNSU });
+                if (!r.sucesso) {
+                    const certIssue = r.error && /certificad|cert\b|pfx|senha/i.test(r.error);
+                    return res.status(certIssue ? 400 : 502).json({
+                        success: false,
+                        message: r.error || 'Falha na consulta à SEFAZ',
+                        instrucoes: r.instrucoes || 'Configure o certificado digital A1 da empresa para habilitar a busca automática de NF-e.'
+                    });
+                }
+                lotes++;
+                for (const doc of (r.documentos || [])) {
+                    try {
+                        const xml = zlib.gunzipSync(Buffer.from(doc.conteudoBase64, 'base64')).toString('utf8');
+                        if (/<nfeProc|<NFe[ >]/.test(xml)) { await processarXMLEntrada(pool, xml, req.user.id).catch(() => {}); importadas++; }
+                        else resumos++; // resNFe/resEvento: resumo (requer manifestação p/ baixar o XML completo)
+                    } catch (_) { /* documento ilegível, ignora */ }
+                }
+                ultNSU = r.ultNSU || ultNSU;
+                if (!r.documentos || !r.documentos.length || Number(r.ultNSU) >= Number(r.maxNSU)) break;
+            }
+
+            await pool.query(
+                `INSERT INTO nf_entrada_sefaz_state (empresa_id, ult_nsu) VALUES (?, ?)
+                 ON DUPLICATE KEY UPDATE ult_nsu = VALUES(ult_nsu)`,
+                [empresaId, ultNSU]
+            );
+            res.json({
+                success: true,
+                message: `Sincronização SEFAZ concluída: ${importadas} NF-e importada(s), ${resumos} resumo(s).`,
+                importadas, resumos, lotes, ultNSU
+            });
+        } catch (error) {
+            console.error('❌ Erro ao sincronizar SEFAZ:', error);
+            res.status(500).json({ success: false, message: 'Erro ao sincronizar com a SEFAZ' });
+        }
+    });
+
+    // ============================================================
     // ESCRITURAÇÃO
     // ============================================================
 

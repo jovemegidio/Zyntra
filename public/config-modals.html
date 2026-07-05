@@ -207,6 +207,22 @@
                             </div>
                         </div>
                     </div>
+                    <div class="config-form-row single">
+                        <div class="config-form-group">
+                            <label>Logo para Documentos, Relatórios e DANFE</label>
+                            <div class="config-file-upload">
+                                <label for="input-document-logo" class="config-file-upload-btn">
+                                    <i class="fas fa-upload"></i> Escolher arquivo
+                                </label>
+                                <input type="file" id="input-document-logo" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+                                <span class="config-file-upload-name">Nenhuma logo de documentos selecionada</span>
+                            </div>
+                            <small>Usada em cabeçalhos de PDFs, relatórios, documentos fiscais e DANFE. Se não enviada, o sistema usa o logotipo da empresa.</small>
+                            <div id="document-logo-preview" style="margin-top: 12px; display: none;">
+                                <img src="" alt="Preview da logo para documentos" style="max-width: 220px; max-height: 90px; object-fit: contain; border-radius: 8px; border: 1px solid #e5e7eb; background: #fff;">
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </form>
         </div>
@@ -516,6 +532,7 @@
                         </div>
                     </div>
                 </div>
+
             </form>
         </div>
 
@@ -532,6 +549,306 @@
         </div>
     </div>
 </div>
+
+<!-- Modal: SEFAZ — Comunicação Fiscal (admin only) -->
+<div id="modal-sefaz-status" class="config-detail-modal">
+    <div class="config-detail-card" style="max-width:780px;">
+        <div class="config-detail-header">
+            <div class="config-detail-title">
+                <div class="config-detail-icon" style="background:#fecaca;color:#dc2626;">
+                    <i class="fas fa-satellite-dish"></i>
+                </div>
+                <div class="config-detail-title-text">
+                    <h3>SEFAZ — Comunicação Fiscal</h3>
+                    <p>Status do serviço, ambiente e diagnóstico (somente admin)</p>
+                </div>
+            </div>
+            <button class="config-detail-close" onclick="closeConfigModal('modal-sefaz-status')">×</button>
+        </div>
+
+        <div class="config-detail-body">
+            <div class="config-form-section">
+                <h4 class="config-form-section-title"><i class="fas fa-certificate"></i> Certificado Digital A1</h4>
+                <div id="sefaz-cert-status" style="font-size:13px;">
+                    <em>Carregando status do certificado...</em>
+                </div>
+            </div>
+
+            <div class="config-form-section">
+                <h4 class="config-form-section-title"><i class="fas fa-clipboard-list"></i> Espelho Fiscal</h4>
+                <div id="sefaz-espelho" style="font-size:13px;">
+                    <em>Carregando espelho fiscal...</em>
+                </div>
+            </div>
+
+            <div class="config-form-section">
+                <h4 class="config-form-section-title"><i class="fas fa-globe"></i> Ambiente</h4>
+                <p style="font-size:13px;color:#64748b;margin:0 0 12px;">
+                    <strong>Homologação</strong>: ambiente de testes da SEFAZ — NF-es emitidas aqui <em>não têm validade fiscal</em>.<br>
+                    <strong>Produção</strong>: ambiente real — NF-es têm validade fiscal. Use somente após testes em homologação.
+                </p>
+                <div style="display:flex;gap:12px;align-items:center;">
+                    <select id="sefaz-ambiente-select" class="form-control" style="max-width:280px;">
+                        <option value="homologacao">Homologação (testes)</option>
+                        <option value="producao">Produção (NF-e oficial)</option>
+                    </select>
+                    <button class="config-btn config-btn-primary" onclick="salvarAmbienteSefaz()">
+                        <i class="fas fa-save"></i> Salvar
+                    </button>
+                </div>
+                <div id="sefaz-ambiente-msg" style="margin-top:8px;font-size:12px;"></div>
+            </div>
+
+            <div class="config-form-section">
+                <h4 class="config-form-section-title"><i class="fas fa-bolt"></i> Teste de Conexão</h4>
+                <p style="font-size:13px;color:#64748b;margin:0 0 12px;">
+                    Consulta <code>nfeStatusServico4</code> usando o certificado A1 configurado.
+                    Resposta esperada: <code>cStat=107</code> (Serviço em Operação).
+                </p>
+                <button type="button" class="config-btn config-btn-secondary" onclick="testarSefazStatus()" style="background:#0ea5e9;color:white;">
+                    <i class="fas fa-satellite-dish"></i> Testar Status SEFAZ-SP
+                </button>
+                <div id="sefaz-status-result" style="margin-top:12px;font-size:13px;"></div>
+            </div>
+
+            <div class="config-form-section">
+                <h4 class="config-form-section-title"><i class="fas fa-history"></i> Últimas Transmissões</h4>
+                <div id="sefaz-historico" style="font-size:13px;color:#64748b;">
+                    <em>Carregue para ver as últimas 20 transmissões registradas.</em>
+                </div>
+                <button class="config-btn config-btn-secondary" onclick="carregarHistoricoSefaz()" style="margin-top:8px;">
+                    <i class="fas fa-sync"></i> Atualizar
+                </button>
+            </div>
+
+            <div class="config-form-section">
+                <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:12px 16px;font-size:13px;color:#78350f;border-radius:6px;">
+                    <strong><i class="fas fa-exclamation-triangle"></i> Importante</strong><br>
+                    O sistema gera XML conforme NT 2024.002, assina com RSA-SHA1 e transmite via SOAP. A primeira NF-e em produção deve ser monitorada por contador. Para suspender transmissão, mude o ambiente para "homologação".
+                </div>
+            </div>
+        </div>
+
+        <div class="config-detail-footer">
+            <div class="config-detail-footer-right">
+                <button class="config-btn config-btn-secondary" onclick="closeConfigModal('modal-sefaz-status')">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function testarSefazStatus() {
+    const out = document.getElementById('sefaz-status-result');
+    if (!out) return;
+    out.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Consultando SEFAZ-SP...';
+    try {
+        const r = await fetch('/api/nfe/sefaz/status', {
+            credentials: 'include',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` }
+        });
+        const d = await r.json();
+        if (d.success) {
+            out.innerHTML = `
+                <div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:12px;">
+                    <strong style="color:#16a34a;"><i class="fas fa-check-circle"></i> SEFAZ Online</strong><br>
+                    <span style="font-size:12px;color:#475569;">
+                        cStat ${d.cStat} — ${d.xMotivo}<br>
+                        Ambiente: ${d.ambiente} | CNPJ: ${d.cnpj || '—'}<br>
+                        Versão: ${d.versaoAplicacao || '—'} | ${d.dhRecbto || ''}
+                    </span>
+                </div>`;
+        } else {
+            out.innerHTML = `
+                <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;">
+                    <strong style="color:#b45309;"><i class="fas fa-exclamation-triangle"></i> Resposta SEFAZ</strong><br>
+                    <span style="font-size:12px;color:#475569;">
+                        cStat ${d.cStat || '—'}: ${d.xMotivo || d.message || 'Sem detalhes'}<br>
+                        HTTP: ${d.httpStatus || '—'} | ${d.hint || ''}
+                    </span>
+                </div>`;
+        }
+    } catch (e) {
+        out.innerHTML = `
+            <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px;">
+                <strong style="color:#dc2626;"><i class="fas fa-times-circle"></i> Erro</strong><br>
+                <span style="font-size:12px;color:#475569;">${e.message}</span>
+            </div>`;
+    }
+}
+
+async function salvarAmbienteSefaz() {
+    const sel = document.getElementById('sefaz-ambiente-select');
+    const msg = document.getElementById('sefaz-ambiente-msg');
+    if (!sel || !msg) return;
+    msg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+    try {
+        const r = await fetch('/api/nfe/sefaz/ambiente', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` },
+            body: JSON.stringify({ ambiente: sel.value })
+        });
+        const d = await r.json();
+        if (d.success) msg.innerHTML = `<span style="color:#16a34a;"><i class="fas fa-check"></i> Ambiente alterado para <strong>${sel.value}</strong>.</span>`;
+        else msg.innerHTML = `<span style="color:#dc2626;"><i class="fas fa-times"></i> ${d.message || 'Erro'}</span>`;
+    } catch (e) {
+        msg.innerHTML = `<span style="color:#dc2626;"><i class="fas fa-times"></i> ${e.message}</span>`;
+    }
+}
+
+async function carregarHistoricoSefaz() {
+    const out = document.getElementById('sefaz-historico');
+    if (!out) return;
+    out.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando...';
+    try {
+        const r = await fetch('/api/nfe/sefaz/historico', {
+            credentials: 'include',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` }
+        });
+        const d = await r.json();
+        if (!d.success || !d.eventos || d.eventos.length === 0) {
+            out.innerHTML = '<em>Nenhuma transmissão registrada ainda.</em>';
+            return;
+        }
+        out.innerHTML = `
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                <thead><tr style="background:#f1f5f9;text-align:left;">
+                    <th style="padding:6px;">Data</th><th>Operação</th><th>NF-e</th><th>cStat</th><th>Motivo</th>
+                </tr></thead>
+                <tbody>${d.eventos.map(e => `
+                    <tr style="border-top:1px solid #e2e8f0;">
+                        <td style="padding:6px;">${new Date(e.created_at).toLocaleString('pt-BR')}</td>
+                        <td>${e.operacao || '—'}</td>
+                        <td>${e.nfe_id || '—'}</td>
+                        <td><span style="font-family:monospace;color:${e.cStat === '100' || e.cStat === '107' ? '#16a34a' : '#dc2626'};">${e.cStat || '—'}</span></td>
+                        <td style="font-size:11px;color:#64748b;">${(e.xMotivo || '').slice(0,80)}</td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>`;
+    } catch (e) {
+        out.innerHTML = `<span style="color:#dc2626;">${e.message}</span>`;
+    }
+}
+
+async function carregarAmbienteSefaz() {
+    try {
+        const r = await fetch('/api/nfe/sefaz/ambiente', {
+            credentials: 'include',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` }
+        });
+        if (r.ok) {
+            const d = await r.json();
+            const sel = document.getElementById('sefaz-ambiente-select');
+            if (sel && d.ambiente) sel.value = d.ambiente;
+        }
+    } catch (_) {}
+}
+
+async function carregarEspelhoSefaz() {
+    const certEl = document.getElementById('sefaz-cert-status');
+    const espEl = document.getElementById('sefaz-espelho');
+    if (!certEl || !espEl) return;
+    certEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    espEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    try {
+        const r = await fetch('/api/nfe/sefaz/espelho', {
+            credentials: 'include',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` }
+        });
+        const d = await r.json();
+
+        // Status cert
+        const c = d.certificado || {};
+        if (!c.configurado) {
+            certEl.innerHTML = `
+                <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px;">
+                    <strong style="color:#dc2626;"><i class="fas fa-times-circle"></i> Certificado não disponível</strong><br>
+                    <span style="font-size:12px;color:#475569;">${c.erro || 'Faça upload em Configurações → Certificado Digital'}</span>
+                </div>`;
+        } else if (c.cnpjMismatch && c.ambiente === 'homologacao') {
+            // Em homologação, mismatch é OK — cert de testes é prática comum
+            certEl.innerHTML = `
+                <div style="background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:12px;">
+                    <strong style="color:#1e40af;"><i class="fas fa-flask"></i> Certificado de testes (modo Homologação)</strong><br>
+                    <table style="font-size:12px;color:#475569;margin-top:6px;">
+                        <tr><td><strong>CNPJ emitente:</strong></td><td>${c.cnpjEmitente}</td></tr>
+                        <tr><td><strong>CNPJ no cert:</strong></td><td>${c.cnpjCert || '—'} <span style="color:#94a3b8;">(empréstimo p/ testes)</span></td></tr>
+                        <tr><td><strong>Titular:</strong></td><td>${c.certCN || '—'}</td></tr>
+                        <tr><td><strong>Validade:</strong></td><td>${c.validade ? new Date(c.validade).toLocaleDateString('pt-BR') : '—'}</td></tr>
+                    </table>
+                    <p style="font-size:11px;color:#1e3a8a;margin-top:8px;">
+                        ✅ Em homologação a SEFAZ aceita qualquer cert válido. Para mudar para <strong>produção</strong>, é obrigatório usar o cert da própria empresa (CNPJ ${c.cnpjEmitente}).
+                    </p>
+                </div>`;
+        } else if (c.cnpjMismatch) {
+            certEl.innerHTML = `
+                <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;">
+                    <strong style="color:#b45309;"><i class="fas fa-exclamation-triangle"></i> CNPJ do certificado não bate com o emitente!</strong><br>
+                    <table style="font-size:12px;color:#475569;margin-top:8px;">
+                        <tr><td><strong>CNPJ emitente (esperado):</strong></td><td>${c.cnpjEmitente}</td></tr>
+                        <tr><td><strong>CNPJ no certificado:</strong></td><td>${c.cnpjCert || '—'}</td></tr>
+                        <tr><td><strong>CN do certificado:</strong></td><td>${c.certCN || '—'}</td></tr>
+                        <tr><td><strong>Validade:</strong></td><td>${c.validade ? new Date(c.validade).toLocaleDateString('pt-BR') : '—'}</td></tr>
+                    </table>
+                    <p style="font-size:11px;color:#78350f;margin-top:8px;">
+                        ⚠️ Transmissão em <strong>produção bloqueada</strong> — faça upload do PFX correto (CNPJ ${c.cnpjEmitente}).
+                    </p>
+                </div>`;
+        } else {
+            certEl.innerHTML = `
+                <div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:12px;">
+                    <strong style="color:#16a34a;"><i class="fas fa-check-circle"></i> Certificado válido</strong><br>
+                    <table style="font-size:12px;color:#475569;margin-top:6px;">
+                        <tr><td><strong>CNPJ:</strong></td><td>${c.cnpjEmitente}</td></tr>
+                        <tr><td><strong>Titular:</strong></td><td>${c.certCN || '—'}</td></tr>
+                        <tr><td><strong>Validade:</strong></td><td>${c.validade ? new Date(c.validade).toLocaleDateString('pt-BR') : '—'}</td></tr>
+                    </table>
+                </div>`;
+        }
+
+        // Espelho fiscal
+        const e = d.espelho || {};
+        espEl.innerHTML = `
+            <table style="width:100%;font-size:12px;color:#334155;">
+                <tr><td style="padding:4px 8px;"><strong>Razão Social</strong></td><td>${e.razao_social || '—'}</td></tr>
+                <tr><td style="padding:4px 8px;"><strong>CNPJ / IE</strong></td><td>${e.cnpj || '—'} / ${e.inscricao_estadual || '—'}</td></tr>
+                <tr><td style="padding:4px 8px;"><strong>Endereço</strong></td><td>${e.endereco || '—'}</td></tr>
+                <tr><td style="padding:4px 8px;"><strong>Município (IBGE)</strong></td><td>${e.codigo_municipio || '—'} (UF ${e.codigo_uf || '—'})</td></tr>
+                <tr><td style="padding:4px 8px;"><strong>Regime / CRT</strong></td><td>${e.regime_tributario || '—'} (CRT ${e.crt || '—'})</td></tr>
+                <tr><td style="padding:4px 8px;"><strong>Série NF-e</strong></td><td>${e.serie || 1} | próximo nº: ${e.proximo_numero || 1}</td></tr>
+                <tr><td style="padding:4px 8px;"><strong>CFOPs</strong></td><td>SP: ${e.cfops?.estado || '—'} | Fora: ${e.cfops?.fora_estado || '—'} | Exp: ${e.cfops?.exportacao || '—'}</td></tr>
+                <tr><td style="padding:4px 8px;"><strong>Alíquotas</strong></td><td>ICMS ${e.aliquotas?.icms || 0}% | IPI ${e.aliquotas?.ipi || 0}% | PIS ${e.aliquotas?.pis || 0}% | COFINS ${e.aliquotas?.cofins || 0}%</td></tr>
+            </table>
+            <p style="font-size:11px;color:#94a3b8;margin-top:8px;">
+                Dados extraídos de <code>empresa_config</code> + <code>config_fiscal_empresa</code>. Para alterar, use Configurações → Dados da Minha Empresa / Impostos.
+            </p>`;
+    } catch (e) {
+        certEl.innerHTML = `<span style="color:#dc2626;">Erro ao carregar: ${e.message}</span>`;
+        espEl.innerHTML = '';
+    }
+}
+
+// Auto-carregar dados quando o modal abrir
+document.addEventListener('DOMContentLoaded', () => {
+    const obs = new MutationObserver(() => {
+        const el = document.getElementById('modal-sefaz-status');
+        if (el && el.classList.contains('active')) {
+            carregarAmbienteSefaz();
+            carregarEspelhoSefaz();
+            carregarHistoricoSefaz();
+        }
+    });
+    setTimeout(() => {
+        const el = document.getElementById('modal-sefaz-status');
+        if (el) obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+    }, 500);
+});
+
+window.testarSefazStatus = testarSefazStatus;
+window.salvarAmbienteSefaz = salvarAmbienteSefaz;
+window.carregarHistoricoSefaz = carregarHistoricoSefaz;
+window.carregarEspelhoSefaz = carregarEspelhoSefaz;
+</script>
 
 <!-- Modal: Formulário de Categoria (Novo/Editar) -->
 <div id="modal-categoria-form" class="config-detail-modal">
@@ -866,7 +1183,7 @@
                             <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #334155;"><i class="fab fa-android"></i> Android</p>
                             <ol style="margin: 0; padding-left: 18px; color: #64748b; font-size: 13px; line-height: 1.8;">
                                 <li>Abra o <strong>Chrome</strong></li>
-                                <li>Acesse <strong id="app-url-display">aluforce.api.br</strong></li>
+                                <li>Acesse <strong id="app-url-display">zyntraerp.com.br</strong></li>
                                 <li>Menu <i class="fas fa-ellipsis-v"></i> → <strong>Adicionar à tela inicial</strong></li>
                             </ol>
                         </div>
@@ -874,7 +1191,7 @@
                             <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #334155;"><i class="fab fa-apple"></i> iPhone / iPad</p>
                             <ol style="margin: 0; padding-left: 18px; color: #64748b; font-size: 13px; line-height: 1.8;">
                                 <li>Abra o <strong>Safari</strong></li>
-                                <li>Acesse <strong>aluforce.api.br</strong></li>
+                                <li>Acesse <strong>zyntraerp.com.br</strong></li>
                                 <li>Compartilhar <i class="fas fa-share-square"></i> → <strong>Adicionar à Tela de Início</strong></li>
                             </ol>
                         </div>

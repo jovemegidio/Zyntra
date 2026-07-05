@@ -477,6 +477,10 @@ module.exports = function createVendasRoutes(deps) {
                 // Se empresa não encontrada, empresa_id fica NULL — NÃO usar fallback genérico
             }
 
+            // Declarar clienteFinalId/Nome antes de qualquer referência (evita TDZ) — fix 2026-06-14
+            let clienteFinalId = sanitize(cliente_id) ? parseInt(cliente_id) : null;
+            let clienteFinalNome = sanitize(cliente_nome) || sanitize(cliente) || null;
+
             if (!empresaFinalId && !clienteFinalId && !nomeCliente) {
                 await connection.rollback();
                 connection.release();
@@ -491,8 +495,6 @@ module.exports = function createVendasRoutes(deps) {
             }
 
             // Validar cliente_id: se enviado, verificar se existe na tabela clientes
-            let clienteFinalId = sanitize(cliente_id) ? parseInt(cliente_id) : null;
-            let clienteFinalNome = sanitize(cliente_nome) || sanitize(cliente) || null;
             if (clienteFinalId) {
                 const [clienteRows] = await connection.query('SELECT id, COALESCE(nome_fantasia, razao_social, nome) as nome_resolved FROM clientes WHERE id = ? LIMIT 1', [clienteFinalId]);
                 if (clienteRows.length === 0) {
@@ -585,6 +587,31 @@ module.exports = function createVendasRoutes(deps) {
             }
 
             await connection.commit();
+
+            // Persistir campos que o INSERT não cobre (tipo_venda/tipo_entrega), só se a coluna
+            // existir na instância — evita 500 (best-effort, após o commit). — fix 2026-06-14
+            try {
+                const rich = {
+                    tipo_venda: sanitize(req.body.tipo_venda),
+                    tipo_entrega: sanitize(req.body.tipo_entrega)
+                };
+                const provided = Object.keys(rich).filter(k => rich[k] !== null && rich[k] !== undefined);
+                if (provided.length > 0) {
+                    const [colRows] = await pool.query(
+                        "SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'pedidos'"
+                    );
+                    const existing = new Set(colRows.map(r => r.COLUMN_NAME || r.column_name));
+                    const setCols = provided.filter(k => existing.has(k));
+                    if (setCols.length > 0) {
+                        const setClause = setCols.map(c => `\`${c}\` = ?`).join(', ');
+                        const setVals = setCols.map(c => rich[c]);
+                        setVals.push(pedidoId);
+                        await pool.query(`UPDATE pedidos SET ${setClause} WHERE id = ?`, setVals);
+                    }
+                }
+            } catch (richErr) {
+                console.warn('Aviso: campos extras do pedido', pedidoId, 'não persistidos:', richErr.message);
+            }
 
             // Invalidar cache do GET /pedidos para que o kanban veja o novo pedido imediatamente
             if (cacheService && cacheService.cacheClear) {
@@ -701,6 +728,16 @@ module.exports = function createVendasRoutes(deps) {
             if (desconto_pct !== undefined) { sets.push('desconto_pct = ?'); params.push(sanitizeNum(desconto_pct) || 0); }
             if (origem !== undefined) { sets.push('origem = ?'); params.push(sanitize(origem)); }
             if (parcelas !== undefined) { sets.push('parcelas = ?'); params.push(parcelas ? (typeof parcelas === 'string' ? parcelas : JSON.stringify(parcelas)) : null); }
+
+            // tipo_venda / tipo_entrega — só se as colunas existirem (evita 500 onde não há a coluna). — fix 2026-06-14
+            if (req.body.tipo_venda !== undefined || req.body.tipo_entrega !== undefined) {
+                try {
+                    const [colRows] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'pedidos' AND COLUMN_NAME IN ('tipo_venda','tipo_entrega')");
+                    const existing = new Set(colRows.map(r => r.COLUMN_NAME || r.column_name));
+                    if (existing.has('tipo_venda') && req.body.tipo_venda !== undefined) { sets.push('tipo_venda = ?'); params.push(sanitize(req.body.tipo_venda)); }
+                    if (existing.has('tipo_entrega') && req.body.tipo_entrega !== undefined) { sets.push('tipo_entrega = ?'); params.push(sanitize(req.body.tipo_entrega)); }
+                } catch (_) { /* coluna indisponível — ignora */ }
+            }
 
             if (sets.length === 0) {
                 return res.status(400).json({ message: 'Nenhum campo para atualizar.' });
@@ -3628,6 +3665,7 @@ module.exports = function createVendasRoutes(deps) {
                         COALESCE(NULLIF(preco_venda, 0), NULLIF(preco, 0), preco_custo, 0) as preco_venda,
                         COALESCE(preco_custo, 0) as preco_custo,
                         COALESCE(estoque_atual, 0) as estoque_atual,
+                        COALESCE(controla_estoque, 1) as controla_estoque,
                         COALESCE(localizacao, '') as local_estoque,
                         COALESCE(gtin, '') as ean,
                         COALESCE(aliquota_ipi, 0) as aliquota_ipi,

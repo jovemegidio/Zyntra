@@ -6,6 +6,7 @@
 class FornecedoresManager {
     constructor() {
         this.fornecedores = [];
+        this.totalServidor = null;
         this.filtroAtual = 'todos';
         this.termoBusca = '';
         this.viewMode = 'list';
@@ -31,7 +32,8 @@ class FornecedoresManager {
     async carregarFornecedores() {
         try {
             const token = localStorage.getItem('token') || this.getAuthToken();
-            const response = await fetch('/api/compras/fornecedores', {
+            // BUG KPI: sem limit a API devolve só 50 e os cards contavam a página, não a base
+            const response = await fetch('/api/compras/fornecedores?limit=1000', {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                 credentials: 'include'
             });
@@ -51,6 +53,8 @@ class FornecedoresManager {
             }
             
             console.log('[Fornecedores] Array de fornecedores:', fornecedoresArray.length, 'registros');
+
+            this.totalServidor = (data && typeof data.total === 'number') ? data.total : null;
             
             // Mapear dados do banco para o formato esperado
             this.fornecedores = fornecedoresArray.map(f => ({
@@ -71,7 +75,7 @@ class FornecedoresManager {
                 observacoes: f.observacoes || '',
                 pedidos: f.total_pedidos || 0,
                 totalComprado: f.valor_total_compras || 0,
-                avaliacao: parseFloat(f.avaliacao) || 4.0,
+                avaliacao: parseFloat(f.avaliacao) || 0,
                 status: f.ativo == 1 || f.ativo === true || f.ativo === 'true' || f.ativo === '1' ? 'ativo' : 'inativo',
                 ultimaCompra: f.ultima_compra || null,
                 dataCadastro: f.data_cadastro || f.created_at || null
@@ -84,13 +88,15 @@ class FornecedoresManager {
         } catch (error) {
             console.error('Erro ao carregar fornecedores:', error);
             this.fornecedores = [];
+            this.totalServidor = null;
             this.atualizarEstatisticas();
             this.renderizarTabela();
         }
     }
-    
+
     atualizarEstatisticas() {
-        const total = this.fornecedores.length;
+        // Total vem do COUNT do servidor; os demais contam sobre a lista carregada (limit 1000)
+        const total = (this.totalServidor === null) ? this.fornecedores.length : this.totalServidor;
         const ativos = this.fornecedores.filter(f => f.status === 'ativo').length;
         const inativos = this.fornecedores.filter(f => f.status === 'inativo').length;
         
@@ -148,7 +154,7 @@ class FornecedoresManager {
                 <td><span class="cnpj-text">${this.formatarCNPJ(forn.cnpj)}</span></td>
                 <td><span class="badge badge-${this.getCategoriaColor(forn.categoria)}">${this.escapeHtml(forn.categoria) || '-'}</span></td>
                 <td>${this.escapeHtml(forn.contato) || '-'}</td>
-                <td>${this.renderizarEstrelas(forn.avaliacao)}</td>
+                <td style="white-space:nowrap">${this.renderizarEstrelas(forn.avaliacao)}</td>
                 <td><span class="status-badge ${forn.status}">${this.getStatusLabel(forn.status)}</span></td>
                 <td>
                     <button class="btn-action view" title="Ver detalhes" onclick="fornecedoresManager.verDetalhes(${forn.id})"><i class="fas fa-eye"></i></button>

@@ -35,6 +35,73 @@ module.exports = function registerConfiguracoesRoutes(router, deps) {
         }
     });
 
+    async function getTableColumns(tableName) {
+        try {
+            const [columns] = await pool.query(`SHOW COLUMNS FROM \`${tableName}\``);
+            return new Set((columns || []).map(col => col.Field));
+        } catch (_) {
+            return new Set();
+        }
+    }
+
+    async function ensureEmpresaLogoColumns(tableName) {
+        const columns = await getTableColumns(tableName);
+        if (columns.size === 0) return columns;
+
+        if (!columns.has('logo_path')) {
+            await pool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN logo_path VARCHAR(500) NULL`);
+            columns.add('logo_path');
+        }
+        if (!columns.has('favicon_path')) {
+            await pool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN favicon_path VARCHAR(500) NULL`);
+            columns.add('favicon_path');
+        }
+        if (!columns.has('document_logo_path')) {
+            await pool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN document_logo_path VARCHAR(500) NULL`);
+            columns.add('document_logo_path');
+        }
+
+        return columns;
+    }
+
+    async function upsertEmpresaAsset(tableName, columnName, assetPath) {
+        const columns = await ensureEmpresaLogoColumns(tableName);
+        if (!columns.has(columnName)) return;
+
+        const [existing] = await pool.query(`SELECT id FROM \`${tableName}\` LIMIT 1`);
+        if (existing.length > 0) {
+            await pool.query(`UPDATE \`${tableName}\` SET \`${columnName}\` = ? WHERE id = ?`, [assetPath, existing[0].id]);
+            return;
+        }
+
+        await pool.query(`INSERT INTO \`${tableName}\` (\`${columnName}\`) VALUES (?)`, [assetPath]);
+    }
+
+    async function invalidateEmpresaCache() {
+        try {
+            const cacheService = require('../../services/cache');
+            await cacheService.cacheDelete('cfg_empresa');
+        } catch (_) { /* cache opcional */ }
+    }
+
+    // Upload genérico para certificado digital (.pfx/.p12) — fix BUG-001:
+    // referência a `upload` quebrava o load do PCP routes inteiro.
+    const certUploadDir = process.platform !== 'win32'
+        ? '/var/www/uploads/certificados'
+        : path.join(__dirname, '..', '..', 'uploads', 'certificados');
+    if (!fs.existsSync(certUploadDir)) {
+        fs.mkdirSync(certUploadDir, { recursive: true });
+    }
+    const upload = multer({
+        dest: certUploadDir,
+        limits: { fileSize: 5 * 1024 * 1024 },
+        fileFilter: (_req, file, cb) => {
+            const ext = (path.extname(file.originalname) || '').toLowerCase();
+            if (ext === '.pfx' || ext === '.p12') return cb(null, true);
+            cb(new Error('Apenas .pfx ou .p12 são aceitos'));
+        }
+    });
+
     // Helpers para defaults por marca
     const BRAND_DEFAULTS = {
         'labor-energy': {
@@ -78,6 +145,7 @@ module.exports = function registerConfiguracoesRoutes(router, deps) {
         try {
             console.log('📋 Buscando configurações da empresa...');
 
+            await ensureEmpresaLogoColumns('configuracoes_empresa');
             const [rows] = await pool.query('SELECT * FROM configuracoes_empresa LIMIT 1');
 
             if (rows.length > 0) {
@@ -104,6 +172,7 @@ module.exports = function registerConfiguracoesRoutes(router, deps) {
             } = req.body;
 
             // Verificar se já existe registro
+            await ensureEmpresaLogoColumns('configuracoes_empresa');
             const [existing] = await pool.query('SELECT id FROM configuracoes_empresa LIMIT 1');
 
             if (existing.length > 0) {
@@ -131,10 +200,7 @@ module.exports = function registerConfiguracoesRoutes(router, deps) {
             }
 
             // Invalidar cache para que o próximo GET busque dados frescos
-            try {
-                const cacheService = require('../../services/cache');
-                await cacheService.cacheDelete('cfg_empresa');
-            } catch (_) { /* cache opcional */ }
+            await invalidateEmpresaCache();
 
             console.log('✅ Configurações da empresa salvas');
             res.json({ success: true, message: 'Configurações salvas com sucesso!' });
@@ -158,17 +224,10 @@ module.exports = function registerConfiguracoesRoutes(router, deps) {
 
             const logoPath = '/uploads/empresa/' + req.file.filename;
 
-            const [existing] = await pool.query('SELECT id FROM configuracoes_empresa LIMIT 1');
-            if (existing.length > 0) {
-                await pool.query('UPDATE configuracoes_empresa SET logo_path = ? WHERE id = ?', [logoPath, existing[0].id]);
-            } else {
-                await pool.query('INSERT INTO configuracoes_empresa (logo_path) VALUES (?)', [logoPath]);
-            }
+            await upsertEmpresaAsset('configuracoes_empresa', 'logo_path', logoPath);
+            await upsertEmpresaAsset('empresa_config', 'logo_path', logoPath);
 
-            try {
-                const cacheService = require('../../services/cache');
-                await cacheService.cacheDelete('cfg_empresa');
-            } catch (_) { /* cache opcional */ }
+            await invalidateEmpresaCache();
 
             console.log('✅ Logo atualizado:', logoPath);
             res.json({ success: true, url: logoPath, message: 'Logo atualizado com sucesso!' });
@@ -188,17 +247,10 @@ module.exports = function registerConfiguracoesRoutes(router, deps) {
 
             const faviconPath = '/uploads/empresa/' + req.file.filename;
 
-            const [existing] = await pool.query('SELECT id FROM configuracoes_empresa LIMIT 1');
-            if (existing.length > 0) {
-                await pool.query('UPDATE configuracoes_empresa SET favicon_path = ? WHERE id = ?', [faviconPath, existing[0].id]);
-            } else {
-                await pool.query('INSERT INTO configuracoes_empresa (favicon_path) VALUES (?)', [faviconPath]);
-            }
+            await upsertEmpresaAsset('configuracoes_empresa', 'favicon_path', faviconPath);
+            await upsertEmpresaAsset('empresa_config', 'favicon_path', faviconPath);
 
-            try {
-                const cacheService = require('../../services/cache');
-                await cacheService.cacheDelete('cfg_empresa');
-            } catch (_) { /* cache opcional */ }
+            await invalidateEmpresaCache();
 
             console.log('✅ Favicon atualizado:', faviconPath);
             res.json({ success: true, url: faviconPath, message: 'Favicon atualizado com sucesso!' });
@@ -206,6 +258,28 @@ module.exports = function registerConfiguracoesRoutes(router, deps) {
         } catch (error) {
             console.error('❌ Erro ao fazer upload do favicon:', error);
             res.status(500).json({ success: false, error: 'Erro ao fazer upload do favicon', message: error.message });
+        }
+    });
+
+    // POST - Upload de logo para documentos, relatórios e DANFE
+    router.post('/api/configuracoes/upload-document-logo', authenticateToken, authorizeAdmin, uploadEmpresa.single('document_logo'), async (req, res) => {
+        try {
+            if (!req.file) {
+                return res.status(400).json({ success: false, error: 'Nenhum arquivo enviado' });
+            }
+
+            const documentLogoPath = '/uploads/empresa/' + req.file.filename;
+
+            await upsertEmpresaAsset('configuracoes_empresa', 'document_logo_path', documentLogoPath);
+            await upsertEmpresaAsset('empresa_config', 'document_logo_path', documentLogoPath);
+            await invalidateEmpresaCache();
+
+            console.log('✅ Logo de documentos atualizado:', documentLogoPath);
+            res.json({ success: true, url: documentLogoPath, message: 'Logo de documentos atualizado com sucesso!' });
+
+        } catch (error) {
+            console.error('❌ Erro ao fazer upload do logo de documentos:', error);
+            res.status(500).json({ success: false, error: 'Erro ao fazer upload do logo de documentos', message: error.message });
         }
     });
 
@@ -1409,10 +1483,31 @@ module.exports = function registerConfiguracoesRoutes(router, deps) {
 
     router.put('/api/configuracoes/condicoes-pagamento/:id', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
-            const { nome, parcelas, prazo, acrescimo, descricao } = req.body;
+            // O front envia "dias" (ex.: "21,28,35"); versoes antigas enviavam "prazo".
+            // Fazemos merge com a linha atual para nao zerar campos que nao vieram no body.
+            const { nome, parcelas, prazo, dias, acrescimo, descricao } = req.body;
+            const [[atual]] = await pool.query('SELECT * FROM condicoes_pagamento WHERE id = ?', [req.params.id]);
+            if (!atual) return res.status(404).json({ success: false, error: 'Condição não encontrada' });
+
+            const diasFinal = (dias !== undefined && dias !== null && String(dias).trim() !== '')
+                ? String(dias).trim()
+                : (prazo !== undefined && prazo !== null && String(prazo).trim() !== '' ? String(prazo).trim() : atual.dias);
+
+            // Deriva o numero de parcelas pela quantidade de vencimentos informados, se nao enviado.
+            let parcelasFinal = parcelas;
+            if (parcelasFinal === undefined || parcelasFinal === null || parcelasFinal === '') {
+                const qtd = String(diasFinal || '').split(/[/,;]/).map(s => s.trim()).filter(Boolean).length;
+                parcelasFinal = qtd > 0 ? qtd : (atual.parcelas || 1);
+            }
+
+            const acrescimoFinal = (acrescimo !== undefined && acrescimo !== null && acrescimo !== '')
+                ? acrescimo : (atual.acrescimo || 0);
+            const nomeFinal = (nome !== undefined && nome !== null && String(nome).trim() !== '') ? nome : atual.nome;
+            const descricaoFinal = descricao !== undefined ? descricao : atual.descricao;
+
             await pool.query(
                 'UPDATE condicoes_pagamento SET nome = ?, parcelas = ?, dias = ?, acrescimo = ?, descricao = ? WHERE id = ?',
-                [nome, parcelas || 1, prazo || null, acrescimo || 0, descricao || null, req.params.id]
+                [nomeFinal, parcelasFinal, diasFinal, acrescimoFinal, descricaoFinal, req.params.id]
             );
             res.json({ success: true });
         } catch (error) {
@@ -2104,19 +2199,48 @@ module.exports = function registerConfiguracoesRoutes(router, deps) {
         try {
             console.log('📋 Buscando categorias...');
 
-            const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+            const incluirFinanceiro = req.query.incluirFinanceiro === '1' || req.query.incluirFinanceiro === 'true';
+            const limit = Math.min(parseInt(req.query.limit) || (incluirFinanceiro ? 500 : 100), 500);
             const page = Math.max(parseInt(req.query.page) || 1, 1);
             const offset = (page - 1) * limit;
-            const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM categorias WHERE ativo = 1');
+            const [[{ total: totalGenericas }]] = await pool.query('SELECT COUNT(*) as total FROM categorias WHERE ativo = 1');
             const [categorias] = await pool.query(`
-                SELECT id, nome, descricao, created_at, updated_at
+                SELECT id, nome, descricao, cor, created_at, updated_at, 'geral' as origem
                 FROM categorias
                 WHERE ativo = 1
                 ORDER BY nome
                 LIMIT ? OFFSET ?
             `, [limit, offset]);
 
-            res.json({ data: categorias, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+            let categoriasFinanceiras = [];
+            if (incluirFinanceiro) {
+                try {
+                    const [rows] = await pool.query(`
+                        SELECT
+                            c.id,
+                            c.nome,
+                            c.tipo,
+                            c.cor,
+                            c.icone,
+                            c.descricao,
+                            c.pai_id,
+                            p.nome as grupo_nome,
+                            'financeiro' as origem
+                        FROM categorias_financeiras c
+                        LEFT JOIN categorias_financeiras p ON p.id = c.pai_id
+                        WHERE c.ativo = 1
+                          AND c.pai_id IS NOT NULL
+                        ORDER BY c.tipo, p.nome, c.nome
+                    `);
+                    categoriasFinanceiras = rows;
+                } catch (financeiroError) {
+                    console.warn('⚠️ Não foi possível incluir categorias financeiras:', financeiroError.message);
+                }
+            }
+
+            const data = incluirFinanceiro ? [...categorias, ...categoriasFinanceiras] : categorias;
+            const total = incluirFinanceiro ? totalGenericas + categoriasFinanceiras.length : totalGenericas;
+            res.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
         } catch (error) {
             console.error('❌ Erro ao buscar categorias:', error);
             res.status(500).json({ error: 'Erro ao buscar categorias' });

@@ -16,6 +16,41 @@ class FaturamentoSharedService {
         this._configCache = null;
         this._configCacheTime = 0;
         this.CONFIG_TTL = 5 * 60 * 1000; // 5 minutos de cache
+        this._infrastructurePromise = null;
+    }
+
+    async ensureInfrastructure() {
+        if (!this._infrastructurePromise) {
+            this._infrastructurePromise = (async () => {
+                await this.pool.query(`
+                    CREATE TABLE IF NOT EXISTS nfe_sequences (
+                        serie SMALLINT UNSIGNED NOT NULL,
+                        current_value INT UNSIGNED NOT NULL DEFAULT 0,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        PRIMARY KEY (serie)
+                    ) ENGINE=InnoDB
+                `);
+
+                const ajustes = [
+                    `ALTER TABLE nfes ADD COLUMN emitente_uf VARCHAR(2) NULL`,
+                    `ALTER TABLE nfes ADD COLUMN emitente_cnpj VARCHAR(20) NULL`,
+                    `CREATE UNIQUE INDEX uq_nfes_serie_numero ON nfes (serie, numero)`
+                ];
+                for (const sql of ajustes) {
+                    try {
+                        await this.pool.query(sql);
+                    } catch (error) {
+                        if (!['ER_DUP_FIELDNAME', 'ER_DUP_KEYNAME'].includes(error.code)) {
+                            console.warn('[FATURAMENTO-SHARED] Ajuste de infraestrutura pendente:', error.message);
+                        }
+                    }
+                }
+            })().catch((error) => {
+                this._infrastructurePromise = null;
+                throw error;
+            });
+        }
+        await this._infrastructurePromise;
     }
 
     // ============================================================
@@ -138,33 +173,84 @@ class FaturamentoSharedService {
      * @returns {Object} { numero: '000000001', serie: 1 }
      */
     async gerarProximoNumeroNFe(connection, serie = null) {
+        await this.ensureInfrastructure();
         const config = await this.getConfig();
-        const serieNFe = serie || config.serie_padrao;
+        const serieNFe = Number(serie || config.serie_padrao);
+        if (!Number.isInteger(serieNFe) || serieNFe < 1 || serieNFe > 999) {
+            throw new Error('Série NF-e inválida. Informe um número entre 1 e 999.');
+        }
 
-        // Lock global para evitar race condition — verifica TODAS as fontes
-        // Usa colunas reais: pedidos.nf, pedidos.numero_nf, nfes.numero
-        let maxNfe = 0, maxNf = 0, maxNumeroNf = 0, maxNfeTable = 0;
-        try {
-            const [nfRows] = await connection.query(
-                'SELECT MAX(CAST(nf AS UNSIGNED)) as max_num FROM pedidos WHERE nf IS NOT NULL AND nf REGEXP "^[0-9]+$" FOR UPDATE'
-            );
-            maxNf = nfRows[0]?.max_num || 0;
-        } catch(e) { console.warn('[FATURAMENTO-SHARED] Coluna nf não encontrada:', e.message); }
-        try {
-            const [numNfRows] = await connection.query(
-                'SELECT MAX(CAST(numero_nf AS UNSIGNED)) as max_num FROM pedidos WHERE numero_nf IS NOT NULL AND numero_nf REGEXP "^[0-9]+$" FOR UPDATE'
-            );
-            maxNumeroNf = numNfRows[0]?.max_num || 0;
-        } catch(e) { console.warn('[FATURAMENTO-SHARED] Coluna numero_nf não encontrada:', e.message); }
-        // AUDIT-FIX BUG-09: Verificar tabela nfes separada para evitar colisão de numeração
-        try {
-            const [nfeRows] = await connection.query(
-                'SELECT MAX(CAST(numero AS UNSIGNED)) as max_num FROM nfes WHERE numero IS NOT NULL AND numero REGEXP "^[0-9]+$" FOR UPDATE'
-            );
-            maxNfeTable = nfeRows[0]?.max_num || 0;
-        } catch(e) { /* tabela nfes pode não existir */ }
+        await connection.query(
+            `INSERT IGNORE INTO nfe_sequences (serie, current_value) VALUES (?, 0)`,
+            [serieNFe]
+        );
+        const [[sequenceState]] = await connection.query(
+            `SELECT current_value FROM nfe_sequences WHERE serie = ? FOR UPDATE`,
+            [serieNFe]
+        );
 
-        const proximo = Math.max(maxNf, maxNumeroNf, maxNfeTable) + 1;
+        // O custo de ler tabelas legadas ocorre somente na primeira reserva da série.
+        if (Number(sequenceState?.current_value || 0) === 0) {
+            const maximos = [];
+            const buscarMaximo = async (sql, params = []) => {
+                try {
+                    const [[row]] = await connection.query(sql, params);
+                    maximos.push(Number(row?.max_num || 0));
+                } catch (_) {
+                    // Instalações antigas podem não ter todas as colunas/tabelas.
+                }
+            };
+
+            await buscarMaximo(
+                'SELECT MAX(CAST(nf AS UNSIGNED)) AS max_num FROM pedidos WHERE nf IS NOT NULL AND nf REGEXP "^[0-9]+$"'
+            );
+            await buscarMaximo(
+                'SELECT MAX(CAST(numero_nf AS UNSIGNED)) AS max_num FROM pedidos WHERE numero_nf IS NOT NULL AND numero_nf REGEXP "^[0-9]+$"'
+            );
+            await buscarMaximo(
+                'SELECT MAX(CAST(numero AS UNSIGNED)) AS max_num FROM nfes WHERE serie = ? AND numero IS NOT NULL',
+                [serieNFe]
+            );
+            await buscarMaximo(`
+                SELECT GREATEST(
+                    COALESCE(MAX(CASE WHEN nfe_faturamento_numero REGEXP '^[0-9]+$'
+                        THEN CAST(nfe_faturamento_numero AS UNSIGNED) ELSE 0 END), 0),
+                    COALESCE(MAX(CASE WHEN nfe_remessa_numero REGEXP '^[0-9]+$'
+                        THEN CAST(nfe_remessa_numero AS UNSIGNED) ELSE 0 END), 0)
+                ) AS max_num
+                FROM pedidos
+            `);
+            await buscarMaximo(`
+                SELECT MAX(CAST(nfe_numero AS UNSIGNED)) AS max_num
+                FROM pedido_faturamentos
+                WHERE nfe_numero IS NOT NULL AND nfe_numero REGEXP '^[0-9]+$'
+            `);
+            await buscarMaximo(
+                'SELECT MAX(ultimo_numero) AS max_num FROM nfe_configuracoes WHERE serie = ?',
+                [serieNFe]
+            );
+            await buscarMaximo(
+                'SELECT MAX(nfe_proximo_numero - 1) AS max_num FROM empresa_config WHERE nfe_serie = ?',
+                [serieNFe]
+            );
+
+            await connection.query(
+                `UPDATE nfe_sequences SET current_value = ? WHERE serie = ?`,
+                [Math.max(0, ...maximos), serieNFe]
+            );
+        }
+
+        await connection.query(
+            `UPDATE nfe_sequences
+             SET current_value = LAST_INSERT_ID(current_value + 1)
+             WHERE serie = ?`,
+            [serieNFe]
+        );
+        const [[sequenceRow]] = await connection.query('SELECT LAST_INSERT_ID() AS numero');
+        const proximo = Number(sequenceRow?.numero);
+        if (!Number.isInteger(proximo) || proximo < 1 || proximo > 999999999) {
+            throw new Error('Faixa de numeração NF-e esgotada para a série configurada');
+        }
 
         return {
             numero: String(proximo).padStart(9, '0'),

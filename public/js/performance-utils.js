@@ -67,7 +67,7 @@
             .then(async (res) => {
                 if (!res.ok) {
                     if (res.status === 401) {
-                        window.location.href = '/login.html';
+                        window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
                         throw new Error('Sessão expirada');
                     }
                     throw new Error(`HTTP ${res.status}`);

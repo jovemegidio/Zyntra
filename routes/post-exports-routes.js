@@ -2786,6 +2786,15 @@ let query = 'SELECT id, nome, tipo, icone, ativo, COALESCE(prazo, 0) as prazo, C
         logger.warn('⚠️ API Dashboard Executivo não carregada:', err.message);
     }
     
+    // Conciliação Bancária (extrato + importação OFX + matching automático)
+    try {
+        const conciliacaoBancariaRouter = require('../api/conciliacao-bancaria')({ pool, authenticateToken });
+        router.use('/conciliacao-bancaria', conciliacaoBancariaRouter);
+        logger.info('✅ API Conciliação Bancária carregada');
+    } catch (err) {
+        logger.warn('⚠️ API Conciliação Bancária não carregada:', err.message);
+    }
+
     // Integração Vendas → Financeiro
     try {
         const integracaoVendasFinanceiro = require('../api/integracao-vendas-financeiro');

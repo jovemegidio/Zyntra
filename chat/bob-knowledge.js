@@ -1,32 +1,32 @@
 /**
  * BOB - Base de Conhecimento COMPLETA Aluforce
- * Alimentado com TODO o conteúdo real da Central de Ajuda: https://aluforce.api.br/Ajuda/index.html
+ * Alimentado com TODO o conteúdo real da Central de Ajuda: https://zyntraerp.com.br/Ajuda/index.html
  * Cada entrada corresponde a um artigo real, com passo a passo extraído diretamente do site
  */
 
 // ==================== MAPA DA CENTRAL DE AJUDA ====================
 const HELP_LINKS = {
-  home: 'https://aluforce.api.br/Ajuda/index.html',
-  guiaInicial: 'https://aluforce.api.br/Ajuda/colecoes/guia-inicial.html',
-  tutoriais: 'https://aluforce.api.br/Ajuda/colecoes/tutoriais.html',
-  vendas: 'https://aluforce.api.br/Ajuda/colecoes/vendas.html',
-  compras: 'https://aluforce.api.br/Ajuda/colecoes/compras.html',
-  financas: 'https://aluforce.api.br/Ajuda/colecoes/financas.html',
-  estoque: 'https://aluforce.api.br/Ajuda/colecoes/estoque.html',
-  notasFiscais: 'https://aluforce.api.br/Ajuda/colecoes/notas-fiscais.html',
-  cadastros: 'https://aluforce.api.br/Ajuda/colecoes/cadastros.html',
-  whatsapp: 'https://aluforce.api.br/Ajuda/colecoes/whatsapp.html',
-  app: 'https://aluforce.api.br/Ajuda/colecoes/app.html',
-  seguranca: 'https://aluforce.api.br/Ajuda/colecoes/seguranca.html',
-  portal: 'https://aluforce.api.br/Ajuda/colecoes/portal.html',
-  relatorios: 'https://aluforce.api.br/Ajuda/colecoes/relatorios.html',
-  novidades: 'https://aluforce.api.br/Ajuda/colecoes/novidades.html',
-  cenarios: 'https://aluforce.api.br/Ajuda/colecoes/cenarios.html',
-  contabilidade: 'https://aluforce.api.br/Ajuda/colecoes/contabilidade.html',
-  pcp: 'https://aluforce.api.br/Ajuda/colecoes/pcp.html',
-  rh: 'https://aluforce.api.br/Ajuda/colecoes/rh.html',
-  faturamento: 'https://aluforce.api.br/Ajuda/colecoes/faturamento.html',
-  logistica: 'https://aluforce.api.br/Ajuda/colecoes/logistica.html',
+  home: 'https://zyntraerp.com.br/Ajuda/index.html',
+  guiaInicial: 'https://zyntraerp.com.br/Ajuda/colecoes/guia-inicial.html',
+  tutoriais: 'https://zyntraerp.com.br/Ajuda/colecoes/tutoriais.html',
+  vendas: 'https://zyntraerp.com.br/Ajuda/colecoes/vendas.html',
+  compras: 'https://zyntraerp.com.br/Ajuda/colecoes/compras.html',
+  financas: 'https://zyntraerp.com.br/Ajuda/colecoes/financas.html',
+  estoque: 'https://zyntraerp.com.br/Ajuda/colecoes/estoque.html',
+  notasFiscais: 'https://zyntraerp.com.br/Ajuda/colecoes/notas-fiscais.html',
+  cadastros: 'https://zyntraerp.com.br/Ajuda/colecoes/cadastros.html',
+  whatsapp: 'https://zyntraerp.com.br/Ajuda/colecoes/whatsapp.html',
+  app: 'https://zyntraerp.com.br/Ajuda/colecoes/app.html',
+  seguranca: 'https://zyntraerp.com.br/Ajuda/colecoes/seguranca.html',
+  portal: 'https://zyntraerp.com.br/Ajuda/colecoes/portal.html',
+  relatorios: 'https://zyntraerp.com.br/Ajuda/colecoes/relatorios.html',
+  novidades: 'https://zyntraerp.com.br/Ajuda/colecoes/novidades.html',
+  cenarios: 'https://zyntraerp.com.br/Ajuda/colecoes/cenarios.html',
+  contabilidade: 'https://zyntraerp.com.br/Ajuda/colecoes/contabilidade.html',
+  pcp: 'https://zyntraerp.com.br/Ajuda/colecoes/pcp.html',
+  rh: 'https://zyntraerp.com.br/Ajuda/colecoes/rh.html',
+  faturamento: 'https://zyntraerp.com.br/Ajuda/colecoes/faturamento.html',
+  logistica: 'https://zyntraerp.com.br/Ajuda/colecoes/logistica.html',
 };
 
 // ==================== BASE DE CONHECIMENTO COMPLETA ====================
@@ -59,7 +59,7 @@ Após a contratação, você receberá um **e-mail de boas-vindas** com as instr
 • 🔍 **Barra de pesquisa** — Busca rápida de funcionalidades
 • 🔔 **Notificações** — Atualizações importantes
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/primeiro-acesso.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/primeiro-acesso.html`
   },
   {
     keywords: ['configuração inicial', 'configurar empresa', 'dados empresa', 'configurações iniciais', 'setup', 'cnpj', 'razão social', 'certificado digital', 'regime tributário', 'configurar'],
@@ -87,7 +87,7 @@ Após a contratação, você receberá um **e-mail de boas-vindas** com as instr
 **4. Notificações:**
 • Configure alertas por e-mail, no sistema e push (app mobile)
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/configuracoes-iniciais.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/configuracoes-iniciais.html`
   },
   {
     keywords: ['segmento', 'tipo empresa', 'ramo', 'comércio', 'serviços', 'indústria', 'locação', 'tipo negócio', 'configuração segmento'],
@@ -119,7 +119,7 @@ Após a contratação, você receberá um **e-mail de boas-vindas** com as instr
 • Ative controle de disponibilidade e manutenções
 • Configure faturamento por período e renovação automática
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/configuracoes-segmento.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/configuracoes-segmento.html`
   },
 
   // ============================================================
@@ -157,7 +157,7 @@ Após a contratação, você receberá um **e-mail de boas-vindas** com as instr
 • Baixe o modelo Excel em Cadastros > Clientes > Importar
 • Preencha e envie — o sistema não permite CPF/CNPJ duplicado
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/cadastro-clientes.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/cadastro-clientes.html`
   },
   {
     keywords: ['cadastro fornecedor', 'cadastrar fornecedor', 'novo fornecedor', 'fornecedor', 'fornecedores', 'cadastro fornecedores'],
@@ -188,7 +188,7 @@ Após a contratação, você receberá um **e-mail de boas-vindas** com as instr
 
 💡 **Dica:** Mantenha dados bancários atualizados para agilizar pagamentos.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/cadastro-fornecedores.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/cadastro-fornecedores.html`
   },
   {
     keywords: ['cadastro produto', 'cadastrar produto', 'novo produto', 'produto', 'produtos', 'ncm', 'código barras', 'serviço', 'cadastro produtos', 'item'],
@@ -224,7 +224,7 @@ Após a contratação, você receberá um **e-mail de boas-vindas** com as instr
 
 **Importação em lote:** Baixe o template Excel em Produtos > Importar
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/cadastro-produtos.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/cadastro-produtos.html`
   },
 
   // ============================================================
@@ -264,7 +264,7 @@ Após a contratação, você receberá um **e-mail de boas-vindas** com as instr
 
 ⚠️ Pedidos faturados não podem ser editados. Para alterações, cancele a NF-e primeiro.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/criar-pedido-venda.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/criar-pedido-venda.html`
   },
   {
     keywords: ['faturar', 'faturamento', 'faturar pedido', 'emitir nota venda', 'faturamento pedido', 'faturar venda'],
@@ -297,7 +297,7 @@ Após a contratação, você receberá um **e-mail de boas-vindas** com as instr
 
 ⚠️ Se a NF-e for rejeitada, verifique: CNPJ/IE do cliente, NCM, CFOP e cálculo de impostos.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/faturar-pedido.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/faturar-pedido.html`
   },
   {
     keywords: ['tabela preço', 'tabela preços', 'preço', 'preços', 'markup', 'desconto', 'política preço', 'precificação'],
@@ -331,7 +331,7 @@ Após a contratação, você receberá um **e-mail de boas-vindas** com as instr
 **Prioridade (quando múltiplas se aplicam):**
 1. Tabela do cliente → 2. Promocional → 3. Grupo → 4. Padrão
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/tabela-precos.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/tabela-precos.html`
   },
   {
     keywords: ['comissão', 'comissões', 'acompanhar comissões', 'vendedor comissão'],
@@ -346,7 +346,7 @@ As comissões são calculadas automaticamente ao faturar pedidos.
 2️⃣ Filtre por vendedor, período, cliente ou status
 3️⃣ Veja totais de vendas, comissão e comparativos
 
-📖 Tutorial completo: https://aluforce.api.br/Ajuda/artigos/tutorial-acompanhar-comissoes.html
+📖 Tutorial completo: https://zyntraerp.com.br/Ajuda/artigos/tutorial-acompanhar-comissoes.html
 📚 Módulo de Vendas: ${HELP_LINKS.vendas}`
   },
 
@@ -386,7 +386,7 @@ As comissões são calculadas automaticamente ao faturar pedidos.
 **Recebimento da mercadoria:**
 1. Localize o pedido → 2. Clique "Receber" → 3. Confira itens → 4. Vincule a NF-e de entrada
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/criar-pedido-compra.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/criar-pedido-compra.html`
   },
   {
     keywords: ['cotação', 'cotação fornecedores', 'cotação compra', 'cotar'],
@@ -400,7 +400,7 @@ As comissões são calculadas automaticamente ao faturar pedidos.
 4️⃣ Compare preços, prazos e condições
 5️⃣ Aprove a melhor proposta e gere o pedido de compra
 
-📖 Tutorial completo: https://aluforce.api.br/Ajuda/artigos/tutorial-cotacao-fornecedores.html
+📖 Tutorial completo: https://zyntraerp.com.br/Ajuda/artigos/tutorial-cotacao-fornecedores.html
 📚 Módulo de Compras: ${HELP_LINKS.compras}`
   },
   {
@@ -435,7 +435,7 @@ As comissões são calculadas automaticamente ao faturar pedidos.
 
 ⚠️ Confira sempre unidade de medida e quantidade antes de confirmar!
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/entrada-nfe.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/entrada-nfe.html`
   },
 
   // ============================================================
@@ -474,7 +474,7 @@ As comissões são calculadas automaticamente ao faturar pedidos.
 
 ⚠️ NF-e rejeitada? Verifique CNPJ/IE, NCM, CFOP e cálculo de impostos.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/emitir-nfe.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/emitir-nfe.html`
   },
   {
     keywords: ['cancelar nota', 'cancelar nfe', 'cancelar nf-e', 'cancelamento nota', 'cancelamento nfe'],
@@ -507,7 +507,7 @@ As comissões são calculadas automaticamente ao faturar pedidos.
 • Mercadoria já em trânsito → Emita NF-e de devolução
 • Erro em campo corrigível → Use Carta de Correção
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/cancelar-nfe.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/cancelar-nfe.html`
   },
   {
     keywords: ['carta correção', 'cc-e', 'corrigir nota', 'corrigir nfe', 'correção nota', 'carta de correção'],
@@ -537,7 +537,7 @@ As comissões são calculadas automaticamente ao faturar pedidos.
 
 📝 **Exemplo:** "Onde se lê: Rua das Flores, 123 — Leia-se: Rua das Flores, 1230. Correção do endereço do destinatário."
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/carta-correcao.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/carta-correcao.html`
   },
   {
     keywords: ['nfse', 'nfs-e', 'nota serviço', 'nota fiscal serviço', 'nfse nacional', 'nota serviço eletrônica', 'migração nfse'],
@@ -565,7 +565,7 @@ Novo padrão do Governo Federal para padronizar a emissão de NFS-e em todo o Br
 • Notas antigas continuam válidas
 • Não precisa de novo certificado digital
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/nfs-e-nacional.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/nfs-e-nacional.html`
   },
 
   // ============================================================
@@ -599,7 +599,7 @@ Novo padrão do Governo Federal para padronizar a emissão de NFS-e em todo o Br
 
 **Status:** 🟡 Em Aberto | 🔴 Vencida | 🟢 Paga | 🟠 Parcial
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/contas-pagar.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/contas-pagar.html`
   },
   {
     keywords: ['conta receber', 'contas receber', 'receber', 'recebimento', 'receita', 'contas a receber', 'boleto', 'cobrar', 'cobrança', 'gerar boleto'],
@@ -632,7 +632,7 @@ Novo padrão do Governo Federal para padronizar a emissão de NFS-e em todo o Br
 
 **Status:** 🟡 Em Aberto | 🔴 Vencida | 🟢 Recebida | 🟠 Parcial
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/contas-receber.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/contas-receber.html`
   },
   {
     keywords: ['fluxo caixa', 'fluxo de caixa', 'caixa', 'projeção financeira', 'entradas saídas', 'saldo'],
@@ -666,7 +666,7 @@ Novo padrão do Governo Federal para padronizar a emissão de NFS-e em todo o Br
 
 **Exportar:** Excel para análises | PDF para apresentações
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/fluxo-caixa.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/fluxo-caixa.html`
   },
   {
     keywords: ['conciliação', 'conciliação bancária', 'extrato', 'ofx', 'banco', 'conta bancária', 'conciliar'],
@@ -701,7 +701,7 @@ Novo padrão do Governo Federal para padronizar a emissão de NFS-e em todo o Br
 • Não acumule lançamentos pendentes
 • Mantenha contas bancárias atualizadas
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/conciliacao-bancaria.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/conciliacao-bancaria.html`
   },
   {
     keywords: ['desconto duplicata', 'duplicata', 'antecipação', 'antecipar recebível', 'antecipação recebíveis', 'desconto de duplicatas'],
@@ -725,7 +725,7 @@ Novo padrão do Governo Federal para padronizar a emissão de NFS-e em todo o Br
 
 **Regras:** Duplicatas com vencimento em até 90 dias | Valor mínimo R$ 500 | Sujeito a análise de crédito
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/desconto-duplicatas.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/desconto-duplicatas.html`
   },
 
   // ============================================================
@@ -765,7 +765,7 @@ Novo padrão do Governo Federal para padronizar a emissão de NFS-e em todo o Br
 • Estoque mínimo/máximo
 • Lote/Série para rastreabilidade
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/visao-geral-estoque.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/visao-geral-estoque.html`
   },
   {
     keywords: ['inventário', 'inventario', 'contagem estoque', 'contagem', 'fazer inventário', 'conferir estoque'],
@@ -802,7 +802,7 @@ Novo padrão do Governo Federal para padronizar a emissão de NFS-e em todo o Br
 
 ⚠️ Após finalizado, o inventário não pode ser alterado!
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/inventario-estoque.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/inventario-estoque.html`
   },
   {
     keywords: ['ajuste estoque', 'ajustar estoque', 'correção estoque', 'baixa estoque', 'avaria', 'perda'],
@@ -829,7 +829,7 @@ Novo padrão do Governo Federal para padronizar a emissão de NFS-e em todo o Br
 
 ⚠️ Ajustes podem ter implicações fiscais — consulte seu contador sobre NFs de ajuste.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/ajuste-estoque.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/ajuste-estoque.html`
   },
 
   // ============================================================
@@ -859,7 +859,7 @@ Novo padrão do Governo Federal para padronizar a emissão de NFS-e em todo o Br
 **Etapas de produção (exemplo cabos de alumínio):**
 1. Trefilação (Trefiladora) → 2. Encordoamento (Encordoadora) → 3. Bobinamento (Bobinadeira) → 4. Inspeção (Laboratório) → 5. Expedição
 
-📖 Tutorial completo: https://aluforce.api.br/Ajuda/artigos/tutorial-criar-ordem-producao.html`
+📖 Tutorial completo: https://zyntraerp.com.br/Ajuda/artigos/tutorial-criar-ordem-producao.html`
   },
   {
     keywords: ['pcp', 'apontar produção', 'kanban', 'apontamento', 'produzir', 'apontamento produção', 'registrar produção', 'quadro kanban'],
@@ -890,7 +890,7 @@ Novo padrão do Governo Federal para padronizar a emissão de NFS-e em todo o Br
 
 ⚠️ Apontamentos só podem ser feitos em OPs com status "Aprovada" ou "Em Produção".
 
-📖 Tutorial completo: https://aluforce.api.br/Ajuda/artigos/tutorial-apontar-producao.html`
+📖 Tutorial completo: https://zyntraerp.com.br/Ajuda/artigos/tutorial-apontar-producao.html`
   },
   {
     keywords: ['pcp', 'bom', 'estrutura materiais', 'lista materiais', 'composição produto', 'estrutura produto', 'bill of materials'],
@@ -910,7 +910,7 @@ A BOM define todos os materiais e quantidades necessários para fabricar um prod
 
 💡 Mantenha a BOM sempre atualizada para garantir cálculos corretos de custo e necessidade de materiais.
 
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-consultar-estoque.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-consultar-estoque.html
 📚 Módulo PCP: ${HELP_LINKS.tutoriais}`
   },
 
@@ -941,7 +941,7 @@ A BOM define todos os materiais e quantidades necessários para fabricar um prod
 
 ⚠️ Divergências? Entre em contato com o RH antes do fechamento do próximo período.
 
-📖 Tutorial completo: https://aluforce.api.br/Ajuda/artigos/tutorial-consultar-holerite.html`
+📖 Tutorial completo: https://zyntraerp.com.br/Ajuda/artigos/tutorial-consultar-holerite.html`
   },
   {
     keywords: ['rh', 'férias', 'solicitar férias', 'pedir férias', 'férias funcionário', 'período aquisitivo', 'abono pecuniário'],
@@ -969,7 +969,7 @@ A BOM define todos os materiais e quantidades necessários para fabricar um prod
 
 💡 Converse com seu gestor antes de enviar e acompanhe o status em tempo real na tela de férias.
 
-📖 Tutorial completo: https://aluforce.api.br/Ajuda/artigos/tutorial-solicitar-ferias.html`
+📖 Tutorial completo: https://zyntraerp.com.br/Ajuda/artigos/tutorial-solicitar-ferias.html`
   },
   {
     keywords: ['rh', 'ponto', 'ponto eletrônico', 'registrar ponto', 'bater ponto', 'entrada', 'saída', 'jornada', 'hora trabalhada', 'gestão ponto'],
@@ -997,7 +997,7 @@ A BOM define todos os materiais e quantidades necessários para fabricar um prod
 💡 Registre o ponto assim que chegar e antes de sair para evitar divergências.
 ⚠️ Correções devem ser feitas no mesmo mês, antes do fechamento da folha.
 
-📖 Tutorial completo: https://aluforce.api.br/Ajuda/artigos/tutorial-registrar-ponto.html`
+📖 Tutorial completo: https://zyntraerp.com.br/Ajuda/artigos/tutorial-registrar-ponto.html`
   },
   {
     keywords: ['rh', 'funcionário', 'cadastrar funcionário', 'novo funcionário', 'admissão', 'colaborador', 'funcionários', 'empregado'],
@@ -1024,7 +1024,7 @@ CPF | RG | CTPS (física ou digital) | Título de Eleitor | Comprovante de ender
 💡 Documentos podem ser digitalizados e anexados ao cadastro.
 ⚠️ CPF e e-mail devem ser únicos — o sistema não permite duplicados.
 
-📖 Tutorial completo: https://aluforce.api.br/Ajuda/artigos/tutorial-cadastrar-funcionario.html`
+📖 Tutorial completo: https://zyntraerp.com.br/Ajuda/artigos/tutorial-cadastrar-funcionario.html`
   },
   {
     keywords: ['rh', 'treinamento', 'treinamentos', 'capacitação', 'gerenciar treinamentos'],
@@ -1037,7 +1037,7 @@ CPF | RG | CTPS (física ou digital) | Título de Eleitor | Comprovante de ender
 3️⃣ Vincule funcionários e defina datas
 4️⃣ Acompanhe a conclusão e certificados
 
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-gerenciar-treinamentos.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-gerenciar-treinamentos.html
 📚 Tutoriais RH: ${HELP_LINKS.tutoriais}`
   },
 
@@ -1067,7 +1067,7 @@ CPF | RG | CTPS (física ou digital) | Título de Eleitor | Comprovante de ender
 💡 Agende envio automático por e-mail (diário, semanal ou mensal)
 ⚠️ Apenas vendas com status "Faturado" são incluídas nos totais.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/relatorios-vendas.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/relatorios-vendas.html`
   },
   {
     keywords: ['relatório financeiro', 'relatórios financeiros', 'dre', 'demonstrativo resultado', 'indicadores financeiros', 'relatório contas'],
@@ -1097,7 +1097,7 @@ CPF | RG | CTPS (física ou digital) | Título de Eleitor | Comprovante de ender
 | Prazo Médio Pagamento | Tempo médio para pagar |
 | Índice Inadimplência | % títulos vencidos |
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/relatorios-financeiros.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/relatorios-financeiros.html`
   },
   {
     keywords: ['relatório estoque', 'relatórios estoque', 'posição estoque', 'curva abc', 'giro estoque', 'valorização estoque'],
@@ -1122,7 +1122,7 @@ CPF | RG | CTPS (física ou digital) | Título de Eleitor | Comprovante de ender
 💡 Configure alertas automáticos para estoque mínimo!
 ⚠️ A valorização usa o método de custo médio ponderado.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/relatorios-estoque.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/relatorios-estoque.html`
   },
   {
     keywords: ['relatório', 'relatórios', 'dashboard', 'indicadores', 'exportar relatório', 'agendar relatório', 'excel', 'exportar excel'],
@@ -1142,9 +1142,9 @@ CPF | RG | CTPS (física ou digital) | Título de Eleitor | Comprovante de ender
 
 **Agendar envio automático:** Configure relatórios para serem enviados por e-mail em períodos definidos (diário, semanal, mensal).
 
-📖 Visão geral: https://aluforce.api.br/Ajuda/artigos/visao-geral-relatorios.html
-📖 Dashboard: https://aluforce.api.br/Ajuda/artigos/dashboard-indicadores.html
-📖 Exportar: https://aluforce.api.br/Ajuda/artigos/exportar-relatorios.html
+📖 Visão geral: https://zyntraerp.com.br/Ajuda/artigos/visao-geral-relatorios.html
+📖 Dashboard: https://zyntraerp.com.br/Ajuda/artigos/dashboard-indicadores.html
+📖 Exportar: https://zyntraerp.com.br/Ajuda/artigos/exportar-relatorios.html
 📚 Todos os relatórios: ${HELP_LINKS.relatorios}`
   },
 
@@ -1166,8 +1166,8 @@ Acesse **Configurações > Plano de Contas** para configurar as categorias cont�
 
 **Integração:** Exporte dados para seu contador nos formatos padrão.
 
-📖 Plano de Contas: https://aluforce.api.br/Ajuda/artigos/plano-contas.html
-📖 DRE: https://aluforce.api.br/Ajuda/artigos/relatorios-financeiros.html
+📖 Plano de Contas: https://zyntraerp.com.br/Ajuda/artigos/plano-contas.html
+📖 DRE: https://zyntraerp.com.br/Ajuda/artigos/relatorios-financeiros.html
 📚 Contabilidade: ${HELP_LINKS.contabilidade}`
   },
 
@@ -1208,7 +1208,7 @@ Acesse **Configurações > Plano de Contas** para configurar as categorias cont�
 
 **Envio manual:** Abra qualquer registro → clique no ícone WhatsApp → confirme o envio.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/integracao-whatsapp.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/integracao-whatsapp.html`
   },
 
   // ============================================================
@@ -1243,7 +1243,7 @@ Acesse **Configurações > Plano de Contas** para configurar as categorias cont�
 
 **Requisitos:** Android 8.0+ | iOS 13.0+ | 100 MB livres
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/como-usar-app.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/como-usar-app.html`
   },
 
   // ============================================================
@@ -1281,7 +1281,7 @@ Acesse **Configurações > Plano de Contas** para configurar as categorias cont�
 
 ⚠️ Mantenha sempre pelo menos 1 administrador ativo!
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/usuarios-permissoes.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/usuarios-permissoes.html`
   },
 
   // ============================================================
@@ -1321,7 +1321,7 @@ Acesse **Configurações > Plano de Contas** para configurar as categorias cont�
 
 🔒 Nunca compartilhe seu token. Se suspeitar de vazamento, revogue e gere um novo.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/integracoes-api.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/integracoes-api.html`
   },
 
   // ============================================================
@@ -1339,7 +1339,7 @@ Acesse **Configurações > Plano de Contas** para configurar as categorias cont�
 • 🔌 **Integrações e API** — Conecte com outros sistemas
 • 📊 **Novos relatórios** — Indicadores aprimorados
 
-📖 Novidades: https://aluforce.api.br/Ajuda/artigos/novidades-sistema.html
+📖 Novidades: https://zyntraerp.com.br/Ajuda/artigos/novidades-sistema.html
 📚 Todas as novidades: ${HELP_LINKS.novidades}`
   },
 
@@ -1359,7 +1359,7 @@ Exemplos reais de como resolver situações do dia a dia:
 • 💰 **Cenários Financeiros** — Gestão de caixa e cobrança
 • 💵 **Desconto de Duplicatas** — Antecipação prática
 
-📖 Cenários: https://aluforce.api.br/Ajuda/artigos/cenarios-uso.html
+📖 Cenários: https://zyntraerp.com.br/Ajuda/artigos/cenarios-uso.html
 📚 Todos os cenários: ${HELP_LINKS.cenarios}`
   },
 
@@ -1378,8 +1378,8 @@ Gere cobranças PIX direto pelo sistema para facilitar o recebimento dos seus cl
 **Régua de Cobrança:**
 Automatize a cobrança de títulos em atraso com uma sequência programada de ações.
 
-📖 PIX: https://aluforce.api.br/Ajuda/artigos/tutorial-pix-cobranca.html
-📖 Régua: https://aluforce.api.br/Ajuda/artigos/tutorial-regua-cobranca.html
+📖 PIX: https://zyntraerp.com.br/Ajuda/artigos/tutorial-pix-cobranca.html
+📖 Régua: https://zyntraerp.com.br/Ajuda/artigos/tutorial-regua-cobranca.html
 📚 Tutoriais: ${HELP_LINKS.tutoriais}`
   },
 
@@ -1416,8 +1416,8 @@ Automatize a cobrança de títulos em atraso com uma sequência programada de a�
 
 💡 **Dica:** Configure as contas bancárias no módulo Bancos antes de emitir boletos.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/boletos-bancarios.html
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-boletos.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/boletos-bancarios.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-boletos.html`
   },
 
   // ============================================================
@@ -1457,8 +1457,8 @@ As recorrências automatizam a criação de lançamentos que se repetem, como al
 ⚠️ Alterar valor ou frequência afeta apenas lançamentos futuros.
 💡 Recorrências sem data de término ficam ativas indefinidamente. Pause ou encerre a qualquer momento.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/recorrencias-financeiras.html
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-recorrencias.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/recorrencias-financeiras.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-recorrencias.html`
   },
 
   // ============================================================
@@ -1495,8 +1495,8 @@ O módulo de Impostos centraliza todas as configurações tributárias da empres
 
 💡 **Dica:** Consulte seu contador para as alíquotas corretas. Exportar em CSV para enviar ao escritório.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/impostos-configuracao.html
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-impostos.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/impostos-configuracao.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-impostos.html`
   },
 
   // ============================================================
@@ -1535,8 +1535,8 @@ Centros de custo classificam receitas e despesas por setor, projeto ou departame
 
 **KPIs:** Total de Centros | Centros Ativos | Receita Total | Despesa Total
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/centros-custo.html
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-centros-custo.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/centros-custo.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-centros-custo.html`
   },
 
   // ============================================================
@@ -1574,8 +1574,8 @@ O módulo de Orçamentos permite planejar receitas e despesas por período, comp
 
 ⚠️ Orçamentos aprovados não podem ser excluídos, apenas cancelados.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/orcamentos-financeiros.html
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-orcamentos.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/orcamentos-financeiros.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-orcamentos.html`
   },
 
   // ============================================================
@@ -1611,7 +1611,7 @@ O módulo de Orçamentos permite planejar receitas e despesas por período, comp
 
 💡 Acesse o dashboard diariamente para visão rápida. Dados atualizados em tempo real.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/dashboard-financeiro.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/dashboard-financeiro.html`
   },
 
   // ============================================================
@@ -1650,8 +1650,8 @@ O módulo de Orçamentos permite planejar receitas e despesas por período, comp
 
 💡 A alíquota de ISS varia conforme o município. Consulte seu contador.
 
-📖 Artigo completo: https://aluforce.api.br/Ajuda/artigos/nfse-emissao.html
-📖 Migração NFS-e Nacional: https://aluforce.api.br/Ajuda/artigos/nfs-e-nacional.html`
+📖 Artigo completo: https://zyntraerp.com.br/Ajuda/artigos/nfse-emissao.html
+📖 Migração NFS-e Nacional: https://zyntraerp.com.br/Ajuda/artigos/nfs-e-nacional.html`
   },
 
   // ============================================================
@@ -1678,7 +1678,7 @@ O módulo de Orçamentos permite planejar receitas e despesas por período, comp
 
 💡 Mantenha os dados bancários atualizados para boletos e conciliação funcionarem corretamente.
 
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-gestao-contas-bancarias.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-gestao-contas-bancarias.html
 📚 Finanças: ${HELP_LINKS.financas}`
   },
 
@@ -1710,9 +1710,9 @@ Gerencia toda a cadeia de expedição e transporte — da separação do pedido 
 3️⃣ Configure rota, peso e valores
 4️⃣ Emita — transmissão à SEFAZ
 
-📖 Visão geral: https://aluforce.api.br/Ajuda/artigos/visao-geral-logistica.html
-📖 Transporte: https://aluforce.api.br/Ajuda/artigos/tutorial-logistica-transporte.html
-📖 CT-e: https://aluforce.api.br/Ajuda/artigos/tutorial-cte-transporte.html
+📖 Visão geral: https://zyntraerp.com.br/Ajuda/artigos/visao-geral-logistica.html
+📖 Transporte: https://zyntraerp.com.br/Ajuda/artigos/tutorial-logistica-transporte.html
+📖 CT-e: https://zyntraerp.com.br/Ajuda/artigos/tutorial-cte-transporte.html
 📚 Logística: ${HELP_LINKS.logistica}`
   },
 
@@ -1737,9 +1737,9 @@ Integra vendas, notas fiscais e financeiro em um único fluxo.
 **Fluxo:**
 📝 Pedido Aprovado → 📄 Faturar → 🧾 NF-e Emitida → 💰 Cobrança Gerada → ✅ Recebido
 
-📖 Visão geral: https://aluforce.api.br/Ajuda/artigos/visao-geral-faturamento.html
-📖 PIX: https://aluforce.api.br/Ajuda/artigos/tutorial-pix-cobranca.html
-📖 Régua: https://aluforce.api.br/Ajuda/artigos/tutorial-regua-cobranca.html
+📖 Visão geral: https://zyntraerp.com.br/Ajuda/artigos/visao-geral-faturamento.html
+📖 PIX: https://zyntraerp.com.br/Ajuda/artigos/tutorial-pix-cobranca.html
+📖 Régua: https://zyntraerp.com.br/Ajuda/artigos/tutorial-regua-cobranca.html
 📚 Faturamento: ${HELP_LINKS.faturamento}`
   },
 
@@ -1761,9 +1761,9 @@ Integra vendas, notas fiscais e financeiro em um único fluxo.
 **Exportar Pedido em PDF:**
 1️⃣ Abra o pedido → 2️⃣ Clique em **"Exportar PDF"** ou **"Imprimir"** → 3️⃣ Baixe ou envie por e-mail/WhatsApp.
 
-📖 Duplicar: https://aluforce.api.br/Ajuda/artigos/tutorial-duplicar-pedido.html
-📖 Orçamento: https://aluforce.api.br/Ajuda/artigos/tutorial-gerar-orcamento.html
-📖 Exportar PDF: https://aluforce.api.br/Ajuda/artigos/tutorial-exportar-pedido-pdf.html`
+📖 Duplicar: https://zyntraerp.com.br/Ajuda/artigos/tutorial-duplicar-pedido.html
+📖 Orçamento: https://zyntraerp.com.br/Ajuda/artigos/tutorial-gerar-orcamento.html
+📖 Exportar PDF: https://zyntraerp.com.br/Ajuda/artigos/tutorial-exportar-pedido-pdf.html`
   },
   {
     keywords: ['prospecção', 'prospecção b2b', 'lead', 'leads', 'prospect', 'captar cliente', 'funil vendas'],
@@ -1779,7 +1779,7 @@ Ferramenta para captar novos clientes e gerenciar o funil de vendas.
 • Acompanhamento de atividades
 • Conversão de lead em cliente
 
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-prospeccao-b2b.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-prospeccao-b2b.html
 📚 Vendas: ${HELP_LINKS.vendas}`
   },
 
@@ -1803,7 +1803,7 @@ Ferramenta para captar novos clientes e gerenciar o funil de vendas.
 ⚠️ A inutilização deve ser feita até o dia **5 do mês seguinte** à quebra de sequência.
 ⚠️ Números já utilizados em NF-e emitidas não podem ser inutilizados.
 
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-inutilizar-numeracao.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-inutilizar-numeracao.html
 📚 Notas Fiscais: ${HELP_LINKS.notasFiscais}`
   },
   {
@@ -1818,7 +1818,7 @@ Ferramenta para captar novos clientes e gerenciar o funil de vendas.
 
 **Ações disponíveis:** Reimprimir DANFE | Baixar XML | Enviar por e-mail | Cancelar | Carta de Correção
 
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-consultar-nfe.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-consultar-nfe.html
 📚 Notas Fiscais: ${HELP_LINKS.notasFiscais}`
   },
 
@@ -1839,7 +1839,7 @@ Requisições são pedidos internos de materiais que precisam ser aprovados ante
 4️⃣ Envie para aprovação — o gestor aprova ou reprova
 5️⃣ Após aprovada, converta em pedido de compra com um clique
 
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-requisicao-compra.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-requisicao-compra.html
 📚 Compras: ${HELP_LINKS.compras}`
   },
   {
@@ -1858,7 +1858,7 @@ Requisições são pedidos internos de materiais que precisam ser aprovados ante
 2️⃣ Selecione o tipo e configure filtros
 3️⃣ Gere e exporte (Excel/PDF)
 
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-relatorios-compras.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-relatorios-compras.html
 📚 Compras: ${HELP_LINKS.compras}`
   },
 
@@ -1883,7 +1883,7 @@ Requisições são pedidos internos de materiais que precisam ser aprovados ante
 3️⃣ Configure filtros (período, produto, máquina)
 4️⃣ Gere e exporte
 
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-relatorios-pcp.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-relatorios-pcp.html
 📚 PCP: ${HELP_LINKS.pcp}`
   },
 
@@ -1912,7 +1912,7 @@ Requisições são pedidos internos de materiais que precisam ser aprovados ante
 
 💡 Todas as movimentações ficam registradas no histórico do produto com data/hora e usuário.
 
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-movimentacao-estoque.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-movimentacao-estoque.html
 📚 Estoque: ${HELP_LINKS.estoque}`
   },
 
@@ -1937,7 +1937,7 @@ Visão consolidada do desempenho comercial.
 
 **Filtros:** Mês | Trimestre | Semestre | Ano | Vendedor | Região
 
-📖 Tutorial: https://aluforce.api.br/Ajuda/artigos/tutorial-dashboard-vendas.html
+📖 Tutorial: https://zyntraerp.com.br/Ajuda/artigos/tutorial-dashboard-vendas.html
 📚 Vendas: ${HELP_LINKS.vendas}`
   },
 ];

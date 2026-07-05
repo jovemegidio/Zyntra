@@ -1,58 +1,62 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/jpeg" href="/favicon-zyntra.jpg">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#1a2744">
+    <meta name="theme-color" content="#0f172a">
     <meta name="format-detection" content="telephone=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Zyntra: Meu Dashboard de Vendas</title>
-    
-    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+
     <script src="/js/auth-unified.js?v=20260301" defer></script>
-    
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- CSP Fix -->
+
     <script src="/js/csp-fix.js" defer></script>
-    
-    <!-- CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+
     <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260213">
     <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
-    <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260326">
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="js/vendas-admin-check.js"></script>
+    <script src="js/vendas-access-control.js?v=20260319" defer></script>
+
     <style>
         :root {
-            --sidebar-width: 48px;
-            --header-height: 42px;
-            --tab-height: 40px;
-            --primary-orange: #225cfa;
-            --primary-dark: #ffffff;
-            --bg-dark: #0f0f1a;
-            --text-light: #e2e8f0;
+            --sidebar-w: 56px;
+            --header-h: 56px;
+            --tab-h: 40px;
+            --bg-page: #f1f5f9;
+            --bg-card: #ffffff;
+            --sidebar-bg: #0f172a;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
             --text-muted: #94a3b8;
-            --border-color: rgba(255,255,255,0.1);
+            --border: #e2e8f0;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.06);
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #f5f6f8;
+            background: var(--bg-page);
             min-height: 100vh;
             overflow-x: hidden;
         }
 
-        /* ==================== APP CONTAINER ==================== */
+        /* ===================== LAYOUT ===================== */
         .app-container {
             display: flex;
             height: 100vh;
@@ -60,1537 +64,1681 @@
             overflow: hidden;
         }
 
-        /* ==================== SIDEBAR ==================== */
+        /* ===================== SIDEBAR ===================== */
         .sidebar {
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: var(--primary-dark);
+            width: var(--sidebar-w);
+            min-width: var(--sidebar-w);
+            background: var(--sidebar-bg);
             display: flex;
             flex-direction: column;
             align-items: center;
             padding: 12px 0;
-            flex-shrink: 0;
             z-index: 100;
+            border-right: 1px solid rgba(255,255,255,0.05);
         }
 
-        .sidebar-logo {
+        .sidebar-home {
             width: 36px;
             height: 36px;
-            background: var(--primary-orange);
-            border-radius: 8px;
+            border-radius: 10px;
+            background: #06b6d4;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 16px;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
+            cursor: pointer;
             text-decoration: none;
-            transition: transform 0.2s;
+            color: white;
+            font-size: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 12px rgba(6,182,212,0.35);
         }
-
-        .sidebar-logo:hover {
-            transform: scale(1.05);
-        }
+        .sidebar-home:hover { transform: scale(1.06); }
 
         .sidebar-nav {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 2px;
             flex: 1;
+            width: 100%;
+            padding: 0 8px;
         }
 
-        .sidebar-btn {
+        .sb-btn {
             width: 40px;
             height: 40px;
             border: none;
             background: transparent;
-            color: var(--text-muted);
-            border-radius: 8px;
+            color: #64748b;
+            border-radius: 10px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
-            transition: all 0.2s;
+            font-size: 15px;
+            transition: all 0.18s;
             position: relative;
         }
-
-        .sidebar-btn:hover {
-            background: rgba(255,255,255,0.1);
+        .sb-btn:hover { background: rgba(255,255,255,0.08); color: #cbd5e1; }
+        .sb-btn.active {
+            background: #06b6d4;
             color: white;
+            box-shadow: 0 4px 12px rgba(6,182,212,0.3);
         }
 
-        .sidebar-btn.active {
-            background: var(--primary-orange);
-            color: white;
-        }
-
-        /* Tooltip customizada ao passar o mouse */
-        .sidebar-btn::after {
+        /* Tooltip */
+        .sb-btn::after {
             content: attr(title);
             position: absolute;
-            left: 54px;
-            background: #1a1a2e;
-            color: white;
-            padding: 6px 12px;
+            left: 48px;
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 5px 10px;
             border-radius: 6px;
             font-size: 12px;
             font-weight: 500;
             white-space: nowrap;
             opacity: 0;
             pointer-events: none;
-            transition: all 0.2s ease;
+            transition: opacity 0.15s;
             z-index: 1001;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
-
-        .sidebar-btn::before {
+        .sb-btn::before {
             content: '';
             position: absolute;
-            left: 46px;
-            border: 6px solid transparent;
-            border-right-color: #1a1a2e;
+            left: 40px;
+            border: 5px solid transparent;
+            border-right-color: #1e293b;
             opacity: 0;
             pointer-events: none;
-            transition: all 0.2s ease;
+            transition: opacity 0.15s;
             z-index: 1001;
         }
-
-        .sidebar-btn:hover::after,
-        .sidebar-btn:hover::before {
-            opacity: 1;
-        }
+        .sb-btn:hover::after, .sb-btn:hover::before { opacity: 1; }
 
         .sidebar-bottom {
             margin-top: auto;
+            width: 100%;
+            padding: 0 8px;
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 2px;
         }
 
-        /* ==================== MAIN AREA ==================== */
+        /* ===================== MAIN AREA ===================== */
         .main-area {
             flex: 1;
             display: flex;
             flex-direction: column;
-            /* overflow: global-header-sidebar.css */
-            background: #f5f6f8;
-            margin-top: 0;
-            padding: 0;
+            overflow: hidden;
+            background: var(--bg-page);
+            min-width: 0;
         }
 
-        /* ==================== HEADER ==================== */
+        /* ===================== HEADER ===================== */
         .header {
-            height: var(--header-height);
-            background: var(--primary-dark);
+            height: var(--header-h);
+            background: white;
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 16px;
+            padding: 0 20px;
             flex-shrink: 0;
+            z-index: 50;
         }
 
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 24px;
-        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
 
-        .header-brand {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: white;
-        }
+        .header-logos { display: flex; align-items: center; gap: 8px; }
+        .header-logos img { height: 22px; object-fit: contain; }
+        .header-sep { color: rgba(0,0,0,0.14); font-size: 20px; font-weight: 200; line-height: 1; }
+        .header-module { font-size: 14px; font-weight: 600; color: var(--text-primary); }
 
-        .header-brand img {
-            height: 24px;
-        }
+        .header-right { display: flex; align-items: center; gap: 6px; }
 
-        .header-brand span {
-            font-size: 14px;
-            font-weight: 600;
-            color: #8b8b9a;
-        }
-
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .header-btn {
-            width: 36px;
-            height: 36px;
+        .hdr-btn {
+            width: 34px;
+            height: 34px;
             border: none;
             background: transparent;
-            color: #8b8b9a;
+            color: var(--text-secondary);
             border-radius: 8px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
-            transition: all 0.2s;
+            font-size: 14px;
+            transition: all 0.18s;
         }
+        .hdr-btn:hover { background: #f1f5f9; color: var(--text-primary); }
 
-        .header-btn:hover {
-            background: rgba(255,255,255,0.1);
-            color: white;
+        .hdr-divider { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+
+        .user-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: background 0.18s;
         }
+        .user-btn:hover { background: #f1f5f9; }
+
+        .user-greet {
+            font-size: 13px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .user-greet strong { color: var(--text-primary); font-weight: 600; }
 
         .user-avatar {
             width: 32px;
             height: 32px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            margin-left: 8px;
-            overflow: hidden;
-        }
-
-        .user-avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: none;
-        }
-
-        .user-avatar img.visible {
-            display: block;
-        }
-
-        .header .user-greeting {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-left: 16px;
-            color: #8b8b9a;
             font-size: 13px;
+            font-weight: 600;
+            overflow: hidden;
+            border: 2px solid var(--border);
+            flex-shrink: 0;
         }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
 
-        .header .user-greeting strong {
-            color: white;
-        }
-
-        /* ==================== TABS BAR ==================== */
+        /* ===================== TABS BAR ===================== */
         .tabs-bar {
-            height: var(--tab-height);
+            height: var(--tab-h);
             background: white;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             padding: 0 16px;
-            gap: 8px;
+            gap: 2px;
             flex-shrink: 0;
         }
 
         .tab-btn {
-            padding: 8px 16px;
+            padding: 6px 14px;
             border: none;
             background: transparent;
-            color: #64748b;
+            color: var(--text-secondary);
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
             border-radius: 6px;
-            transition: all 0.2s;
             display: flex;
             align-items: center;
             gap: 6px;
+            transition: all 0.18s;
+            white-space: nowrap;
         }
+        .tab-btn:hover { background: #f1f5f9; color: var(--text-primary); }
+        .tab-btn.active { background: #eff6ff; color: #2563eb; }
 
-        .tab-btn:hover {
-            background: #f1f5f9;
-            color: #334155;
-        }
-
-        .tab-btn.active {
-            background: var(--primary-orange);
-            color: white;
-        }
-
-        .tabs-spacer {
-            flex: 1;
-        }
-
-        /* ==================== PAGE CONTENT ==================== */
+        /* ===================== PAGE CONTENT ===================== */
         .page-content {
             flex: 1;
             overflow-y: auto;
             padding: 20px;
         }
 
-        /* ==================== PAGE HEADER ==================== */
-        .page-header {
-            background: white;
-            border-radius: 12px;
-            padding: 20px 24px;
-            margin-bottom: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        .content-wrapper {
+            max-width: 1440px;
+            margin: 0 auto;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            gap: 20px;
         }
 
-        .page-header-left h1 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #1a1a1a;
-            margin-bottom: 4px;
+        /* ===================== WELCOME (V0) ===================== */
+        .welcome-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: var(--radius-lg);
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%);
+            padding: 24px 28px;
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+        .welcome-card::before {
+            content: '';
+            position: absolute;
+            top: -60px; right: -60px;
+            width: 240px; height: 240px;
+            border-radius: 50%;
+            background: rgba(6,182,212,0.07);
+            filter: blur(50px);
+            pointer-events: none;
+        }
+        .welcome-card::after {
+            content: '';
+            position: absolute;
+            bottom: -60px; left: -60px;
+            width: 240px; height: 240px;
+            border-radius: 50%;
+            background: rgba(59,130,246,0.07);
+            filter: blur(50px);
+            pointer-events: none;
+        }
+        .welcome-inner {
+            position: relative;
             display: flex;
             align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        .welcome-left { display: flex; flex-direction: column; gap: 5px; }
+        .welcome-date {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        .welcome-heading {
+            font-size: 26px;
+            font-weight: 600;
+            letter-spacing: -0.4px;
+            line-height: 1.2;
+        }
+        .welcome-heading .accent { color: #22d3ee; }
+        .welcome-sub { font-size: 13px; color: #64748b; }
+
+        .welcome-clock {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 14px;
+            padding: 12px 20px;
+            flex-shrink: 0;
+        }
+        .clock-icon {
+            width: 38px; height: 38px;
+            border-radius: 10px;
+            background: rgba(6,182,212,0.12);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #22d3ee;
+            font-size: 16px;
+        }
+        .clock-time {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            font-variant-numeric: tabular-nums;
+        }
+        .clock-tz {
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #475569;
+        }
+
+        /* ===================== MODULES GRID (V0) ===================== */
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
             gap: 12px;
         }
 
-        .page-header-left p {
-            font-size: 14px;
-            color: #7f8c8d;
+        .mod-card {
+            border-radius: var(--radius-md);
+            padding: 14px 12px;
+            color: white;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.25s;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.16);
         }
+        .mod-card:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 10px 24px rgba(0,0,0,0.22); }
 
-        .user-greeting {
+        .mod-icon {
+            width: 48px; height: 48px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.2);
+            backdrop-filter: blur(4px);
             display: flex;
             align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            transition: transform 0.2s;
+        }
+        .mod-card:hover .mod-icon { transform: scale(1.08); }
+
+        .mod-name { font-size: 12px; font-weight: 600; text-align: center; line-height: 1.3; }
+        .mod-desc { font-size: 10px; color: rgba(255,255,255,0.68); text-align: center; }
+
+        .mod-orange  { background: linear-gradient(135deg, #fb923c, #f97316); }
+        .mod-pink    { background: linear-gradient(135deg, #f472b6, #ec4899); }
+        .mod-emerald { background: linear-gradient(135deg, #34d399, #10b981); }
+        .mod-cyan    { background: linear-gradient(135deg, #22d3ee, #06b6d4); }
+        .mod-blue    { background: linear-gradient(135deg, #60a5fa, #3b82f6); }
+        .mod-slate   { background: linear-gradient(135deg, #94a3b8, #64748b); }
+        .mod-violet  { background: linear-gradient(135deg, #a78bfa, #8b5cf6); }
+
+        /* ===================== KPI GRID (V0 white cards) ===================== */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
             gap: 16px;
         }
 
-        .user-avatar-large {
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary-orange), #ea580c);
+        .kpi-card {
+            background: white;
+            border-radius: var(--radius-md);
+            padding: 20px;
+            box-shadow: var(--shadow-sm);
+            text-decoration: none;
+            display: block;
+            transition: box-shadow 0.2s, transform 0.2s;
+            cursor: pointer;
+        }
+        .kpi-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+
+        .kpi-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .kpi-icon {
+            width: 44px; height: 44px;
+            border-radius: 11px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 24px;
-            font-weight: 700;
+            font-size: 18px;
         }
+        .kpi-icon.orange { background: #fff7ed; color: #ea580c; }
+        .kpi-icon.emerald { background: #f0fdf4; color: #16a34a; }
+        .kpi-icon.cyan { background: #ecfeff; color: #0891b2; }
+        .kpi-icon.violet { background: #f5f3ff; color: #7c3aed; }
 
-        /* ==================== STATS GRID - Padrão Compras ==================== */
+        .kpi-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; }
+        .kpi-value { font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; }
 
-
-        /* ==================== META PROGRESS ==================== */
-        .meta-progress {
-            margin-top: 16px;
+        .kpi-meta-mini {
+            margin-top: 12px;
         }
-
-        .progress-header {
+        .kpi-meta-mini .mini-row {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 12px;
-            color: #6b7280;
+            font-size: 11px;
+            color: #94a3b8;
+            margin-bottom: 5px;
+        }
+        .kpi-meta-mini .mini-bar {
+            height: 4px;
+            background: #f1f5f9;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .kpi-meta-mini .mini-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: #10b981;
+            transition: width 0.6s ease;
         }
 
-        .progress-bar {
-            height: 8px;
-            background: #e5e7eb;
-            border-radius: 4px;
+        /* ===================== GENERIC CARD ===================== */
+        .card {
+            background: white;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-sm);
             overflow: hidden;
         }
 
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary-orange), #fb923c);
-            border-radius: 4px;
-            transition: width 0.5s ease;
+        .card-hdr {
+            padding: 14px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
+        .card-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+        .card-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
-        .progress-fill.success {
-            background: linear-gradient(90deg, #22c55e, #16a34a);
+        .card-link {
+            font-size: 12px;
+            color: #2563eb;
+            text-decoration: none;
+            padding: 4px 10px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: background 0.18s;
         }
+        .card-link:hover { background: #eff6ff; }
 
-        /* ==================== CONTENT GRID ==================== */
-        .content-grid {
+        .card-body { padding: 18px 20px; }
+
+        /* ===================== LAYOUT ROWS ===================== */
+        .row-main {
             display: grid;
             grid-template-columns: 2fr 1fr;
             gap: 20px;
+            align-items: start;
         }
 
-        @media (max-width: 1200px) {
-            .content-grid { grid-template-columns: 1fr; }
+        .row-bottom {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            align-items: start;
         }
 
-        .section-card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            overflow: hidden;
+        .charts-col { display: flex; flex-direction: column; gap: 16px; }
+        .right-stack { display: flex; flex-direction: column; gap: 16px; }
+
+        /* ===================== CHARTS ===================== */
+        .chart-body {
+            padding: 4px 20px 20px;
+        }
+        .chart-canvas-wrap {
+            position: relative;
+            height: 240px;
         }
 
-        .section-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid #e5e7eb;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .section-header h3 {
-            font-size: 16px;
-            font-weight: 600;
-            color: #1a1a1a;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .section-header h3 i {
-            color: var(--primary-orange);
-        }
-
-        .section-content {
-            padding: 20px;
-        }
-
-        /* ==================== VENDAS RECENTES ==================== */
-        .vendas-list {
+        /* ===================== ACTIVITY FEED ===================== */
+        .activity-list {
             display: flex;
             flex-direction: column;
+            padding: 14px 20px;
+            gap: 0;
+        }
+
+        .act-item {
+            display: flex;
+            align-items: flex-start;
             gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f8fafc;
         }
+        .act-item:last-child { border-bottom: none; }
 
-        .venda-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 14px;
-            background: #f9fafb;
-            border-radius: 10px;
-            border: 1px solid #e5e7eb;
-            transition: all 0.2s;
-        }
-
-        .venda-item:hover {
-            background: #fff;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-
-        .venda-info {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .venda-cliente {
-            font-weight: 600;
-            color: #1a1a1a;
-        }
-
-        .venda-data {
-            font-size: 12px;
-            color: #6b7280;
-        }
-
-        .venda-valor {
-            font-size: 18px;
-            font-weight: 700;
-            color: #059669;
-        }
-
-        /* ==================== ATIVIDADES ==================== */
-        .atividades-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .atividade-item {
-            display: flex;
-            gap: 12px;
-            padding: 12px;
-            background: #f9fafb;
-            border-radius: 8px;
-            border-left: 3px solid var(--primary-orange);
-        }
-
-        .atividade-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            background: #fff7ed;
-            color: var(--primary-orange);
+        .act-dot {
+            width: 34px; height: 34px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
+            font-size: 13px;
+        }
+        .act-text { font-size: 13px; font-weight: 500; color: var(--text-primary); line-height: 1.4; }
+        .act-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+        /* ===================== META PROGRESS ===================== */
+        .meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .meta-label { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+        .meta-pct { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+        .meta-bar {
+            height: 8px;
+            background: #f1f5f9;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .meta-fill {
+            height: 100%;
+            border-radius: 4px;
+            background: #10b981;
+            transition: width 0.7s ease;
+        }
+        .meta-values { font-size: 11px; color: var(--text-muted); }
+
+        /* ===================== QUICK ACTIONS ===================== */
+        .quick-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
         }
 
-        .atividade-content {
-            flex: 1;
+        .qa-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 11px 12px;
+            border: 1px solid #f1f5f9;
+            background: #f8fafc;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.18s;
+            text-decoration: none;
         }
+        .qa-btn:hover { background: white; border-color: var(--border); box-shadow: var(--shadow-sm); }
 
-        .atividade-título {
-            font-weight: 600;
-            color: #1a1a1a;
+        .qa-icon {
+            width: 34px; height: 34px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 14px;
+            flex-shrink: 0;
         }
+        .qa-label { font-size: 12px; font-weight: 500; color: var(--text-primary); }
 
-        .atividade-desc {
-            font-size: 12px;
-            color: #6b7280;
-            margin-top: 2px;
-        }
-
-        .atividade-horário {
-            font-size: 12px;
-            color: var(--primary-orange);
-            font-weight: 600;
-        }
-
-        /* ==================== RANKING ==================== */
+        /* ===================== RANKING ===================== */
         .ranking-list {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
+            padding: 14px 20px;
         }
 
-        .ranking-item {
+        .rank-item {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px;
-            background: #f9fafb;
-            border-radius: 8px;
+            gap: 10px;
+            padding: 10px 12px;
+            background: #f8fafc;
+            border-radius: 10px;
+            transition: background 0.15s;
+        }
+        .rank-item:hover { background: #f1f5f9; }
+        .rank-item.me {
+            background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+            border: 1px solid #bbf7d0;
         }
 
-        .ranking-item.destaque {
-            background: linear-gradient(135deg, #fff7ed, #ffedd5);
-            border: 1px solid var(--primary-orange);
-        }
-
-        .ranking-posicao {
-            width: 28px;
-            height: 28px;
+        .rank-pos {
+            width: 24px; height: 24px;
             border-radius: 50%;
-            background: #e5e7eb;
+            background: #e2e8f0;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 700;
-            font-size: 12px;
-            color: #6b7280;
+            font-size: 11px;
+            color: #64748b;
+            flex-shrink: 0;
         }
+        .rank-item:nth-child(1) .rank-pos { background: #fef3c7; color: #d97706; }
+        .rank-item:nth-child(2) .rank-pos { background: #f1f5f9; color: #475569; }
+        .rank-item:nth-child(3) .rank-pos { background: #fed7aa; color: #c2410c; }
 
-        .ranking-item:nth-child(1) .ranking-posicao {
-            background: #fef3c7;
-            color: #d97706;
-        }
-
-        .ranking-item:nth-child(2) .ranking-posicao {
-            background: #e5e7eb;
-            color: #4b5563;
-        }
-
-        .ranking-item:nth-child(3) .ranking-posicao {
-            background: #fed7aa;
-            color: #c2410c;
-        }
-
-        .ranking-foto {
-            width: 36px;
-            height: 36px;
+        .rank-ava {
+            width: 30px; height: 30px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
+            font-size: 11px;
             font-weight: 600;
-            font-size: 14px;
-            overflow: hidden;
             flex-shrink: 0;
+            overflow: hidden;
         }
+        .rank-ava img { width: 100%; height: 100%; object-fit: cover; }
 
-        .ranking-foto img {
+        .rank-name { flex: 1; font-size: 13px; font-weight: 500; color: var(--text-primary); }
+        .rank-val { font-size: 12px; font-weight: 700; color: #059669; }
+
+        /* ===================== SALES TABLE (V0 style) ===================== */
+        .tbl-wrap { overflow-x: auto; }
+
+        .orders-tbl {
             width: 100%;
-            height: 100%;
-            object-fit: cover;
+            border-collapse: collapse;
         }
-
-        .ranking-nome {
-            flex: 1;
-            font-weight: 500;
-            color: #1a1a1a;
+        .orders-tbl thead tr {
+            background: #f8fafc;
+            border-top: 1px solid #f1f5f9;
+            border-bottom: 1px solid #f1f5f9;
         }
-
-        .ranking-valor {
-            font-weight: 700;
-            color: #059669;
-        }
-
-        /* ==================== EMPTY STATE ==================== */
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #9ca3af;
-        }
-
-        .empty-state i {
-            font-size: 48px;
-            margin-bottom: 16px;
-            opacity: 0.5;
-        }
-
-        .empty-state p {
-            font-size: 14px;
-        }
-
-        .right-column {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        /* ==================== GRÁFICOS ==================== */
-        .charts-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .chart-card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-
-        .chart-card h3 {
-            font-size: 16px;
+        .orders-tbl th {
+            padding: 9px 20px;
+            text-align: left;
+            font-size: 10px;
             font-weight: 600;
-            margin-bottom: 16px;
-            color: #1e293b;
-            display: flex;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .orders-tbl th.right { text-align: right; }
+        .orders-tbl th.center { text-align: center; }
+
+        .orders-tbl tbody tr { border-bottom: 1px solid #f1f5f9; transition: background 0.12s; }
+        .orders-tbl tbody tr:hover { background: #f8fafc; }
+        .orders-tbl tbody tr:last-child { border-bottom: none; }
+
+        .orders-tbl td { padding: 13px 20px; font-size: 13px; color: var(--text-primary); }
+        .orders-tbl td.right { text-align: right; font-weight: 600; }
+        .orders-tbl td.center { text-align: center; }
+        .orders-tbl td.mono { font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 12px; font-weight: 600; color: #334155; }
+        .orders-tbl td.muted { color: var(--text-muted); font-size: 12px; }
+
+        .s-badge {
+            display: inline-flex;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+        .s-badge.ok { background: #f0fdf4; color: #16a34a; border-color: #bbf7d0; }
+        .s-badge.warn { background: #fffbeb; color: #d97706; border-color: #fde68a; }
+        .s-badge.danger { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+        .s-badge.info { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+
+        /* ===================== EMPTY STATE ===================== */
+        .empty-state {
+            padding: 28px 20px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+        .empty-state i { font-size: 28px; opacity: 0.35; margin-bottom: 8px; display: block; }
+        .empty-state p { font-size: 13px; }
+
+        /* ===================== MOBILE SIDEBAR OVERLAY ===================== */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 99;
+        }
+        .sidebar-overlay.active { display: block; }
+        .mobile-menu-btn {
+            display: none;
+            width: 34px; height: 34px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            border-radius: 8px;
+            cursor: pointer;
             align-items: center;
-            gap: 8px;
+            justify-content: center;
+            font-size: 16px;
         }
 
-        .chart-card h3 i {
-            color: #f97316;
+        /* ===================== RESPONSIVE ===================== */
+        @media (max-width: 1280px) {
+            .modules-grid { grid-template-columns: repeat(4, 1fr); }
+            .row-main { grid-template-columns: 1fr; }
+            .row-bottom { grid-template-columns: 1fr; }
         }
-
-        .chart-container {
-            position: relative;
-            height: 250px;
+        @media (max-width: 900px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .modules-grid { grid-template-columns: repeat(4, 1fr); }
         }
-
-        @media (max-width: 1024px) {
-            .charts-grid {
-                grid-template-columns: 1fr;
-            }
+        @media (max-width: 640px) {
+            .modules-grid { grid-template-columns: repeat(2, 1fr); }
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .welcome-clock { display: none; }
+            .welcome-heading { font-size: 20px; }
+            .page-content { padding: 14px; }
+            .content-wrapper { gap: 14px; }
+            .user-greet { display: none; }
+            .mobile-menu-btn { display: flex; }
         }
     </style>
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="/js/anti-copy-protection.js" defer></script>
-    <link rel="stylesheet" href="/css/popup-confirmacao.css">
 
-    
-    <!-- Verificação de Admin (Gestão de Vendas) -->
-    <script src="js/vendas-admin-check.js"></script>
-
-    <!-- Controle de Acesso por Permissões -->
-    <script src="js/vendas-access-control.js?v=20260319" defer></script>
-
-    <!-- Tooltips Profissionais -->
-    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
-    <script src="/js/tooltips-professional.js?v=20260209" defer></script>
-    <script src="/js/modal-title.js?v=20260210" defer></script>
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
-
-    <!-- Chat Widget BOB AI - DESATIVADO -->
-    <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260625a">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
 </head>
 <body>
-    <div class="app-container">
-        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
-        
-        <!-- Sidebar -->
-        <aside class="sidebar" id="mobile-sidebar">
-            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
-                <i class="fas fa-home"></i>
-            </a>
-            <nav class="sidebar-nav">
-                <button class="sidebar-btn" title="Kanban" onclick="window.location.href='index.html'">
-                    <i class="fas fa-columns"></i>
+<div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-home" title="Início">
+            <i class="fas fa-home"></i>
+        </a>
+        <nav class="sidebar-nav">
+            <button class="sb-btn" title="Kanban" onclick="window.location.href='index.html'">
+                <i class="fas fa-columns"></i>
+            </button>
+            <button class="sb-btn" title="Pedidos" onclick="window.location.href='pedidos.html'">
+                <i class="fas fa-clipboard-list"></i>
+            </button>
+            <button class="sb-btn" title="Clientes" onclick="window.location.href='clientes.html'">
+                <i class="fas fa-users"></i>
+            </button>
+            <button class="sb-btn" title="Prospecções" onclick="window.location.href='prospeccao.html'">
+                <i class="fas fa-crosshairs"></i>
+            </button>
+            <button class="sb-btn" title="Estoque" onclick="window.location.href='estoque.html'">
+                <i class="fas fa-boxes-stacked"></i>
+            </button>
+            <button class="sb-btn active" title="Meu Dashboard">
+                <i class="fas fa-chart-pie"></i>
+            </button>
+            <button class="sb-btn" title="Gestão de Vendas" onclick="window.location.href='dashboard-admin.html'">
+                <i class="fas fa-chart-line"></i>
+            </button>
+            <button class="sb-btn" title="Relatórios" onclick="window.location.href='relatorios.html'">
+                <i class="fas fa-chart-bar"></i>
+            </button>
+            <button class="sb-btn" title="Comissões" onclick="window.location.href='comissoes.html'">
+                <i class="fas fa-percentage"></i>
+            </button>
+        </nav>
+        <div class="sidebar-bottom">
+            <button class="sb-btn" title="Configurações" onclick="window.location.href='/dashboard'">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-area">
+
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()">
+                    <i class="fas fa-bars"></i>
                 </button>
-                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'">
-                    <i class="fas fa-clipboard-list"></i>
+                <div class="header-logos">
+                    <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE">
+                    <span class="header-sep">|</span>
+                    <img src="/images/zyntra-sem-fundo.png" alt="Zyntra">
+                    <span class="header-sep" style="margin:0 3px;">—</span>
+                    <span class="header-module">Meu Dashboard</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="hdr-btn" title="Atualizar" onclick="location.reload()">
+                    <i class="fas fa-sync-alt"></i>
                 </button>
-                <button class="sidebar-btn" title="Clientes" onclick="window.location.href='clientes.html'">
-                    <i class="fas fa-users"></i>
+                <button class="hdr-btn" title="Ajuda" onclick="window.location.href='/ajuda/'">
+                    <i class="fas fa-question-circle"></i>
                 </button>
-                <button class="sidebar-btn" title="Prospecções & Leads" onclick="window.location.href='prospeccao.html'">
-                    <i class="fas fa-crosshairs"></i>
-                </button>
-                <button class="sidebar-btn" title="Estoque" onclick="window.location.href='estoque.html'">
-                    <i class="fas fa-boxes-stacked"></i>
-                </button>
-                <button class="sidebar-btn active" title="Meu Dashboard" onclick="window.location.href='dashboard.html'">
-                    <i class="fas fa-chart-pie"></i>
-                </button>
-                <button class="sidebar-btn" title="Gestão de Vendas" onclick="window.location.href='dashboard-admin.html'">
-                    <i class="fas fa-chart-line"></i>
-                </button>
-                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'">
-                    <i class="fas fa-chart-bar"></i>
-                </button>
-                <button class="sidebar-btn" title="Comissões" onclick="window.location.href='comissoes.html'">
-                    <i class="fas fa-percentage"></i>
-                </button>
-            </nav>
-            <div class="sidebar-bottom">
-                <button class="sidebar-btn" title="Configurações" onclick="window.location.href='/dashboard'">
-                    <i class="fas fa-cog"></i>
+                <div class="hdr-divider"></div>
+                <button class="user-btn">
+                    <span class="user-greet">
+                        <span id="greeting-text">Bom dia</span>,&nbsp;<strong id="user-name">Usuário</strong>
+                    </span>
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="" alt="" id="user-photo">
+                        <span id="user-initial">U</span>
+                    </div>
                 </button>
             </div>
-        </aside>
+        </header>
 
-        <!-- Main Area -->
-        <main class="main-area">
-            <!-- Header -->
-            <header class="header">
-                <div class="header-left">
-                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
-                            <i class="fas fa-bars"></i>
-                        </button>
-                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
-                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Meu Dashboard</span>
-                    </div>
-                </div>
-                <div class="header-right">
-                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
-                    
-                    <div class="user-greeting">
-                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
-                        <div class="user-avatar" id="user-avatar">
-                            <img src="" alt="Foto do usuário" id="user-photo" style="display:none;">
-                            <span id="user-initial">U</span>
+        <!-- Tabs -->
+        <div class="tabs-bar">
+            <button class="tab-btn" onclick="window.location.href='index.html'">
+                <i class="fas fa-columns"></i> Kanban
+            </button>
+            <button class="tab-btn" onclick="window.location.href='pedidos.html'">
+                <i class="fas fa-clipboard-list"></i> Pedidos
+            </button>
+            <button class="tab-btn" onclick="window.location.href='clientes.html'">
+                <i class="fas fa-users"></i> Clientes
+            </button>
+            <button class="tab-btn active">
+                <i class="fas fa-chart-pie"></i> Meu Dashboard
+            </button>
+            <button class="tab-btn" onclick="window.location.href='dashboard-admin.html'">
+                <i class="fas fa-chart-line"></i> Gestão
+            </button>
+        </div>
+
+        <!-- Page Content -->
+        <div class="page-content">
+        <div class="content-wrapper">
+
+            <!-- Welcome Section (V0) -->
+            <div class="welcome-card">
+                <div class="welcome-inner">
+                    <div class="welcome-left">
+                        <div class="welcome-date">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span id="welcome-date">Carregando...</span>
                         </div>
-                    </div>
-                </div>
-            </header>
-
-            <!-- Tabs Bar -->
-            <div class="tabs-bar">
-                <button class="tab-btn" onclick="window.location.href='index.html'">
-                    <i class="fas fa-columns"></i> Kanban
-                </button>
-                <button class="tab-btn" onclick="window.location.href='pedidos.html'">
-                    <i class="fas fa-clipboard-list"></i> Pedidos
-                </button>
-                <button class="tab-btn" onclick="window.location.href='clientes.html'">
-                    <i class="fas fa-users"></i> Clientes
-                </button>
-                <button class="tab-btn active">
-                    <i class="fas fa-chart-pie"></i> Meu Dashboard
-                </button>
-                <button class="tab-btn" onclick="window.location.href='dashboard-admin.html'">
-                    <i class="fas fa-chart-line"></i> Gestão
-                </button>
-                <div class="tabs-spacer"></div>
-            </div>
-
-            <!-- Page Content -->
-            <div class="page-content">
-                <!-- Page Header -->
-                <div class="page-header">
-                    <div class="page-header-left">
-                        <h1>
-                            <i class="fas fa-chart-pie" style="color: var(--primary-orange);"></i>
-                            Meu Dashboard
+                        <h1 class="welcome-heading">
+                            Olá, <span class="accent" id="welcome-name">Usuário</span>
                         </h1>
-                        <p>Acompanhe suas metas e desempenho de vendas</p>
+                        <p class="welcome-sub">Grandes conquistas exigem grandes esforços.</p>
                     </div>
-                    <div class="user-greeting">
+                    <div class="welcome-clock">
+                        <div class="clock-icon"><i class="fas fa-clock"></i></div>
                         <div>
-                            <p style="font-size: 14px; color: #6b7280;">Bem-vindo(a),</p>
-                            <p style="font-size: 18px; font-weight: 600; color: #1a1a1a;" id="userFirstName">Vendedor</p>
-                        </div>
-                        <div class="user-avatar-large" id="userAvatarLarge">
-                            <span id="userInitialsLarge">V</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Stats Grid -->
-                <div class="metrics-grid">
-                    <div class="metric-card orange">
-                        <div class="metric-header">
-                            <div class="metric-icon orange"><i class="fas fa-bullseye"></i></div>
-                        </div>
-                        <div class="metric-value" id="metaAtual">Carregando...</div>
-                        <div class="metric-label">Meta do Mês</div>
-                        <div class="meta-progress">
-                            <div class="progress-header">
-                                <span>Progresso</span>
-                                <span id="metaPercentual">0%</span>
-                            </div>
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="metaProgressBar" style="width: 0%;"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="metric-card green">
-                        <div class="metric-header">
-                            <div class="metric-icon green"><i class="fas fa-dollar-sign"></i></div>
-                        </div>
-                        <div class="metric-value" id="vendasMes">R$ 0,00</div>
-                        <div class="metric-label">Vendas no Mês</div>
-                    </div>
-
-                    <div class="metric-card blue">
-                        <div class="metric-header">
-                            <div class="metric-icon blue"><i class="fas fa-shopping-cart"></i></div>
-                        </div>
-                        <div class="metric-value" id="pedidosMes">0</div>
-                        <div class="metric-label">Pedidos no Mês</div>
-                    </div>
-
-                    <div class="metric-card purple">
-                        <div class="metric-header">
-                            <div class="metric-icon purple"><i class="fas fa-trophy"></i></div>
-                        </div>
-                        <div class="metric-value" id="posicaoRanking">-</div>
-                        <div class="metric-label">Posição no Ranking</div>
-                    </div>
-                </div>
-
-                <!-- Gráficos -->
-                <div class="charts-grid">
-                    <div class="chart-card">
-                        <h3><i class="fas fa-chart-line"></i> Evolução de Vendas (últimos 6 meses)</h3>
-                        <div class="chart-container">
-                            <canvas id="chartVendasMensal"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-card">
-                        <h3><i class="fas fa-chart-pie"></i> Vendas por Status</h3>
-                        <div class="chart-container">
-                            <canvas id="chartVendasStatus"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Content Grid -->
-                <div class="content-grid">
-                    <!-- Vendas Recentes -->
-                    <div class="section-card">
-                        <div class="section-header">
-                            <h3><i class="fas fa-history"></i> Minhas Vendas Recentes</h3>
-                        </div>
-                        <div class="section-content">
-                            <div class="vendas-list" id="vendasRecentes">
-                                <div class="venda-item loading-placeholder">
-                                    <div class="venda-info">
-                                        <span class="venda-cliente">Carregando vendas...</span>
-                                        <span class="venda-data"><i class="fas fa-spinner fa-spin"></i></span>
-                                    </div>
-                                    <div class="venda-valor">-</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right Column -->
-                    <div class="right-column">
-                        <!-- Próximas Atividades -->
-                        <div class="section-card">
-                            <div class="section-header">
-                                <h3><i class="fas fa-calendar-check"></i> Próximas Atividades</h3>
-                            </div>
-                            <div class="section-content">
-                                <div class="atividades-list" id="proximasAtividades">
-                                    <div style="display:flex;align-items:center;justify-content:center;padding:24px;color:#94a3b8;flex-direction:column;gap:8px;">
-                                        <i class="fas fa-spinner fa-spin" style="font-size:20px;opacity:0.5;"></i>
-                                        <span style="font-size:13px;">Carregando atividades...</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Ranking da Equipe -->
-                        <div class="section-card">
-                            <div class="section-header">
-                                <h3><i class="fas fa-medal"></i> Ranking da Equipe</h3>
-                            </div>
-                            <div class="section-content">
-                                <div class="ranking-list" id="rankingEquipe">
-                                    <div class="ranking-item loading-placeholder">
-                                        <div class="ranking-posicao">1</div>
-                                        <div class="ranking-nome">Carregando...</div>
-                                        <div class="ranking-valor">R$ 0,00</div>
-                                    </div>
-                                    <div class="ranking-item loading-placeholder">
-                                        <div class="ranking-posicao">2</div>
-                                        <div class="ranking-nome">Carregando...</div>
-                                        <div class="ranking-valor">R$ 0,00</div>
-                                    </div>
-                                    <div class="ranking-item loading-placeholder">
-                                        <div class="ranking-posicao">3</div>
-                                        <div class="ranking-nome">Carregando...</div>
-                                        <div class="ranking-valor">R$ 0,00</div>
-                                    </div>
-                                    <div class="ranking-item loading-placeholder">
-                                        <div class="ranking-posicao">4</div>
-                                        <div class="ranking-nome">Carregando...</div>
-                                        <div class="ranking-valor">R$ 0,00</div>
-                                    </div>
-                                    <div class="ranking-item loading-placeholder">
-                                        <div class="ranking-posicao">5</div>
-                                        <div class="ranking-nome">Carregando...</div>
-                                        <div class="ranking-valor">R$ 0,00</div>
-                                    </div>
-                                </div>
-                            </div>
+                            <div class="clock-time" id="clock-time">--:--</div>
+                            <div class="clock-tz">Brasília</div>
                         </div>
                     </div>
                 </div>
             </div>
-        </main>
-    </div>
 
-    <script>
-        // Mapeamento de avatares por nome de usuário
-        const avatarNameMap = {
-            'clemerson': '/avatars/Clemerson.webp',
-            'isabela': '/avatars/Isabela.webp',
-            'thaina': '/avatars/Thaina.webp',
-            'thiago': '/avatars/Thiago.webp',
-            'nicolas': '/avatars/NicolasDaniel.webp',
-            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
-            'rh': '/avatars/Rh.webp',
-            'admin': '/avatars/admin.webp',
-            'ti': '/avatars/TI.webp',
-            'tialuforce': '/avatars/TI.webp',
-            'antonio': '/avatars/Antonio.webp',
-            'andreia': '/avatars/Andreia.webp',
-            'guilherme': '/avatars/Guilherme.webp',
-            'augusto': '/avatars/Augusto.jpg',
-            'renata': '/avatars/Renata.jpg',
-            'fabiano': '/avatars/Fabiano.webp',
-            'fabiola': '/avatars/Fabiola.webp',
-            'marcia': '/avatars/Marcia.webp',
-            'ronaldo': '/avatars/RonaldoTorres.jpg',
-            'joao': '/avatars/JoaoVictor.jpg',
-            'douglas': '/avatars/Douglas.webp',
-            'fernando': '/avatars/Fernando.webp'
-        };
-
-        function getAvatarFromEmail(email, nome) {
-            if (!email) return null;
-            const username = email.split('@')[0].split('.')[0].toLowerCase();
-            if (avatarNameMap[username]) return avatarNameMap[username];
-            if (nome) {
-                const firstName = nome.split(' ')[0].toLowerCase();
-                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
-            }
-            return null;
-        }
-
-        // Carregar dados do usuário logado via API
-        async function carregarUsuario() {
-            try {
-                const response = await fetch('/api/me', { credentials: 'include' });
-                if (response.ok) {
-                    const user = await response.json();
-                    _cachedUserData = user; // Cache for reuse in carregarDashboard
-
-                    // Admin redirect: admins should use dashboard-admin.html
-                    const isAdm = user.is_admin === 1 || user.is_admin === true || user.role === 'admin';
-                    if (isAdm) {
-                        window.location.href = 'dashboard-admin.html';
-                        return;
-                    }
-
-                    const userName = user.apelido || user.nome || 'Usuário';
-                    const _partesNome = user.nome ? user.nome.split(/\s+/) : [];
-                    const primeiroNome = user.apelido || (_partesNome[0] || 'Usuário');
-                    // Verificar múltiplos campos de foto
-                    let userAvatar = (user.avatar || user.foto || user.foto_perfil_url);
-                    if (userAvatar === '/avatars/default.webp') userAvatar = null;
-                    if (!userAvatar) {
-                        userAvatar = getAvatarFromEmail(user.email, userName);
-                    }
-                    
-                    // Atualizar saudação dinâmica baseada na hora
-                    const greetingTextEl = document.getElementById('greeting-text');
-                    if (greetingTextEl) {
-                        const hour = new Date().getHours();
-                        let greeting = 'Bom dia';
-                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
-                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
-                        greetingTextEl.textContent = greeting;
-                    }
-                    
-                    // Atualizar nome na saudação do header
-                    const userNameEl = document.getElementById('user-name');
-                    if (userNameEl) {
-                        userNameEl.textContent = primeiroNome;
-                    }
-                    
-                    // Atualizar avatar/foto
-                    const userPhotoEl = document.getElementById('user-photo');
-                    const userInitialEl = document.getElementById('user-initial');
-                    
-                    if (userAvatar && userPhotoEl) {
-                        userPhotoEl.src = userAvatar;
-                        userPhotoEl.classList.add('visible');
-                        userPhotoEl.style.display = 'block';
-                        if (userInitialEl) userInitialEl.style.display = 'none';
-                    } else if (userInitialEl) {
-                        userInitialEl.textContent = userName.charAt(0).toUpperCase();
-                        userInitialEl.style.display = 'flex';
-                        if (userPhotoEl) userPhotoEl.style.display = 'none';
-                    }
-
-                    // Também atualizar elementos antigos se existirem
-                    const userFirstNameEl = document.getElementById('userFirstName');
-                    const userInitialsEl = document.getElementById('userInitials');
-                    const userInitialsLargeEl = document.getElementById('userInitialsLarge');
-                    const userAvatarLargeEl = document.getElementById('userAvatarLarge');
-                    
-                    // Mostrar apenas o primeiro nome
-                    const firstName = userName.split(' ')[0];
-                    if (userFirstNameEl) userFirstNameEl.textContent = firstName;
-                    if (userInitialsEl) userInitialsEl.textContent = firstName.charAt(0).toUpperCase();
-                    if (userInitialsLargeEl) userInitialsLargeEl.textContent = firstName.charAt(0).toUpperCase();
-                    
-                    // Atualizar avatar grande na saudação do dashboard
-                    if (userAvatarLargeEl && userAvatar) {
-                        userAvatarLargeEl.innerHTML = `<img src="${userAvatar}" alt="${firstName}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-                    }
-                }
-            } catch (error) {
-                console.error('Erro ao carregar usuário:', error);
-            }
-        }
-
-        // Carregar dados do dashboard
-        // Cache: reuse user data from carregarUsuario() to avoid duplicate /api/me call
-        let _cachedUserData = null;
-        
-        async function carregarDashboard() {
-            try {
-                // Reuse cached user data instead of fetching /api/me again
-                let isAdmin = false;
-                if (_cachedUserData) {
-                    isAdmin = _cachedUserData.is_admin === 1 || _cachedUserData.is_admin === true || _cachedUserData.role === 'admin';
-                }
-                
-                // Carregar dados completos do dashboard do vendedor
-                const response = await fetch('/api/vendas/dashboard/vendedor?periodo=30', { credentials: 'include' });
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    // Atualizar métricas principais
-                    const metricas = data.metricas || {};
-                    const meta = data.meta || {};
-                    
-                    // Meta do mês - mostrar "Sem meta" se não houver
-                    const metaValor = meta.valor || 0;
-                    if (metaValor > 0) {
-                        document.getElementById('metaAtual').textContent = formatarMoeda(metaValor);
-                    } else {
-                        document.getElementById('metaAtual').textContent = isAdmin ? 'Visão Admin' : 'Sem meta';
-                        document.getElementById('metaAtual').style.fontSize = '1.2rem';
-                    }
-                    
-                    // Vendas no mês
-                    document.getElementById('vendasMes').textContent = formatarMoeda(meta.atingido || 0);
-                    
-                    // Pedidos no mês
-                    document.getElementById('pedidosMes').textContent = metricas.total_pedidos || 0;
-                    
-                    // Progresso da meta
-                    const percentual = Math.min(100, Math.round(meta.percentual || 0));
-                    document.getElementById('metaPercentual').textContent = metaValor > 0 ? `${percentual}%` : '-';
-                    const progressBar = document.getElementById('metaProgressBar');
-                    if (progressBar) {
-                        progressBar.style.width = `${percentual}%`;
-                        if (percentual >= 100) progressBar.classList.add('success');
-                    }
-                    
-                    // Atualizar gráfico de vendas mensais com histórico real
-                    if (data.historicoMensal && data.historicoMensal.length > 0) {
-                        const meses = data.historicoMensal.map(h => {
-                            const [ano, mes] = h.mes.split('-');
-                            const nomesMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                            return nomesMeses[parseInt(mes) - 1];
-                        });
-                        const valores = data.historicoMensal.map(h => h.valor_faturado || 0);
-                        atualizarGraficoVendas(meses, valores);
-                    } else {
-                        // Mostrar mensagem de sem dados no gráfico
-                        mostrarSemDadosGrafico('chartVendasMensal', 'Sem vendas no período');
-                    }
-                    
-                    // Atualizar gráfico de status com pipeline real
-                    if (data.pipeline && data.pipeline.length > 0) {
-                        const statusMap = {
-                            'faturado': { label: 'Faturados', color: '#10b981' },
-                            'análise': { label: 'Em Negociação', color: '#f59e0b' },
-                            'aprovado': { label: 'Aprovados', color: '#3b82f6' },
-                            'orcamento': { label: 'Pedidos', color: '#8b5cf6' },
-                            'cancelado': { label: 'Cancelados', color: '#ef4444' }
-                        };
-                        const labels = [];
-                        const valores = [];
-                        const cores = [];
-                        data.pipeline.forEach(p => {
-                            const info = statusMap[p.status] || { label: p.status, color: '#6b7280' };
-                            labels.push(info.label);
-                            valores.push(p.quantidade || 0);
-                            cores.push(info.color);
-                        });
-                        atualizarGraficoStatus(labels, valores, cores);
-                    } else {
-                        // Mostrar mensagem de sem dados no gráfico
-                        mostrarSemDadosGrafico('chartVendasStatus', 'Sem pedidos no período');
-                    }
-                    
-                    // Atualizar vendas recentes com clientes reais
-                    if (data.meusClientes && data.meusClientes.length > 0) {
-                        renderizarVendasRecentes(data.meusClientes);
-                    } else {
-                        // Se admin sem pedidos próprios, carregar vendas recentes geral
-                        if (isAdmin) {
-                            await carregarMinhasVendasRecentes();
-                        }
-                    }
-                }
-                
-                // Carregar ranking da equipe
-                await carregarRankingEquipe();
-                
-                // Carregar atividades/notificações
-                await carregarAtividades();
-                
-            } catch (error) {
-                console.error('Erro ao carregar dashboard:', error);
-            }
-        }
-        
-        // Função para mostrar mensagem de sem dados no gráfico
-        function mostrarSemDadosGrafico(canvasId, mensagem) {
-            const canvas = document.getElementById(canvasId);
-            if (!canvas) return;
-            
-            const container = canvas.parentElement;
-            if (!container) return;
-            
-            // Adicionar overlay com mensagem
-            const existingOverlay = container.querySelector('.no-data-overlay');
-            if (existingOverlay) return;
-            
-            const overlay = document.createElement('div');
-            overlay.className = 'no-data-overlay';
-            overlay.style.cssText = 'position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.9); border-radius: 12px; z-index: 10;';
-            overlay.innerHTML = `
-                <div style="text-align: center; color: #6b7280;">
-                    <i class="fas fa-chart-bar" style="font-size: 32px; margin-bottom: 8px; opacity: 0.5;"></i>
-                    <p style="font-size: 14px; font-weight: 500;">${mensagem}</p>
-                </div>
-            `;
-            container.style.position = 'relative';
-            container.appendChild(overlay);
-        }
-        
-        // Carregar ranking de vendedores
-        async function carregarRankingEquipe() {
-            try {
-                const response = await fetch('/api/vendas/dashboard/top-vendedores?limit=5', { credentials: 'include' });
-                if (response.ok) {
-                    const vendedores = await response.json();
-                    const container = document.getElementById('rankingEquipe');
-                    if (container && vendedores.length > 0) {
-                        // Identificar usuário atual pelo nome
-                        const userNameEl = document.getElementById('user-name');
-                        const currentUserName = userNameEl ? userNameEl.textContent.toLowerCase() : '';
-                        
-                        container.innerHTML = vendedores.map((v, i) => {
-                            const isCurrentUser = v.nome && v.nome.toLowerCase().includes(currentUserName);
-                            const primeiroNome = v.nome ? v.nome.split(' ')[0] : 'V';
-                            const iniciais = primeiroNome.substring(0, 2).toUpperCase();
-                            
-                            // Tentar obter avatar do vendedor
-                            let avatarHtml = '';
-                            const vendedorAvatar = getAvatarFromEmail(v.email, v.nome);
-                            if (vendedorAvatar) {
-                                avatarHtml = `<img src="${vendedorAvatar}" alt="${primeiroNome}" onerror="this.style.display='none'; this.nextSibling.style.display='block';">
-                                             <span style="display:none">${iniciais}</span>`;
-                            } else {
-                                avatarHtml = iniciais;
-                            }
-                            
-                            return `
-                                <div class="ranking-item ${isCurrentUser ? 'destaque' : ''}">
-                                    <div class="ranking-posicao">${i + 1}</div>
-                                    <div class="ranking-foto">${avatarHtml}</div>
-                                    <div class="ranking-nome">${isCurrentUser ? 'Você' : (primeiroNome || 'Vendedor')}</div>
-                                    <div class="ranking-valor">${formatarMoeda(v.valor || 0)}</div>
-                                </div>
-                            `;
-                        }).join('');
-                        
-                        // Atualizar Posição no ranking nos cards
-                        const posicaoEl = document.getElementById('posicaoRanking');
-                        if (posicaoEl) {
-                            const userIndex = vendedores.findIndex(v => v.nome && v.nome.toLowerCase().includes(currentUserName));
-                            posicaoEl.textContent = userIndex >= 0 ? `${userIndex + 1}º` : '-';
-                        }
-                    }
-                }
-            } catch (error) {
-                console.log('Ranking não disponível');
-            }
-        }
-        
-        // Carregar atividades do vendedor
-        async function carregarAtividades() {
-            try {
-                const response = await fetch('/api/vendas/notificacoes', { credentials: 'include' });
-                if (response.ok) {
-                    const data = await response.json();
-                    const container = document.getElementById('proximasAtividades');
-                    if (container && data.notificacoes && data.notificacoes.length > 0) {
-                        container.innerHTML = data.notificacoes.slice(0, 4).map(n => {
-                            const icon = n.tipo === 'follow_up' ? 'fa-phone' : 'fa-exclamation-circle';
-                            return `
-                                <div class="atividade-item">
-                                    <div class="atividade-icon">
-                                        <i class="fas ${icon}"></i>
-                                    </div>
-                                    <div class="atividade-content">
-                                        <div class="atividade-título">${n.titulo || 'Atividade'}</div>
-                                        <div class="atividade-desc">${n.mensagem || ''}</div>
-                                    </div>
-                                    <div class="atividade-horário">${n.prioridade === 'alta' ? '🔴' : ''}</div>
-                                </div>
-                            `;
-                        }).join('');
-                    } else if (container) {
-                        container.innerHTML = `
-                            <div class="empty-state" style="padding: 20px; text-align: center; color: #6b7280;">
-                                <i class="fas fa-check-circle" style="font-size: 24px; margin-bottom: 8px;"></i>
-                                <p>Nenhuma atividade pendente</p>
-                            </div>
-                        `;
-                    }
-                }
-            } catch (error) {
-                console.log('Atividades não disponíveis');
-            }
-        }
-        function renderizarVendasRecentes(clientes) {
-            const container = document.getElementById('vendasRecentes');
-            if (!clientes || clientes.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-shopping-cart"></i>
-                        <p>Nenhuma venda recente</p>
+            <!-- Atalhos do Vendedor -->
+            <div class="modules-grid">
+                <a href="/Vendas/index.html" class="mod-card mod-pink">
+                    <div class="mod-icon"><i class="fas fa-columns"></i></div>
+                    <div>
+                        <div class="mod-name">Pipeline</div>
+                        <div class="mod-desc">Funil de vendas</div>
                     </div>
-                `;
-                return;
-            }
+                </a>
+                <a href="/Vendas/pedidos.html" class="mod-card mod-orange">
+                    <div class="mod-icon"><i class="fas fa-clipboard-list"></i></div>
+                    <div>
+                        <div class="mod-name">Pedidos</div>
+                        <div class="mod-desc">Orçamentos e vendas</div>
+                    </div>
+                </a>
+                <a href="/Vendas/clientes.html" class="mod-card mod-emerald">
+                    <div class="mod-icon"><i class="fas fa-users"></i></div>
+                    <div>
+                        <div class="mod-name">Clientes</div>
+                        <div class="mod-desc">Minha carteira</div>
+                    </div>
+                </a>
+                <a href="/Vendas/prospeccao.html" class="mod-card mod-cyan">
+                    <div class="mod-icon"><i class="fas fa-crosshairs"></i></div>
+                    <div>
+                        <div class="mod-name">Prospecção</div>
+                        <div class="mod-desc">Leads e contatos</div>
+                    </div>
+                </a>
+                <a href="/Vendas/comissoes.html" class="mod-card mod-violet">
+                    <div class="mod-icon"><i class="fas fa-percentage"></i></div>
+                    <div>
+                        <div class="mod-name">Comissões</div>
+                        <div class="mod-desc">Meus ganhos</div>
+                    </div>
+                </a>
+                <a href="/Vendas/relatorios.html" class="mod-card mod-blue">
+                    <div class="mod-icon"><i class="fas fa-chart-bar"></i></div>
+                    <div>
+                        <div class="mod-name">Relatórios</div>
+                        <div class="mod-desc">Desempenho</div>
+                    </div>
+                </a>
+            </div>
 
-            container.innerHTML = clientes.slice(0, 5).map(cliente => {
-                // Formatar data do último pedido
-                let dataFormatada = '';
-                if (cliente.ultimo_pedido || cliente.data_pedido || cliente.data) {
-                    const data = cliente.ultimo_pedido || cliente.data_pedido || cliente.data;
-                    dataFormatada = formatarData(data);
-                }
-                
-                // Determinar número do pedido
-                const númeroPedido = cliente.pedido_id || cliente.numero_pedido || cliente.id || '';
-                const infoPedido = númeroPedido ? `Pedido #${númeroPedido}` : `${cliente.total_pedidos || 0} pedido(s)`;
-                
-                return `
-                    <div class="venda-item">
-                        <div class="venda-info">
-                            <span class="venda-cliente">${cliente.nome_fantasia || cliente.cliente_nome || cliente.empresa || 'Cliente'}</span>
-                            <span class="venda-data">${dataFormatada}${dataFormatada && infoPedido ? ' - ' : ''}${infoPedido}</span>
+            <!-- KPI Cards (V0 white) -->
+            <div class="kpi-grid">
+                <a href="/Vendas/dashboard.html" class="kpi-card">
+                    <div class="kpi-top">
+                        <div class="kpi-icon orange"><i class="fas fa-bullseye"></i></div>
+                    </div>
+                    <div class="kpi-label">Meta do Mês</div>
+                    <div class="kpi-value" id="kpi-meta">—</div>
+                    <div class="kpi-meta-mini">
+                        <div class="mini-row">
+                            <span>Progresso</span>
+                            <span id="kpi-meta-pct">0%</span>
                         </div>
-                        <div class="venda-valor">${formatarMoeda(cliente.valor_faturado || cliente.valor || 0)}</div>
+                        <div class="mini-bar">
+                            <div class="mini-fill" id="kpi-meta-bar" style="width:0%"></div>
+                        </div>
                     </div>
-                `;
-            }).join('');
-        }
-        
-        // Função para carregar vendas recentes do vendedor logado (pedidos faturados)
-        async function carregarMinhasVendasRecentes() {
-            try {
-                // Buscar pedidos faturados do vendedor atual
-                const response = await fetch('/api/vendas/pedidos?status=faturado&limit=5', { credentials: 'include' });
-                if (response.ok) {
-                    const data = await response.json();
-                    const pedidos = Array.isArray(data) ? data : (data.pedidos || []);
-                    
-                    if (pedidos.length > 0) {
-                        const container = document.getElementById('vendasRecentes');
-                        container.innerHTML = pedidos.slice(0, 5).map(pedido => {
-                            const dataFormatada = pedido.data_faturamento || pedido.created_at 
-                                ? formatarData(pedido.data_faturamento || pedido.created_at) 
-                                : '';
-                            const númeroPedido = pedido.numero_pedido || pedido.id;
-                            
-                            return `
-                                <div class="venda-item">
-                                    <div class="venda-info">
-                                        <span class="venda-cliente">${pedido.cliente_nome || pedido.empresa_nome || 'Cliente'}</span>
-                                        <span class="venda-data">${dataFormatada}${dataFormatada ? ' - ' : ''}Pedido #${númeroPedido}</span>
+                </a>
+
+                <a href="/Vendas/index.html" class="kpi-card">
+                    <div class="kpi-top">
+                        <div class="kpi-icon emerald"><i class="fas fa-dollar-sign"></i></div>
+                    </div>
+                    <div class="kpi-label">Vendas no Mês</div>
+                    <div class="kpi-value" id="kpi-vendas">R$ 0,00</div>
+                </a>
+
+                <a href="/Vendas/pedidos.html" class="kpi-card">
+                    <div class="kpi-top">
+                        <div class="kpi-icon cyan"><i class="fas fa-cart-shopping"></i></div>
+                    </div>
+                    <div class="kpi-label">Pedidos no Mês</div>
+                    <div class="kpi-value" id="kpi-pedidos">0</div>
+                </a>
+
+                <div class="kpi-card" style="cursor:default;">
+                    <div class="kpi-top">
+                        <div class="kpi-icon violet"><i class="fas fa-trophy"></i></div>
+                    </div>
+                    <div class="kpi-label">Posição no Ranking</div>
+                    <div class="kpi-value" id="kpi-ranking">—</div>
+                </div>
+            </div>
+
+            <!-- Charts + Right Column -->
+            <div class="row-main">
+                <!-- Charts -->
+                <div class="charts-col">
+                    <div class="card">
+                        <div class="card-hdr">
+                            <div>
+                                <div class="card-title">Evolução de Vendas</div>
+                                <div class="card-sub">Últimos 6 meses</div>
+                            </div>
+                        </div>
+                        <div class="chart-body">
+                            <div class="chart-canvas-wrap">
+                                <canvas id="chartVendasMensal"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-hdr">
+                            <div>
+                                <div class="card-title">Pipeline por Status</div>
+                                <div class="card-sub">Distribuição dos pedidos</div>
+                            </div>
+                        </div>
+                        <div class="chart-body">
+                            <div class="chart-canvas-wrap" style="height:200px;">
+                                <canvas id="chartVendasStatus"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column -->
+                <div class="right-stack">
+
+                    <!-- Meta de Vendas -->
+                    <div class="card">
+                        <div class="card-hdr">
+                            <div class="card-title">Meta de Vendas do Mês</div>
+                        </div>
+                        <div class="card-body" id="meta-section">
+                            <p style="font-size:13px;color:#94a3b8;">Carregando meta...</p>
+                        </div>
+                    </div>
+
+                    <!-- Ações Rápidas -->
+                    <div class="card">
+                        <div class="card-hdr">
+                            <div class="card-title">Ações Rápidas</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="quick-grid">
+                                <a href="/Vendas/index.html" class="qa-btn">
+                                    <div class="qa-icon" style="background:#f0fdf4;color:#16a34a;">
+                                        <i class="fas fa-chart-line"></i>
                                     </div>
-                                    <div class="venda-valor">${formatarMoeda(pedido.valor || pedido.valor_total || 0)}</div>
-                                </div>
-                            `;
-                        }).join('');
+                                    <span class="qa-label">Nova Venda</span>
+                                </a>
+                                <a href="/Compras/pedidos.html" class="qa-btn">
+                                    <div class="qa-icon" style="background:#fff7ed;color:#ea580c;">
+                                        <i class="fas fa-cart-shopping"></i>
+                                    </div>
+                                    <span class="qa-label">Novo Pedido</span>
+                                </a>
+                                <a href="/Faturamento" class="qa-btn">
+                                    <div class="qa-icon" style="background:#eff6ff;color:#2563eb;">
+                                        <i class="fas fa-file-invoice"></i>
+                                    </div>
+                                    <span class="qa-label">Emitir NF</span>
+                                </a>
+                                <a href="/Financeiro/relatorios.html" class="qa-btn">
+                                    <div class="qa-icon" style="background:#f5f3ff;color:#7c3aed;">
+                                        <i class="fas fa-chart-bar"></i>
+                                    </div>
+                                    <span class="qa-label">Relatórios</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Atividade Recente -->
+                    <div class="card">
+                        <div class="card-hdr">
+                            <div class="card-title">Atividade Recente</div>
+                        </div>
+                        <div class="activity-list" id="proximasAtividades">
+                            <div class="empty-state">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Sales Table + Ranking -->
+            <div class="row-bottom">
+
+                <!-- Vendas Recentes (V0 table) -->
+                <div class="card">
+                    <div class="card-hdr">
+                        <div>
+                            <div class="card-title">Minhas Vendas Recentes</div>
+                            <div class="card-sub">Últimas transações registradas</div>
+                        </div>
+                        <a href="/Vendas/pedidos.html" class="card-link">
+                            Ver todos <i class="fas fa-external-link-alt" style="font-size:10px;"></i>
+                        </a>
+                    </div>
+                    <div class="tbl-wrap">
+                        <table class="orders-tbl">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Pedido</th>
+                                    <th class="right">Valor</th>
+                                    <th class="center">Status</th>
+                                    <th class="center">Data</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vendasRecentes">
+                                <tr>
+                                    <td colspan="5" style="text-align:center;color:#94a3b8;padding:32px;">
+                                        <i class="fas fa-spinner fa-spin" style="margin-right:8px;"></i>Carregando vendas...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Ranking da Equipe -->
+                <div class="card">
+                    <div class="card-hdr">
+                        <div class="card-title">Ranking da Equipe</div>
+                    </div>
+                    <div class="ranking-list" id="rankingEquipe">
+                        <div class="empty-state">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <p>Carregando ranking...</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+        </div>
+    </main>
+</div>
+
+<script>
+// ==================================================
+// CLOCK & DATE
+// ==================================================
+function updateClock() {
+    const now = new Date();
+    const timeEl = document.getElementById('clock-time');
+    const dateEl = document.getElementById('welcome-date');
+    if (timeEl) timeEl.textContent = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (dateEl) {
+        const d = now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        dateEl.textContent = d.charAt(0).toUpperCase() + d.slice(1);
+    }
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ==================================================
+// MOBILE SIDEBAR
+// ==================================================
+function toggleMobileSidebar() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar) sidebar.classList.toggle('open');
+    if (overlay) overlay.classList.toggle('active');
+}
+
+// ==================================================
+// AVATAR MAP
+// ==================================================
+const avatarNameMap = {
+    'clemerson': '/avatars/Clemerson.webp',
+    'isabela': '/avatars/Isabela.webp',
+    'thaina': '/avatars/Thaina.webp',
+    'thiago': '/avatars/Thiago.webp',
+    'nicolas': '/avatars/NicolasDaniel.webp',
+    'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+    'rh': '/avatars/Rh.webp',
+    'admin': '/avatars/admin.webp',
+    'ti': '/avatars/TI.webp',
+    'tialuforce': '/avatars/TI.webp',
+    'antonio': '/avatars/Antonio.webp',
+    'andreia': '/avatars/Andreia.webp',
+    'guilherme': '/avatars/Guilherme.webp',
+    'augusto': '/avatars/Augusto.jpg',
+    'renata': '/avatars/Renata.jpg',
+    'fabiano': '/avatars/Fabiano.webp',
+    'fabiola': '/avatars/Fabiola.webp',
+    'marcia': '/avatars/Marcia.webp',
+    'ronaldo': '/avatars/RonaldoTorres.jpg',
+    'joao': '/avatars/JoaoVictor.jpg',
+    'douglas': '/avatars/Douglas.webp',
+    'fernando': '/avatars/Fernando.webp'
+};
+
+function getAvatarFromEmail(email, nome) {
+    if (!email) return null;
+    const username = email.split('@')[0].split('.')[0].toLowerCase();
+    if (avatarNameMap[username]) return avatarNameMap[username];
+    if (nome) {
+        const first = nome.split(' ')[0].toLowerCase();
+        if (avatarNameMap[first]) return avatarNameMap[first];
+    }
+    return null;
+}
+
+// ==================================================
+// USER
+// ==================================================
+let _cachedUser = null;
+
+async function carregarUsuario() {
+    try {
+        const res = await fetch('/api/me', { credentials: 'include' });
+        if (!res.ok) return;
+        const user = await res.json();
+        _cachedUser = user;
+
+        const isAdm = user.is_admin === 1 || user.is_admin === true || user.role === 'admin';
+        if (isAdm) { window.location.href = 'dashboard-admin.html'; return; }
+
+        const userName = user.apelido || user.nome || 'Usuário';
+        const primeiroNome = user.apelido || (user.nome ? user.nome.split(/\s+/)[0] : 'Usuário');
+
+        let userAvatar = user.avatar || user.foto || user.foto_perfil_url;
+        if (userAvatar === '/avatars/default.webp') userAvatar = null;
+        if (!userAvatar) userAvatar = getAvatarFromEmail(user.email, userName);
+
+        const hour = new Date().getHours();
+        const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+        const greetEl = document.getElementById('greeting-text');
+        if (greetEl) greetEl.textContent = greeting;
+
+        document.getElementById('user-name').textContent = primeiroNome;
+        document.getElementById('welcome-name').textContent = primeiroNome;
+
+        const photoEl = document.getElementById('user-photo');
+        const initEl = document.getElementById('user-initial');
+        if (userAvatar && photoEl) {
+            photoEl.src = userAvatar;
+            photoEl.classList.add('visible');
+            photoEl.style.display = 'block';
+            if (initEl) initEl.style.display = 'none';
+        } else if (initEl) {
+            initEl.textContent = userName.charAt(0).toUpperCase();
+        }
+    } catch (e) {
+        console.error('Erro ao carregar usuário:', e);
+    }
+}
+
+// ==================================================
+// DASHBOARD DATA
+// ==================================================
+async function carregarDashboard() {
+    try {
+        const res = await fetch('/api/vendas/dashboard/vendedor?periodo=180', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const metricas = data.metricas || {};
+        const meta = data.meta || {};
+        const temMeta = meta.definida || Number(meta.valor) > 0;
+
+        // KPI Meta do Mês
+        const kpiMetaEl = document.getElementById('kpi-meta');
+        if (temMeta) {
+            kpiMetaEl.textContent = formatarMoeda(meta.valor);
+        } else {
+            kpiMetaEl.textContent = 'Sem meta';
+            kpiMetaEl.style.fontSize = '16px';
+        }
+
+        // KPI Vendas no Mês (realizado: faturado + meia nota)
+        document.getElementById('kpi-vendas').textContent = formatarMoeda(metricas.valor_faturado != null ? metricas.valor_faturado : (meta.atingido || 0));
+
+        // KPI Pedidos no Mês (exclui excluídos/cancelados)
+        document.getElementById('kpi-pedidos').textContent = metricas.total_pedidos || 0;
+
+        // Mini barra de progresso da meta
+        const pct = Math.min(100, Math.round(Number(meta.percentual) || 0));
+        document.getElementById('kpi-meta-pct').textContent = temMeta ? `${pct}%` : '—';
+        const miniBar = document.getElementById('kpi-meta-bar');
+        if (miniBar) {
+            miniBar.style.width = `${temMeta ? pct : 0}%`;
+            miniBar.style.background = pct >= 100 ? '#10b981' : '#06b6d4';
+        }
+
+        // KPI Posição no Ranking (calculada no backend)
+        const kpiRankEl = document.getElementById('kpi-ranking');
+        if (kpiRankEl) kpiRankEl.textContent = data.posicaoRanking ? `${data.posicaoRanking}º` : '—';
+
+        // Card de meta
+        renderizarMeta(meta, metricas);
+
+        // Gráfico de evolução (eixo contínuo de 6 meses)
+        renderEvolucao(data.historicoMensal || data['históricoMensal'] || []);
+
+        // Gráfico de pipeline por status
+        renderPipeline(data.pipeline || []);
+
+        // Tabela de pedidos recentes (qualquer status ativo)
+        if (Array.isArray(data.recentes) && data.recentes.length > 0) {
+            renderizarRecentes(data.recentes);
+        } else if (data.meusClientes && data.meusClientes.length > 0) {
+            renderizarVendasRecentes(data.meusClientes);
+        } else {
+            renderizarRecentes([]);
+        }
+
+        await carregarRankingEquipe();
+        await carregarAtividades();
+
+    } catch (e) {
+        console.error('Erro ao carregar dashboard:', e);
+    }
+}
+
+// Monta eixo contínuo de 6 meses preenchendo lacunas com 0
+function renderEvolucao(historico) {
+    const nomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const mapa = {};
+    (historico || []).forEach(h => { if (h && h.mes) mapa[h.mes] = Number(h.valor_faturado || 0); });
+    const labels = [], valores = [];
+    const hoje = new Date();
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        labels.push(nomes[d.getMonth()]);
+        valores.push(mapa[chave] || 0);
+    }
+    if (valores.some(v => v > 0)) {
+        atualizarGraficoVendas(labels, valores);
+    } else {
+        mostrarSemDados('chartVendasMensal', 'Sem vendas no período');
+    }
+}
+
+// Gráfico de distribuição por status (valores reais do sistema)
+function renderPipeline(pipeline) {
+    if (!pipeline || pipeline.length === 0) {
+        mostrarSemDados('chartVendasStatus', 'Sem pedidos no período');
+        return;
+    }
+    const statusMap = {
+        'orcamento':       { label: 'Orçamentos',      color: '#8b5cf6' },
+        'analise-credito': { label: 'Análise crédito', color: '#f59e0b' },
+        'pedido-aprovado': { label: 'Aprovados',       color: '#3b82f6' },
+        'parcial':         { label: 'Meia nota',       color: '#06b6d4' },
+        'faturado':        { label: 'Faturados',       color: '#10b981' },
+        'cancelado':       { label: 'Cancelados',      color: '#ef4444' }
+    };
+    const labels = [], valores = [], cores = [];
+    pipeline.forEach(p => {
+        const info = statusMap[p.status] || { label: (p.status || 'Outros').replace(/[-_]/g, ' '), color: '#94a3b8' };
+        labels.push(info.label);
+        valores.push(Number(p.quantidade || 0));
+        cores.push(info.color);
+    });
+    atualizarGraficoStatus(labels, valores, cores);
+}
+
+// Tabela de pedidos recentes do vendedor (com badge de status real)
+function renderizarRecentes(recentes) {
+    const tbody = document.getElementById('vendasRecentes');
+    if (!tbody) return;
+    if (!recentes || recentes.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:32px;">
+            <i class="fas fa-cart-shopping" style="margin-right:8px;opacity:0.35;"></i>Nenhum pedido recente
+        </td></tr>`;
+        return;
+    }
+    tbody.innerHTML = recentes.slice(0, 6).map(p => {
+        const dt = formatarData(p.created_at);
+        const num = p.numero_pedido || p.id || '';
+        const badge = statusBadge((p.status || '').toLowerCase());
+        return `<tr>
+            <td>${escapeHtml(p.cliente_nome || 'Cliente')}</td>
+            <td class="mono">${num ? '#' + escapeHtml(num) : '—'}</td>
+            <td class="right">${formatarMoeda(p.valor || 0)}</td>
+            <td class="center"><span class="s-badge ${badge.cls}">${badge.label}</span></td>
+            <td class="center muted">${dt}</td>
+        </tr>`;
+    }).join('');
+}
+
+function statusBadge(raw) {
+    const map = {
+        'faturado':        { cls: 'ok',     label: 'Faturado' },
+        'recibo':          { cls: 'ok',     label: 'Recibo' },
+        'parcial':         { cls: 'info',   label: 'Meia nota' },
+        'pedido-aprovado': { cls: 'info',   label: 'Aprovado' },
+        'analise-credito': { cls: 'warn',   label: 'Análise' },
+        'orcamento':       { cls: 'info',   label: 'Orçamento' },
+        'cancelado':       { cls: 'danger', label: 'Cancelado' }
+    };
+    return map[raw] || { cls: 'info', label: (raw || 'Pedido').replace(/[-_]/g, ' ') };
+}
+
+function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function renderizarMeta(meta, metricas) {
+    const el = document.getElementById('meta-section');
+    if (!el) return;
+    meta = meta || {}; metricas = metricas || {};
+    const target = Number(meta.valor || 0);
+    const achieved = Number(metricas.valor_faturado != null ? metricas.valor_faturado : (meta.atingido || 0));
+    const pipeline = Number(metricas.valor_pipeline || 0);
+    const pipeRow = pipeline > 0
+        ? `<div class="meta-values" style="margin-top:12px;display:flex;align-items:center;gap:6px;">
+               <i class="fas fa-hourglass-half" style="color:#06b6d4;"></i>
+               Em negociação: <strong style="color:#0891b2;">${formatarMoeda(pipeline)}</strong>
+           </div>`
+        : '';
+    if (target <= 0) {
+        el.innerHTML = `<p style="font-size:13px;color:#94a3b8;">Nenhuma meta definida para este mês.</p>${pipeRow}`;
+        return;
+    }
+    const pct = Math.min(100, Math.max(0, (achieved / target) * 100));
+    el.innerHTML = `
+        <div class="meta-row">
+            <span class="meta-label">Vendas realizadas</span>
+            <span class="meta-pct">${pct.toFixed(1)}%</span>
+        </div>
+        <div class="meta-bar">
+            <div class="meta-fill" style="width:${pct}%;"></div>
+        </div>
+        <div class="meta-values">${formatarMoeda(achieved)} de ${formatarMoeda(target)}</div>
+        ${pipeRow}
+    `;
+}
+
+function renderizarVendasRecentes(clientes) {
+    const tbody = document.getElementById('vendasRecentes');
+    if (!tbody) return;
+    if (!clientes || clientes.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:32px;">
+            <i class="fas fa-cart-shopping" style="margin-right:8px;opacity:0.35;"></i>Nenhuma venda recente
+        </td></tr>`;
+        return;
+    }
+    tbody.innerHTML = clientes.slice(0, 6).map(c => {
+        const dt = formatarData(c.ultimo_pedido || c.data_pedido || c.data);
+        const num = c.pedido_id || c.numero_pedido || c.id || '';
+        const statusRaw = (c.status || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+        let badgeCls = 'info';
+        if (['faturado','entregue','aprovado','concluido'].some(s => statusRaw.includes(s))) badgeCls = 'ok';
+        else if (['cancelado','rejeitado'].some(s => statusRaw.includes(s))) badgeCls = 'danger';
+        else if (['negociac','analise','andamento'].some(s => statusRaw.includes(s))) badgeCls = 'warn';
+        const statusLabel = (c.status || 'Pedido').replace(/_/g,' ');
+        const statusDisplay = statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1);
+
+        return `<tr>
+            <td>${c.nome_fantasia || c.cliente_nome || c.empresa || 'Cliente'}</td>
+            <td class="mono">${num ? '#' + num : '—'}</td>
+            <td class="right">${formatarMoeda(c.valor_faturado || c.valor || 0)}</td>
+            <td class="center"><span class="s-badge ${badgeCls}">${statusDisplay}</span></td>
+            <td class="center muted">${dt}</td>
+        </tr>`;
+    }).join('');
+}
+
+async function carregarMinhasVendasRecentes() {
+    try {
+        const res = await fetch('/api/vendas/pedidos?status=faturado&limit=6', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const pedidos = Array.isArray(data) ? data : (data.pedidos || []);
+        if (!pedidos.length) return;
+        const tbody = document.getElementById('vendasRecentes');
+        if (!tbody) return;
+        tbody.innerHTML = pedidos.slice(0, 6).map(p => {
+            const dt = formatarData(p.data_faturamento || p.created_at);
+            const num = p.numero_pedido || p.id;
+            return `<tr>
+                <td>${p.cliente_nome || p.empresa_nome || 'Cliente'}</td>
+                <td class="mono">#${num}</td>
+                <td class="right">${formatarMoeda(p.valor || p.valor_total || 0)}</td>
+                <td class="center"><span class="s-badge ok">Faturado</span></td>
+                <td class="center muted">${dt}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {}
+}
+
+async function carregarRankingEquipe() {
+    try {
+        const res = await fetch('/api/vendas/dashboard/top-vendedores?limit=5&period=180', { credentials: 'include' });
+        if (!res.ok) return;
+        const vendedores = await res.json();
+        const container = document.getElementById('rankingEquipe');
+        if (!container) return;
+        if (!vendedores.length) {
+            container.innerHTML = `<div class="empty-state"><i class="fas fa-trophy"></i><p>Sem vendas no período</p></div>`;
+            return;
+        }
+
+        const myId = _cachedUser ? Number(_cachedUser.id) : null;
+
+        container.innerHTML = vendedores.map((v, i) => {
+            const isMe = myId != null && Number(v.id) === myId;
+            const first = v.nome ? v.nome.split(' ')[0] : 'Vendedor';
+            const initials = first.substring(0, 2).toUpperCase();
+            const ava = v.foto || getAvatarFromEmail(v.email, v.nome);
+            const avaHtml = ava
+                ? `<img src="${ava}" alt="${escapeHtml(first)}" onerror="this.style.display='none';">`
+                : initials;
+            return `<div class="rank-item${isMe ? ' me' : ''}">
+                <div class="rank-pos">${i + 1}</div>
+                <div class="rank-ava">${avaHtml}</div>
+                <div class="rank-name">${isMe ? 'Você' : escapeHtml(first)}</div>
+                <div class="rank-val">${formatarMoeda(v.valor || 0)}</div>
+            </div>`;
+        }).join('');
+    } catch (e) {}
+}
+
+async function carregarAtividades() {
+    try {
+        const res = await fetch('/api/vendas/notificacoes', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const container = document.getElementById('proximasAtividades');
+        if (!container) return;
+
+        if (data.notificacoes && data.notificacoes.length > 0) {
+            container.innerHTML = data.notificacoes.slice(0, 5).map(n => {
+                const icon = n.tipo === 'follow_up' ? 'fa-phone' : 'fa-bell';
+                const color = n.tipo === 'follow_up' ? '#3b82f6' : '#06b6d4';
+                const bg = n.tipo === 'follow_up' ? 'rgba(59,130,246,0.1)' : 'rgba(6,182,212,0.1)';
+                const ts = n.data_criacao || n.created_at || '';
+                const meta = ts ? new Date(ts).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : (n.modulo || '');
+                return `<div class="act-item">
+                    <div class="act-dot" style="background:${bg};color:${color};">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <div>
+                        <div class="act-text">${n.titulo || 'Notificação'}</div>
+                        <div class="act-meta">${n.mensagem || meta}</div>
+                    </div>
+                </div>`;
+            }).join('');
+        } else {
+            container.innerHTML = `<div class="act-item">
+                <div class="act-dot" style="background:#f0fdf4;color:#16a34a;">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div>
+                    <div class="act-text">Sem atividades pendentes</div>
+                    <div class="act-meta">Nenhum registro encontrado</div>
+                </div>
+            </div>`;
+        }
+    } catch (e) {}
+}
+
+function mostrarSemDados(canvasId, msg) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const wrap = canvas.parentElement;
+    if (!wrap || wrap.querySelector('.no-data-overlay')) return;
+    const ov = document.createElement('div');
+    ov.className = 'no-data-overlay';
+    ov.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.9);border-radius:10px;z-index:10;';
+    ov.innerHTML = `<div style="text-align:center;color:#94a3b8;"><i class="fas fa-chart-bar" style="font-size:26px;opacity:0.35;margin-bottom:8px;display:block;"></i><p style="font-size:12px;">${msg}</p></div>`;
+    wrap.style.position = 'relative';
+    wrap.appendChild(ov);
+}
+
+// ==================================================
+// CHARTS
+// ==================================================
+let chartVendasMensal = null;
+let chartVendasStatus = null;
+
+function inicializarGraficos() {
+    const ctx1 = document.getElementById('chartVendasMensal').getContext('2d');
+    chartVendasMensal = new Chart(ctx1, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Vendas (R$)',
+                data: [],
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16,185,129,0.07)',
+                tension: 0.4,
+                fill: true,
+                pointBackgroundColor: '#10b981',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 7
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => 'R$ ' + ctx.parsed.y.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
                     }
                 }
-            } catch (error) {
-                console.log('Erro ao carregar vendas recentes:', error);
-            }
-        }
-
-        function atualizarGraficoVendas(labels, valores) {
-            if (chartVendasMensal) {
-                chartVendasMensal.data.labels = labels;
-                chartVendasMensal.data.datasets[0].data = valores;
-                chartVendasMensal.update();
-            }
-        }
-
-        function atualizarGraficoStatus(labels, valores, cores) {
-            if (chartVendasStatus) {
-                chartVendasStatus.data.labels = labels;
-                chartVendasStatus.data.datasets[0].data = valores;
-                chartVendasStatus.data.datasets[0].backgroundColor = cores;
-                chartVendasStatus.update();
-            }
-        }
-
-        function atualizarMetas(meta) {
-            if (!meta) return;
-
-            const percentual = Math.min(100, Math.round((meta.realizado / meta.objetivo) * 100));
-            
-            document.getElementById('metaAtual').textContent = formatarMoeda(meta.objetivo);
-            document.getElementById('vendasMes').textContent = formatarMoeda(meta.realizado);
-            document.getElementById('metaPercentual').textContent = `${percentual}%`;
-            
-            const progressBar = document.getElementById('metaProgressBar');
-            progressBar.style.width = `${percentual}%`;
-            
-            if (percentual >= 100) {
-                progressBar.classList.add('success');
-            }
-        }
-
-        function formatarMoeda(valor) {
-            return new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL'
-            }).format(valor);
-        }
-
-        function formatarData(data) {
-            return new Date(data).toLocaleDateString('pt-BR');
-        }
-
-        // ========================================
-        // GRÁFICOS CHART.JS
-        // ========================================
-        let chartVendasMensal = null;
-        let chartVendasStatus = null;
-
-        function inicializarGraficos() {
-            // Gráficos iniciam vazios - dados reais carregados pela API
-            const meses = [];
-            const vendasPorMes = [];
-            
-            // Gráfico de Evolução de Vendas (Linha)
-            const ctxVendas = document.getElementById('chartVendasMensal').getContext('2d');
-            chartVendasMensal = new Chart(ctxVendas, {
-                type: 'line',
-                data: {
-                    labels: meses,
-                    datasets: [{
-                        label: 'Vendas (R$)',
-                        data: vendasPorMes,
-                        borderColor: '#f97316',
-                        backgroundColor: 'rgba(249, 115, 22, 0.1)',
-                        tension: 0.4,
-                        fill: true,
-                        pointBackgroundColor: '#f97316',
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 2,
-                        pointRadius: 5,
-                        pointHoverRadius: 7
-                    }]
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0,0,0,0.04)' },
+                    ticks: { color: '#94a3b8', callback: v => 'R$ ' + (v / 1000).toFixed(0) + 'k' },
+                    border: { display: false }
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return 'R$ ' + context.parsed.y.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return 'R$ ' + (value / 1000) + 'k';
-                                }
-                            },
-                            grid: {
-                                color: 'rgba(0, 0, 0, 0.05)'
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
-                            }
-                        }
-                    }
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#94a3b8' },
+                    border: { display: false }
                 }
-            });
-
-            // Gráfico de Status de Vendas (Pizza/Doughnut)
-            const ctxStatus = document.getElementById('chartVendasStatus').getContext('2d');
-            chartVendasStatus = new Chart(ctxStatus, {
-                type: 'doughnut',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        data: [],
-                        backgroundColor: [
-                            '#22c55e', // Verde - Faturados
-                            '#f97316', // Laranja - Negociações
-                            '#3b82f6', // Azul - Aprovados
-                            '#ef4444'  // Vermelho - Perdidos
-                        ],
-                        borderColor: '#ffffff',
-                        borderWidth: 3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                padding: 20,
-                                usePointStyle: true,
-                                pointStyle: 'circle'
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.label + ': ' + context.parsed + '%';
-                                }
-                            }
-                        }
-                    },
-                    cutout: '60%'
-                }
-            });
-        }
-
-        // Atualizar gráficos com dados da API
-        async function atualizarGraficos() {
-            try {
-                const response = await fetch('/api/vendas/dashboard/graficos', {
-                    credentials: 'include'
-                });
-                
-                if (response.ok) {
-                    const dados = await response.json();
-                    
-                    // Atualizar gráfico de vendas mensais
-                    if (dados.evolucaoMensal && chartVendasMensal) {
-                        chartVendasMensal.data.labels = dados.evolucaoMensal.labels;
-                        chartVendasMensal.data.datasets[0].data = dados.evolucaoMensal.valores;
-                        chartVendasMensal.update();
-                    }
-                    
-                    // Atualizar gráfico de status
-                    if (dados.vendasPorStatus && chartVendasStatus) {
-                        chartVendasStatus.data.labels = dados.vendasPorStatus.labels;
-                        chartVendasStatus.data.datasets[0].data = dados.vendasPorStatus.valores;
-                        chartVendasStatus.update();
-                    }
-                }
-            } catch (error) {
-                console.log('Usando dados de exemplo para gráficos');
             }
         }
+    });
 
-        // Inicializações
-        document.addEventListener('DOMContentLoaded', () => {
-            carregarUsuario();
-            inicializarGraficos(); // Inicializar gráficos vazios primeiro
-            carregarDashboard();   // Carregar dados reais da API (atualiza gráficos, stats, ranking, atividades)
-            atualizarGraficos();   // Fallback: tenta endpoint de gráficos separado
-        });
-        
-        // Toggle Sidebar Mobile
-        function toggleSidebar() {
-            const sidebar = document.getElementById('mobile-sidebar');
-            const overlay = document.getElementById('sidebar-overlay');
-            sidebar.classList.toggle('open');
-            if (overlay) overlay.classList.toggle('active');
+    const ctx2 = document.getElementById('chartVendasStatus').getContext('2d');
+    chartVendasStatus = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+            labels: [],
+            datasets: [{
+                data: [],
+                backgroundColor: ['#10b981','#f59e0b','#3b82f6','#ef4444','#8b5cf6'],
+                borderColor: '#ffffff',
+                borderWidth: 3,
+                hoverOffset: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 14, usePointStyle: true, pointStyle: 'circle', color: '#64748b', font: { size: 12 } }
+                }
+            },
+            cutout: '60%'
         }
-    </script>
-    
-    <!-- Sistema de Monitoramento de Conexão -->
-    <script src="/modules/_shared/connection-monitor.js?v=20251223"></script>
-    <script src="/js/popup-confirmacao.js"></script>
-    <script src="/js/confirm-modal.js?v=20260110"></script>
-    <!-- Performance Utilities -->
-    <script src="/js/performance-utils.js?v=20260213"></script>
+    });
+}
 
-    <script src="/js/auth-unified.js?v=20260301"></script>
-    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
-    <!-- Chat Widget BOB AI - DESATIVADO -->
-    <!-- <script src="/chat/widget.js?v=20260418" defer></script> -->
-    <script src="/js/user-dropdown.js?v=20260223" defer></script>
+function atualizarGraficoVendas(labels, valores) {
+    if (chartVendasMensal) {
+        chartVendasMensal.data.labels = labels;
+        chartVendasMensal.data.datasets[0].data = valores;
+        chartVendasMensal.update();
+    }
+}
 
-    <!-- Sidebar Click Animation -->
-    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
-    <script src="js/mobile-sidebar.js"></script>
-    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+function atualizarGraficoStatus(labels, valores, cores) {
+    if (chartVendasStatus) {
+        chartVendasStatus.data.labels = labels;
+        chartVendasStatus.data.datasets[0].data = valores;
+        chartVendasStatus.data.datasets[0].backgroundColor = cores;
+        chartVendasStatus.update();
+    }
+}
 
-    <!-- Chat Corporativo (Teams) -->
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/chat-teams/chat-widget.js?v=20260319" defer></script>
+// ==================================================
+// FORMATTERS
+// ==================================================
+function formatarMoeda(valor) {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+}
+
+function formatarData(data) {
+    if (!data) return '—';
+    const d = new Date(data);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+}
+
+// ==================================================
+// INIT
+// ==================================================
+document.addEventListener('DOMContentLoaded', async () => {
+    inicializarGraficos();
+    await carregarUsuario();   // garante _cachedUser (e redireciona admin) antes de carregar dados
+    carregarDashboard();
+});
+</script>
+
+<script src="/modules/_shared/connection-monitor.js?v=20251223"></script>
+<script src="/js/popup-confirmacao.js"></script>
+<script src="/js/confirm-modal.js?v=20260110"></script>
+<script src="/js/performance-utils.js?v=20260213"></script>
+<script src="/js/auth-unified.js?v=20260301"></script>
+<script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+<script src="/js/user-dropdown.js?v=20260223" defer></script>
+<script src="/js/sidebar-click-animation.js?v=20260224"></script>
+<script src="js/mobile-sidebar.js"></script>
+<script src="/_shared/accessibility-widget.js?v=20260226"></script>
+<script src="/js/anti-copy-protection.js" defer></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/chat-teams/chat-widget.js?v=20260319" defer></script>
 </body>
 </html>
-
-
-

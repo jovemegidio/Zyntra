@@ -30,7 +30,7 @@
         { id: 'eventos',   href: 'eventos.html',     icon: 'fas fa-history',        label: 'Eventos' },
         { id: 'logistica', href: 'logistica.html',   icon: 'fas fa-truck',          label: 'Logística' },
         { id: 'inutilizacao', href: 'inutilizacao.html', icon: 'fas fa-ban',        label: 'Inutilização' },
-        { id: 'pix',       href: '/modules/Faturamento/public/pix.html', icon: 'fas fa-qrcode', label: 'Gateway PIX' },
+        { id: 'pix',       href: '/Logistica/pix.html', icon: 'fas fa-qrcode', label: 'Gateway PIX' },
         { id: 'regua',     href: '/modules/Faturamento/public/regua.html', icon: 'fas fa-bell', label: 'Régua de Cobrança' },
     ];
 

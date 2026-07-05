@@ -85,6 +85,55 @@
                         </div>
                     </div>
 
+                    <div class="modal-config-card" onclick="abrirParametrosFiscais()" tabindex="0">
+                        <div class="modal-config-card-icon blue">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                        </div>
+                        <div class="modal-config-card-content">
+                            <h3>Parâmetros Fiscais (NCM / ICMS-ST)</h3>
+                            <p class="modal-config-card-subtitle">IPI e impostos por NCM e alíquotas de ICMS-ST</p>
+                        </div>
+                    </div>
+
+                    <div class="modal-config-card admin-only" onclick="abrirConfiguracao('sefaz-status')" tabindex="0" data-admin-only="true" style="display:none;">
+                        <div class="modal-config-card-icon red">
+                            <i class="fas fa-satellite-dish"></i>
+                        </div>
+                        <div class="modal-config-card-content">
+                            <h3>SEFAZ — Comunicação Fiscal</h3>
+                            <p class="modal-config-card-subtitle">Status do serviço, ambiente e histórico de transmissão (admin)</p>
+                        </div>
+                    </div>
+                    <script>
+                        // Mostra cards admin-only apenas para usuários admin
+                        (function applyAdminVisibility() {
+                            try {
+                                const ADMIN_CODES = { admin: true, administrador: true, super_admin: true, ti: true, diretoria: true };
+                                const norm = v => String(v || '').toLowerCase().trim().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9_-]+/g, '_');
+                                let u = null;
+                                for (const key of ['userData', 'user', 'usuarioLogado']) {
+                                    try {
+                                        const raw = localStorage.getItem(key);
+                                        if (raw) { u = JSON.parse(raw); if (u && typeof u === 'object') break; }
+                                    } catch (_) {}
+                                }
+                                let isAdmin = false;
+                                if (u) {
+                                    if (u.is_admin === 1 || u.is_admin === true || u.isAdmin === true) isAdmin = true;
+                                    else if (ADMIN_CODES[norm(u.role || u.perfil || u.cargo || u.tipo_acesso)]) isAdmin = true;
+                                    else {
+                                        const perms = u.permissions || u.permissoes;
+                                        const list = Array.isArray(perms) ? perms : (perms && typeof perms === 'object' ? Object.keys(perms) : []);
+                                        isAdmin = list.some(p => { const c = norm(p); return c === 'admin_all' || ADMIN_CODES[c]; });
+                                    }
+                                }
+                                if (isAdmin) {
+                                    document.querySelectorAll('.modal-config-card.admin-only').forEach(el => el.style.display = '');
+                                }
+                            } catch (_) {}
+                        })();
+                    </script>
+
                     <div class="modal-config-card" onclick="abrirConfiguracao('importacao-nfe')" tabindex="0">
                         <div class="modal-config-card-icon teal">
                             <i class="fas fa-file-invoice"></i>

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <!-- Favicon -->
@@ -14,7 +14,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Aluforce: Requisições de Compra</title>
+    <title>Zyntra: Requisições de Compra</title>
 
     <!-- Sistema de Autenticação Unificado -->
     <script src="/js/auth-unified.js?v=20260301" defer></script>
@@ -29,8 +29,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 
     <!-- CSS Padrão Global -->
-    <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260301">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260418">
+    <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260701">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260701">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260301">
     <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
     <style>
@@ -246,7 +247,7 @@
     <script src="/js/anti-copy-protection.js" defer></script>
     <!-- Chat Widget BOB AI -->
     <link rel="stylesheet" href="/chat/widget.css?v=20260301">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260701">
 </head>
 <body>
     <div class="app-container">
@@ -275,9 +276,9 @@
                 <div class="header-left">
                     <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
                     <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
                         <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Requisições</span>
                     </div>
@@ -362,6 +363,7 @@
                             <tr>
                                 <th style="width:50px">#</th>
                                 <th>Nº Requisição</th>
+                                <th>Item / Material</th>
                                 <th>Solicitante</th>
                                 <th>Data</th>
                                 <th>Centro de Custo</th>
@@ -574,7 +576,13 @@
     document.addEventListener('DOMContentLoaded', () => {
         atualizarSaudacaoUsuario(usuarioLogado);
         carregarUsuarioLogado();
-        carregarDadosIniciais();
+        carregarDadosIniciais().then(() => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('action') === 'new') {
+                abrirModalNovaRequisicao();
+                history.replaceState(null, '', window.location.pathname);
+            }
+        });
         configurarEventos();
     });
 
@@ -589,7 +597,16 @@
     }
 
     async function carregarDadosIniciais() {
-        await Promise.all([carregarRequisicoes(), carregarMateriais(), carregarCentrosCusto()]);
+        // AUDIT #009: centros de custo primeiro, para resolver ID->nome no render das requisições
+        await carregarCentrosCusto();
+        await Promise.all([carregarRequisicoes(), carregarMateriais()]);
+    }
+
+    // AUDIT #009: resolve o valor de departamento/centro_custo (pode vir como ID) para o nome legível
+    function nomeCentroCusto(val) {
+        if (val === null || val === undefined || val === '') return '-';
+        const cc = (centrosCustoData || []).find(c => String(c.id) === String(val));
+        return cc ? (cc.nome || cc.departamento || String(val)) : String(val);
     }
 
     async function carregarRequisicoes() {
@@ -688,8 +705,8 @@
                 <td><strong>${r.numero || '-'}</strong></td>
                 <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(r.itens?.[0]?.descricao || r.observacoes || '').replace(/"/g, '&quot;')}">${(r.itens?.[0]?.descricao || r.observacoes || '-').substring(0, 40)}</td>
                 <td>${r.solicitante || '-'}</td>
-                <td>${formatarData(r.data_solicitacao)}</td>
-                <td>${r.centro_custo || r.departamento || '-'}</td>
+                <td>${formatarData(r.data_requisicao || r.data_solicitacao || r.created_at)}</td>
+                <td>${nomeCentroCusto(r.centro_custo || r.departamento)}</td>
                 <td><span class="badge badge-${r.prioridade === 'urgente' ? 'urgent' : r.prioridade === 'alta' ? 'pending' : r.prioridade === 'normal' ? 'in-progress' : 'approved'}">${{urgente:'Urgente',alta:'Alta',media:'Média',normal:'Normal',baixa:'Baixa'}[r.prioridade] || 'Normal'}</span></td>
                 <td>${formatarMoeda(r.valor_estimado > 0 ? r.valor_estimado : (r.itens || []).reduce((s,i) => s + parseFloat(i.valor_estimado || i.preco_unitario || 0) * (parseFloat(i.quantidade) || 1), 0))}</td>
                 <td><span class="badge badge-${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td>
@@ -760,30 +777,30 @@
             </div>
             <div class="form-grid cols-4">
                 <div class="form-group" style="grid-column:span 2;">
-                    <label>Material/Produto</label>
+                    <label class="form-label">Material/Produto</label>
                     <select class="form-control" id="itemMaterial-${id}" onchange="buscarPrecoMaterial(this, ${id})">
                         <option value="">— Selecionar material —</option>
                         ${materiaisOptions}
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Quantidade</label>
+                    <label class="form-label">Quantidade</label>
                     <input type="number" class="form-control" id="itemQtd-${id}" min="1" value="1" onchange="calcularSubtotal(${id})">
                 </div>
                 <div class="form-group">
-                    <label>Unidade</label>
+                    <label class="form-label">Unidade</label>
                     <select class="form-control" id="itemUnidade-${id}"><option value="UN">UN</option><option value="KG">KG</option><option value="M">M</option><option value="L">L</option><option value="CX">CX</option><option value="PC">PC</option></select>
                 </div>
                 <div class="form-group">
-                    <label>Preço Unit. Est.</label>
+                    <label class="form-label">Preço Unit. Est.</label>
                     <input type="text" class="form-control" id="itemPreco-${id}" value="R$ 0,00" oninput="mascaraMoedaInput(this)" onblur="formatarPrecoBlur(this); calcularSubtotal(${id})" onchange="calcularSubtotal(${id})">
                 </div>
                 <div class="form-group">
-                    <label>Subtotal</label>
+                    <label class="form-label">Subtotal</label>
                     <input type="text" class="form-control" id="itemSubtotal-${id}" readonly value="R$ 0,00">
                 </div>
                 <div class="form-group" style="grid-column:span 2;">
-                    <label>Descrição/Especificação</label>
+                    <label class="form-label">Descrição/Especificação</label>
                     <input type="text" class="form-control" id="itemSpec-${id}" placeholder="Use para item avulso ou detalhes adicionais...">
                 </div>
             </div>
@@ -898,10 +915,14 @@
         if (itemSemDescricao) { showToast('Selecione um material ou preencha a descrição de todos os itens', 'warning'); return; }
         const itemSemQtd = items.find(i => !i.quantidade || i.quantidade <= 0);
         if (itemSemQtd) { showToast('Informe a quantidade de todos os itens (maior que zero)', 'warning'); return; }
+        const itemSemPreco = items.find(i => !(parseFloat(i.valor_estimado) > 0));
+        if (itemSemPreco) { showToast('Informe o preço estimado de todos os itens (maior que zero)', 'warning'); return; }
 
         const prioridade = document.querySelector('input[name="prioridade"]:checked')?.value || 'normal';
         const solicitante = document.getElementById('reqSolicitante')?.value || (usuarioLogado ? (usuarioLogado.nome || usuarioLogado.name) : 'Usuário');
         const solicitante_id = usuarioLogado ? (usuarioLogado.id || null) : null;
+        // FALHA 8: 'justificativa' era referenciada sem ser definida (ReferenceError quebrava o salvamento)
+        const justificativa = document.getElementById('reqJustificativa')?.value?.trim() || null;
         const body = {
             numero,
             solicitante,
@@ -927,7 +948,7 @@
             const url = editingId ? `/api/compras/requisicoes/${editingId}` : '/api/compras/requisicoes';
             const method = editingId ? 'PUT' : 'POST';
             const r = await fetch(url, {
-                method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                method, headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, // __FIX_B1__
                 credentials: 'include',
                 body: JSON.stringify(body)
             });
@@ -965,8 +986,8 @@
                 '<div class="view-section"><h4>Informações Gerais</h4><div class="view-grid">' +
                 '<div class="view-item"><label>Nº Requisição</label><p>' + (req.numero || '-') + '</p></div>' +
                 '<div class="view-item"><label>Solicitante</label><p>' + (req.solicitante || '-') + '</p></div>' +
-                '<div class="view-item"><label>Data</label><p>' + formatarData(req.data_solicitacao) + '</p></div>' +
-                '<div class="view-item"><label>Centro de Custo</label><p>' + (req.centro_custo || '-') + '</p></div>' +
+                '<div class="view-item"><label>Data</label><p>' + formatarData(req.data_requisicao || req.data_solicitacao || req.created_at) + '</p></div>' +
+                '<div class="view-item"><label>Centro de Custo</label><p>' + nomeCentroCusto(req.centro_custo || req.departamento) + '</p></div>' +
                 '<div class="view-item"><label>Prioridade</label><p><span class="badge badge-' + (req.prioridade === 'urgente' ? 'urgent' : req.prioridade === 'alta' ? 'pending' : req.prioridade === 'normal' ? 'in-progress' : 'approved') + '">' + ({urgente:'Urgente',alta:'Alta',media:'Média',normal:'Normal',baixa:'Baixa'}[req.prioridade] || 'Normal') + '</span></p></div>' +
                 '<div class="view-item"><label>Status</label><p><span class="badge badge-' + getStatusClass(req.status) + '">' + getStatusLabel(req.status) + '</span></p></div>' +
                 '</div></div>' +
@@ -1185,5 +1206,6 @@
     <!-- Enterprise Shared -->
     <script src="/js/sidebar-click-animation.js?v=20260301"></script>
     <script src="/_shared/accessibility-widget.js?v=20260418"></script>
+    <script src="/js/modal-guard.js?v=20260704"></script>
 </body>
 </html>

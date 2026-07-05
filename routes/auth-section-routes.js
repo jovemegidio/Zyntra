@@ -5,12 +5,14 @@
  */
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 let logger;
 try { logger = require('../src/logger'); } catch(_) { logger = console; }
 const userPermissions = require('../src/permissions-server');
 
 module.exports = function createAuthSectionRoutes(deps) {
-    const { pool, authenticateToken, authorizeArea, authorizeAdmin, writeAuditLog, jwt, JWT_SECRET, app } = deps;
+    const { pool, authenticateToken, authorizeArea, authorizeAdmin, writeAuditLog, jwt, JWT_SECRET, app, sendEmail, enviarEmail } = deps;
     const router = express.Router();
 
     // ⚡ Cache functions — importadas diretamente do serviço de cache
@@ -41,6 +43,158 @@ module.exports = function createAuthSectionRoutes(deps) {
         if (!errors.isEmpty()) return res.status(400).json({ message: 'Dados inválidos', errors: errors.array() });
         next();
     };
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function normalizeInviteGroup(group) {
+        return String(group || 'Visualizador').trim() || 'Visualizador';
+    }
+
+    function groupAccess(group) {
+        const normalized = normalizeInviteGroup(group)
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
+
+        if (normalized.includes('administrador') || normalized === 'admin') {
+            return {
+                role: 'admin',
+                isAdmin: 1,
+                areas: ['vendas', 'financeiro', 'rh', 'pcp', 'compras', 'nfe', 'dashboard']
+            };
+        }
+        if (normalized.includes('financeiro')) return { role: 'user', isAdmin: 0, areas: ['financeiro'] };
+        if (normalized.includes('vendas') || normalized.includes('comercial')) return { role: 'user', isAdmin: 0, areas: ['vendas'] };
+        if (normalized.includes('compras')) return { role: 'user', isAdmin: 0, areas: ['compras'] };
+        if (normalized.includes('pcp')) return { role: 'user', isAdmin: 0, areas: ['pcp'] };
+        if (normalized.includes('rh') || normalized.includes('recursos humanos')) return { role: 'user', isAdmin: 0, areas: ['rh'] };
+        if (normalized.includes('nfe') || normalized.includes('nf-e') || normalized.includes('fiscal')) return { role: 'user', isAdmin: 0, areas: ['nfe'] };
+        if (normalized.includes('consultoria')) return { role: 'consultoria', isAdmin: 0, areas: ['vendas'] };
+        return { role: 'user', isAdmin: 0, areas: [] };
+    }
+
+    function getBaseUrl(req) {
+        if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/+$/, '');
+        const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+        const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+        return `${proto}://${host}`.replace(/\/+$/, '');
+    }
+
+    function buildRegistrationEmail({ nome, email, empresa, grupo, registrationLink, loginLink, expiresHours }) {
+        const safeNome = escapeHtml(nome);
+        const safeEmail = escapeHtml(email);
+        const safeEmpresa = escapeHtml(empresa || 'Zyntra');
+        const safeGrupo = escapeHtml(grupo || 'Visualizador');
+        const safeRegistrationLink = escapeHtml(registrationLink);
+        const safeLoginLink = escapeHtml(loginLink);
+        const text = [
+            `Ola ${nome},`,
+            '',
+            `Voce foi convidado para acessar ${empresa || 'o sistema Zyntra'}.`,
+            `Grupo de acesso: ${grupo || 'Visualizador'}.`,
+            '',
+            'Crie sua senha e complete seu cadastro pelo link abaixo:',
+            registrationLink,
+            '',
+            `O link expira em ${expiresHours} horas.`,
+            `Depois do cadastro, acesse o sistema em: ${loginLink}`,
+            '',
+            'Se voce nao esperava este convite, ignore este email.'
+        ].join('\n');
+
+        const html = `
+            <div style="margin:0;padding:0;background:#f4f6fb;width:100%;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f4f6fb;">
+                    <tr>
+                        <td align="center" style="padding:36px 16px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" width="560" style="width:100%;max-width:560px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e5e7eb;">
+                                <tr>
+                                    <td style="background:#1f1b46;padding:34px 32px;text-align:center;">
+                                        <div style="font-family:Arial,sans-serif;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#a5b4fc;margin-bottom:10px;">Zyntra</div>
+                                        <h1 style="font-family:Arial,sans-serif;font-size:26px;line-height:1.25;color:#ffffff;margin:0;">Bem-vindo ao sistema</h1>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:34px 32px 28px;">
+                                        <p style="font-family:Arial,sans-serif;font-size:16px;line-height:1.6;color:#111827;margin:0 0 14px;">Ola <strong>${safeNome}</strong>,</p>
+                                        <p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#4b5563;margin:0 0 22px;">Voce foi convidado para acessar <strong>${safeEmpresa}</strong>. Para entrar no sistema, crie sua senha e complete o cadastro pelo link abaixo.</p>
+                                        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 24px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;">
+                                            <tr>
+                                                <td style="padding:16px 18px;">
+                                                    <p style="font-family:Arial,sans-serif;font-size:13px;color:#6b7280;margin:0 0 6px;">E-mail</p>
+                                                    <p style="font-family:Arial,sans-serif;font-size:15px;color:#111827;margin:0 0 14px;">${safeEmail}</p>
+                                                    <p style="font-family:Arial,sans-serif;font-size:13px;color:#6b7280;margin:0 0 6px;">Grupo de acesso</p>
+                                                    <p style="font-family:Arial,sans-serif;font-size:15px;color:#111827;margin:0;">${safeGrupo}</p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <div style="text-align:center;margin:28px 0;">
+                                            <a href="${safeRegistrationLink}" target="_blank" style="display:inline-block;background:#6254e8;color:#ffffff;font-family:Arial,sans-serif;font-size:15px;font-weight:700;text-decoration:none;padding:15px 28px;border-radius:10px;">Criar senha e acessar</a>
+                                        </div>
+                                        <p style="font-family:Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b7280;margin:0 0 12px;">Este link expira em <strong>${expiresHours} horas</strong>. Se o botao nao abrir, copie e cole este endereco no navegador:</p>
+                                        <p style="font-family:Arial,sans-serif;font-size:12px;line-height:1.5;color:#4b5563;background:#f3f4f6;border-radius:8px;padding:12px;word-break:break-all;margin:0;">${safeRegistrationLink}</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="background:#f8fafc;border-top:1px solid #e5e7eb;padding:20px 32px;text-align:center;">
+                                        <p style="font-family:Arial,sans-serif;font-size:12px;color:#6b7280;margin:0 0 6px;">Depois do cadastro, acesse: <a href="${safeLoginLink}" style="color:#6254e8;text-decoration:none;">${safeLoginLink}</a></p>
+                                        <p style="font-family:Arial,sans-serif;font-size:11px;color:#9ca3af;margin:0;">Email automatico. Nao responda.</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        `;
+
+        return { subject: 'Bem-vindo ao Zyntra - complete seu cadastro', text, html };
+    }
+
+    async function sendInviteEmail(to, subject, text, html) {
+        if (typeof sendEmail === 'function') {
+            return sendEmail(to, subject, html, text);
+        }
+        if (typeof enviarEmail === 'function') {
+            const ok = await enviarEmail(to, subject, text, html);
+            return { success: ok !== false };
+        }
+        return { success: false, error: 'Servico de email nao configurado' };
+    }
+
+    async function ensureInviteTokenTable() {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id INT NOT NULL AUTO_INCREMENT,
+                email VARCHAR(255) NOT NULL,
+                token VARCHAR(255) NOT NULL,
+                expira_em DATETIME NOT NULL,
+                usado TINYINT(1) DEFAULT 0,
+                criado_em TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY token (token),
+                KEY idx_token (token),
+                KEY idx_email (email),
+                KEY idx_expira_em (expira_em)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+    }
+
+    async function getUsuarioColumns() {
+        const [columns] = await pool.query('SHOW COLUMNS FROM usuarios');
+        return new Set((columns || []).map(col => col.Field));
+    }
+
+    function modulePermissionValue(area, accessAreas) {
+        return JSON.stringify(accessAreas.includes(area) ? ['acesso'] : []);
+    }
+
     // LGPD router require
     let createLGPDRouter;
     try { createLGPDRouter = require('./lgpd').createLGPDRouter; } catch(_) {}
@@ -80,7 +234,8 @@ module.exports = function createAuthSectionRoutes(deps) {
     router.post('/login', authLimiter, async (req, res) => {
         logger.warn('[SERVER/LOGIN-FALLBACK] Rota de login fallback atingida - authRouter pode não estar funcionando');
         try {
-            const { email, password } = req.body;
+            const { email, password, remember } = req.body;
+            const manterConectado = remember === true || remember === 'true' || remember === 1 || remember === '1';
 
             if (!email || !password) {
                 return res.status(400).json({ message: 'Email e senha são obrigatórios.' });
@@ -198,7 +353,7 @@ module.exports = function createAuthSectionRoutes(deps) {
             };
 
             // AUDIT-FIX ARCH-004: Added algorithm HS256 + audience claim
-            const token = jwt.sign(tokenPayload, JWT_SECRET, { algorithm: 'HS256', audience: 'aluforce', expiresIn: '8h' });
+            const token = jwt.sign(tokenPayload, JWT_SECRET, { algorithm: 'HS256', audience: 'aluforce', expiresIn: manterConectado ? '30d' : '8h' });
 
             // Definir cookie httpOnly - secure=true para HTTPS (produção)
             const isSecure = req.headers['x-forwarded-proto'] === 'https' || process.env.NODE_ENV === 'production' || req.secure;
@@ -206,7 +361,7 @@ module.exports = function createAuthSectionRoutes(deps) {
                 httpOnly: true,
                 secure: isSecure,
                 sameSite: isSecure ? 'none' : 'lax', // 'none' para cross-site com HTTPS
-                maxAge: 8 * 60 * 60 * 1000, // 8 horas
+                maxAge: (manterConectado ? 24 * 30 : 8) * 60 * 60 * 1000, // 30 dias se "manter conectado", senão 8 horas
                 path: '/'
             });
 
@@ -637,6 +792,7 @@ module.exports = function createAuthSectionRoutes(deps) {
                     role: user.role,
                     is_admin: user.is_admin,
                     ativo: user.ativo,
+                    status: user.status,
                     lookupName,
                     areas,
                     profile: profile ? { id: profile.id, label: profile.label } : null,
@@ -651,7 +807,120 @@ module.exports = function createAuthSectionRoutes(deps) {
         }
     });
 
-    // POST /api/permissions/check - Verificar se o usuário atual tem uma permissão
+    // POST /api/permissions/users/invite - Convidar usuario por email com link de cadastro
+    router.post('/permissions/users/invite', authenticateToken, asyncHandler(async (req, res) => {
+        const isAdmin = req.user.role === 'admin' || req.user.is_admin === 1 || req.user.is_admin === true;
+        if (!isAdmin) return res.status(403).json({ message: 'Acesso restrito a administradores' });
+
+        const nome = String(req.body.name || req.body.nome || '').trim();
+        const email = String(req.body.email || '').trim().toLowerCase();
+        const grupo = normalizeInviteGroup(req.body.group || req.body.grupo);
+        const empresa = String(req.body.companyName || req.body.empresa || 'Zyntra').trim();
+
+        if (!nome) return res.status(400).json({ message: 'Nome do usuario e obrigatorio' });
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+            return res.status(400).json({ message: 'Email invalido' });
+        }
+
+        const access = groupAccess(grupo);
+        const columns = await getUsuarioColumns();
+        const login = email.split('@')[0];
+        const tempPasswordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
+
+        const [existingRows] = await pool.query('SELECT id, email FROM usuarios WHERE LOWER(email) = ? LIMIT 1', [email]);
+        let userId = existingRows?.[0]?.id || null;
+
+        const assignable = {};
+        if (columns.has('nome')) assignable.nome = nome;
+        if (columns.has('nome_completo')) assignable.nome_completo = nome;
+        if (columns.has('login')) assignable.login = login;
+        if (columns.has('role')) assignable.role = access.role;
+        if (columns.has('is_admin')) assignable.is_admin = access.isAdmin;
+        if (columns.has('areas')) assignable.areas = JSON.stringify(access.areas);
+        if (columns.has('permissoes_vendas')) assignable.permissoes_vendas = modulePermissionValue('vendas', access.areas);
+        if (columns.has('permissoes_financeiro')) assignable.permissoes_financeiro = modulePermissionValue('financeiro', access.areas);
+        if (columns.has('permissoes_rh')) assignable.permissoes_rh = modulePermissionValue('rh', access.areas);
+        if (columns.has('permissoes_pcp')) assignable.permissoes_pcp = modulePermissionValue('pcp', access.areas);
+        if (columns.has('permissoes_compras')) assignable.permissoes_compras = modulePermissionValue('compras', access.areas);
+        if (columns.has('permissoes_nfe')) assignable.permissoes_nfe = modulePermissionValue('nfe', access.areas);
+        if (columns.has('status') && !userId) assignable.status = 'pendente';
+        if (columns.has('ativo') && !userId) assignable.ativo = 1;
+        if (columns.has('senha_temporaria') && !userId) assignable.senha_temporaria = 1;
+
+        if (userId) {
+            const updateEntries = Object.entries(assignable);
+            if (updateEntries.length) {
+                const setClause = updateEntries.map(([field]) => `\`${field}\` = ?`).join(', ');
+                await pool.query(`UPDATE usuarios SET ${setClause} WHERE id = ?`, [...updateEntries.map(([, value]) => value), userId]);
+            }
+        } else {
+            if (columns.has('email')) assignable.email = email;
+            if (columns.has('senha_hash')) assignable.senha_hash = tempPasswordHash;
+            if (columns.has('password_hash')) assignable.password_hash = tempPasswordHash;
+            if (columns.has('senha')) assignable.senha = tempPasswordHash;
+
+            const insertEntries = Object.entries(assignable);
+            if (!insertEntries.some(([field]) => field === 'email')) {
+                return res.status(500).json({ message: 'Tabela usuarios sem coluna email' });
+            }
+
+            const fields = insertEntries.map(([field]) => `\`${field}\``).join(', ');
+            const placeholders = insertEntries.map(() => '?').join(', ');
+            const [insertResult] = await pool.query(
+                `INSERT INTO usuarios (${fields}) VALUES (${placeholders})`,
+                insertEntries.map(([, value]) => value)
+            );
+            userId = insertResult.insertId;
+        }
+
+        await ensureInviteTokenTable();
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresHours = Math.max(1, parseInt(process.env.INVITE_TOKEN_TTL_HOURS || '48', 10));
+        const expiresAt = new Date(Date.now() + expiresHours * 60 * 60 * 1000);
+        await pool.query('UPDATE password_reset_tokens SET usado = 1 WHERE email = ? AND usado = 0', [email]).catch(() => {});
+        await pool.query(
+            'INSERT INTO password_reset_tokens (email, token, expira_em) VALUES (?, ?, ?)',
+            [email, token, expiresAt]
+        );
+
+        const baseUrl = getBaseUrl(req);
+        const requestedLoginPath = String(req.body.loginPath || '/login.html');
+        const loginPath = requestedLoginPath.startsWith('/') ? requestedLoginPath : '/login.html';
+        const loginLink = `${baseUrl}${loginPath}`;
+        const registrationLink = `${baseUrl}/reset-password.html?token=${encodeURIComponent(token)}&invite=1&returnTo=${encodeURIComponent(loginPath)}`;
+        const emailPayload = buildRegistrationEmail({
+            nome,
+            email,
+            empresa,
+            grupo,
+            registrationLink,
+            loginLink,
+            expiresHours
+        });
+        const emailResult = await sendInviteEmail(email, emailPayload.subject, emailPayload.text, emailPayload.html);
+        const emailSent = emailResult && emailResult.success !== false;
+
+        if (typeof writeAuditLog === 'function') {
+            writeAuditLog({
+                userId: req.user.id,
+                action: 'Convidou usuario',
+                module: 'Permissoes',
+                description: `Convite enviado para ${email} (${grupo})`,
+                ip: req.ip
+            }).catch(() => {});
+        }
+
+        return res.status(emailSent ? 201 : 202).json({
+            success: true,
+            emailSent,
+            user: { id: userId, nome, email, status: 'Pendente', group: grupo },
+            message: emailSent
+                ? 'Convite enviado com sucesso'
+                : `Convite criado, mas o email nao foi enviado: ${emailResult?.error || 'SMTP indisponivel'}`,
+            ...(process.env.NODE_ENV !== 'production' ? { registrationLink } : {})
+        });
+    }));
+
     router.post('/permissions/check', authenticateToken, (req, res) => {
         const { module, action } = req.body;
         if (!module || !action) return res.status(400).json({ message: 'module e action são obrigatórios' });
@@ -1192,8 +1461,12 @@ module.exports = function createAuthSectionRoutes(deps) {
                 [email, token, expiresAt]
             );
 
-            // Gerar link de reset
-            const resetLink = `http://localhost:${PORT}/reset-password.html?token=${token}`;
+            // Gerar link de reset — usa o host real da requisição (produção/instância),
+            // caindo para localhost apenas em ambiente de desenvolvimento.
+            const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+            const host = req.headers['x-forwarded-host'] || req.headers.host || `localhost:${PORT}`;
+            const baseUrl = process.env.PUBLIC_BASE_URL || `${proto}://${host}`;
+            const resetLink = `${baseUrl}/reset-password.html?token=${token}`;
 
             // Enviar email
             try {
@@ -1335,6 +1608,15 @@ module.exports = function createAuthSectionRoutes(deps) {
                 [senhaHash, email]
             );
 
+            await pool.query(
+                "UPDATE usuarios SET status = 'ativo' WHERE email = ? AND LOWER(COALESCE(status, '')) IN ('pendente', 'pending', 'convite_enviado')",
+                [email]
+            ).catch(() => {});
+            await pool.query(
+                'UPDATE usuarios SET ativo = 1, senha_temporaria = 0 WHERE email = ?',
+                [email]
+            ).catch(() => {});
+
             // Marcar token como usado
             await pool.query(
                 'UPDATE password_reset_tokens SET usado = 1 WHERE token = ?',
@@ -1407,7 +1689,8 @@ module.exports = function createAuthSectionRoutes(deps) {
     router.get('/dashboard', requireAuthPage, (req, res) => {
         const _emailLow = (req.user?.email || '').toLowerCase();
         if (_emailLow.endsWith('@labor.com.br')) {
-            return res.redirect(302, '/Zyntra-SGE/Empresas/dashboard.html');
+            // Usuários @labor.com.br vão direto para o portal Labor Eletric
+            return res.redirect(302, '/labor-eletric/apps');
         }
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -1454,7 +1737,7 @@ module.exports = function createAuthSectionRoutes(deps) {
         if (req.user && req.user.nome) {
             const firstName = req.user.nome.split(' ')[0].toLowerCase();
             if (userPermissions.hasAccess(firstName, 'financeiro')) {
-                res.sendFile(path.join(__dirname, '..', 'modules', 'Financeiro', 'public', 'index.html'));
+                res.sendFile(path.join(__dirname, '..', 'modules', 'Financeiro', 'index.html'));
             } else {
                 res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo Financeiro.</p>');
             }
@@ -1467,7 +1750,7 @@ module.exports = function createAuthSectionRoutes(deps) {
         if (req.user && req.user.nome) {
             const firstName = req.user.nome.split(' ')[0].toLowerCase();
             if (userPermissions.hasAccess(firstName, 'financeiro')) {
-                res.sendFile(path.join(__dirname, '..', 'modules', 'Financeiro', 'public', 'index.html'));
+                res.sendFile(path.join(__dirname, '..', 'modules', 'Financeiro', 'index.html'));
             } else {
                 res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo Financeiro.</p>');
             }

@@ -13,9 +13,10 @@
     --sidebar-width: 48px;
     --header-height: 42px;
 
-    /* Brand RH â€” Institucional Indigo */
-    --primary-dark: #ffffff;
-    --primary-pink: #6366f1;
+    /* Brand RH — Institucional Indigo */
+    /* NAV-001 fix: --primary-dark era #ffffff causando sidebar branca — removido.
+       COR-004 fix: renomeado --primary-pink para --rh-accent (nome semântico correto). */
+    --rh-accent: #6366f1;
     --primary-orange: #f97316;
 
     /* Cores de Estado (bridge para modern-saas.css) */
@@ -50,7 +51,8 @@ body {
 
 .sidebar {
     width: var(--sidebar-width);
-    background: var(--primary-dark);
+    /* NAV-001 fix: era var(--primary-dark) que estava #ffffff → sidebar branca */
+    background: #1e293b;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -60,7 +62,7 @@ body {
 
 .sidebar-logo {
     width: 36px; height: 36px;
-    background: var(--primary-pink);
+    background: var(--rh-accent);
     border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
     margin-bottom: 20px;
@@ -86,7 +88,7 @@ body {
     position: relative;
 }
 .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
-.sidebar-btn.active { background: var(--primary-pink); color: white; }
+.sidebar-btn.active { background: var(--rh-accent); color: white; }
 
 /* Tooltips sidebar (complementados pelo global-header-sidebar.css) */
 .sidebar-btn::after {
@@ -123,7 +125,8 @@ body {
 /* Header */
 .header {
     height: var(--header-height);
-    background: var(--primary-dark);
+    /* NAV-001 fix: era var(--primary-dark) que estava #ffffff → header branco */
+    background: #1e293b;
     display: flex; align-items: center; justify-content: space-between;
     padding: 0 16px;
     flex-shrink: 0;
@@ -138,7 +141,7 @@ body {
 .header-btn {
     width: 36px; height: 36px;
     border: none; background: transparent;
-    color: #8b8b9a; border-radius: 8px;
+    color: #8b8b9a; border-radius: 6px; /* NAV-007 fix: era 8px, padrão global é 6px */
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     font-size: 16px;
@@ -192,7 +195,7 @@ body {
     background-color: #fff;
     margin: 2% auto;
     padding: 0;
-    border-radius: 12px;
+    border-radius: 16px; /* MOD-001 fix: era 12px, padrão é 16px */
     width: 90%;
     max-width: 800px;
     max-height: 90vh;
@@ -207,10 +210,11 @@ body {
 }
 
 .modal-header {
-    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    /* MOD-002 fix: era gradiente indigo (#6366f1) → agora padrão escuro institucional */
+    background: linear-gradient(135deg, #0f172a, #1e293b);
     color: white;
     padding: 24px;
-    border-radius: 12px 12px 0 0;
+    border-radius: 16px 16px 0 0; /* MOD-001 fix: alinhado com border-radius do modal */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -232,22 +236,22 @@ body {
     font-size: 24px;
     cursor: pointer;
     width: 36px; height: 36px;
-    border-radius: 50%;
+    border-radius: 8px; /* MOD-006 fix: era 50% (círculo), padrão é 8px (retangular) */
     display: flex; align-items: center; justify-content: center;
     transition: background-color 0.2s;
 }
 .modal-close:hover { background: rgba(255,255,255,0.3); }
 
-.modal-body { padding: 32px; }
+.modal-body { padding: 24px; } /* ESP-006 fix: era 32px, padrão é 24px */
 
 .modal-footer {
-    padding: 24px 32px;
+    padding: 24px; /* ESP-006 fix: era 24px 32px */
     border-top: 1px solid #e2e8f0;
     display: flex;
     justify-content: flex-end;
     gap: 12px;
     background-color: #f8fafc;
-    border-radius: 0 0 12px 12px;
+    border-radius: 0 0 16px 16px; /* MOD-001 fix: alinhado */
 }
 
 /* ============================================================
@@ -285,17 +289,17 @@ body {
     margin-bottom: 8px;
     font-weight: 500;
     color: #374151;
-    font-size: 14px;
+    font-size: 13px; /* TIP-002 fix: era 14px, padrão global é 13px */
 }
 
 .form-group input,
 .form-group select,
 .form-group textarea {
     width: 100%;
-    padding: 12px 16px;
+    padding: 8px 12px; /* INP-001 fix: era 12px 16px → padrão 8px 12px (~36px) */
     border: 1px solid #d1d5db;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 13px; /* TIP-002 fix: era 14px, padrão global é 13px */
     font-family: inherit;
     transition: border-color 0.2s, box-shadow 0.2s;
     box-sizing: border-box;
@@ -305,8 +309,8 @@ body {
 .form-group select:focus,
 .form-group textarea:focus {
     outline: none;
-    border-color: #6366f1;
-    box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+    border-color: #60a5fa; /* INP-006 fix: era #6366f1 (indigo), padrão é #60a5fa (azul) */
+    box-shadow: 0 0 0 3px rgba(96,165,250,0.15); /* INP-006 fix: cor e opacidade padronizados */
 }
 
 .form-group textarea {
@@ -324,11 +328,11 @@ body {
    Classes .btn funcionam como fallback para .saas-btn
    ============================================================ */
 .btn {
-    padding: 12px 24px;
+    padding: 8px 16px; /* TIP-003/BTN-003 fix: era 12px 24px, padrão global é 8px 14-16px */
     border: none;
     border-radius: 8px;
     font-weight: 600;
-    font-size: 14px;
+    font-size: 13px; /* TIP-003 fix: era 14px, padrão global é 13px */
     cursor: pointer;
     transition: all 0.2s;
     display: inline-flex;
@@ -339,11 +343,11 @@ body {
 }
 
 .btn-primary {
-    background: #6366f1;
+    background: #2563eb; /* BTN-005 fix: era #6366f1 (indigo) → #2563eb (azul, var(--primary-600)) */
     color: white;
 }
 .btn-primary:hover {
-    background: #4f46e5;
+    background: #1d4ed8;
     transform: translateY(-1px);
 }
 
@@ -452,7 +456,7 @@ table th {
 
 table td {
     padding: 12px 16px;
-    font-size: 14px;
+    font-size: 13px; /* TIP-007 fix: era 14px, padrão global é 13px */
     color: #1f2937;
     border-bottom: 1px solid #f3f4f6;
 }
@@ -479,7 +483,7 @@ table tr:hover td {
 }
 
 .card-header h3 {
-    font-size: 18px;
+    font-size: 15px; /* TIP-005 fix: era 18px, padrão Compras/design-system é 15px/14px */
     font-weight: 600;
     color: #1a202c;
     display: flex;
@@ -611,7 +615,7 @@ h1.title,
 .metric-card,
 .summary-card {
     background: white;
-    border-radius: 12px;
+    border-radius: 16px; /* KPI-005 fix: era 12px, padrão é 16px */
     padding: 20px;
     border: 1px solid #e2e8f0;
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
@@ -669,8 +673,8 @@ button[class*="btn-"]:active {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 4px 10px;
-    border-radius: 6px;
+    padding: 3px 9px; /* BAD-001 fix: era 4px 10px, padrão design-system é 3px 9px */
+    border-radius: 9999px; /* BAD-002/003 fix: era 6px, padrão é pill (9999px) */
     font-size: 12px;
     font-weight: 600;
     line-height: 1.4;
@@ -681,10 +685,10 @@ input.form-input,
 select.form-input,
 textarea.form-input,
 .form-control {
-    border: 1.5px solid #e2e8f0;
+    border: 1px solid #e2e8f0; /* INP-002/003 fix: era 1.5px, padrão é 1px */
     border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 14px;
+    padding: 8px 12px; /* INP-001 fix: era 10px 14px → padrão 8px 12px (~36px) */
+    font-size: 13px; /* TIP-002 fix: era 14px, padrão global é 13px */
     font-family: 'Inter', sans-serif;
     transition: border-color 0.2s, box-shadow 0.2s;
     background: white;
@@ -697,8 +701,8 @@ select.form-input:focus,
 textarea.form-input:focus,
 .form-control:focus {
     outline: none;
-    border-color: #6366f1;
-    box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    border-color: #60a5fa; /* INP-006/007 fix: era #6366f1 (indigo) → azul padrão */
+    box-shadow: 0 0 0 3px rgba(96,165,250,0.15); /* INP-006 fix: cor e opacidade padronizados */
 }
 
 input.form-input::placeholder,
@@ -713,14 +717,14 @@ table {
 }
 
 table thead th {
-    background: linear-gradient(180deg, #f8fafc, #f1f5f9);
-    font-size: 12px;
+    background: #f8fafc; /* TAB-001 fix: era linear-gradient, padrão é flat #f8fafc */
+    font-size: 11px; /* TAB-003 fix: era 12px, padrão Faturamento/Compras é 11px */
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: #475569;
-    padding: 12px 16px;
-    border-bottom: 2px solid #e2e8f0;
+    padding: 10px 16px; /* TAB-002 fix: era 12px 16px, padrão é 10px */
+    border-bottom: 1px solid #e2e8f0; /* TAB-005 fix: era 2px, padrão é 1px */
     position: sticky;
     top: 0;
     z-index: 1;
@@ -735,7 +739,7 @@ table tbody tr:hover td {
 }
 
 table tbody td {
-    padding: 12px 16px;
+    padding: 10px 16px; /* TAB-002 fix: alinhado com thead */
     font-size: 13px;
     color: #334155;
     border-bottom: 1px solid #f1f5f9;
@@ -793,7 +797,7 @@ table tbody td {
 }
 
 .switch-toggle input:checked + .switch-slider {
-    background: #6366f1;
+    background: #2563eb; /* BTN-005 fix: era indigo #6366f1 → azul institucional #2563eb */
 }
 
 .switch-toggle input:checked + .switch-slider::after {

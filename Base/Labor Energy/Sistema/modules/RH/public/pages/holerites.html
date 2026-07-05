@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
 
@@ -17,13 +17,13 @@
     <!-- Tooltips Profissionais -->
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <script src="/js/tooltips-professional.js?v=20260209" defer></script>
-    <link rel="stylesheet" href="/css/modern-saas.css?v=20260209">
     <link rel="stylesheet" href="/modules/RH/public/css/rh-pages.css?v=20260209">
     <style>
-        /* === HOLERITES - CSS ESPECFICO === */
+        /* === HOLERITES - CSS ESPECÍFICO === */
         .page-content { flex: 1; overflow-y: auto; padding: 24px; }
     </style>
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260621b" defer></script>
     <!-- Chat Widget BOB AI -->
     <link rel="stylesheet" href="/chat/widget.css?v=20260218">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260324">
@@ -39,17 +39,14 @@
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
             <nav class="sidebar-nav">
                 <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
-                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
-                <a href="../gestão-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
-                <a href="gestão-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="funcionários.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
                 <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
-                <a href="ferias.html" class="sidebar-btn" title="Gestão de Férias"><i class="fas fa-umbrella-beach"></i></a>
-                <a href="gestão-solicitacoes.html" class="sidebar-btn" title="Gestão de Solicitações"><i class="fas fa-tasks"></i></a>
+                <a href="gestao-solicitacoes.html" class="sidebar-btn" title="Gestão de Solicitações"><i class="fas fa-tasks"></i></a>
                 <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
             </nav>
             <div class="sidebar-bottom">
-                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
-                <a href="aplicar-avaliacoes.html" class="sidebar-btn" title="Aplicar Avaliações"><i class="fas fa-clipboard-check"></i></a>
                 <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
             </div>
         </aside>
@@ -71,10 +68,6 @@
                     <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
                     <div class="user-greeting">
                         <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
-                        <div class="user-avatar" id="user-avatar">
-                            <img src="" alt="Foto do Usuário" id="user-photo">
-                            <span id="user-initials">U</span>
-                        </div>
                     </div>
                 </div>
             </header>
@@ -97,7 +90,7 @@
                     <i class="fas fa-download"></i>
                     Exportar Folha
                 </button>
-                <button class="btn-action btn-outline" onclick="relatorioPagamento()">
+                <button class="btn-action btn-outline" onclick="relatórioPagamento()">
                     <i class="fas fa-chart-bar"></i>
                     Relatório
                 </button>
@@ -151,7 +144,7 @@
                         <div class="metric-icon blue"><i class="fas fa-calendar-alt"></i></div>
                         <span class="metric-trend">&mdash;</span>
                     </div>
-                    <div class="metric-value" id="stat-período" style="font-size:16px;">--</div>
+                    <div class="metric-value" id="stat-periodo" style="font-size:16px;">--</div>
                     <div class="metric-label">Período</div>
                 </div>
             </div>
@@ -246,14 +239,20 @@
                 console.error('Erro ao carregar holerites:', e);
                 holeritesList = [];
                 if (funcionáriosList.length > 0) {
-                    montarHoleritesDeFuncionários(mes, ano);
+                    try { montarHoleritesDeFuncionários(mes, ano); } catch (err) {
+                        console.error('Erro montarHoleritesDeFuncionários:', err);
+                        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#ef4444;"><i class="fas fa-exclamation-triangle" style="font-size:32px;margin-bottom:12px;display:block;"></i><p>Erro ao renderizar holerites</p><p style="font-size:12px;color:#94a3b8;">' + (err.message || err) + '</p></div>';
+                    }
                     return;
                 }
             }
-            renderizarGrid(mes, ano);
+            try { renderizarGrid(mes, ano); } catch (err) {
+                console.error('Erro renderizarGrid:', err);
+                grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#ef4444;"><i class="fas fa-exclamation-triangle" style="font-size:32px;margin-bottom:12px;display:block;"></i><p>Erro ao renderizar holerites</p><p style="font-size:12px;color:#94a3b8;">' + (err.message || err) + '</p></div>';
+            }
         }
 
-        // Montar cards a partir de funcionários (quando no h holerites gerados)
+        // Montar cards a partir de funcionários (quando não há holerites gerados)
         function montarHoleritesDeFuncionários(mes, ano) {
             const meses = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
             const grid = document.getElementById('holerites-grid');
@@ -280,7 +279,7 @@
                         <div class="item-info">
                             <h4>${f.nome_completo || f.nome || 'Sem nome'}</h4>
                             <p>${f.cargo || 'Sem cargo'}  ${f.departamento || 'Sem depto'}</p>
-                            <p>Bruto: ${fmt(salário)} | Líquido: ${fmt(liq)}</p>
+                            <p>Bruto: ${fmt(salario)} | Líquido: ${fmt(liq)}</p>
                         </div>
                     </div>
                     <div class="item-status"><span class="status-badge pending">Pendente</span></div>
@@ -291,7 +290,7 @@
                 </div>`;
             }).join('');
             document.getElementById('stat-total').textContent = funcionáriosList.length;
-            document.getElementById('stat-período').textContent = `${meses[parseInt(mes)]} ${ano} (pendentes)`;
+            document.getElementById('stat-periodo').textContent = `${meses[parseInt(mes)]} ${ano} (pendentes)`;
             document.getElementById('stat-bruto').textContent = fmtShort(totalBruto);
             document.getElementById('stat-descontos').textContent = fmtShort(totalDesc);
             document.getElementById('stat-liquido').textContent = fmtShort(totalLiq);
@@ -308,7 +307,7 @@
                 return;
             }
             grid.innerHTML = holeritesList.map(h => {
-                const nome = h.funcionário_nome || h.nome || 'Funcionário';
+                const nome = h.funcionario_nome || h.nome || 'Funcionário';
                 const inicial = nome.charAt(0).toUpperCase();
                 const bruto = parseFloat(h.salario_bruto || h.total_proventos || 0);
                 const liq = parseFloat(h.salario_liquido || h.total_liquido || 0);
@@ -332,7 +331,7 @@
                     </div>
                 </div>`;
             }).join('');
-            document.getElementById('stat-período').textContent = `${meses[parseInt(mes)]} ${ano}`;
+            document.getElementById('stat-periodo').textContent = `${meses[parseInt(mes)]} ${ano}`;
         }
 
         function atualizarEstatisticas(stats) {
@@ -348,9 +347,9 @@
             document.getElementById('stat-liquido').textContent = fmtShort(totalLiq);
         }
 
-        // Clculos INSS/IRRF (tabelas 2024)
-        function calcularINSS(s) { return s <= 1412 ? s*0.075 : s <= 2666.68 ? s*0.09 : s <= 4000.03 ? s*0.12 : s*0.14; }
-        function calcularIRRF(s, inss) { const b = s - inss; return b <= 2259.20 ? 0 : b <= 2826.65 ? b*0.075-169.44 : b <= 3751.05 ? b*0.15-381.44 : b <= 4664.68 ? b*0.225-662.77 : b*0.275-896; }
+        // Cálculos INSS/IRRF (tabelas 2025)
+        function calcularINSS(s) { return s <= 1518 ? s*0.075 : s <= 2793.88 ? s*0.09 : s <= 4190.83 ? s*0.12 : s*0.14; }
+        function calcularIRRF(s, inss) { const b = s - inss; return b <= 2428.80 ? 0 : b <= 3042.00 ? b*0.075-182.16 : b <= 4053.44 ? b*0.15-410.88 : b <= 5066.80 ? b*0.225-714.87 : b*0.275-1668.27; }
 
         // Visualizar holerite por ID
         async function visualizarHolerite(id) {
@@ -366,8 +365,8 @@
                 // FIX BUG-22: escape HTML para prevenir XSS em document.write
                 const esc = s => String(s||'-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
                 const pw = window.open('', '_blank');
-                pw.document.write(`<!DOCTYPE html><html><head><title>Holerite - ${esc(data.funcionário_nome||'Funcionário')}</title><style>body{font-family:Arial,sans-serif;padding:20px;background:#f5f5f5;}.holerite{background:white;max-width:800px;margin:auto;padding:30px;border:2px solid #1a1a2e;}.header{display:flex;justify-content:space-between;border-bottom:2px solid #1a1a2e;padding-bottom:15px;margin-bottom:20px;}.empresa{font-weight:bold;font-size:18px;color:#1a1a2e;}.func-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px;padding:15px;background:#f8fafc;border-radius:8px;}.func-grid p{margin:5px 0;font-size:13px;}.func-grid strong{color:#1a1a2e;}.tabela{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px;}.tabela th{background:#1a1a2e;color:white;padding:10px;text-align:left;}.tabela td{padding:8px 10px;border-bottom:1px solid #eee;}.tabela .valor{text-align:right;}.totais{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;}.total-box{padding:15px;border-radius:8px;text-align:center;}.total-box.bruto{background:#dcfce7;color:#166534;}.total-box.desc{background:#fee2e2;color:#991b1b;}.total-box.liq{background:#dbeafe;color:#1e40af;}.total-box h4{margin:0 0 5px;font-size:12px;opacity:.8;}.total-box .v{font-size:20px;font-weight:bold;}.footer{margin-top:30px;padding-top:20px;border-top:1px dashed #ccc;display:flex;justify-content:space-between;font-size:11px;color:#999;}@media print{body{background:white;padding:0;}.holerite{border:1px solid #ccc;}}</style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body><div class="holerite"><div class="header"><div class="empresa">ALUFORCE INDSTRIA E COMRCIO LTDA<br><small style="font-weight:normal;color:#666">CNPJ: 00.000.000/0001-00</small></div><div style="text-align:right;font-size:12px;color:#666"><strong>HOLERITE</strong><br>Competência: ${esc(comp)}<br>${new Date().toLocaleDateString('pt-BR')}</div></div><div class="func-grid"><div><p><strong>Funcionário:</strong> ${esc(data.funcionário_nome)}</p><p><strong>Cargo:</strong> ${esc(data.cargo)}</p><p><strong>Depto:</strong> ${esc(data.departamento)}</p></div><div><p><strong>CPF:</strong> ${esc(data.cpf)}</p><p><strong>Salário Base:</strong> ${fmt(data.salario_bruto||data.salario_base)}</p></div></div><table class="tabela"><thead><tr><th>Cd</th><th>Descrição</th><th>Ref.</th><th class="valor">Proventos</th><th class="valor">Descontos</th></tr></thead><tbody>${proventos.map((p,i)=>`<tr><td>${String(i+1).padStart(3,'0')}</td><td>${esc(p.descrição||p.nome)}</td><td>${esc(p.referencia)}</td><td class="valor">${fmt(p.valor)}</td><td class="valor">-</td></tr>`).join('')}${descontos.map((d,i)=>`<tr><td>${String(100+i+1)}</td><td>${esc(d.descrição||d.nome)}</td><td>${esc(d.referencia)}</td><td class="valor">-</td><td class="valor">${fmt(d.valor)}</td></tr>`).join('')}${proventos.length===0&&descontos.length===0?'<tr><td colspan="5" style="text-align:center;padding:20px;color:#999">Detalhamento no disponvel</td></tr>':''}</tbody></table><div class="totais"><div class="total-box bruto"><h4>PROVENTOS</h4><div class="v">${fmt(data.total_proventos||data.salario_bruto)}</div></div><div class="total-box desc"><h4>DESCONTOS</h4><div class="v">${fmt(data.total_descontos)}</div></div><div class="total-box liq"><h4>LQUIDO</h4><div class="v">${fmt(data.total_liquido||data.salario_liquido)}</div></div></div><div class="footer"><div>Assinatura: _________________________________</div><div>ALUFORCE ERP</div></div></div>    <script src="/js/user-dropdown.js?v=20260319" defer></script>
+                pw.document.write(`<!DOCTYPE html><html><head><title>Holerite - ${esc(data.funcionario_nome||'Funcionário')}</title><style>body{font-family:Arial,sans-serif;padding:20px;background:#f5f5f5;}.holerite{background:white;max-width:800px;margin:auto;padding:30px;border:2px solid #1a1a2e;}.header{display:flex;justify-content:space-between;border-bottom:2px solid #1a1a2e;padding-bottom:15px;margin-bottom:20px;}.empresa{font-weight:bold;font-size:18px;color:#1a1a2e;}.func-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px;padding:15px;background:#f8fafc;border-radius:8px;}.func-grid p{margin:5px 0;font-size:13px;}.func-grid strong{color:#1a1a2e;}.tabela{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px;}.tabela th{background:#1a1a2e;color:white;padding:10px;text-align:left;}.tabela td{padding:8px 10px;border-bottom:1px solid #eee;}.tabela .valor{text-align:right;}.totais{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;}.total-box{padding:15px;border-radius:8px;text-align:center;}.total-box.bruto{background:#dcfce7;color:#166534;}.total-box.desc{background:#fee2e2;color:#991b1b;}.total-box.liq{background:#dbeafe;color:#1e40af;}.total-box h4{margin:0 0 5px;font-size:12px;opacity:.8;}.total-box .v{font-size:20px;font-weight:bold;}.footer{margin-top:30px;padding-top:20px;border-top:1px dashed #ccc;display:flex;justify-content:space-between;font-size:11px;color:#999;}@media print{body{background:white;padding:0;}.holerite{border:1px solid #ccc;}}</style>
+    <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body><div class="holerite"><div class="header"><div class="empresa">ALUFORCE INDÚSTRIA E COMÉRCIO LTDA<br><small style="font-weight:normal;color:#666">CNPJ: 00.000.000/0001-00</small></div><div style="text-align:right;font-size:12px;color:#666"><strong>HOLERITE</strong><br>Competência: ${esc(comp)}<br>${new Date().toLocaleDateString('pt-BR')}</div></div><div class="func-grid"><div><p><strong>Funcionário:</strong> ${esc(data.funcionario_nome)}</p><p><strong>Cargo:</strong> ${esc(data.cargo)}</p><p><strong>Depto:</strong> ${esc(data.departamento)}</p></div><div><p><strong>CPF:</strong> ${esc(data.cpf)}</p><p><strong>Salário Base:</strong> ${fmt(data.salario_bruto||data.salario_base)}</p></div></div><table class="tabela"><thead><tr><th>Cd</th><th>Descrição</th><th>Ref.</th><th class="valor">Proventos</th><th class="valor">Descontos</th></tr></thead><tbody>${proventos.map((p,i)=>`<tr><td>${String(i+1).padStart(3,'0')}</td><td>${esc(p.descricao||p.nome)}</td><td>${esc(p.referencia)}</td><td class="valor">${fmt(p.valor)}</td><td class="valor">-</td></tr>`).join('')}${descontos.map((d,i)=>`<tr><td>${String(100+i+1)}</td><td>${esc(d.descricao||d.nome)}</td><td>${esc(d.referencia)}</td><td class="valor">-</td><td class="valor">${fmt(d.valor)}</td></tr>`).join('')}${proventos.length===0&&descontos.length===0?'<tr><td colspan="5" style="text-align:center;padding:20px;color:#999">Detalhamento não disponível</td></tr>':''}</tbody></table><div class="totais"><div class="total-box bruto"><h4>PROVENTOS</h4><div class="v">${fmt(data.total_proventos||data.salario_bruto)}</div></div><div class="total-box desc"><h4>DESCONTOS</h4><div class="v">${fmt(data.total_descontos)}</div></div><div class="total-box liq"><h4>LÍQUIDO</h4><div class="v">${fmt(data.total_liquido||data.salario_liquido)}</div></div></div><div class="footer"><div>Assinatura: _________________________________</div><div>ALUFORCE ERP</div></div></div>    <script src="/js/user-dropdown.js?v=20260319" defer><\/script>
 </body></html>`);
                 pw.document.close();
                 setTimeout(() => pw.print(), 500);
@@ -377,7 +376,7 @@
             }
         }
 
-        function editarHolerite(id) { window.location.href = `../gestão-holerites.html?editar=${id}`; }
+        function editarHolerite(id) { window.location.href = `../gestao-holerites.html?editar=${id}`; }
 
         async function downloadHolerite(id) {
             try {
@@ -395,7 +394,7 @@
             if (!confirm(`Gerar folha de pagamento para ${meses[parseInt(mes)]} ${ano}?`)) return;
             try {
                 const res = await fetch('/api/rh/folha/processar', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({ mes: parseInt(mes), ano: parseInt(ano) }) });
-                if (res.ok) { const data = await res.json(); showToast('Folha processada! ' + (data.message||'Holerites gerados.'), 'success'); carregarHolerites(); }
+                if (res.ok) { const data = await res.json(); showToast('Folha processaída! ' + (data.message||'Holerites gerados.'), 'success'); carregarHolerites(); }
                 else if (res.status === 404) { gerarFolhaLocal(); }
                 else { const err = await res.json().catch(()=>({})); showToast('Erro. Tente novamente.', 'error'); }
             } catch (e) { gerarFolhaLocal(); }
@@ -417,19 +416,18 @@
             const ano = document.getElementById('ano-select').value;
             const meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
             const mesNome = meses[parseInt(mes)] + ' ' + ano;
-            const dados = holeritesList.length > 0 ? holeritesList.map(h => ({ nome: h.funcionário_nome||'Func', cargo: h.cargo||'-', departamento: h.departamento||'-', salarioBase: parseFloat(h.salario_bruto||0), id: h.funcionário_id||h.id }))
+            const dados = holeritesList.length > 0 ? holeritesList.map(h => ({ nome: h.funcionario_nome||'Func', cargo: h.cargo||'-', departamento: h.departamento||'-', salarioBase: parseFloat(h.salario_bruto||0), id: h.funcionario_id||h.id }))
                 : funcionáriosList.map(f => ({ nome: f.nome_completo||f.nome||'Func', cargo: f.cargo||'-', departamento: f.departamento||'-', salarioBase: parseFloat(f.salario_base||f.salario||0), id: f.id }));
-            if (!dados.length) { showToast('Nenhum dado disponvel.', 'warning'); return; }
+            if (!dados.length) { showToast('Nenhum dado disponível.', 'warning'); return; }
             const pw = window.open('', '_blank');
             let html = `<!DOCTYPE html><html><head><title>Holerites - ${mesNome}</title><style>body{font-family:Arial,sans-serif;padding:20px;background:#f5f5f5;}.holerite{background:white;max-width:800px;margin:0 auto 30px;padding:30px;border:2px solid #1a1a2e;page-break-after:always;}.holerite:last-child{page-break-after:avoid;}.header{display:flex;justify-content:space-between;border-bottom:2px solid #1a1a2e;padding-bottom:15px;margin-bottom:20px;}.empresa{font-weight:bold;font-size:18px;color:#1a1a2e;}.func-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px;padding:15px;background:#f8fafc;border-radius:8px;}.func-grid p{margin:5px 0;font-size:13px;}.func-grid strong{color:#1a1a2e;}.tabela{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px;}.tabela th{background:#1a1a2e;color:white;padding:10px;text-align:left;}.tabela td{padding:8px 10px;border-bottom:1px solid #eee;}.tabela .valor{text-align:right;}.totais{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;}.total-box{padding:15px;border-radius:8px;text-align:center;}.total-box.bruto{background:#dcfce7;color:#166534;}.total-box.desc{background:#fee2e2;color:#991b1b;}.total-box.liq{background:#dbeafe;color:#1e40af;}.total-box h4{margin:0 0 5px;font-size:12px;opacity:.8;}.total-box .v{font-size:20px;font-weight:bold;}.footer{margin-top:30px;padding-top:20px;border-top:1px dashed #ccc;display:flex;justify-content:space-between;font-size:11px;color:#999;}@media print{body{background:white;padding:0;}.holerite{border:1px solid #ccc;margin:0;}}</style>
     <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body>`;
             dados.forEach(func => {
                 const inss=calcularINSS(func.salarioBase), irrf=calcularIRRF(func.salarioBase,inss), vt=func.salarioBase*0.06, vr=400;
                 const tDesc=inss+irrf+vt, tProv=func.salarioBase+vr, liq=tProv-tDesc;
-                html += `<div class="holerite"><div class="header"><div class="empresa">ALUFORCE INDSTRIA E COMRCIO LTDA<br><small style="font-weight:normal;color:#666">CNPJ: 00.000.000/0001-00</small></div><div style="text-align:right;font-size:12px;color:#666"><strong>HOLERITE</strong><br>${mesNome.toUpperCase()}<br>${new Date().toLocaleDateString('pt-BR')}</div></div><div class="func-grid"><div><p><strong>Funcionário:</strong> ${func.nome}</p><p><strong>Cargo:</strong> ${func.cargo}</p><p><strong>Depto:</strong> ${func.departamento}</p></div><div><p><strong>Matrcula:</strong> ${String(func.id).padStart(6,'0')}</p><p><strong>Salário Base:</strong> ${fmt(func.salarioBase)}</p></div></div><table class="tabela"><thead><tr><th>Cd</th><th>Descrição</th><th>Ref.</th><th class="valor">Proventos</th><th class="valor">Descontos</th></tr></thead><tbody><tr><td>001</td><td>Salário Base</td><td>30d</td><td class="valor">${fmt(func.salarioBase)}</td><td class="valor">-</td></tr><tr><td>002</td><td>Vale Refeio</td><td>22d</td><td class="valor">${fmt(vr)}</td><td class="valor">-</td></tr><tr><td>101</td><td>INSS</td><td>${(inss/func.salarioBase*100).toFixed(2)}%</td><td class="valor">-</td><td class="valor">${fmt(inss)}</td></tr><tr><td>102</td><td>IRRF</td><td>${irrf>0?(irrf/func.salarioBase*100).toFixed(2)+'%':'Isento'}</td><td class="valor">-</td><td class="valor">${irrf>0?fmt(irrf):'-'}</td></tr><tr><td>103</td><td>VT (Desc.)</td><td>6%</td><td class="valor">-</td><td class="valor">${fmt(vt)}</td></tr></tbody></table><div class="totais"><div class="total-box bruto"><h4>PROVENTOS</h4><div class="v">${fmt(tProv)}</div></div><div class="total-box desc"><h4>DESCONTOS</h4><div class="v">${fmt(tDesc)}</div></div><div class="total-box liq"><h4>LQUIDO</h4><div class="v">${fmt(liq)}</div></div></div><div class="footer"><div>Assinatura: _________________________________</div><div>ALUFORCE ERP</div></div></div>`;
+                html += `<div class="holerite"><div class="header"><div class="empresa">ALUFORCE INDÚSTRIA E COMÉRCIO LTDA<br><small style="font-weight:normal;color:#666">CNPJ: 00.000.000/0001-00</small></div><div style="text-align:right;font-size:12px;color:#666"><strong>HOLERITE</strong><br>${mesNome.toUpperCase()}<br>${new Date().toLocaleDateString('pt-BR')}</div></div><div class="func-grid"><div><p><strong>Funcionário:</strong> ${func.nome}</p><p><strong>Cargo:</strong> ${func.cargo}</p><p><strong>Depto:</strong> ${func.departamento}</p></div><div><p><strong>Matrícula:</strong> ${String(func.id).padStart(6,'0')}</p><p><strong>Salário Base:</strong> ${fmt(func.salarioBase)}</p></div></div><table class="tabela"><thead><tr><th>Cd</th><th>Descrição</th><th>Ref.</th><th class="valor">Proventos</th><th class="valor">Descontos</th></tr></thead><tbody><tr><td>001</td><td>Salário Base</td><td>30d</td><td class="valor">${fmt(func.salarioBase)}</td><td class="valor">-</td></tr><tr><td>002</td><td>Vale Refeição</td><td>22d</td><td class="valor">${fmt(vr)}</td><td class="valor">-</td></tr><tr><td>101</td><td>INSS</td><td>${(inss/func.salarioBase*100).toFixed(2)}%</td><td class="valor">-</td><td class="valor">${fmt(inss)}</td></tr><tr><td>102</td><td>IRRF</td><td>${irrf>0?(irrf/func.salarioBase*100).toFixed(2)+'%':'Isento'}</td><td class="valor">-</td><td class="valor">${irrf>0?fmt(irrf):'-'}</td></tr><tr><td>103</td><td>VT (Desc.)</td><td>6%</td><td class="valor">-</td><td class="valor">${fmt(vt)}</td></tr></tbody></table><div class="totais"><div class="total-box bruto"><h4>PROVENTOS</h4><div class="v">${fmt(tProv)}</div></div><div class="total-box desc"><h4>DESCONTOS</h4><div class="v">${fmt(tDesc)}</div></div><div class="total-box liq"><h4>LÍQUIDO</h4><div class="v">${fmt(liq)}</div></div></div><div class="footer"><div>Assinatura: _________________________________</div><div>ALUFORCE ERP</div></div></div>`;
             });
-            html += '    <script src="/js/user-dropdown.js?v=20260319" defer></script>
-</body></html>';
+            html += '    <script src="/js/user-dropdown.js?v=20260319" defer><\\/script></body></html>';
             pw.document.write(html); pw.document.close(); setTimeout(() => pw.print(), 500);
         }
 
@@ -437,7 +435,7 @@
         function exportarFolha() {
             const mes = document.getElementById('mes-select').value, ano = document.getElementById('ano-select').value;
             const meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-            const dados = holeritesList.length > 0 ? holeritesList.map(h => ({ nome: h.funcionário_nome||'Func', cargo: h.cargo||'-', departamento: h.departamento||'-', salarioBase: parseFloat(h.salario_bruto||0), id: h.funcionário_id||h.id }))
+            const dados = holeritesList.length > 0 ? holeritesList.map(h => ({ nome: h.funcionario_nome||'Func', cargo: h.cargo||'-', departamento: h.departamento||'-', salarioBase: parseFloat(h.salario_bruto||0), id: h.funcionario_id||h.id }))
                 : funcionáriosList.map(f => ({ nome: f.nome_completo||f.nome||'Func', cargo: f.cargo||'-', departamento: f.departamento||'-', salarioBase: parseFloat(f.salario_base||f.salario||0), id: f.id }));
             if (!dados.length) { showToast('Nenhum dado para exportar.', 'warning'); return; }
             let csv = `Folha de Pagamento - ${meses[parseInt(mes)]} ${ano}\n\nMatrcula;Nome;Cargo;Departamento;Salário Base;INSS;IRRF;VT;Total Descontos;Líquido\n`;
@@ -450,21 +448,21 @@
         }
 
         // Relatório de pagamento
-        function relatorioPagamento() {
+        function relatórioPagamento() {
             const mes = document.getElementById('mes-select').value, ano = document.getElementById('ano-select').value;
             const meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
             const mesNome = meses[parseInt(mes)] + ' ' + ano;
-            const dados = holeritesList.length > 0 ? holeritesList.map(h => ({ nome: h.funcionário_nome, departamento: h.departamento||'Sem depto', salarioBase: parseFloat(h.salario_bruto||0) }))
+            const dados = holeritesList.length > 0 ? holeritesList.map(h => ({ nome: h.funcionario_nome, departamento: h.departamento||'Sem depto', salarioBase: parseFloat(h.salario_bruto||0) }))
                 : funcionáriosList.map(f => ({ nome: f.nome_completo||f.nome, departamento: f.departamento||'Sem depto', salarioBase: parseFloat(f.salario_base||f.salario||0) }));
             const porDept = {}; let tg = { bruto:0, descontos:0, liquido:0, funcionários:0 };
-            dados.forEach(f => { const i=calcularINSS(f.salarioBase), r=calcularIRRF(f.salarioBase,i), d=i+r, l=f.salarioBase-d; if(!porDept[f.departamento]) porDept[f.departamento]={bruto:0,descontos:0,liquido:0,funcionários:0}; porDept[f.departamento].bruto+=f.salarioBase; porDept[f.departamento].descontos+=d; porDept[f.departamento].liquido+=l; porDept[f.departamento].funcionários++; tg.bruto+=f.salarioBase; tg.descontos+=d; tg.liquido+=l; tg.funcionários++; });
+            dados.forEach(f => { const i=calcularINSS(f.salarioBase), r=calcularIRRF(f.salarioBase,i), d=i+r, l=f.salarioBase-d; if(!porDept[f.departamento]) porDept[f.departamento]={bruto:0,descontos:0,liquido:0,funcionários:0}; porDept[f.departamento].bruto+=f.salarioBase; porDept[f.departamento].descontos+=d; porDept[f.departamento].liquido+=l; porDept[f.departamento].funcionarios++; tg.bruto+=f.salarioBase; tg.descontos+=d; tg.liquido+=l; tg.funcionarios++; });
             const pw = window.open('', '_blank');
             pw.document.write(`<!DOCTYPE html><html><head><title>Relatório - ${mesNome}</title><style>body{font-family:Arial,sans-serif;padding:30px;max-width:900px;margin:0 auto;}.header{text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:20px;margin-bottom:30px;}.header h1{color:#1a1a2e;margin:0 0 5px;font-size:24px;}.header p{color:#666;margin:5px 0;}.resumo{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin-bottom:30px;}.rc{padding:20px;border-radius:10px;text-align:center;}.rc.az{background:#dbeafe;border:1px solid #3b82f6;}.rc.vd{background:#dcfce7;border:1px solid #22c55e;}.rc.am{background:#fef3c7;border:1px solid #f59e0b;}.rc.vm{background:#fee2e2;border:1px solid #ef4444;}.rc h3{margin:0 0 5px;font-size:12px;opacity:.8;}.rc .v{font-size:22px;font-weight:bold;}table{width:100%;border-collapse:collapse;margin-top:20px;}th{background:#1a1a2e;color:white;padding:12px;text-align:left;}td{padding:10px 12px;border-bottom:1px solid #eee;}.valor{text-align:right;}.total-row{background:#f1f5f9;font-weight:bold;}
     /* ===== COMPRAS STANDARD — STAT CARDS ===== */
 
 
     </style>
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body><div class="header"><h1>ALUFORCE - Relatório de Pagamento</h1><p>${mesNome.toUpperCase()}</p><p>${new Date().toLocaleString('pt-BR')}</p></div><div class="resumo"><div class="rc az"><h3>FUNCIONÁRIOS</h3><div class="v">${tg.funcionários}</div></div><div class="rc vd"><h3>BRUTO</h3><div class="v">${fmtShort(tg.bruto)}</div></div><div class="rc am"><h3>DESCONTOS</h3><div class="v">${fmtShort(tg.descontos)}</div></div><div class="rc vm"><h3>LQUIDO</h3><div class="v">${fmtShort(tg.liquido)}</div></div></div><h3 style="color:#1a1a2e;margin-top:40px;">?? Resumo por Departamento</h3><table><thead><tr><th>Departamento</th><th class="valor">Funcs.</th><th class="valor">Bruto</th><th class="valor">Descontos</th><th class="valor">Líquido</th></tr></thead><tbody>${Object.entries(porDept).map(([dept,d])=>`<tr><td>${dept}</td><td class="valor">${d.funcionários}</td><td class="valor">${fmt(d.bruto)}</td><td class="valor">${fmt(d.descontos)}</td><td class="valor">${fmt(d.liquido)}</td></tr>`).join('')}<tr class="total-row"><td>TOTAL</td><td class="valor">${tg.funcionários}</td><td class="valor">${fmt(tg.bruto)}</td><td class="valor">${fmt(tg.descontos)}</td><td class="valor">${fmt(tg.liquido)}</td></tr></tbody></table><div style="margin-top:30px;text-align:center;color:#999;font-size:11px;">ALUFORCE ERP</div>    <script src="/js/user-dropdown.js?v=20260319" defer></script>
+    <link rel="stylesheet" href="/css/design-system.css?v=20260502"></head><body><div class="header"><h1>ALUFORCE - Relatório de Pagamento</h1><p>${mesNome.toUpperCase()}</p><p>${new Date().toLocaleString('pt-BR')}</p></div><div class="resumo"><div class="rc az"><h3>FUNCIONÁRIOS</h3><div class="v">${tg.funcionarios}</div></div><div class="rc vd"><h3>BRUTO</h3><div class="v">${fmtShort(tg.bruto)}</div></div><div class="rc am"><h3>DESCONTOS</h3><div class="v">${fmtShort(tg.descontos)}</div></div><div class="rc vm"><h3>LQUIDO</h3><div class="v">${fmtShort(tg.liquido)}</div></div></div><h3 style="color:#1a1a2e;margin-top:40px;">?? Resumo por Departamento</h3><table><thead><tr><th>Departamento</th><th class="valor">Funcs.</th><th class="valor">Bruto</th><th class="valor">Descontos</th><th class="valor">Líquido</th></tr></thead><tbody>${Object.entries(porDept).map(([dept,d])=>`<tr><td>${dept}</td><td class="valor">${d.funcionarios}</td><td class="valor">${fmt(d.bruto)}</td><td class="valor">${fmt(d.descontos)}</td><td class="valor">${fmt(d.liquido)}</td></tr>`).join('')}<tr class="total-row"><td>TOTAL</td><td class="valor">${tg.funcionarios}</td><td class="valor">${fmt(tg.bruto)}</td><td class="valor">${fmt(tg.descontos)}</td><td class="valor">${fmt(tg.liquido)}</td></tr></tbody></table><div style="margin-top:30px;text-align:center;color:#999;font-size:11px;">ALUFORCE ERP</div>    <script src="/js/user-dropdown.js?v=20260319" defer><\/script>
 </body></html>`);
             pw.document.close(); setTimeout(() => pw.print(), 500);
         }
@@ -491,7 +489,7 @@
     </script>
 <!-- Sistema de Chat e Suporte (widgets condicionais por Usuário) -->
 <!-- ti@aluforce.ind.br = Central de Suporte | Outros Usuários = Chat normal -->
-    <!-- Sistema de Monitoramento de Conexo -->
+    <!-- Sistema de Monitoramento de Conexão -->
     <script src="/modules/_shared/connection-monitor.js?v=20260111" defer></script>
     <script src="/js/popup-confirmacao.js" defer></script>
     <script src="/js/auth-unified.js?v=20260214" defer></script>
@@ -508,5 +506,6 @@
     <script src="/js/user-dropdown.js?v=20260319" defer></script>
 </body>
 </html>
+
 
 

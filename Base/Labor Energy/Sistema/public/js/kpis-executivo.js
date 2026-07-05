@@ -10,6 +10,10 @@ let kpisCarregados = false;
 let modalKpisAberto = false;
 let usuarioPodeVerKPIs = false;
 
+function withBasePath(path) {
+    return window.__withBasePath ? window.__withBasePath(path) : path;
+}
+
 // Emails de consultoria e admins que podem ver os KPIs
 const consultoriaEmailsKPIs = [
     'mauricio@lumiereassessoria.com.br',
@@ -593,7 +597,7 @@ document.addEventListener('DOMContentLoaded', function() {
  * Visualizar pedido em detalhes
  */
 function visualizarPedido(id) {
-    window.location.href = `/modules/Vendas/pedido.html?id=${id}`;
+    window.location.href = withBasePath(`/modules/Vendas/pedido.html?id=${id}`);
 }
 
 /**
@@ -752,7 +756,7 @@ document.addEventListener('DOMContentLoaded', function() {
         card.addEventListener('click', function() {
             const modulo = this.dataset.modulo;
             if (moduloLinks[modulo]) {
-                window.location.href = moduloLinks[modulo];
+                window.location.href = withBasePath(moduloLinks[modulo]);
             }
         });
     });

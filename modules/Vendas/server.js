@@ -466,6 +466,13 @@ function isKanbanSupervisor(user) {
     return ['supervisor', 'gerente', 'gerente_comercial'].includes(role);
 }
 
+function isPcpUser(user) {
+    if (!user) return false;
+    const role = user.role ? user.role.toString().toLowerCase().trim() : '';
+    const email = user.email ? user.email.toString().toLowerCase().trim() : '';
+    return role === 'pcp' || role === 'producao' || role === 'produção' || email.startsWith('pcp@');
+}
+
 // Rota para Kanban - COM FILTROS e controle de visibilidade por usuário
 // SECURITY: Agora requer autenticação obrigatória
 apiVendasRouter.get('/kanban/pedidos', authenticateToken, async (req, res) => {
@@ -511,7 +518,8 @@ apiVendasRouter.get('/kanban/pedidos', authenticateToken, async (req, res) => {
 
         // FILTRO POR USUÁRIO: Vendedores só veem seus próprios pedidos + vinculados (supervisores veem todos)
         const isSupervisor = isKanbanSupervisor(currentUser);
-        if (currentUser && !isAdmin && !isSupervisor) {
+        const isPcp = isPcpUser(currentUser);
+        if (currentUser && !isAdmin && !isSupervisor && !isPcp) {
             // Buscar vendedores vinculados
             const [vincRows] = await pool.query('SELECT vendedores_vinculados FROM usuarios WHERE id = ?', [currentUser.id]);
             const vinculados = vincRows[0]?.vendedores_vinculados;
@@ -540,7 +548,7 @@ apiVendasRouter.get('/kanban/pedidos', authenticateToken, async (req, res) => {
         }
 
         // Filtro de vendedor (opcional para admin/supervisor via modal de filtros)
-        if ((isAdmin || isSupervisor) && vendedor && vendedor !== 'todos') {
+        if ((isAdmin || isSupervisor || isPcp) && vendedor && vendedor !== 'todos') {
             whereConditions.push('p.vendedor_id = ?');
             queryParams.push(vendedor);
         }
@@ -686,7 +694,7 @@ apiVendasRouter.get('/kanban/pedidos', authenticateToken, async (req, res) => {
                 p.total_icms,
                 p.cliente_nome,
                 COALESCE(c.nome, e.nome_fantasia) AS empresa_nome,
-                u.nome AS vendedor_nome,
+                COALESCE(v.nome, vu.nome, p.vendedor_nome, uc.nome, '') AS vendedor_nome,
                 -- Dados completos do cliente para recibo/impressão
                 COALESCE(c.cnpj, c.cnpj_cpf, c.cpf, e.cnpj) AS cliente_cnpj,
                 COALESCE(c.inscricao_estadual, e.inscricao_estadual) AS cliente_ie,
@@ -700,7 +708,9 @@ apiVendasRouter.get('/kanban/pedidos', authenticateToken, async (req, res) => {
             FROM pedidos p
             LEFT JOIN clientes c ON p.cliente_id = c.id
             LEFT JOIN empresas e ON p.empresa_id = e.id
-            LEFT JOIN usuarios u ON p.vendedor_id = u.id
+            LEFT JOIN vendedores v ON p.vendedor_id = v.id
+            LEFT JOIN usuarios vu ON p.vendedor_id = vu.id
+            LEFT JOIN usuarios uc ON p.usuario_id = uc.id
             ${whereClause}
             ORDER BY p.created_at DESC
             LIMIT 500
@@ -849,8 +859,19 @@ apiVendasRouter.get('/vendedores', authenticateToken, async (req, res) => {
         const [rows] = await pool.query(`
             SELECT id, nome, email, apelido, avatar, foto
             FROM usuarios
-            WHERE (role = 'comercial' OR departamento = 'Comercial')
+            WHERE LOWER(COALESCE(email, '')) LIKE '%@aluforce.ind.br'
+              AND (
+                    LOWER(COALESCE(role, '')) IN ('comercial', 'vendedor', 'sales')
+                    OR LOWER(COALESCE(departamento, '')) LIKE '%comercial%'
+                    OR LOWER(COALESCE(departamento, '')) LIKE '%vendas%'
+                    OR LOWER(COALESCE(cargo, '')) LIKE '%vendedor%'
+                    OR LOWER(COALESCE(cargo, '')) LIKE '%consultor%'
+                    OR LOWER(COALESCE(cargo, '')) LIKE '%comercial%'
+                  )
               AND (ativo = 1 OR ativo IS NULL)
+              AND (status IS NULL OR LOWER(status) NOT IN ('inativo', 'bloqueado', 'desativado', 'excluido', 'demitido', 'desligado', 'removido'))
+              AND LOWER(COALESCE(email, '')) NOT LIKE 'qa%@aluforce.ind.br'
+              AND LOWER(COALESCE(email, '')) NOT LIKE '%teste%'
             ORDER BY nome ASC
         `);
 
@@ -873,7 +894,8 @@ apiVendasRouter.get('/pedidos/:id/itens', authenticateToken, async (req, res, ne
         const [ownerCheck] = await pool.query('SELECT vendedor_id FROM pedidos WHERE id = ?', [id]);
         if (ownerCheck.length === 0) return res.status(404).json({ message: 'Pedido não encontrado.' });
         const isAdmin = verificarSeAdmin(req.user);
-        if (!isAdmin && ownerCheck[0].vendedor_id !== req.user?.id) {
+        const canReadPedido = isAdmin || isKanbanSupervisor(req.user) || isPcpUser(req.user);
+        if (!canReadPedido && ownerCheck[0].vendedor_id !== req.user?.id) {
             return res.status(403).json({ message: 'Sem permissão para visualizar itens deste pedido.' });
         }
 
@@ -980,7 +1002,8 @@ apiVendasRouter.get('/pedidos/:id/historico', authenticateToken, async (req, res
         const [ownerCheck] = await pool.query('SELECT vendedor_id FROM pedidos WHERE id = ?', [id]);
         if (ownerCheck.length === 0) return res.status(404).json({ message: 'Pedido não encontrado.' });
         const isAdmin = verificarSeAdmin(req.user);
-        if (!isAdmin && ownerCheck[0].vendedor_id !== req.user?.id) {
+        const canReadPedido = isAdmin || isKanbanSupervisor(req.user) || isPcpUser(req.user);
+        if (!canReadPedido && ownerCheck[0].vendedor_id !== req.user?.id) {
             return res.status(403).json({ message: 'Sem permissão para visualizar histórico deste pedido.' });
         }
 
@@ -1005,7 +1028,8 @@ apiVendasRouter.post('/pedidos/:id/historico', authenticateToken, async (req, re
         const [ownerCheck] = await pool.query('SELECT vendedor_id FROM pedidos WHERE id = ?', [id]);
         if (ownerCheck.length === 0) return res.status(404).json({ message: 'Pedido não encontrado.' });
         const isAdmin = verificarSeAdmin(req.user);
-        if (!isAdmin && ownerCheck[0].vendedor_id !== req.user?.id) {
+        const canWriteHistorico = isAdmin || isKanbanSupervisor(req.user) || isPcpUser(req.user);
+        if (!canWriteHistorico && ownerCheck[0].vendedor_id !== req.user?.id) {
             return res.status(403).json({ message: 'Sem permissão para registrar histórico neste pedido.' });
         }
 
@@ -5261,6 +5285,25 @@ apiVendasRouter.post('/clientes', async (req, res, next) => {
         const b = req.body;
         if (!b.nome) return res.status(400).json({ message: 'Nome é obrigatório.' });
 
+        // DATA-001: impedir cadastro de cliente com CNPJ duplicado (normaliza removendo pontuação).
+        // Escopo por empresa_id (multi-tenant): o mesmo CNPJ pode existir em tenants diferentes.
+        const cnpjLimpo = (b.cnpj || '').replace(/\D/g, '');
+        if (cnpjLimpo) {
+            const [dup] = await pool.query(
+                `SELECT id, nome FROM clientes
+                 WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cnpj,''), '.', ''), '/', ''), '-', ''), ' ', '') = ?
+                   AND empresa_id = ?
+                 LIMIT 1`,
+                [cnpjLimpo, b.empresa_id || 1]
+            );
+            if (dup.length > 0) {
+                return res.status(409).json({
+                    message: `Já existe um cliente cadastrado com este CNPJ: ${dup[0].nome}.`,
+                    duplicateId: dup[0].id
+                });
+            }
+        }
+
         const vendedorNome = req.user ? req.user.nome : null;
         const [result] = await pool.query(
             `INSERT INTO clientes (nome, nome_fantasia, razao_social, cnpj, contato, telefone, celular, email, website,
@@ -6590,7 +6633,8 @@ apiVendasRouter.get('/dashboard/top-produtos', authenticateToken, async (req, re
                         SUM(pi.total) as valor
                      FROM pedido_itens pi
                      JOIN pedidos p ON pi.pedido_id = p.id
-                     WHERE p.created_at >= ? AND p.created_at <= DATE_ADD(?, INTERVAL 1 DAY)${vendedorFilter}
+                     WHERE p.created_at >= ? AND p.created_at <= DATE_ADD(?, INTERVAL 1 DAY)
+                       AND p.status IN ('faturado', 'recibo')${vendedorFilter}
                      GROUP BY COALESCE(pi.descricao, pi.codigo)
                      ORDER BY valor DESC
                      LIMIT ?`,
@@ -6621,6 +6665,7 @@ apiVendasRouter.get('/dashboard/top-produtos', authenticateToken, async (req, re
                      LEFT JOIN pedidos_vendas pv ON ip.pedido_id = pv.id
                      LEFT JOIN produtos pr ON ip.produto_id = pr.id
                      WHERE pv.data_pedido >= ? AND pv.data_pedido <= DATE_ADD(?, INTERVAL 1 DAY)
+                       AND pv.status IN ('faturado', 'recibo')
                      GROUP BY COALESCE(ip.descricao, ip.produto_nome, pr.nome)
                      ORDER BY valor DESC
                      LIMIT ?`,

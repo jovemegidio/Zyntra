@@ -5,6 +5,40 @@
 const BaseRepository = require('./base-repository');
 
 class ClienteRepository extends BaseRepository {
+    async getClienteColumns() {
+        if (!this._clienteColumns) {
+            const rows = await this.query('SHOW COLUMNS FROM clientes');
+            this._clienteColumns = new Set(rows.map(col => col.Field));
+        }
+        return this._clienteColumns;
+    }
+
+    buildOwnerFilter(columns, { vendedorId = null, vendedorNome = null } = {}, alias = 'c') {
+        const conditions = [];
+        const params = [];
+        const prefix = alias ? `${alias}.` : '';
+
+        if (vendedorId) {
+            ['vendedor_id', 'usuario_id', 'user_id', 'created_by'].forEach(field => {
+                if (columns.has(field)) {
+                    conditions.push(`${prefix}${field} = ?`);
+                    params.push(vendedorId);
+                }
+            });
+        }
+
+        if (vendedorNome) {
+            ['vendedor_proprietario', 'vendedor_responsavel', 'incluido_por'].forEach(field => {
+                if (columns.has(field)) {
+                    conditions.push(`${prefix}${field} = ?`);
+                    params.push(vendedorNome);
+                }
+            });
+        }
+
+        return conditions.length ? { sql: `(${conditions.join(' OR ')})`, params } : { sql: '', params: [] };
+    }
+
     /**
      * List clientes with optional admin/vendedor filtering and pagination.
      */
@@ -13,9 +47,13 @@ class ClienteRepository extends BaseRepository {
         let where = '';
         const params = [];
 
-        if (isComercial && vendedorNome) {
-            where = 'WHERE (c.vendedor_proprietario = ? OR c.vendedor_responsavel = ?)';
-            params.push(vendedorNome, vendedorNome);
+        if (isComercial && (vendedorId || vendedorNome)) {
+            const columns = await this.getClienteColumns();
+            const ownerFilter = this.buildOwnerFilter(columns, { vendedorId, vendedorNome });
+            if (ownerFilter.sql) {
+                where = `WHERE ${ownerFilter.sql}`;
+                params.push(...ownerFilter.params);
+            }
         }
 
         params.push(parseInt(limit), offset);
@@ -42,9 +80,13 @@ class ClienteRepository extends BaseRepository {
         let where = 'WHERE (c.nome LIKE ? OR c.nome_fantasia LIKE ? OR c.razao_social LIKE ? OR c.cnpj LIKE ? OR c.email LIKE ?)';
         const params = [like, like, like, like, like];
 
-        if (isComercial && vendedorNome) {
-            where += ' AND (c.vendedor_proprietario = ? OR c.vendedor_responsavel = ?)';
-            params.push(vendedorNome, vendedorNome);
+        if (isComercial && (vendedorId || vendedorNome)) {
+            const columns = await this.getClienteColumns();
+            const ownerFilter = this.buildOwnerFilter(columns, { vendedorId, vendedorNome });
+            if (ownerFilter.sql) {
+                where += ` AND ${ownerFilter.sql}`;
+                params.push(...ownerFilter.params);
+            }
         }
 
         return this.query(

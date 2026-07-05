@@ -321,7 +321,7 @@
             subtree: true
         });
         
-
+        console.log('📱 ALUFORCE Mobile Responsive initialized');
     }
 
     // Exportar funções úteis

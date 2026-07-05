@@ -5,7 +5,7 @@
  * Atualizado: 19/04/2026
  */
 
-const CACHE_VERSION = 'v4.3.1';
+const CACHE_VERSION = 'auto-20260701-3';
 const STATIC_CACHE = `aluforce-static-${CACHE_VERSION}`;
 const DATA_CACHE = `aluforce-data-${CACHE_VERSION}`;
 

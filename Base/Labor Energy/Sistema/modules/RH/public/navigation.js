@@ -1,7 +1,7 @@
-﻿// Sistema de navegaçáo profissional - RH Aluforce V2.0
-console.log('🚀 Inicializando sistema de navegaçáo profissional...');
+// Sistema de navegação profissional - RH Aluforce V2.0
+console.log('🚀 Inicializando sistema de navegação profissional...');
 
-// Funçáo principal de carregamento de páginas
+// Função principal de carregamento de páginas
 function loadPageDirect(pageName, event) {
     if (event) {
         event.preventDefault();
@@ -30,8 +30,8 @@ function loadPageDirect(pageName, event) {
     
     var contentArea = document.querySelector('.content-area');
     if (!contentArea) {
-        console.error('❌ Área de conteúdo náo encontrada!');
-        alert('Erro: Área de conteúdo náo encontrada!');
+        console.error('❌ Área de conteúdo não encontrada!');
+        alert('Erro: Área de conteúdo não encontrada!');
         return false;
     }
     
@@ -97,7 +97,7 @@ function loadPageDirect(pageName, event) {
             contentArea.innerHTML = '<div style="text-align: center; padding: 60px 20px; background: #fef2f2; border-radius: 8px; margin: 20px;">' +
                 '<div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>' +
                 '<h3 style="color: #dc2626; margin-bottom: 10px;">Erro ao carregar página</h3>' +
-                '<p style="color: #991b1b; margin-bottom: 20px;">Náo foi possível carregar "' + pageName + '"</p>' +
+                '<p style="color: #991b1b; margin-bottom: 20px;">Não foi possível carregar "' + pageName + '"</p>' +
                 '<p style="color: #7f1d1d; font-size: 14px; margin-bottom: 30px;">Erro: ' + error.message + '</p>' +
                 '<button onclick="loadPageDirect(\'dashboard\')" style="background: #4f46e5; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px;">Voltar ao Dashboard</button>' +
                 '</div>';
@@ -106,16 +106,16 @@ function loadPageDirect(pageName, event) {
     return false;
 }
 
-// Funçáo de teste simples
+// Função de teste simples
 function testSimple() {
-    alert('Funçáo JavaScript funcionando!');
+    alert('Função JavaScript funcionando!');
     var contentArea = document.querySelector('.content-area');
     if (contentArea) {
         contentArea.innerHTML = '<h1 style="color: green; text-align: center; padding: 50px;">✅ TESTE DE JAVASCRIPT FUNCIONOU!</h1>';
     }
 }
 
-// Funçáo de diagnóstico dos menus
+// Função de diagnóstico dos menus
 function diagnosticarMenus() {
     console.log('🔍 Iniciando diagnóstico dos menus...');
     
@@ -131,7 +131,7 @@ function diagnosticarMenus() {
         if (elemento) {
             console.log('✅ Menu ' + menu.nome + ' encontrado');
         } else {
-            console.log('❌ Menu ' + menu.nome + ' NÁO encontrado');
+            console.log('❌ Menu ' + menu.nome + ' NÃO encontrado');
         }
     });
 }
@@ -143,12 +143,12 @@ function setupMenuListeners() {
     // Desabilitar navegações antigas que causam conflito
     if (typeof navigateToSection !== 'undefined') {
         window.navigateToSection = function() { 
-            console.log('🚫 Navegaçáo antiga desabilitada'); 
+            console.log('🚫 Navegação antiga desabilitada'); 
         };
     }
     if (typeof improvedNavigateToSection !== 'undefined') {
         window.improvedNavigateToSection = function() { 
-            console.log('🚫 Navegaçáo melhorada antiga desabilitada'); 
+            console.log('🚫 Navegação melhorada antiga desabilitada'); 
         };
     }
     
@@ -195,7 +195,7 @@ function setupMenuListeners() {
             e.preventDefault();
             e.stopPropagation();
             console.log('🖱️ Clique no menu Relatórios detectado');
-            loadPageDirect('relatórios', e);
+            loadPageDirect('relatorios', e);
         });
         console.log('✅ Menu Relatórios configurado');
     }
@@ -239,9 +239,9 @@ function setupMenuListeners() {
     });
 }
 
-// Inicializaçáo quando a página carregar
+// Inicialização quando a página carregar
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Iniciando sistema de navegaçáo RH...');
+    console.log('🚀 Iniciando sistema de navegação RH...');
     
     // Configurar menus e diagnóstico
     setTimeout(function() {
@@ -249,7 +249,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setupMenuListeners();
     }, 100);
     
-    // Adicionar botáo de teste visível (apenas em desenvolvimento)
+    // Adicionar botão de teste visível (apenas em desenvolvimento)
     if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
         var testButton = document.createElement('button');
         testButton.innerHTML = '🧪 TESTAR JS';
@@ -265,4 +265,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 500);
 });
 
-console.log('✅ Sistema de navegaçáo carregado!');
+console.log('✅ Sistema de navegação carregado!');

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <script src="/js/anti-copy-protection.js?v=20260410" defer></script>
@@ -10,7 +10,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Zyntra: Contas a Pagar</title>
+    <title>Zyntra: Financeiro</title>
 
     <!-- Autenticação -->
     <script src="/js/auth-unified.js?v=20260326" defer></script>
@@ -216,12 +216,13 @@
 
     <!-- Header & Sidebar refinado -->
     <!-- Global Header & Sidebar - override final unificado -->
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260621">
+    <script src="/js/global-sidebar-submenu.js?v=20260703imp" defer></script>
     <!-- Chat Widget BOB AI -->
     <link rel="stylesheet" href="/chat/widget.css?v=20260218">
     <link rel="stylesheet" href="/css/counter-global-standard.css?v=20260326">
     <link rel="stylesheet" href="/css/modal-standard-compat.css?v=20260614">
-    <link rel="stylesheet" href="/css/design-system.css?v=20260502">
+    <link rel="stylesheet" href="/css/design-system.css?v=20260628">
 </head>
 <body>
     <div class="app-container">
@@ -262,6 +263,10 @@
                 <a href="/Financeiro/relatorios" class="sidebar-btn" title="Relatórios">
                     <i class="fas fa-chart-bar"></i>
                 </a>
+                <a href="/Financeiro/dre.html" class="sidebar-btn" title="DRE">
+                    <i class="fas fa-chart-line"></i>
+                </a>
+                <a href="/Financeiro/desconto-duplicatas.html" class="sidebar-btn" title="Desconto de Duplicatas"><i class="fas fa-file-invoice"></i></a>
             </nav>
 
             <div class="sidebar-bottom">
@@ -288,10 +293,10 @@
                         <i class="fas fa-bars"></i>
                     </button>
                     <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
-                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
-                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">&#8212;</span>
+                        <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span class="header-separator">|</span>
+                        <img src="/images/zyntra-sem-fundo.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span class="header-dash">&#8212;</span>
                         <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Contas a Pagar</span>
                     </div>
                 </div>
@@ -670,7 +675,7 @@
                         <button type="button" class="tab-conta active" data-tab="detalhes">Detalhes</button>
                         <button type="button" class="tab-conta" data-tab="impostos">Impostos Retidos</button>
                         <button type="button" class="tab-conta" data-tab="departamentos">Departamentos</button>
-                        <button type="button" class="tab-conta" data-tab="repetião">Repetião</button>
+                        <button type="button" class="tab-conta" data-tab="repetião">Repetição</button>
                         <button type="button" class="tab-conta" data-tab="pagamentos">Pagamentos</button>
                         <button type="button" class="tab-conta" data-tab="integração">
                             <i class="fas fa-link" style="margin-right: 4px; opacity: 0.5;"></i> Integração Bancária e CNAB
@@ -842,7 +847,7 @@
                             <div class="repetição-section">
                                 <div style="margin-bottom:18px;">
                                     <h4 style="margin:0 0 4px;font-size:14px;color:#374151;font-weight:600;">
-                                        <i class="fas fa-redo" style="margin-right:6px;color:#f59e0b;"></i> Repetião / Recorrência Automática
+                                        <i class="fas fa-redo" style="margin-right:6px;color:#f59e0b;"></i> Repetição / Recorrência Automática
                                     </h4>
                                     <p style="margin:0;font-size:12px;color:#9ca3af;">Configure para gerar automaticamente novas parcelas a partir desta conta.</p>
                                 </div>
@@ -2374,9 +2379,11 @@
                 const selectConta = document.getElementById('conta-banco');
                 const selectPagamento = document.getElementById('pagamento-banco');
 
-                const options = contasBancarias.map(c =>
-                    `<option value="${c.id}">${c.banco} - ${c.agencia}/${c.conta}</option>`
-                ).join('');
+                const options = contasBancarias.map(c => {
+                    const nome = c.nome || c.banco || c.banco_nome || 'Conta';
+                    const detalhe = (c.agencia || c.conta) ? ` - ${c.agencia || ''}/${c.conta || ''}` : '';
+                    return `<option value="${c.id}">${nome}${detalhe}</option>`;
+                }).join('');
 
                 if (selectConta) selectConta.innerHTML = '<option value="">Selecione a conta...</option>' + options;
                 if (selectPagamento) selectPagamento.innerHTML = '<option value="">Selecione a conta...</option>' + options;
@@ -3237,7 +3244,9 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
     <script src="/js/user-dropdown.js?v=20260319" defer></script>
+
+    <!-- Modais do Financeiro (abre via ?fin=... vindo do mega-menu lateral) -->
+    <script src="/Financeiro/financeiro-modais.js?v=20260703-categorias2"></script>
 </body>
 </html>
-
 

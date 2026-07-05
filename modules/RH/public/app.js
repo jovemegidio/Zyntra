@@ -377,9 +377,9 @@ function safeRedirectToLogin() {
                 // SSO: Preservar URL atual para retornar após login
                 const returnTo = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
                 window.location.href = `/login.html?returnTo=${returnTo}`;
-            } catch (e) { try { notifyRedirectAttempt('safeRedirectToLogin', 'catch-fallback'); window.location.href = '/login.html'; } catch (_) {} }
+            } catch (e) { try { notifyRedirectAttempt('safeRedirectToLogin', 'catch-fallback'); window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html'; } catch (_) {} }
         });
-    } catch (e) { try { notifyRedirectAttempt('safeRedirectToLogin', 'outer-catch'); window.location.href = '/login.html'; } catch (_) {} }
+    } catch (e) { try { notifyRedirectAttempt('safeRedirectToLogin', 'outer-catch'); window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html'; } catch (_) {} }
 }
 
 // Consistent control disabling helper: accepts an Element or id and marks it disabled for anchors/buttons
@@ -758,7 +758,7 @@ function initAdminPage() {
         }
         
         showToast("Acesso negado. Apenas administradores podem aceder a está página.", 'error');
-        window.location.href = '/login.html';
+        window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
         return;
     }
     
@@ -2063,7 +2063,7 @@ async function initEmployeePage() {
                                             } catch(e) { showToast('Erro ao copiar diagnóstico.', 'error'); }
                                         });
                                         const openLoginBtn = document.getElementById('auth-open-login');
-                                        if (openLoginBtn) openLoginBtn.addEventListener('click', function(){ window.location.href = '/login.html'; });
+                                        if (openLoginBtn) openLoginBtn.addEventListener('click', function(){ window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html'; });
                                     } catch(e) {}
                                 } catch (e) { diag.textContent = 'Diagnostics indisponível'; }
                             }

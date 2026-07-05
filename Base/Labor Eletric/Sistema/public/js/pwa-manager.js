@@ -110,7 +110,7 @@
     function showInstallButton() {
         // ✅ Mostrar botão SOMENTE no Painel de Controle (dashboard)
         const path = window.location.pathname;
-        const isDashboard = (path === '/' || path === '/dashboard' || path === '/painel');
+        const isDashboard = (path === '/' || path === '/index.html' || path === '/dashboard' || path === '/painel');
         if (!isDashboard) return;
 
         // Verificar se já existe

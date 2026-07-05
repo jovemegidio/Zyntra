@@ -39,23 +39,22 @@ router.get('/kpis', async (req, res) => {
             aReceberHoje,
             ordensAtivas
         ] = await Promise.allSettled([
-            // Recebimentos do mês atual — usa data_recebimento e valor_recebido
-            // cobre status 'liquidada' (padrão) e variantes legadas 'pago'/'recebido'
+            // Faturamento do mês atual — soma das NF-e emitidas/autorizadas no mês
             db.query(`
-                SELECT COALESCE(SUM(COALESCE(valor_recebido, valor)), 0) as total
-                FROM contas_receber
-                WHERE status IN ('liquidada', 'pago', 'recebido', 'paga', 'recebida', 'quitada', 'quitado')
-                AND MONTH(COALESCE(data_recebimento, data_vencimento)) = MONTH(CURDATE())
-                AND YEAR(COALESCE(data_recebimento, data_vencimento))  = YEAR(CURDATE())
+                SELECT COALESCE(SUM(valor_total), 0) as total
+                FROM nfe
+                WHERE status IN ('autorizada', 'emitida', 'concluida', 'enviada')
+                AND MONTH(COALESCE(data_emissao, created_at)) = MONTH(CURDATE())
+                AND YEAR(COALESCE(data_emissao, created_at))  = YEAR(CURDATE())
             `).catch(() => [[{ total: 0 }]]),
 
-            // Mês anterior (para calcular tendência)
+            // Mês anterior (para calcular tendência) — faturamento NF-e
             db.query(`
-                SELECT COALESCE(SUM(COALESCE(valor_recebido, valor)), 0) as total
-                FROM contas_receber
-                WHERE status IN ('liquidada', 'pago', 'recebido', 'paga', 'recebida', 'quitada', 'quitado')
-                AND MONTH(COALESCE(data_recebimento, data_vencimento)) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
-                AND YEAR(COALESCE(data_recebimento, data_vencimento))  = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
+                SELECT COALESCE(SUM(valor_total), 0) as total
+                FROM nfe
+                WHERE status IN ('autorizada', 'emitida', 'concluida', 'enviada')
+                AND MONTH(COALESCE(data_emissao, created_at)) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
+                AND YEAR(COALESCE(data_emissao, created_at))  = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
             `).catch(() => [[{ total: 0 }]]),
 
             // Pedidos de compra em aberto
@@ -73,19 +72,88 @@ router.get('/kpis', async (req, res) => {
                 AND status IN ('a_vencer', 'vencida', 'pendente', 'aberto')
             `).catch(() => [[{ total: 0 }]]),
 
-            // UI-02: Alinhado com whitelist de status ativos do PCP (pcp-routes.js linha ~352)
+            // BUG-003: Ordens ativas — exclui apenas terminais (alinhado com query do PCP)
             db.query(`
                 SELECT COUNT(*) as total
                 FROM ordens_producao
-                WHERE status IN ('ativa', 'em_producao', 'Em Produção', 'em_andamento', 'A Fazer', 'pendente', 'planejada', 'Planejada')
+                WHERE status NOT IN ('concluida', 'cancelada', 'finalizada', 'Concluída', 'Cancelada', 'Finalizada')
             `).catch(() => [[{ total: 0 }]])
         ]);
         
         // Processar resultados
-        const vendasAtual = vendasMes.status === 'fulfilled' ? 
+        let vendasAtual = vendasMes.status === 'fulfilled' ?
             parseFloat(vendasMes.value[0]?.[0]?.total || 0) : 0;
-        const vendasAnterior = vendasMesAnterior.status === 'fulfilled' ? 
+        let vendasAnterior = vendasMesAnterior.status === 'fulfilled' ?
             parseFloat(vendasMesAnterior.value[0]?.[0]?.total || 0) : 0;
+
+        // BUG-014: contas_receber está vazia em produção (sem integração Fat→Fin).
+        // Fallback: usa NF-e faturadas no mês como aproximação dos recebimentos.
+        // BUG-FIX 2026-06-27: a coluna `valor_total` não existe em `nfe`/`pedidos` no
+        // aluforce (só existe `valor`; labor-energy/eletric têm valor_total em `nfe`,
+        // mas não em `pedidos`). Referenciar uma coluna inexistente faz a query
+        // estourar erro SQL silenciosamente capturado pelo catch, retornando 0 sempre,
+        // independente dos dados reais. Tenta `valor_total` primeiro (preserva o
+        // comportamento já existente nas instâncias onde a coluna existe) e cai para
+        // `valor` quando a coluna não existir.
+        if (vendasAtual === 0) {
+            try {
+                const [[row]] = await db.query(`
+                    SELECT COALESCE(SUM(valor_total), 0) as total
+                    FROM nfe
+                    WHERE status IN ('autorizada', 'emitida', 'concluida', 'enviada')
+                      AND MONTH(COALESCE(data_emissao, created_at)) = MONTH(CURDATE())
+                      AND YEAR(COALESCE(data_emissao, created_at))  = YEAR(CURDATE())
+                `);
+                vendasAtual = parseFloat(row?.total || 0);
+            } catch (_) {
+                try {
+                    const [[row]] = await db.query(`
+                        SELECT COALESCE(SUM(valor), 0) as total
+                        FROM nfe
+                        WHERE status IN ('autorizada', 'emitida', 'concluida', 'enviada')
+                          AND MONTH(COALESCE(data_emissao, created_at)) = MONTH(CURDATE())
+                          AND YEAR(COALESCE(data_emissao, created_at))  = YEAR(CURDATE())
+                    `);
+                    vendasAtual = parseFloat(row?.total || 0);
+                } catch (_) {}
+            }
+            // Fallback final: pedidos com status faturado/entregue (coluna real é `valor`)
+            if (vendasAtual === 0) {
+                try {
+                    const [[row2]] = await db.query(`
+                        SELECT COALESCE(SUM(valor), 0) as total
+                        FROM pedidos
+                        WHERE status IN ('faturado', 'entregue', 'recibo', 'convertido')
+                          AND MONTH(COALESCE(data_faturamento, created_at)) = MONTH(CURDATE())
+                          AND YEAR(COALESCE(data_faturamento, created_at))  = YEAR(CURDATE())
+                    `);
+                    vendasAtual = parseFloat(row2?.total || 0);
+                } catch (_) {}
+            }
+        }
+        if (vendasAnterior === 0) {
+            try {
+                const [[row]] = await db.query(`
+                    SELECT COALESCE(SUM(valor_total), 0) as total
+                    FROM nfe
+                    WHERE status IN ('autorizada', 'emitida', 'concluida', 'enviada')
+                      AND MONTH(COALESCE(data_emissao, created_at)) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
+                      AND YEAR(COALESCE(data_emissao, created_at))  = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
+                `);
+                vendasAnterior = parseFloat(row?.total || 0);
+            } catch (_) {
+                try {
+                    const [[row]] = await db.query(`
+                        SELECT COALESCE(SUM(valor), 0) as total
+                        FROM nfe
+                        WHERE status IN ('autorizada', 'emitida', 'concluida', 'enviada')
+                          AND MONTH(COALESCE(data_emissao, created_at)) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
+                          AND YEAR(COALESCE(data_emissao, created_at))  = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
+                    `);
+                    vendasAnterior = parseFloat(row?.total || 0);
+                } catch (_) {}
+            }
+        }
         
         // Calcular tendência
         let trendPercent = 0;
@@ -244,11 +312,11 @@ router.get('/modules', async (req, res) => {
             financeiro,
             rh
         ] = await Promise.allSettled([
-            // Compras: pedidos de compra não finalizados/cancelados
+            // Compras: pedidos de compra pendentes ou em andamento
             db.query(`
-                SELECT COUNT(*) as total
-                FROM pedidos_compra
-                WHERE status NOT IN ('cancelado', 'rejeitado', 'concluido', 'finalizado', 'entregue', 'deletado', 'arquivado')
+                SELECT COUNT(*) as total 
+                FROM pedidos_compra 
+                WHERE status IN ('pendente', 'aprovado', 'parcial', 'em_andamento')
             `).catch(() => [[{ total: 0 }]]),
             
             // Vendas: orçamentos em aberto (usar pedidos se orcamentos não existir)
@@ -373,13 +441,13 @@ router.get('/pedidos-recentes', async (req, res) => {
                    COALESCE(p.numero_pedido, CONCAT('#', p.id)) as numero_pedido,
                    p.status,
                    p.created_at,
-                   COALESCE(p.valor_total, p.valor, 0) as valor_total,
+                   COALESCE(p.valor, 0) as valor_total,
                    COALESCE(c.razao_social, c.nome_fantasia, c.nome, p.cliente_nome, p.cliente, 'Cliente') AS cliente_nome
             FROM pedidos p
             LEFT JOIN clientes c ON p.cliente_id = c.id
             ORDER BY p.id DESC
             LIMIT 8
-        `).catch(() => [[]]);
+        `).catch((e) => { console.error('[Dashboard] pedidos-recentes query falhou:', e.message); return [[]]; });
         res.json(rows || []);
     } catch (e) {
         console.error('Dashboard pedidos-recentes error:', e);

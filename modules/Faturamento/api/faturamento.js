@@ -2,6 +2,15 @@
 const router = express.Router();
 const path = require('path');
 
+// BUG-FAT-018: rejeitar :id malformado (ex.: "1'or'1'='1") em vez de coagir p/ inteiro e
+// responder 200. Aceita id inteiro positivo OU chave de acesso NF-e (44 dígitos). Endurece a
+// superfície de entrada — a parametrização já evita SQLi, mas lixo não deve ser aceito.
+router.param('id', (req, res, next, value) => {
+    const v = String(value).trim();
+    if (/^[1-9]\d*$/.test(v) || /^\d{44}$/.test(v)) return next();
+    return res.status(400).json({ success: false, code: 'ID_INVALIDO', message: 'Identificador inválido.' });
+});
+
 // VULN-013 FIX: Audit trail para operações fiscais críticas
 const { logAuditEvent } = require('../../../middleware/audit-trail');
 
@@ -224,7 +233,9 @@ module.exports = (pool, authenticateToken) => {
                     p.status
                 FROM pedidos p
                 LEFT JOIN clientes c ON p.cliente_id = c.id
-                WHERE p.status = 'pedido-aprovado'
+                -- 25/06/2026: exibe pedidos do status "Aguardando Faturamento" em diante
+                -- (aprovado/pedido-aprovado mantidos p/ retrocompat; 'faturar' = etapa de ação).
+                WHERE LOWER(TRIM(p.status)) IN ('aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar')
                   AND p.id NOT IN (SELECT COALESCE(pedido_id, 0) FROM nfes WHERE pedido_id IS NOT NULL)
                 ORDER BY p.created_at DESC
                 LIMIT 50
@@ -306,12 +317,16 @@ module.exports = (pool, authenticateToken) => {
                     c.email as cliente_email,
                     c.email_nfe as cliente_email_nfe
                 FROM pedidos p
-                INNER JOIN clientes c ON p.cliente_id = c.id
-                WHERE p.id = ? AND p.status IN ('aprovado', 'pedido-aprovado')
+                LEFT JOIN clientes c ON p.cliente_id = c.id
+                WHERE p.id = ? AND LOWER(TRIM(p.status)) IN ('aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar')
             `, [pedido_id]);
 
             if (pedidos.length === 0) {
-                throw new Error('Pedido não encontrado ou não está aprovado');
+                // BUG-FAT-001: o contrato divergia de /pedidos-aprovados, que oferece pedidos em
+                // status 'faturar'/'aguardando-faturamento' — mas gerar-nfe só aceitava 'aprovado',
+                // rejeitando pedidos que a própria lista apresentava como faturáveis. Alinhado.
+                // LEFT JOIN (antes INNER): pedido com cliente_id nulo não some mais silenciosamente.
+                throw new Error('Pedido não encontrado ou não está em status faturável.');
             }
 
             const pedido = pedidos[0];
@@ -350,6 +365,23 @@ module.exports = (pool, authenticateToken) => {
                 if (!item.preco_unitario || item.preco_unitario <= 0) {
                     throw new Error(`Item "${item.descricao}" possui preço unitário inválido (${item.preco_unitario}). Deve ser > 0.`);
                 }
+            }
+
+            // VALIDAÇÃO FISCAL: NCM obrigatório (8 dígitos).
+            // Emitir NF-e com NCM ausente/inválido gera classificação fiscal incorreta
+            // (antes o sistema substituía silenciosamente por um NCM-fallback genérico,
+            // o que é irregular perante o Fisco). Bloqueia a emissão e lista os produtos.
+            const _itensSemNcm = itens.filter(it => String(it.ncm || '').replace(/\D/g, '').length !== 8);
+            if (_itensSemNcm.length > 0) {
+                const _lista = _itensSemNcm
+                    .map(it => `• ${it.descricao || ('produto #' + (it.produto_id || it.id || '?'))}`)
+                    .join('\n');
+                const _err = new Error(
+                    `Emissão bloqueada: ${_itensSemNcm.length} produto(s) sem NCM válido (8 dígitos). ` +
+                    `Cadastre o NCM correto no cadastro de produtos antes de faturar:\n${_lista}`
+                );
+                _err.code = 'NCM_AUSENTE';
+                throw _err;
             }
 
             // VALIDAÇÃO: CNPJ/CPF do destinatário
@@ -791,7 +823,13 @@ module.exports = (pool, authenticateToken) => {
                         COALESCE(n.destinatario_nome, c.nome) COLLATE utf8mb4_general_ci as cliente_nome,
                         COALESCE(n.destinatario_nome, c.nome) COLLATE utf8mb4_general_ci as destinatario,
                         COALESCE(n.valor_total, 0) as valor,
-                        n.status COLLATE utf8mb4_general_ci as status,
+                        CASE
+                            WHEN n.status COLLATE utf8mb4_general_ci = 'autorizada'
+                                 AND (n.chave_acesso IS NULL OR n.chave_acesso = ''
+                                      OR n.protocolo_autorizacao IS NULL OR n.protocolo_autorizacao = '')
+                            THEN 'pendente'
+                            ELSE n.status COLLATE utf8mb4_general_ci
+                        END as status,
                         n.data_emissao,
                         n.natureza_operacao COLLATE utf8mb4_general_ci as observacoes,
                         n.chave_acesso COLLATE utf8mb4_general_ci as chave_acesso,
@@ -811,7 +849,7 @@ module.exports = (pool, authenticateToken) => {
                         COALESCE(p.cliente_nome, c.nome) as cliente_nome,
                         COALESCE(p.cliente_nome, c.nome) as destinatario,
                         COALESCE(p.valor, 0) as valor,
-                        'autorizada' as status,
+                        CASE WHEN p.nfe_chave IS NOT NULL AND p.nfe_chave <> '' AND p.nfe_protocolo IS NOT NULL AND p.nfe_protocolo <> '' THEN 'autorizada' ELSE 'pendente' END as status,
                         COALESCE(p.data_faturamento, p.created_at) as data_emissao,
                         'VENDA DE MERCADORIA' as observacoes,
                         p.nfe_chave as chave_acesso,
@@ -872,6 +910,148 @@ module.exports = (pool, authenticateToken) => {
     });
 
     // ============================================================
+    // CONTRATOS — base para os relatórios gerenciais de Contratos
+    // (Ativos, A Vencer, Vencidos, Receita, por Cliente)
+    // ============================================================
+
+    // Garante que a tabela exista antes de qualquer operação.
+    let _contratosTabelaPronta = false;
+    async function ensureContratosTable() {
+        if (_contratosTabelaPronta) return;
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS contratos (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                numero VARCHAR(50),
+                cliente_id INT NULL,
+                cliente_nome VARCHAR(255),
+                descricao VARCHAR(255),
+                valor DECIMAL(15,2) NOT NULL DEFAULT 0,
+                periodicidade VARCHAR(20) NOT NULL DEFAULT 'mensal',
+                data_inicio DATE NULL,
+                data_fim DATE NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'ativo',
+                observacoes TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_contratos_cliente (cliente_id),
+                INDEX idx_contratos_status (status),
+                INDEX idx_contratos_data_fim (data_fim)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        `);
+        _contratosTabelaPronta = true;
+    }
+
+    // LISTAR contratos — usado pelos 5 relatórios (agregação feita no front).
+    // Filtros opcionais: status, cliente_id, busca, data_inicio/data_fim (vigência).
+    router.get('/contratos', authenticateToken, async (req, res) => {
+        try {
+            await ensureContratosTable();
+            const { status, cliente_id, busca, data_inicio, data_fim } = req.query;
+
+            let query = `
+                SELECT
+                    ct.id, ct.numero, ct.cliente_id,
+                    COALESCE(ct.cliente_nome, c.nome) AS cliente_nome,
+                    ct.descricao, ct.valor, ct.periodicidade,
+                    ct.data_inicio, ct.data_fim, ct.status, ct.observacoes,
+                    ct.created_at
+                FROM contratos ct
+                LEFT JOIN clientes c ON ct.cliente_id = c.id
+                WHERE 1=1
+            `;
+            const params = [];
+
+            if (status) { query += ' AND ct.status = ?'; params.push(status); }
+            if (cliente_id) { query += ' AND ct.cliente_id = ?'; params.push(cliente_id); }
+            if (data_inicio) { query += ' AND (ct.data_fim IS NULL OR ct.data_fim >= ?)'; params.push(data_inicio); }
+            if (data_fim) { query += ' AND (ct.data_inicio IS NULL OR ct.data_inicio <= ?)'; params.push(data_fim); }
+            if (busca) {
+                query += ' AND (COALESCE(ct.cliente_nome, c.nome) LIKE ? OR ct.numero LIKE ? OR ct.descricao LIKE ?)';
+                const term = `%${busca}%`;
+                params.push(term, term, term);
+            }
+
+            query += ' ORDER BY ct.data_fim IS NULL, ct.data_fim ASC, ct.id DESC';
+
+            const [contratos] = await pool.query(query, params);
+            res.json({ success: true, data: contratos });
+        } catch (error) {
+            console.error('[FATURAMENTO] Erro ao listar contratos:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // CRIAR contrato
+    router.post('/contratos', authenticateToken, async (req, res) => {
+        try {
+            await ensureContratosTable();
+            const {
+                numero, cliente_id, cliente_nome, descricao,
+                valor, periodicidade, data_inicio, data_fim, status, observacoes
+            } = req.body || {};
+
+            const [result] = await pool.query(
+                `INSERT INTO contratos
+                    (numero, cliente_id, cliente_nome, descricao, valor, periodicidade, data_inicio, data_fim, status, observacoes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    numero || null,
+                    cliente_id || null,
+                    cliente_nome || null,
+                    descricao || null,
+                    Number(valor) || 0,
+                    periodicidade || 'mensal',
+                    data_inicio || null,
+                    data_fim || null,
+                    status || 'ativo',
+                    observacoes || null
+                ]
+            );
+            res.status(201).json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('[FATURAMENTO] Erro ao criar contrato:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // ATUALIZAR contrato
+    router.put('/contratos/:id', authenticateToken, async (req, res) => {
+        try {
+            await ensureContratosTable();
+            const campos = [];
+            const valores = [];
+            const permitidos = ['numero', 'cliente_id', 'cliente_nome', 'descricao', 'valor', 'periodicidade', 'data_inicio', 'data_fim', 'status', 'observacoes'];
+            for (const campo of permitidos) {
+                if (req.body && req.body[campo] !== undefined) {
+                    campos.push(`${campo} = ?`);
+                    valores.push(req.body[campo] === '' ? null : req.body[campo]);
+                }
+            }
+            if (!campos.length) {
+                return res.status(400).json({ success: false, message: 'Nenhum campo para atualizar' });
+            }
+            valores.push(req.params.id);
+            await pool.query(`UPDATE contratos SET ${campos.join(', ')} WHERE id = ?`, valores);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('[FATURAMENTO] Erro ao atualizar contrato:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // EXCLUIR contrato
+    router.delete('/contratos/:id', authenticateToken, async (req, res) => {
+        try {
+            await ensureContratosTable();
+            await pool.query('DELETE FROM contratos WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('[FATURAMENTO] Erro ao excluir contrato:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // ============================================================
     // DETALHES DA NF-e
     // ============================================================
 
@@ -894,7 +1074,7 @@ module.exports = (pool, authenticateToken) => {
                         COALESCE(c.cnpj, c.cpf, '') as destinatario_cnpj_cpf,
                         COALESCE(p.valor, 0) as valor_total,
                         COALESCE(p.valor, 0) as valor,
-                        'autorizada' as status,
+                        CASE WHEN p.nfe_chave IS NOT NULL AND p.nfe_chave <> '' AND p.nfe_protocolo IS NOT NULL AND p.nfe_protocolo <> '' THEN 'autorizada' ELSE 'pendente' END as status,
                         COALESCE(p.data_faturamento, p.created_at) as data_emissao,
                         'VENDA DE MERCADORIA' as natureza_operacao,
                         p.nfe_chave as chave_acesso,
@@ -962,10 +1142,18 @@ module.exports = (pool, authenticateToken) => {
                 SELECT * FROM nfe_itens WHERE nfe_id = ?
             `, [id]);
 
+            // FISC: NF-e só é "autorizada" com chave de acesso + protocolo reais.
+            // Registros legados/importados sem esses dados não podem exibir status autorizado.
+            const nfeRow = nfes[0];
+            if (nfeRow && String(nfeRow.status || '').toLowerCase() === 'autorizada'
+                && (!nfeRow.chave_acesso || !nfeRow.protocolo_autorizacao)) {
+                nfeRow.status = 'pendente';
+            }
+
             res.json({
                 success: true,
                 data: {
-                    ...nfes[0],
+                    ...nfeRow,
                     itens
                 }
             });
@@ -989,7 +1177,7 @@ module.exports = (pool, authenticateToken) => {
             const usuario_id = req.user.id;
 
             // Verificar se NF-e existe
-            const [[nfeExistente]] = await pool.query('SELECT id, status FROM nfes WHERE id = ?', [id]);
+            const [[nfeExistente]] = await pool.query('SELECT id, status, chave_acesso, numero_protocolo FROM nfes WHERE id = ?', [id]);
             if (!nfeExistente) {
                 return res.status(404).json({ success: false, message: 'NF-e não encontrada' });
             }
@@ -1000,6 +1188,20 @@ module.exports = (pool, authenticateToken) => {
                 natureza_operacao, chave_acesso, destinatario_nome,
                 observacoes, protocolo
             } = req.body;
+
+            // FISC-003: status 'autorizada' só pode ser definido via SEFAZ (rota /enviar-sefaz),
+            // que grava chave_acesso e numero_protocolo reais. Editar manualmente para 'autorizada'
+            // sem esses dados cria NF-e "autorizada" sem respaldo fiscal (chave/protocolo ausentes).
+            if (status === 'autorizada' && nfeExistente.status !== 'autorizada') {
+                const chaveFinal = chave_acesso !== undefined ? chave_acesso : nfeExistente.chave_acesso;
+                const protocoloFinal = protocolo !== undefined ? protocolo : nfeExistente.numero_protocolo;
+                if (!chaveFinal || !protocoloFinal) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'NF-e não pode ser marcada como "autorizada" manualmente sem chave de acesso e protocolo de autorização. Use o envio à SEFAZ.'
+                    });
+                }
+            }
 
             const campos = [];
             const valores = [];
@@ -1196,12 +1398,16 @@ module.exports = (pool, authenticateToken) => {
                 });
             }
 
+            // Erros de validação de negócio carregam statusCode 400 para o catch final não
+            // devolvê-los como 500 (BUG-FAT-014: erro de regra vazava como falha interna).
+            const erroNegocio = (msg) => { const e = new Error(msg); e.statusCode = 400; return e; };
+
             // VALIDAÇÃO FISCAL: Motivo deve ter entre 15 e 255 caracteres (SEFAZ)
             if (!motivo || motivo.trim().length < 15) {
-                throw new Error('Motivo do cancelamento deve ter no mínimo 15 caracteres');
+                throw erroNegocio('Motivo do cancelamento deve ter no mínimo 15 caracteres');
             }
             if (motivo.length > 255) {
-                throw new Error('Motivo do cancelamento excede o limite de 255 caracteres');
+                throw erroNegocio('Motivo do cancelamento excede o limite de 255 caracteres');
             }
 
             // Buscar NF-e
@@ -1210,22 +1416,64 @@ module.exports = (pool, authenticateToken) => {
             `, [id]);
 
             if (nfes.length === 0) {
-                throw new Error('NF-e não encontrada');
+                throw erroNegocio('NF-e não encontrada');
             }
 
             const nfe = nfes[0];
 
             if (nfe.status === 'cancelada') {
-                throw new Error('NF-e já está cancelada');
+                throw erroNegocio('NF-e já está cancelada');
             }
 
-            // VALIDAÇÃO FISCAL: Verificar prazo de cancelamento (24 horas após autorização)
-            if (nfe.created_at) {
+            // BUG-FAT-015: a janela de 24h só se aplica a NF-e AUTORIZADA (emitida à SEFAZ).
+            // Uma NF-e em rascunho/pendente nunca foi emitida — deve poder ser descartada sem a
+            // regra de prazo (que antes disparava "não pode cancelar após 24h" num rascunho e
+            // apontava para Carta de Correção, recurso inexistente).
+            const statusNfe = String(nfe.status || '').toLowerCase().trim();
+            const nfeEmitida = ['autorizada', 'cancelamento_pendente'].includes(statusNfe);
+            if (nfeEmitida && nfe.created_at) {
                 const horasDesdeEmissao = (Date.now() - new Date(nfe.created_at).getTime()) / (1000 * 60 * 60);
                 if (horasDesdeEmissao > 24) {
                     console.log(`[FATURAMENTO] Tentativa de cancelar NF-e ${id} após prazo de 24h`);
-                    throw new Error(`NF-e não pode ser cancelada após 24 horas da emissão (${Math.floor(horasDesdeEmissao)}h decorridas). Use Carta de Correção ou entre em contato com a contabilidade.`);
+                    throw erroNegocio(`NF-e não pode ser cancelada após 24 horas da autorização (${Math.floor(horasDesdeEmissao)}h decorridas). Entre em contato com a contabilidade.`);
                 }
+            }
+
+            // ── TRANSMISSÃO DO CANCELAMENTO À SEFAZ (evento 110111) ──
+            // Só transmite quando a NF-e tem chave + protocolo reais (autorizada de fato).
+            // NF-e sem chave (legada/local, ex.: importada do Omie) é cancelada só localmente.
+            let cancelamentoSefaz = null;
+            const temAutorizacaoReal = !!(nfe.chave_acesso && nfe.protocolo_autorizacao);
+            if (temAutorizacaoReal) {
+                let resultadoSefaz;
+                try {
+                    resultadoSefaz = await sefazService.cancelarNFe(
+                        nfe.chave_acesso,
+                        nfe.protocolo_autorizacao,
+                        motivo.trim(),
+                        nfe.emitente_uf,
+                        nfe.emitente_cnpj
+                    );
+                } catch (sefazErr) {
+                    await connection.rollback();
+                    console.error(`[FATURAMENTO] Falha SEFAZ ao cancelar NF-e ${id}:`, sefazErr.message);
+                    return res.status(502).json({
+                        success: false,
+                        error: 'SEFAZ_INDISPONIVEL',
+                        message: `Não foi possível transmitir o cancelamento à SEFAZ: ${sefazErr.message}`
+                    });
+                }
+                // cStat 135 = registrado e vinculado; 136 = registrado não vinculado; 155 = cancelamento extemporâneo homologado
+                const cStat = String(resultadoSefaz?.codigoStatus || '');
+                if (!['135', '136', '155'].includes(cStat)) {
+                    await connection.rollback();
+                    return res.status(400).json({
+                        success: false,
+                        error: 'SEFAZ_REJEITOU',
+                        message: `SEFAZ não homologou o cancelamento (cStat ${cStat || '?'}: ${resultadoSefaz?.motivo || 'sem retorno'}). A NF-e continua válida.`
+                    });
+                }
+                cancelamentoSefaz = resultadoSefaz;
             }
 
             // Atualizar status
@@ -1234,6 +1482,16 @@ module.exports = (pool, authenticateToken) => {
                 SET status = 'cancelada'
                 WHERE id = ?
             `, [id]);
+
+            // Registrar o evento de cancelamento (com o protocolo da SEFAZ quando transmitido)
+            try {
+                await connection.query(`
+                    INSERT INTO nfe_eventos (nfe_id, tipo_evento, sequencia, descricao, protocolo, xml_evento, created_at)
+                    VALUES (?, '110111', 1, ?, ?, ?, NOW())
+                `, [id, motivo.trim().substring(0, 255), cancelamentoSefaz?.numeroProtocolo || null, cancelamentoSefaz?.xmlCompleto || null]);
+            } catch (evErr) {
+                console.log('⚠️ Evento de cancelamento não registrado:', evErr.message);
+            }
 
             // Reverter faturamento do pedido (status volta a 'aprovado')
             if (nfe.pedido_id) {
@@ -1278,14 +1536,25 @@ module.exports = (pool, authenticateToken) => {
 
             res.json({
                 success: true,
-                message: integracoes.avisos.length === 0 ? 'NF-e cancelada com sucesso' : 'NF-e cancelada com avisos',
-                data: { nfe_id: id, status: 'cancelada', integracoes }
+                message: cancelamentoSefaz
+                    ? `NF-e cancelada na SEFAZ (protocolo ${cancelamentoSefaz.numeroProtocolo || 'sem protocolo'}).`
+                    : (integracoes.avisos.length === 0
+                        ? 'NF-e cancelada localmente (sem chave de acesso — nota não estava autorizada na SEFAZ).'
+                        : 'NF-e cancelada com avisos'),
+                data: {
+                    nfe_id: id,
+                    status: 'cancelada',
+                    sefaz: cancelamentoSefaz ? { protocolo: cancelamentoSefaz.numeroProtocolo, cStat: cancelamentoSefaz.codigoStatus, motivo: cancelamentoSefaz.motivo } : null,
+                    integracoes
+                }
             });
 
         } catch (error) {
             await connection.rollback();
-            console.error('[FATURAMENTO] Erro ao cancelar NF-e:', error);
-            res.status(500).json({
+            // BUG-FAT-014: erro de validação de negócio → 400; só falha inesperada → 500.
+            const httpStatus = error.statusCode || 500;
+            if (httpStatus >= 500) console.error('[FATURAMENTO] Erro ao cancelar NF-e:', error);
+            res.status(httpStatus).json({
                 success: false,
                 message: error.message
             });
@@ -1312,19 +1581,34 @@ module.exports = (pool, authenticateToken) => {
                 FROM (
                     SELECT
                         COUNT(*) as total_nfes,
-                        SUM(CASE WHEN status COLLATE utf8mb4_general_ci = 'autorizada' THEN 1 ELSE 0 END) as autorizadas,
-                        SUM(CASE WHEN status COLLATE utf8mb4_general_ci = 'pendente' OR status COLLATE utf8mb4_general_ci = 'digitacao' OR status COLLATE utf8mb4_general_ci = 'emitida' THEN 1 ELSE 0 END) as pendentes,
+                        SUM(CASE WHEN status COLLATE utf8mb4_general_ci = 'autorizada'
+                                 AND chave_acesso IS NOT NULL AND chave_acesso <> ''
+                                 AND protocolo_autorizacao IS NOT NULL AND protocolo_autorizacao <> ''
+                            THEN 1 ELSE 0 END) as autorizadas,
+                        SUM(CASE WHEN status COLLATE utf8mb4_general_ci = 'cancelada' THEN 0
+                                 WHEN status COLLATE utf8mb4_general_ci = 'autorizada'
+                                      AND chave_acesso IS NOT NULL AND chave_acesso <> ''
+                                      AND protocolo_autorizacao IS NOT NULL AND protocolo_autorizacao <> ''
+                                 THEN 0
+                                 ELSE 1 END) as pendentes,
                         SUM(CASE WHEN status COLLATE utf8mb4_general_ci = 'cancelada' THEN 1 ELSE 0 END) as canceladas,
-                        SUM(CASE WHEN status COLLATE utf8mb4_general_ci = 'autorizada' THEN COALESCE(valor_total, 0) ELSE 0 END) as valor_total_faturado,
-                        SUM(CASE WHEN status COLLATE utf8mb4_general_ci = 'autorizada' AND MONTH(data_emissao) = MONTH(NOW()) AND YEAR(data_emissao) = YEAR(NOW()) THEN COALESCE(valor_total, 0) ELSE 0 END) as valor_mes_atual
+                        SUM(CASE WHEN status COLLATE utf8mb4_general_ci = 'autorizada'
+                                 AND chave_acesso IS NOT NULL AND chave_acesso <> ''
+                                 AND protocolo_autorizacao IS NOT NULL AND protocolo_autorizacao <> ''
+                            THEN COALESCE(valor_total, 0) ELSE 0 END) as valor_total_faturado,
+                        SUM(CASE WHEN status COLLATE utf8mb4_general_ci = 'autorizada'
+                                 AND chave_acesso IS NOT NULL AND chave_acesso <> ''
+                                 AND protocolo_autorizacao IS NOT NULL AND protocolo_autorizacao <> ''
+                                 AND MONTH(data_emissao) = MONTH(NOW()) AND YEAR(data_emissao) = YEAR(NOW())
+                            THEN COALESCE(valor_total, 0) ELSE 0 END) as valor_mes_atual
                     FROM nfes
 
                     UNION ALL
 
                     SELECT
                         COUNT(*) as total_nfes,
-                        COUNT(*) as autorizadas,
-                        0 as pendentes,
+                        SUM(CASE WHEN p.nfe_chave IS NOT NULL AND p.nfe_chave <> '' AND p.nfe_protocolo IS NOT NULL AND p.nfe_protocolo <> '' THEN 1 ELSE 0 END) as autorizadas,
+                        SUM(CASE WHEN p.nfe_chave IS NOT NULL AND p.nfe_chave <> '' AND p.nfe_protocolo IS NOT NULL AND p.nfe_protocolo <> '' THEN 0 ELSE 1 END) as pendentes,
                         0 as canceladas,
                         SUM(COALESCE(p.valor, 0)) as valor_total_faturado,
                         SUM(CASE WHEN MONTH(COALESCE(p.data_faturamento, p.created_at)) = MONTH(NOW()) AND YEAR(COALESCE(p.data_faturamento, p.created_at)) = YEAR(NOW()) THEN COALESCE(p.valor, 0) ELSE 0 END) as valor_mes_atual
@@ -1430,11 +1714,12 @@ module.exports = (pool, authenticateToken) => {
                     UPDATE nfes
                     SET status = 'autorizada',
                         numero_protocolo = ?,
+                        chave_acesso = COALESCE(chave_acesso, ?),
                         data_autorizacao = NOW(),
                         xml_protocolo = ?,
                         autorizado_por = ?
                     WHERE id = ?
-                `, [resultado.numeroProtocolo, resultado.xmlCompleto, usuario_id, id]);
+                `, [resultado.numeroProtocolo, resultado.chaveAcesso, resultado.xmlCompleto, usuario_id, id]);
 
                 await connection.commit();
 
@@ -1442,48 +1727,13 @@ module.exports = (pool, authenticateToken) => {
                 console.log(`[FATURAMENTO-AUDIT] ✅ NFe ${nfe.numero_nfe} AUTORIZADA pela SEFAZ. Protocolo: ${resultado.numeroProtocolo}. Usuário: ${usuario_id}`);
 
                 // FIX: Baixar estoque efetivamente após autorização SEFAZ
-                const integracoesSefaz = { estoque: null, financeiro: null, avisos: [] };
+                const integracoesSefaz = { estoque: null, avisos: [] };
                 try {
                     integracoesSefaz.estoque = await vendasEstoqueService.baixarEstoque(parseInt(id), usuario_id);
                     console.log(`[FATURAMENTO-AUDIT] ✅ Estoque baixado para NFe ${nfe.numero_nfe}`);
                 } catch (estoqueErr) {
                     integracoesSefaz.avisos.push(`Baixa de estoque não concluída: ${estoqueErr.message}`);
                     console.warn(`[FATURAMENTO] ⚠ Estoque não baixado para NFe ${id}: ${estoqueErr.message}`);
-                }
-
-                // FUNC-01: Gerar contas a receber automaticamente após autorização SEFAZ
-                try {
-                    integracoesSefaz.financeiro = await financeiroService.gerarContasReceber(parseInt(id), {
-                        numeroParcelas: 1,
-                        diaVencimento: 30,
-                        intervalo: 30
-                    });
-                    if (!integracoesSefaz.financeiro?.skipped) {
-                        console.log(`[FATURAMENTO-AUDIT] ✅ Contas a receber geradas para NFe ${nfe.numero_nfe}`);
-                    }
-                } catch (finErr) {
-                    integracoesSefaz.avisos.push(`Geração de contas a receber não concluída: ${finErr.message}`);
-                    console.warn(`[FATURAMENTO] ⚠ Contas a receber não geradas para NFe ${id}: ${finErr.message}`);
-                }
-
-                // LA-001: Integração Faturamento → Logística
-                // Quando NF-e é autorizada, sinalizar pedido vinculado para expedição
-                try {
-                    if (nfe.pedido_id) {
-                        await pool.query(`
-                            UPDATE pedidos
-                            SET status = 'faturado',
-                                status_logistica = 'aguardando',
-                                nfe_id = ?,
-                                data_faturamento = NOW()
-                            WHERE id = ?
-                              AND (status_logistica IS NULL OR status_logistica IN ('pendente', 'aguardando', ''))
-                        `, [id, nfe.pedido_id]);
-                        console.log(`[FATURAMENTO-AUDIT] ✅ LA-001: Pedido ${nfe.pedido_id} atualizado para logística (status_logistica=aguardando) via NFe ${nfe.numero || id}`);
-                    }
-                } catch (logErr) {
-                    integracoesSefaz.avisos.push(`Integração logística não concluída: ${logErr.message}`);
-                    console.warn(`[FATURAMENTO] ⚠ LA-001: Pedido não atualizado para logística: ${logErr.message}`);
                 }
 
                 // Enviar DANFE por email automaticamente após autorização SEFAZ
@@ -1863,6 +2113,19 @@ module.exports = (pool, authenticateToken) => {
             if (!nfes.length) return res.status(404).json({ success: false, message: 'NFe não encontrada' });
 
             const nfe = nfes[0];
+
+            // BUG-FAT-005: o DANFE é o Documento Auxiliar de uma NF-e AUTORIZADA pela SEFAZ.
+            // Não gerar DANFE para nota em rascunho/pendente (não tem chave nem protocolo). Para
+            // conferência antes da emissão, usar o espelho (?origem=pedido ou a rota /espelho).
+            const statusDanfe = String(nfe.status || '').toLowerCase().trim();
+            if (!['autorizada', 'cancelada'].includes(statusDanfe)) {
+                return res.status(409).json({
+                    success: false,
+                    code: 'NFE_NAO_AUTORIZADA',
+                    message: 'DANFE disponível apenas para NF-e autorizada. Esta nota está em "' + (nfe.status || 'rascunho') + '". Use o espelho para pré-visualização.'
+                });
+            }
+
             const [itens] = await pool.query('SELECT * FROM nfe_itens WHERE nfe_id = ?', [id]);
 
             // Dados do emitente

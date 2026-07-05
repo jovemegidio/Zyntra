@@ -1,4 +1,4 @@
-Ôªødocument.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.getElementById('login-form');
   const errorMessageDiv = document.getElementById('error-message');
   const submitBtn = document.getElementById('login-submit-btn');
@@ -9,12 +9,12 @@
 
   if (!loginForm) return;
 
-  // Funcionalidade de avatar din√¢mico baseado no email (busca din√¢mica)
+  // Funcionalidade de avatar din‚mico baseado no email (busca din‚mica)
   if (emailInput && userAvatar) {
     let avatarTimeout;
     let usersCache = null;
     
-    // Carregar usu√°rios do sistema dinamicamente
+    // Carregar usu·rios do sistema dinamicamente
     async function loadUsers() {
       if (usersCache) return usersCache;
       
@@ -27,13 +27,13 @@
         if (response.ok) {
           const data = await response.json();
           usersCache = data.users || [];
-          console.log('üë• Usu√°rios carregados:', usersCache.length);
+          console.log('?? Usu·rios carregados:', usersCache.length);
         } else {
-          console.warn('‚ö†Ô∏è n√£o foi poss√≠vel carregar lista de usu√°rios');
+          console.warn('?? n„o foi possÌvel carregar lista de usu·rios');
           usersCache = [];
         }
       } catch (error) {
-        console.warn('‚ö†Ô∏è Erro ao carregar usu√°rios:', error);
+        console.warn('?? Erro ao carregar usu·rios:', error);
         usersCache = [];
       }
       
@@ -67,12 +67,12 @@
       }
     });
     
-    // Carregar usu√°rios no in√≠cio
+    // Carregar usu·rios no inÌcio
     loadUsers();
   }
 
   async function showUserAvatar(input) {
-    // Carregar usu√°rios se ainda n√£o carregou
+    // Carregar usu·rios se ainda n„o carregou
     const users = await loadUsers();
     
     const inputLower = input.toLowerCase().trim();
@@ -81,19 +81,19 @@
     // 1. Procura por email exato
     user = users.find(u => u.email && u.email.toLowerCase() === inputLower);
     
-    // 2. Se n√£o encontrou por email, procura por nome (parcial ou completo)
+    // 2. Se n„o encontrou por email, procura por nome (parcial ou completo)
     if (!user) {
       user = users.find(u => {
         if (!u.nome) return false;
         const nomeLower = u.nome.toLowerCase();
         const primeiroNome = nomeLower.split(' ')[0];
         
-        // Verifica se o input √© exatamente o primeiro nome ou nome completo
+        // Verifica se o input È exatamente o primeiro nome ou nome completo
         return primeiroNome === inputLower || nomeLower === inputLower;
       });
     }
     
-    // 3. Se n√£o encontrou por nome exato, procura por nome que contenha o input
+    // 3. Se n„o encontrou por nome exato, procura por nome que contenha o input
     if (!user && inputLower.length >= 3) {
       user = users.find(u => {
         if (!u.nome) return false;
@@ -102,7 +102,7 @@
       });
     }
     
-    // 4. Se n√£o encontrou usu√°rio, verifica se o input cont√©m padr√µes de email conhecidos
+    // 4. Se n„o encontrou usu·rio, verifica se o input contÈm padrıes de email conhecidos
     if (!user && input.includes('@')) {
       user = users.find(u => {
         if (!u.email) return false;
@@ -112,7 +112,7 @@
       });
     }
     
-    // 5. Mapeamento direto para nomes espec√≠ficos (fallback para casos n√£o encontrados)
+    // 5. Mapeamento direto para nomes especÌficos (fallback para casos n„o encontrados)
     const nomesMapeados = {
       'guilherme': 'guilherme@aluforce.ind.br',
       'andreia': 'andreia@aluforce.ind.br', 
@@ -127,11 +127,11 @@
     }
     
     if (user) {
-      // Usu√°rio encontrado no sistema
+      // Usu·rio encontrado no sistema
       const avatarUrl = obterURLAvatar(user);
-      const userName = user.nome || 'Usu√°rio';
+      const userName = user.nome || 'Usu·rio';
       
-      console.log(`üë§ Avatar encontrado para: ${userName} (input: "${input}")`);
+      console.log(`?? Avatar encontrado para: ${userName} (input: "${input}")`);
       
       if (user.foto_url || avatarUrl.includes('.jpg')) {
         // Tentar mostrar foto
@@ -143,54 +143,54 @@
         userAvatar.innerHTML = `<div class="avatar-placeholder" style="background: ${cor};">${initials}</div>`;
       }
       
-      // Adicionar informa√ß√µes do usu√°rio como atributos
+      // Adicionar informaÁıes do usu·rio como atributos
       userAvatar.setAttribute('data-user-name', userName);
       userAvatar.setAttribute('data-user-email', user.email);
       userAvatar.setAttribute('data-user-role', user.role || 'user');
       
-      // Se o usu√°rio digitou apenas o nome, sugerir o email completo via placeholder
+      // Se o usu·rio digitou apenas o nome, sugerir o email completo via placeholder
       if (!input.includes('@') && user.email) {
         emailInput.setAttribute('placeholder', user.email);
       }
       
     } else if (input.includes('@aluforce')) {
-      // Email da Aluforce mas n√£o reconhecido - mostra iniciais do email
+      // Email da Aluforce mas n„o reconhecido - mostra iniciais do email
       const name = input.split('@')[0];
       const initials = name.substring(0, 2).toUpperCase();
       const cor = gerarCorAvatar(name);
       userAvatar.innerHTML = `<div class="avatar-placeholder" style="background: ${cor};">${initials}</div>`;
       
-      console.log(`üè¢ Email Aluforce n√£o cadastrado: ${input}`);
+      console.log(`?? Email Aluforce n„o cadastrado: ${input}`);
       
     } else if (input.includes('@')) {
-      // Email externo - mostra √≠cone gen√©rico
+      // Email externo - mostra Ìcone genÈrico
       userAvatar.innerHTML = `<div class="avatar-placeholder"><i class="fas fa-user"></i></div>`;
       
-      console.log(`üåê Email externo: ${input}`);
+      console.log(`?? Email externo: ${input}`);
       
     } else if (inputLower.length >= 3) {
-      // Nome digitado mas n√£o encontrado - mostra iniciais baseadas no input
+      // Nome digitado mas n„o encontrado - mostra iniciais baseadas no input
       const initials = input.substring(0, 2).toUpperCase();
       const cor = gerarCorAvatar(input);
       userAvatar.innerHTML = `<div class="avatar-placeholder" style="background: ${cor};">${initials}</div>`;
       
-      console.log(`‚ùì Nome n√£o encontrado: ${input}`);
+      console.log(`? Nome n„o encontrado: ${input}`);
     } else {
-      // Input muito curto - n√£o mostra avatar
+      // Input muito curto - n„o mostra avatar
       hideUserAvatar();
       return;
     }
     
     userAvatar.classList.add('show');
     
-    // Adiciona classe ao formul√°rio para ajustar espa√ßamentos
+    // Adiciona classe ao formul·rio para ajustar espaÁamentos
     const loginForm = document.querySelector('.login-form');
     if (loginForm) {
       loginForm.classList.add('has-avatar');
     }
   }
   
-  // Fun√ß√£o para obter URL do avatar
+  // FunÁ„o para obter URL do avatar
   function obterURLAvatar(user) {
     if (user.foto_url) {
       return user.foto_url;
@@ -206,7 +206,7 @@
     return `/avatars/${nomeSimplificado}.jpg`;
   }
   
-  // Fun√ß√£o para obter iniciais do nome
+  // FunÁ„o para obter iniciais do nome
   function obterIniciais(nome) {
     if (!nome) return 'U';
     
@@ -218,7 +218,7 @@
     return (palavras[0].charAt(0) + palavras[palavras.length - 1].charAt(0)).toUpperCase();
   }
   
-  // Fun√ß√£o para gerar cor do avatar baseada no nome
+  // FunÁ„o para gerar cor do avatar baseada no nome
   function gerarCorAvatar(nome) {
     if (!nome) return 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
     
@@ -235,7 +235,7 @@
         'linear-gradient(135deg, #fdbb2d 0%, #22c1c3 100%)'
     ];
     
-    // Usar c√≥digo hash do nome para selecionar cor consistente
+    // Usar cÛdigo hash do nome para selecionar cor consistente
     let hash = 0;
     for (let i = 0; i < nome.length; i++) {
         const char = nome.charCodeAt(i);
@@ -247,7 +247,7 @@
     return cores[index];
   }
 
-  // Fun√ß√£o para esconder avatar
+  // FunÁ„o para esconder avatar
   function hideUserAvatar() {
     if (userAvatar) {
       userAvatar.classList.remove('show');
@@ -258,17 +258,17 @@
     }
   }
   
-  // Fun√ß√£o para autocomplete inteligente
+  // FunÁ„o para autocomplete inteligente
   function setupSmartAutocomplete() {
     if (!emailInput) return;
     
     emailInput.addEventListener('keydown', (e) => {
-      // Se o usu√°rio pressionar Tab e tiver um placeholder sugerido
+      // Se o usu·rio pressionar Tab e tiver um placeholder sugerido
       if (e.key === 'Tab') {
         const placeholder = emailInput.getAttribute('placeholder');
         const currentValue = emailInput.value.trim();
         
-        // Se o placeholder n√£o √© o padr√£o e o valor atual est√° contido no placeholder
+        // Se o placeholder n„o È o padr„o e o valor atual est· contido no placeholder
         if (placeholder && 
             placeholder !== 'seuemail@aluforce.ind.br' && 
             placeholder.toLowerCase().includes(currentValue.toLowerCase()) &&
@@ -305,13 +305,13 @@
   // Configurar autocomplete
   setupSmartAutocomplete();
 
-  // Fallback para quando a imagem n√£o carrega
+  // Fallback para quando a imagem n„o carrega
   window.showFallbackAvatar = function(name, email) {
     const initials = obterIniciais(name);
     const cor = gerarCorAvatar(name);
     userAvatar.innerHTML = `<div class="avatar-placeholder" style="background: ${cor};">${initials}</div>`;
     
-    console.log(`‚ö†Ô∏è Avatar n√£o encontrado para ${name} (${email}), usando iniciais: ${initials}`);
+    console.log(`?? Avatar n„o encontrado para ${name} (${email}), usando iniciais: ${initials}`);
   };
 
   // Funcionalidade de mostrar/ocultar senha
@@ -320,7 +320,7 @@
       const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
       passwordInput.setAttribute('type', type);
       
-      // Atualiza o √≠cone
+      // Atualiza o Ìcone
       if (type === 'text') {
         passwordToggle.classList.remove('fa-eye');
         passwordToggle.classList.add('fa-eye-slash');
@@ -334,7 +334,7 @@
   }
 
   // ================================
-  // MODAL DE RECUPERA√á√ÉO DE SENHA
+  // MODAL DE RECUPERA«√O DE SENHA
   // ================================
   
   const forgotPasswordModal = document.getElementById('forgot-password-modal');
@@ -356,7 +356,7 @@
   function openForgotPasswordModal() {
     const email = emailInput ? emailInput.value.trim() : '';
     
-    // Pre-preenche email se j√° digitado
+    // Pre-preenche email se j· digitado
     const verifyEmailInput = document.getElementById('verify-email');
     if (verifyEmailInput && email) {
       verifyEmailInput.value = email;
@@ -385,7 +385,7 @@
   function clearModalInputs() {
     const inputs = forgotPasswordModal.querySelectorAll('input, select');
     inputs.forEach(input => {
-      if (input.id !== 'verify-email') { // Mant√©m email se j√° preenchido
+      if (input.id !== 'verify-email') { // MantÈm email se j· preenchido
         input.value = '';
       }
     });
@@ -410,7 +410,7 @@
     }
   });
 
-  // Mostrar step espec√≠fico
+  // Mostrar step especÌfico
   function showStep(step) {
     // Esconder todos os steps
     for (let i = 1; i <= 3; i++) {
@@ -442,7 +442,7 @@
     const email = document.getElementById('verify-email')?.value.trim();
     
     if (!email || !email.includes('@')) {
-      showModalMessage('Por favor, digite um email v√°lido.', 'error');
+      showModalMessage('Por favor, digite um email v·lido.', 'error');
       return;
     }
     
@@ -465,14 +465,14 @@
         userVerificationData.resetToken = data.resetToken;
         showStep(2);
       } else {
-        showModalMessage(data.message || 'Email n√£o encontrado no sistema.', 'error');
+        showModalMessage(data.message || 'Email n„o encontrado no sistema.', 'error');
       }
     } catch (error) {
       console.error('Erro ao verificar email:', error);
-      showModalMessage('Erro de Conex√£o. Tente novamente.', 'error');
+      showModalMessage('Erro de Conex„o. Tente novamente.', 'error');
     } finally {
       nextStep1.disabled = false;
-      nextStep1.innerHTML = '<i class="fas fa-arrow-right"></i> Pr√≥ximo';
+      nextStep1.innerHTML = '<i class="fas fa-arrow-right"></i> PrÛximo';
     }
   });
   
@@ -498,7 +498,7 @@
     nextStep2.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando...';
     
     try {
-      // Verificar dados do usu√°rio
+      // Verificar dados do usu·rio
       const response = await fetch('/api/auth/verify-user-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -518,11 +518,11 @@
         if (data.resetToken) userVerificationData.resetToken = data.resetToken;
         showStep(3);
       } else {
-        showModalMessage(data.message || 'Dados n√£o conferem com nossos registros.', 'error');
+        showModalMessage(data.message || 'Dados n„o conferem com nossos registros.', 'error');
       }
     } catch (error) {
       console.error('Erro ao verificar dados:', error);
-      showModalMessage('Erro de Conex√£o. Tente novamente.', 'error');
+      showModalMessage('Erro de Conex„o. Tente novamente.', 'error');
     } finally {
       nextStep2.disabled = false;
       nextStep2.innerHTML = '<i class="fas fa-arrow-right"></i> Verificar';
@@ -540,7 +540,7 @@
   const changePasswordBtn = document.getElementById('change-password');
   const backStep3 = document.getElementById('back-step-3');
   
-  // Verificador de for√ßa da senha
+  // Verificador de forÁa da senha
   newPasswordInput?.addEventListener('input', (e) => {
     checkPasswordStrength(e.target.value);
   });
@@ -567,7 +567,7 @@
       message = 'Senha fraca';
     } else if (strength === 3) {
       strengthBar.classList.add('strength-fair');
-      message = 'Senha razo√°vel';
+      message = 'Senha razo·vel';
     } else if (strength === 4) {
       strengthBar.classList.add('strength-good');
       message = 'Senha boa';
@@ -597,7 +597,7 @@
     }
     
     if (newPassword !== confirmPassword) {
-      showModalMessage('As senhas n√£o coincidem.', 'error');
+      showModalMessage('As senhas n„o coincidem.', 'error');
       return;
     }
     
@@ -632,14 +632,14 @@
           if (emailInput) {
             emailInput.value = userVerificationData.email;
           }
-          showMessage('Senha alterada! Fa√ßa login com sua nova senha.', 'success');
+          showMessage('Senha alterada! FaÁa login com sua nova senha.', 'success');
         }, 2000);
       } else {
         showModalMessage(data.message || 'Erro ao alterar senha.', 'error');
       }
     } catch (error) {
       console.error('Erro ao alterar senha:', error);
-      showModalMessage('Erro de Conex√£o. Tente novamente.', 'error');
+      showModalMessage('Erro de Conex„o. Tente novamente.', 'error');
     } finally {
       changePasswordBtn.disabled = false;
       changePasswordBtn.innerHTML = '<i class="fas fa-check"></i> Alterar Senha';
@@ -648,7 +648,7 @@
   
   backStep3?.addEventListener('click', () => showStep(2));
   
-  // Fun√ß√£o para mostrar mensagens no modal
+  // FunÁ„o para mostrar mensagens no modal
   function showModalMessage(message, type = 'error') {
     // Remove mensagem anterior
     const existingMessage = forgotPasswordModal.querySelector('.modal-message');
@@ -661,19 +661,19 @@
     messageDiv.className = `modal-message ${type === 'success' ? 'success-message' : 'error-message'} visible`;
     messageDiv.textContent = message;
     
-    // Adiciona ap√≥s o cabe√ßalho
+    // Adiciona apÛs o cabeÁalho
     const header = forgotPasswordModal.querySelector('.modal-header');
     if (header) {
       header.insertAdjacentElement('afterend', messageDiv);
     }
     
-    // Remove ap√≥s 5 segundos
+    // Remove apÛs 5 segundos
     setTimeout(() => {
       messageDiv?.remove();
     }, 5000);
   }
 
-  // Fun√ß√£o auxiliar para mostrar mensagens
+  // FunÁ„o auxiliar para mostrar mensagens
   function showMessage(message, type = 'error') {
     const messageDiv = errorMessageDiv;
     if (!messageDiv) return;
@@ -681,7 +681,7 @@
     messageDiv.className = type === 'success' ? 'success-message visible' : 'error-message visible';
     messageDiv.textContent = message;
     
-    // Remove a mensagem ap√≥s 5 segundos
+    // Remove a mensagem apÛs 5 segundos
     setTimeout(() => {
       messageDiv.classList.remove('visible');
     }, 5000);
@@ -769,14 +769,14 @@
 
       if (!response.ok) {
         // server provided message preferred
-        const msg = (data && data.message) ? data.message : `Erro de autenticA√ß√£o (${response.status})`;
+        const msg = (data && data.message) ? data.message : `Erro de autenticAÁ„o (${response.status})`;
         throw new Error(msg);
       }
 
-      // Login bem-sucedido: salvar dados do usu√°rio no localStorage
+      // Login bem-sucedido: salvar dados do usu·rio no localStorage
       if (data.userData) {
         const user = data.userData;
-        const nomeCompleto = user.nome || user.nome_completo || user.name || 'Usu√°rio';
+        const nomeCompleto = user.nome || user.nome_completo || user.name || 'Usu·rio';
         const firstName = nomeCompleto.split(' ')[0].toLowerCase();
         
         // Determinar URL do avatar
@@ -804,11 +804,11 @@
           setor: user.departamento || user.setor || 'PCP'
         }));
         
-        console.log('üë§ Dados do usu√°rio salvos:', nomeCompleto, 'Avatar:', fotoUrl);
+        console.log('?? Dados do usu·rio salvos:', nomeCompleto, 'Avatar:', fotoUrl);
       }
 
-      // Redireciona para a √°rea principal (dashboard)
-      window.location.href = '/dashboard';
+      // Redireciona para a ·rea principal (dashboard)
+      window.location.href = window.__withBasePath ? window.__withBasePath('/dashboard') : '/dashboard';
     } catch (error) {
       if (errorMessageDiv) {
         const msg = error && error.message ? error.message : 'Erro ao efetuar login';

@@ -236,11 +236,11 @@
             });
             
             // Sempre redirecionar para login, independente da resposta
-            window.location.href = '/login.html';
+            window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
         } catch (error) {
             console.error('❌ Erro no logout:', error);
             // Mesmo com erro, redirecionar para login
-            window.location.href = '/login.html';
+            window.location.href = window.__withBasePath ? window.__withBasePath('/login.html') : '/login.html';
         }
     }
     
