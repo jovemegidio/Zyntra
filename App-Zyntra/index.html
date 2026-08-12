@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Zyntra — Mobile App</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(ellipse 120% 80% at 50% -10%, #0d1a3a 0%, #050810 60%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 0; }
+  button { font-family: 'DM Sans', system-ui, sans-serif; }
+  input { font-family: 'DM Sans', system-ui, sans-serif; }
+
+  /* Label de tela visível no canvas */
+  .screen-label {
+    position: absolute;
+    top: -28px; left: 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.5px;
+    font-family: 'DM Sans', sans-serif;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ═══════════════════════════════════════════════════════════════════
+// iOS Frame Component
+// ═══════════════════════════════════════════════════════════════════
+function IOSStatusBar({ dark = false, time = '9:41' }) {
+  const c = dark ? '#fff' : '#000';
+  return (
+    <div style={{
+      display: 'flex', gap: 154, alignItems: 'center', justifyContent: 'center',
+      padding: '21px 24px 19px', boxSizing: 'border-box',
+      position: 'relative', zIndex: 20, width: '100%',
+    }}>
+      <div style={{ flex: 1, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: 1.5 }}>
+        <span style={{ fontFamily: '-apple-system, "SF Pro", system-ui', fontWeight: 590, fontSize: 17, lineHeight: '22px', color: c }}>{time}</span>
+      </div>
+      <div style={{ flex: 1, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, paddingTop: 1, paddingRight: 1 }}>
+        <svg width="19" height="12" viewBox="0 0 19 12"><rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill={c}/><rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill={c}/><rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill={c}/><rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill={c}/></svg>
+        <svg width="17" height="12" viewBox="0 0 17 12"><path d="M8.5 3.2C10.8 3.2 12.9 4.1 14.4 5.6L15.5 4.5C13.7 2.7 11.2 1.5 8.5 1.5C5.8 1.5 3.3 2.7 1.5 4.5L2.6 5.6C4.1 4.1 6.2 3.2 8.5 3.2Z" fill={c}/><path d="M8.5 6.8C9.9 6.8 11.1 7.3 12 8.2L13.1 7.1C11.8 5.9 10.2 5.1 8.5 5.1C6.8 5.1 5.2 5.9 3.9 7.1L5 8.2C5.9 7.3 7.1 6.8 8.5 6.8Z" fill={c}/><circle cx="8.5" cy="10.5" r="1.5" fill={c}/></svg>
+        <svg width="27" height="13" viewBox="0 0 27 13"><rect x="0.5" y="0.5" width="23" height="12" rx="3.5" stroke={c} strokeOpacity="0.35" fill="none"/><rect x="2" y="2" width="20" height="9" rx="2" fill={c}/><path d="M25 4.5V8.5C25.8 8.2 26.5 7.2 26.5 6.5C26.5 5.8 25.8 4.8 25 4.5Z" fill={c} fillOpacity="0.4"/></svg>
+      </div>
+    </div>
+  );
+}
+
+function IOSDevice({ children, width = 402, height = 874, dark = false }) {
+  return (
+    <div style={{
+      width, height, borderRadius: 48, overflow: 'hidden',
+      position: 'relative', background: dark ? '#000' : '#F2F2F7',
+      boxShadow: '0 40px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.12)',
+      fontFamily: '-apple-system, system-ui, sans-serif',
+      WebkitFontSmoothing: 'antialiased',
+    }}>
+      <div style={{
+        position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)',
+        width: 126, height: 37, borderRadius: 24, background: '#000', zIndex: 50,
+      }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+        <IOSStatusBar dark={dark} />
+      </div>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflow: 'auto' }}>{children}</div>
+      </div>
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 60,
+        height: 34, display: 'flex', justifyContent: 'center', alignItems: 'flex-end',
+        paddingBottom: 8, pointerEvents: 'none',
+      }}>
+        <div style={{ width: 139, height: 5, borderRadius: 100, background: dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.25)' }} />
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Design Tokens & Shared Components
+// ═══════════════════════════════════════════════════════════════════
+const Z = {
+  bg: '#090C14', surface: '#0F1520', card: '#131A28', card2: '#1A2236',
+  border: '#1E2A42', borderLight: '#253350', accent: '#3B82F6',
+  accentDim: 'rgba(59,130,246,0.18)', accentGlow: 'rgba(59,130,246,0.10)',
+  text: '#EEF2FF', textSoft: '#B8C4DC', muted: '#5A6882', mutedLight: '#8898B4',
+  green: '#22C55E', greenDim: 'rgba(34,197,94,0.15)',
+  red: '#EF4444', redDim: 'rgba(239,68,68,0.15)',
+  yellow: '#F59E0B', yellowDim: 'rgba(245,158,11,0.15)',
+  purple: '#A855F7', purpleDim: 'rgba(168,85,247,0.15)',
+  teal: '#14B8A6', tealDim: 'rgba(20,184,166,0.15)',
+  orange: '#F97316', orangeDim: 'rgba(249,115,22,0.15)',
+  font: "'DM Sans', system-ui, sans-serif",
+};
+
+const MODULES = [
+  { id: 'financeiro', label: 'Financeiro', color: Z.accent, dim: Z.accentDim },
+  { id: 'vendas', label: 'Vendas', color: Z.green, dim: Z.greenDim },
+  { id: 'rh', label: 'RH', color: Z.purple, dim: Z.purpleDim },
+  { id: 'pcp', label: 'PCP', color: Z.yellow, dim: Z.yellowDim },
+  { id: 'logistica', label: 'Logística', color: Z.teal, dim: Z.tealDim },
+  { id: 'faturamento', label: 'Faturamento', color: Z.red, dim: Z.redDim },
+  { id: 'compras', label: 'Compras', color: Z.orange, dim: Z.orangeDim },
+];
+
+// Icons
+function IcHome({ s=22, c='currentColor' }) { return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M3 12L12 3l9 9v9h-6v-5H9v5H3v-9z" stroke={c} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"/></svg>; }
+function IcGrid({ s=22, c='currentColor' }) { return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="8" height="8" rx="2" stroke={c} strokeWidth="1.8"/><rect x="13" y="3" width="8" height="8" rx="2" stroke={c} strokeWidth="1.8"/><rect x="3" y="13" width="8" height="8" rx="2" stroke={c} strokeWidth="1.8"/><rect x="13" y="13" width="8" height="8" rx="2" stroke={c} strokeWidth="1.8"/></svg>; }
+function IcBell({ s=22, c='currentColor' }) { return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M6 10c0-3.314 2.686-6 6-6s6 2.686 6 6v4l2 2H4l2-2v-4z" stroke={c} strokeWidth="1.8" strokeLinejoin="round"/><path d="M10 20h4" stroke={c} strokeWidth="1.8" strokeLinecap="round"/></svg>; }
+function IcUser({ s=22, c='currentColor' }) { return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke={c} strokeWidth="1.8"/><path d="M4 20c0-4 3.582-7 8-7s8 3 8 7" stroke={c} strokeWidth="1.8" strokeLinecap="round"/></svg>; }
+function IcBack({ s=20, c='currentColor' }) { return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
+function IcChev({ s=14, c='currentColor' }) { return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
+function IcSearch({ s=18, c='currentColor' }) { return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke={c} strokeWidth="1.8"/><path d="M16.5 16.5L21 21" stroke={c} strokeWidth="1.8" strokeLinecap="round"/></svg>; }
+function IcPlus({ s=18, c='currentColor' }) { return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke={c} strokeWidth="2" strokeLinecap="round"/></svg>; }
+function IcFilter({ s=18, c='currentColor' }) { return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M3 6h18M7 12h10M10 18h4" stroke={c} strokeWidth="1.8" strokeLinecap="round"/></svg>; }
+function IcTrendUp({ s=14, c='currentColor' }) { return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M3 17l6-6 4 4 8-8" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
+function IcTrendDown({ s=14, c='currentColor' }) { return <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M3 7l6 6 4-4 8 8" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
+
+function ModIcon({ id, s=20, c }) {
+  const col = c || (MODULES.find(m=>m.id===id)||{color:Z.accent}).color;
+  const icons = {
+    financeiro: <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke={col} strokeWidth="1.8"/><path d="M12 7v1m0 8v1M9.5 9.5c0-1 1.1-1.5 2.5-1.5s2.5.7 2.5 1.8c0 1-1 1.7-2.5 1.7S9.5 12.2 9.5 13.2c0 1.1 1.1 1.8 2.5 1.8s2.5-.5 2.5-1.5" stroke={col} strokeWidth="1.6" strokeLinecap="round"/></svg>,
+    vendas: <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M3 17l5-5 4 4 9-9" stroke={col} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/><path d="M14 7h5v5" stroke={col} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    rh: <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><circle cx="9" cy="7" r="3.5" stroke={col} strokeWidth="1.7"/><path d="M2 19c0-3.5 3.1-6 7-6" stroke={col} strokeWidth="1.7" strokeLinecap="round"/><circle cx="17" cy="8" r="2.5" stroke={col} strokeWidth="1.6"/><path d="M22 19c0-2.8-2.2-5-5-5" stroke={col} strokeWidth="1.7" strokeLinecap="round"/></svg>,
+    pcp: <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke={col} strokeWidth="1.8"/><path d="M12 2v2m0 16v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M2 12h2m16 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke={col} strokeWidth="1.8" strokeLinecap="round"/></svg>,
+    logistica: <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><rect x="1" y="8" width="14" height="10" rx="2" stroke={col} strokeWidth="1.7"/><path d="M15 12h4l3 4v2h-7V12z" stroke={col} strokeWidth="1.7" strokeLinejoin="round"/><circle cx="5.5" cy="19.5" r="1.5" stroke={col} strokeWidth="1.5"/><circle cx="17.5" cy="19.5" r="1.5" stroke={col} strokeWidth="1.5"/></svg>,
+    faturamento: <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke={col} strokeWidth="1.7" strokeLinejoin="round"/><path d="M14 2v6h6M9 13h6M9 17h4" stroke={col} strokeWidth="1.6" strokeLinecap="round"/></svg>,
+    compras: <svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4H6z" stroke={col} strokeWidth="1.7" strokeLinejoin="round"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0" stroke={col} strokeWidth="1.7" strokeLinecap="round"/></svg>,
+  };
+  return icons[id] || null;
+}
+
+// Base UI
+function ZCard({ children, style={}, onClick }) {
+  return <div onClick={onClick} style={{ background: Z.card, borderRadius: 16, border: `1px solid ${Z.border}`, cursor: onClick ? 'pointer' : 'default', ...style }}>{children}</div>;
+}
+function ZBadge({ label, color, bg, size=11 }) {
+  return <span style={{ fontSize: size, fontWeight: 600, letterSpacing: 0.3, color, background: bg, padding: '3px 8px', borderRadius: 20, fontFamily: Z.font, whiteSpace: 'nowrap' }}>{label}</span>;
+}
+function StatusPill({ label, color, bg }) {
+  return <span style={{ fontSize: 10, fontWeight: 700, color, background: bg, padding: '3px 8px', borderRadius: 20, fontFamily: Z.font, letterSpacing: 0.4 }}>{label}</span>;
+}
+function SectionLabel({ text }) {
+  return <div style={{ fontSize: 11, fontWeight: 700, color: Z.muted, fontFamily: Z.font, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, paddingLeft: 2 }}>{text}</div>;
+}
+function SparkLine({ data, color, h=36, w=90 }) {
+  if (!data || data.length < 2) return null;
+  const max = Math.max(...data), min = Math.min(...data), range = max - min || 1;
+  const pts = data.map((v, i) => `${(i/(data.length-1))*w},${h-((v-min)/range)*(h-6)-3}`).join(' ');
+  return <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"><polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+}
+function KPICard({ title, value, sub, change, up, color, spark, style={} }) {
+  return (
+    <ZCard style={{ padding: '14px 14px 12px', ...style }}>
+      <div style={{ fontSize: 10, color: Z.muted, fontFamily: Z.font, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>{title}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <div style={{ fontSize: 21, fontWeight: 700, color: Z.text, fontFamily: Z.font, lineHeight: 1.1 }}>{value}</div>
+          {sub && <div style={{ fontSize: 11, color: Z.muted, fontFamily: Z.font, marginTop: 2 }}>{sub}</div>}
+          {change && <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 4, color: up ? Z.green : Z.red }}>{up ? <IcTrendUp s={11} c={Z.green}/> : <IcTrendDown s={11} c={Z.red}/>}<span style={{ fontSize: 11, fontWeight: 600, fontFamily: Z.font }}>{change}</span></div>}
+        </div>
+        {spark && <SparkLine data={spark} color={color} h={34} w={80}/>}
+      </div>
+    </ZCard>
+  );
+}
+function ScreenHeader({ title, onBack, right, bg }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 50, flexShrink: 0, background: bg || 'transparent' }}>
+      {onBack ? <button onClick={onBack} style={{ background: 'none', border: 'none', padding: '6px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, color: Z.accent }}><IcBack s={18} c={Z.accent}/><span style={{ fontFamily: Z.font, fontSize: 15, fontWeight: 500, color: Z.accent }}>Voltar</span></button> : <div style={{ width: 60 }}/>}
+      <div style={{ fontSize: 16, fontWeight: 700, color: Z.text, fontFamily: Z.font }}>{title}</div>
+      <div style={{ width: 60, display: 'flex', justifyContent: 'flex-end' }}>{right}</div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Login Screen
+// ═══════════════════════════════════════════════════════════════════
+function LoginScreen({ onLogin }) {
+  const [tab, setTab] = useState('email');
+  const [field, setField] = useState('');
+  const [senha, setSenha] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const handle = () => { setLoading(true); setTimeout(() => { setSuccess(true); setTimeout(onLogin, 600); }, 1200); };
+
+  const inp = { width: '100%', background: Z.surface, border: `1px solid ${Z.border}`, borderRadius: 13, padding: '14px 16px', fontSize: 15, color: Z.text, fontFamily: Z.font, outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' };
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: Z.bg, overflow: 'hidden', position: 'relative' }}>
+      <div style={{ position: 'absolute', top: -100, left: '50%', transform: 'translateX(-50%)', width: 360, height: 360, borderRadius: '50%', background: 'radial-gradient(circle, rgba(59,130,246,0.13) 0%, transparent 70%)', pointerEvents: 'none' }}/>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 28px', gap: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 36 }}>
+          <div style={{ width: 72, height: 72, borderRadius: 20, background: Z.card, border: `1px solid ${Z.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 32px rgba(59,130,246,0.18)', overflow: 'hidden' }}>
+            <img src="uploads/logo-1777551715119.png" style={{ width: 52, height: 52, objectFit: 'contain', filter: 'invert(1) brightness(2)' }} alt="Zyntra"/>
+          </div>
+          <div style={{ marginTop: 14, fontSize: 28, fontWeight: 700, color: Z.text, fontFamily: Z.font, letterSpacing: -0.5 }}>Zyntra</div>
+          <div style={{ fontSize: 13, color: Z.muted, fontFamily: Z.font, marginTop: 2 }}>Plataforma ERP Completa</div>
+        </div>
+        <div style={{ display: 'flex', background: Z.surface, borderRadius: 11, padding: 3, marginBottom: 16, border: `1px solid ${Z.border}` }}>
+          {['email','cpf'].map(t => <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 'none', cursor: 'pointer', background: tab === t ? Z.accent : 'transparent', color: tab === t ? '#fff' : Z.muted, fontSize: 13, fontWeight: 700, fontFamily: Z.font, letterSpacing: 0.3, transition: 'all 0.2s' }}>{t.toUpperCase()}</button>)}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginBottom: 8 }}>
+          <input style={inp} placeholder={tab === 'email' ? 'E-mail corporativo' : 'CPF (000.000.000-00)'} value={field} onChange={e => setField(e.target.value)} type={tab === 'email' ? 'email' : 'text'}/>
+          <div style={{ position: 'relative' }}>
+            <input style={{ ...inp, paddingRight: 48 }} placeholder="Senha" type={showPass ? 'text' : 'password'} value={senha} onChange={e => setSenha(e.target.value)}/>
+            <button onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M1 12S5 5 12 5s11 7 11 7-4 7-11 7S1 12 1 12z" stroke={Z.muted} strokeWidth="1.7"/><circle cx="12" cy="12" r="3" stroke={showPass ? Z.accent : Z.muted} strokeWidth="1.7"/></svg>
+            </button>
+          </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}><div style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${Z.border}`, background: Z.surface }}/><span style={{ fontSize: 12, color: Z.muted, fontFamily: Z.font }}>Lembrar por 30 dias</span></label>
+          <button style={{ background: 'none', border: 'none', color: Z.accent, fontSize: 13, fontFamily: Z.font, cursor: 'pointer', fontWeight: 500 }}>Esqueceu a senha?</button>
+        </div>
+        <button onClick={handle} disabled={loading} style={{ width: '100%', padding: '15px 0', borderRadius: 14, border: 'none', cursor: loading ? 'default' : 'pointer', background: success ? Z.green : loading ? `linear-gradient(135deg, #2563EB, #1D4ED8)` : `linear-gradient(135deg, #3B82F6, #2563EB)`, color: '#fff', fontSize: 16, fontWeight: 700, fontFamily: Z.font, boxShadow: loading ? 'none' : '0 6px 24px rgba(59,130,246,0.3)', transition: 'all 0.3s', letterSpacing: 0.2 }}>{success ? '✓ Login realizado!' : loading ? 'Entrando...' : 'Entrar'}</button>
+      </div>
+      <div style={{ padding: '14px 28px', textAlign: 'center', fontSize: 11, color: Z.muted, fontFamily: Z.font, flexShrink: 0 }}>© 2026 Zyntra — Desenvolvido por Agência do Japa</div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Home / Dashboard Screen
+// ═══════════════════════════════════════════════════════════════════
+function HomeScreen({ onModuleOpen, onGoNotifications }) {
+  const kpis = [
+    { title: 'Faturamento', value: 'R$ 1,24M', change: '+8,4%', up: true, color: Z.accent, spark: [70,90,80,110,100,130,120,145,155,170] },
+    { title: 'Pedidos Abertos', value: '247', change: '+12 hoje', up: true, color: Z.green, spark: [40,52,48,65,60,74,70,82,78,90] },
+    { title: 'Colaboradores', value: '184', sub: 'ativos hoje', color: Z.purple, spark: [180,181,182,181,183,182,184,183,184,184] },
+    { title: 'Disponib. Estoque', value: '96%', change: '-2%', up: false, color: Z.yellow, spark: [99,98,97,99,96,98,97,96,97,96] },
+  ];
+  const resumo = [
+    { label: 'NF-e emitidas hoje', value: '34', color: Z.green },
+    { label: 'Compras pendentes', value: '8', color: Z.yellow },
+    { label: 'Entregas em andamento', value: '22', color: Z.teal },
+    { label: 'Ordens de produção', value: '15', color: Z.orange },
+    { label: 'Aprovações aguardando', value: '5', color: Z.red },
+  ];
+  const atividade = [
+    { msg: 'Pedido #4821 aprovado por Carlos S.', time: '09:32', dot: Z.green },
+    { msg: 'NF-e #001204 emitida — R$ 12.540', time: '09:15', dot: Z.accent },
+    { msg: 'Entrega #892 concluída em SP', time: '08:50', dot: Z.teal },
+    { msg: 'PO-0431 aguardando aprovação', time: '08:22', dot: Z.yellow },
+    { msg: 'Colaborador admitido: Ana Paula R.', time: '07:48', dot: Z.purple },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: Z.bg, overflow: 'hidden' }}>
+      <div style={{ padding: '14px 18px 10px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div><div style={{ fontSize: 12, color: Z.muted, fontFamily: Z.font, marginBottom: 2 }}>Bom dia,</div><div style={{ fontSize: 20, fontWeight: 700, color: Z.text, fontFamily: Z.font, letterSpacing: -0.3 }}>Administrador</div></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={onGoNotifications} style={{ width: 38, height: 38, background: Z.card, border: `1px solid ${Z.border}`, borderRadius: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}><IcBell s={18} c={Z.mutedLight}/><div style={{ position: 'absolute', top: 7, right: 7, width: 7, height: 7, borderRadius: '50%', background: Z.red, border: `1.5px solid ${Z.bg}` }}/></button>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: `linear-gradient(135deg, ${Z.accent}, #7C3AED)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff', fontFamily: Z.font }}>AD</div>
+          </div>
+        </div>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 14px 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div><SectionLabel text="Visão Geral"/><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>{kpis.map((k, i) => <KPICard key={i} {...k}/>)}</div></div>
+        <div><SectionLabel text="Resumo do Dia"/><ZCard style={{ overflow: 'hidden', padding: 0 }}>{resumo.map((r, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: i < resumo.length - 1 ? `1px solid ${Z.border}` : 'none' }}><span style={{ fontSize: 13, color: Z.textSoft, fontFamily: Z.font }}>{r.label}</span><span style={{ fontSize: 16, fontWeight: 700, color: r.color, fontFamily: Z.font }}>{r.value}</span></div>)}</ZCard></div>
+        <div><SectionLabel text="Módulos"/><div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>{MODULES.map(m => <button key={m.id} onClick={() => onModuleOpen(m.id)} style={{ background: Z.card, border: `1px solid ${Z.border}`, borderRadius: 14, padding: '12px 4px 10px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, transition: 'border-color 0.2s' }}><div style={{ width: 38, height: 38, borderRadius: 11, background: m.dim, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ModIcon id={m.id} s={18} c={m.color}/></div><span style={{ fontSize: 9.5, fontWeight: 600, color: Z.mutedLight, fontFamily: Z.font, textAlign: 'center', lineHeight: 1.3 }}>{m.label}</span></button>)}</div></div>
+        <div><SectionLabel text="Atividade Recente"/><ZCard style={{ overflow: 'hidden', padding: 0 }}>{atividade.map((a, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: i < atividade.length - 1 ? `1px solid ${Z.border}` : 'none' }}><div style={{ width: 7, height: 7, borderRadius: '50%', background: a.dot, flexShrink: 0 }}/><div style={{ flex: 1, fontSize: 12.5, color: Z.textSoft, fontFamily: Z.font, lineHeight: 1.4 }}>{a.msg}</div><div style={{ fontSize: 11, color: Z.muted, fontFamily: Z.font, flexShrink: 0 }}>{a.time}</div></div>)}</ZCard></div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Bottom Navigation
+// ═══════════════════════════════════════════════════════════════════
+function BottomNav({ tab, onChange, notifCount }) {
+  const tabs = [
+    { id:'home', label:'Início', icon:(active) => <IcHome s={22} c={active ? Z.accent : Z.muted}/> },
+    { id:'modules', label:'Módulos', icon:(active) => <IcGrid s={22} c={active ? Z.accent : Z.muted}/> },
+    { id:'notifications', label:'Alertas', icon:(active) => <IcBell s={22} c={active ? Z.accent : Z.muted}/> },
+    { id:'profile', label:'Perfil', icon:(active) => <IcUser s={22} c={active ? Z.accent : Z.muted}/> },
+  ];
+  return (
+    <div style={{ display:'flex', flexShrink:0, background:Z.surface, borderTop:`1px solid ${Z.border}`, paddingBottom:10 }}>
+      {tabs.map(t => {
+        const active = tab === t.id;
+        return (
+          <button key={t.id} onClick={() => onChange(t.id)} style={{ flex:1, background:'none', border:'none', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', padding:'10px 0 4px', gap:3, position:'relative' }}>
+            {t.id === 'notifications' && notifCount > 0 && <div style={{ position:'absolute', top:7, left:'calc(50% + 6px)', width:16, height:16, borderRadius:'50%', background:Z.red, border:`2px solid ${Z.surface}`, fontSize:9, color:'#fff', fontFamily:Z.font, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>{notifCount}</div>}
+            {t.icon(active)}
+            <span style={{ fontSize:10, fontFamily:Z.font, fontWeight:active ? 700 : 500, color:active ? Z.accent : Z.muted, letterSpacing:0.2 }}>{t.label}</span>
+            {active && <div style={{ position:'absolute', bottom:0, left:'50%', transform:'translateX(-50%)', width:20, height:3, borderRadius:2, background:Z.accent }}/>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Notifications Screen
+// ═══════════════════════════════════════════════════════════════════
+function NotificacoesScreen() {
+  const notifs = [
+    { titulo:'Aprovação pendente', msg:'PO-0431 aguarda sua aprovação — R$ 42.000', tempo:'Agora', modulo:'Compras', mc:Z.orange, unread:true },
+    { titulo:'NF-e rejeitada', msg:'NF-001207 foi rejeitada pela SEFAZ. Verifique.', tempo:'15 min', modulo:'Faturamento', mc:Z.red, unread:true },
+    { titulo:'Pedido aprovado', msg:'Pedido #4821 aprovado por Carlos S. — R$ 12.540', tempo:'42 min', modulo:'Vendas', mc:Z.green, unread:true },
+    { titulo:'OP-2403 concluída', msg:'Ordem de produção OP-2403 finalizada com sucesso.', tempo:'1h', modulo:'PCP', mc:Z.yellow, unread:false },
+    { titulo:'Entrega concluída', msg:'ENT-892 entregue em São Paulo — SP.', tempo:'2h', modulo:'Logística', mc:Z.teal, unread:false },
+  ];
+  const [lidas, setLidas] = useState([]);
+  const markAll = () => setLidas(notifs.map((_,i)=>i));
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:Z.bg, overflow:'hidden' }}>
+      <div style={{ padding:'14px 18px 10px', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div><div style={{ fontSize:20, fontWeight:700, color:Z.text, fontFamily:Z.font, letterSpacing:-0.3 }}>Notificações</div><div style={{ fontSize:13, color:Z.muted, fontFamily:Z.font, marginTop:2 }}>{notifs.filter((n,i)=>n.unread && !lidas.includes(i)).length} não lidas</div></div>
+        <button onClick={markAll} style={{ background:'none', border:`1px solid ${Z.border}`, borderRadius:9, padding:'6px 12px', cursor:'pointer', fontSize:12, color:Z.accent, fontFamily:Z.font, fontWeight:500 }}>Marcar lidas</button>
+      </div>
+      <div style={{ flex:1, overflowY:'auto', padding:'4px 14px 16px', display:'flex', flexDirection:'column', gap:8 }}>
+        {notifs.map((n,i) => {
+          const unread = n.unread && !lidas.includes(i);
+          return (
+            <div key={i} onClick={() => setLidas(l=>[...l, i])} style={{ background: unread ? Z.card2 : Z.card, border:`1px solid ${unread ? Z.borderLight : Z.border}`, borderRadius:14, padding:'13px 14px', cursor:'pointer', display:'flex', gap:12, alignItems:'flex-start' }}>
+              <div style={{ width:36, height:36, borderRadius:10, background:n.mc+'22', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><ModIcon id={n.modulo.toLowerCase()} s={17} c={n.mc}/></div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}><div style={{ fontSize:13, fontWeight:700, color:Z.text, fontFamily:Z.font }}>{n.titulo}</div><div style={{ fontSize:11, color:Z.muted, fontFamily:Z.font, flexShrink:0, marginLeft:8 }}>{n.tempo}</div></div>
+                <div style={{ fontSize:12, color:Z.mutedLight, fontFamily:Z.font, lineHeight:1.45 }}>{n.msg}</div>
+                <div style={{ marginTop:5 }}><ZBadge label={n.modulo} color={n.mc} bg={n.mc+'22'}/></div>
+              </div>
+              {unread && <div style={{ width:8, height:8, borderRadius:'50%', background:Z.accent, flexShrink:0, marginTop:4 }}/>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Profile Screen
+// ═══════════════════════════════════════════════════════════════════
+function PerfilScreen({ onLogout }) {
+  const [notifOn, setNotifOn] = useState(true);
+  const [bioOn, setBioOn] = useState(true);
+  const [darkOn, setDarkOn] = useState(true);
+  const Toggle = ({ on, toggle }) => <div onClick={toggle} style={{ width:44, height:26, borderRadius:13, cursor:'pointer', background: on ? Z.accent : Z.border, position:'relative', transition:'background 0.2s', flexShrink:0 }}><div style={{ position:'absolute', top:3, left: on ? 21 : 3, width:20, height:20, borderRadius:'50%', background:'#fff', transition:'left 0.2s', boxShadow:'0 1px 4px rgba(0,0,0,0.3)' }}/></div>;
+  const Section = ({ title, children }) => <div><SectionLabel text={title}/><ZCard style={{ overflow:'hidden', padding:0 }}>{children}</ZCard></div>;
+  const Row = ({ label, right, sub, last }) => <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'13px 16px', borderBottom: last ? 'none' : `1px solid ${Z.border}` }}><div><div style={{ fontSize:14, color:Z.textSoft, fontFamily:Z.font }}>{label}</div>{sub && <div style={{ fontSize:11, color:Z.muted, fontFamily:Z.font, marginTop:1 }}>{sub}</div>}</div>{right}</div>;
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:Z.bg, overflow:'hidden' }}>
+      <div style={{ padding:'14px 18px 10px', flexShrink:0 }}><div style={{ fontSize:20, fontWeight:700, color:Z.text, fontFamily:Z.font, letterSpacing:-0.3 }}>Perfil</div></div>
+      <div style={{ flex:1, overflowY:'auto', padding:'4px 14px 16px', display:'flex', flexDirection:'column', gap:14 }}>
+        <ZCard style={{ padding:'20px 16px', display:'flex', gap:14, alignItems:'center' }}>
+          <div style={{ width:56, height:56, borderRadius:16, background:`linear-gradient(135deg, ${Z.accent}, #7C3AED)`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, fontWeight:700, color:'#fff', fontFamily:Z.font, flexShrink:0 }}>AD</div>
+          <div style={{ flex:1 }}><div style={{ fontSize:17, fontWeight:700, color:Z.text, fontFamily:Z.font }}>Administrador</div><div style={{ fontSize:13, color:Z.muted, fontFamily:Z.font, marginTop:2 }}>ti@aluforce.ind.br</div><div style={{ marginTop:6 }}><ZBadge label="Super Admin" color={Z.accent} bg={Z.accentDim}/></div></div>
+          <IcChev s={14} c={Z.muted}/>
+        </ZCard>
+        <Section title="Conta"><Row label="Empresa" right={<span style={{ fontSize:13, color:Z.muted, fontFamily:Z.font }}>Aluforce</span>}/><Row label="Versão do app" right={<span style={{ fontSize:13, color:Z.muted, fontFamily:Z.font }}>2.8.1</span>}/><Row label="Alterar senha" right={<IcChev s={13} c={Z.muted}/>} last/></Section>
+        <Section title="Preferências"><Row label="Notificações" sub="Alertas e atualizações" right={<Toggle on={notifOn} toggle={()=>setNotifOn(!notifOn)}/>}/><Row label="Face ID / Touch ID" sub="Login biométrico" right={<Toggle on={bioOn} toggle={()=>setBioOn(!bioOn)}/>}/><Row label="Tema escuro" right={<Toggle on={darkOn} toggle={()=>setDarkOn(!darkOn)}/>} last/></Section>
+        <Section title="Acesso a Módulos">{MODULES.map((m,i)=><Row key={m.id} label={m.label} right={<div style={{ width:8, height:8, borderRadius:'50%', background:Z.green }}/>} last={i===MODULES.length-1}/>)}</Section>
+        <button onClick={onLogout} style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid ${Z.red}44`, background:Z.redDim, color:Z.red, fontSize:15, fontWeight:700, fontFamily:Z.font, cursor:'pointer' }}>Sair da conta</button>
+        <div style={{ textAlign:'center', fontSize:11, color:Z.muted, fontFamily:Z.font, paddingBottom:4 }}>© 2026 Zyntra — Agência do Japa</div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Module Screens (Financeiro, Vendas, RH)
+// ═══════════════════════════════════════════════════════════════════
+function FinanceiroScreen({ onBack }) {
+  const meses = ['Jul','Ago','Set','Out','Nov','Dez'];
+  const rec = [82,95,88,110,98,124];
+  const pag = [60,72,65,80,74,91];
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:Z.bg, overflow:'hidden' }}>
+      <ScreenHeader title="Financeiro" onBack={onBack} right={<IcPlus s={18} c={Z.accent}/>}/>
+      <div style={{ flex:1, overflowY:'auto', padding:'8px 14px 16px', display:'flex', flexDirection:'column', gap:14 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+          {[{ label:'Saldo', value:'R$ 342K', color:Z.text },{ label:'A Receber', value:'R$ 124K', color:Z.green },{ label:'A Pagar', value:'R$ 91K', color:Z.red }].map((c,i) => <ZCard key={i} style={{ padding:'12px 10px', textAlign:'center' }}><div style={{ fontSize:9.5, color:Z.muted, fontFamily:Z.font, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, marginBottom:5 }}>{c.label}</div><div style={{ fontSize:13, fontWeight:700, color:c.color, fontFamily:Z.font }}>{c.value}</div></ZCard>)}
+        </div>
+        <div><SectionLabel text="Contas a Receber"/><ZCard style={{ overflow:'hidden', padding:0 }}>
+          {[{ cli:'Empresa Alpha Ltda', venc:'03/06', valor:'R$ 28.400', status:'Vencendo', sc:Z.yellow, sd:Z.yellowDim },{ cli:'Grupo Beta S.A.', venc:'10/06', valor:'R$ 15.200', status:'A Vencer', sc:Z.green, sd:Z.greenDim },{ cli:'Ind. Gama Ltda', venc:'18/06', valor:'R$ 42.000', status:'A Vencer', sc:Z.green, sd:Z.greenDim },{ cli:'Com. Delta Eireli', venc:'28/05', valor:'R$ 9.800', status:'Vencida', sc:Z.red, sd:Z.redDim }].map((r,i,a) => <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 14px', borderBottom: i<a.length-1 ? `1px solid ${Z.border}` : 'none' }}><div><div style={{ fontSize:13, fontWeight:600, color:Z.text, fontFamily:Z.font }}>{r.cli}</div><div style={{ fontSize:11, color:Z.muted, fontFamily:Z.font, marginTop:2 }}>Venc: {r.venc}</div></div><div style={{ textAlign:'right', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}><div style={{ fontSize:14, fontWeight:700, color:Z.text, fontFamily:Z.font }}>{r.valor}</div><StatusPill label={r.status} color={r.sc} bg={r.sd}/></div></div>)}
+        </ZCard></div>
+        <div><SectionLabel text="DRE — Dez/2025"/><ZCard style={{ overflow:'hidden', padding:0 }}>
+          {[{ label:'Receita Bruta', value:'R$ 1.240.000', color:Z.text },{ label:'(-) Deduções', value:'- R$ 124.000', color:Z.red },{ label:'Receita Líquida', value:'R$ 1.116.000', color:Z.text },{ label:'(-) CMV', value:'- R$ 620.000', color:Z.red },{ label:'Lucro Bruto', value:'R$ 496.000', color:Z.green },{ label:'(-) Despesas Op.', value:'- R$ 248.000', color:Z.red },{ label:'Lucro Líquido', value:'R$ 248.000', color:Z.accent }].map((r,i,a) => <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'10px 14px', borderBottom: i<a.length-1 ? `1px solid ${Z.border}` : 'none', background: r.label.includes('Lucro') && !r.label.includes('-') ? Z.accentGlow : 'transparent' }}><span style={{ fontSize:13, color:Z.textSoft, fontFamily:Z.font }}>{r.label}</span><span style={{ fontSize:13, fontWeight:600, color:r.color, fontFamily:Z.font }}>{r.value}</span></div>)}
+        </ZCard></div>
+      </div>
+    </div>
+  );
+}
+
+function VendasScreen({ onBack }) {
+  const [busca, setBusca] = useState('');
+  const pedidos = [{ num:'#4821', cli:'Alpha Ltda', valor:'R$ 12.540', status:'Aprovado', sc:Z.green, sd:Z.greenDim, data:'30/05' },{ num:'#4820', cli:'Beta S.A.', valor:'R$ 8.200', status:'Em análise', sc:Z.yellow, sd:Z.yellowDim, data:'29/05' },{ num:'#4819', cli:'Gama Eireli', valor:'R$ 34.800', status:'Aprovado', sc:Z.green, sd:Z.greenDim, data:'29/05' },{ num:'#4818', cli:'Delta Corp', valor:'R$ 5.100', status:'Cancelado', sc:Z.red, sd:Z.redDim, data:'28/05' },{ num:'#4817', cli:'Épsilon Ind.', valor:'R$ 19.700', status:'Entregue', sc:Z.teal, sd:Z.tealDim, data:'27/05' }].filter(p => p.cli.toLowerCase().includes(busca.toLowerCase()) || p.num.includes(busca));
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:Z.bg, overflow:'hidden' }}>
+      <ScreenHeader title="Vendas" onBack={onBack} right={<IcPlus s={18} c={Z.accent}/>}/>
+      <div style={{ flex:1, overflowY:'auto', padding:'8px 14px 16px', display:'flex', flexDirection:'column', gap:14 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}><KPICard title="Faturado/Mês" value="R$ 892K" change="+11%" up={true} color={Z.green} spark={[60,75,70,88,82,95,90,105,98,112]}/><KPICard title="Meta" value="82%" sub="R$ 1,09M meta" color={Z.accent} spark={[50,55,60,62,65,68,72,75,78,82]}/></div>
+        <div><SectionLabel text="Funil de Vendas"/><ZCard style={{ overflow:'hidden', padding:0 }}>
+          {[{ label:'Qualificação', value:280, color:Z.accent },{ label:'Proposta', value:140, color:Z.yellow },{ label:'Negociação', value:72, color:Z.orange },{ label:'Fechamento', value:38, color:Z.green }].map((f,i,a) => <div key={i} style={{ padding:'10px 14px', borderBottom: i<a.length-1 ? `1px solid ${Z.border}` : 'none' }}><div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}><span style={{ fontSize:12, color:Z.textSoft, fontFamily:Z.font }}>{f.label}</span><span style={{ fontSize:12, fontWeight:700, color:f.color, fontFamily:Z.font }}>{f.value}</span></div><div style={{ height:5, background:Z.surface, borderRadius:4, overflow:'hidden' }}><div style={{ width:`${(f.value/280)*100}%`, height:'100%', background:f.color, borderRadius:4 }}/></div></div>)}
+        </ZCard></div>
+        <div><SectionLabel text="Pedidos Recentes"/><div style={{ display:'flex', background:Z.surface, borderRadius:11, padding:'10px 12px', gap:8, marginBottom:10, border:`1px solid ${Z.border}` }}><IcSearch s={16} c={Z.muted}/><input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar pedido ou cliente..." style={{ flex:1, background:'none', border:'none', outline:'none', fontSize:13, color:Z.text, fontFamily:Z.font }}/></div><ZCard style={{ overflow:'hidden', padding:0 }}>
+          {pedidos.map((p,i,a) => <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 14px', borderBottom: i<a.length-1 ? `1px solid ${Z.border}` : 'none' }}><div><div style={{ fontSize:13, fontWeight:600, color:Z.text, fontFamily:Z.font }}>{p.num} — {p.cli}</div><div style={{ fontSize:11, color:Z.muted, fontFamily:Z.font, marginTop:2 }}>{p.data}</div></div><div style={{ textAlign:'right', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}><div style={{ fontSize:14, fontWeight:700, color:Z.text, fontFamily:Z.font }}>{p.valor}</div><StatusPill label={p.status} color={p.sc} bg={p.sd}/></div></div>)}
+        </ZCard></div>
+      </div>
+    </div>
+  );
+}
+
+function RHScreen({ onBack }) {
+  const cols = [{ nome:'Ana Paula R.', cargo:'Analista de RH', dept:'RH', status:'Presente', sc:Z.green, sd:Z.greenDim },{ nome:'Carlos Santos', cargo:'Gerente Comercial', dept:'Vendas', status:'Presente', sc:Z.green, sd:Z.greenDim },{ nome:'Fernanda Lima', cargo:'Operadora de PCP', dept:'PCP', status:'Férias', sc:Z.accent, sd:Z.accentDim },{ nome:'Ricardo Moura', cargo:'Motorista', dept:'Logística', status:'Em rota', sc:Z.teal, sd:Z.tealDim }];
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:Z.bg, overflow:'hidden' }}>
+      <ScreenHeader title="Recursos Humanos" onBack={onBack} right={<IcPlus s={18} c={Z.accent}/>}/>
+      <div style={{ flex:1, overflowY:'auto', padding:'8px 14px 16px', display:'flex', flexDirection:'column', gap:14 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>{[{ label:'Total', value:'184', color:Z.text },{ label:'Presentes', value:'171', color:Z.green },{ label:'Ausentes', value:'13', color:Z.red }].map((c,i) => <ZCard key={i} style={{ padding:'12px 10px', textAlign:'center' }}><div style={{ fontSize:9.5, color:Z.muted, fontFamily:Z.font, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, marginBottom:4 }}>{c.label}</div><div style={{ fontSize:20, fontWeight:700, color:c.color, fontFamily:Z.font }}>{c.value}</div></ZCard>)}</div>
+        <div><SectionLabel text="Ponto Eletrônico — Hoje"/><ZCard style={{ overflow:'hidden', padding:0 }}>
+          {[{ label:'Entrada normal (até 08:05)', value:'152', color:Z.green },{ label:'Atraso (após 08:05)', value:'12', color:Z.yellow },{ label:'Falta justificada', value:'8', color:Z.orange },{ label:'Falta não justificada', value:'5', color:Z.red },{ label:'Home office', value:'7', color:Z.accent }].map((r,i,a) => <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'11px 14px', borderBottom: i<a.length-1 ? `1px solid ${Z.border}` : 'none' }}><span style={{ fontSize:12.5, color:Z.textSoft, fontFamily:Z.font }}>{r.label}</span><span style={{ fontSize:15, fontWeight:700, color:r.color, fontFamily:Z.font }}>{r.value}</span></div>)}
+        </ZCard></div>
+        <div><SectionLabel text="Colaboradores"/><ZCard style={{ overflow:'hidden', padding:0 }}>
+          {cols.map((c,i,a) => <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'11px 14px', borderBottom: i<a.length-1 ? `1px solid ${Z.border}` : 'none' }}><div style={{ width:36, height:36, borderRadius:10, background:`linear-gradient(135deg, ${Z.card2}, ${Z.border})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:Z.accent, fontFamily:Z.font, flexShrink:0 }}>{c.nome.split(' ').map(n=>n[0]).slice(0,2).join('')}</div><div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:13, fontWeight:600, color:Z.text, fontFamily:Z.font, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.nome}</div><div style={{ fontSize:11, color:Z.muted, fontFamily:Z.font }}>{c.cargo} · {c.dept}</div></div><StatusPill label={c.status} color={c.sc} bg={c.sd}/></div>)}
+        </ZCard></div>
+      </div>
+    </div>
+  );
+}
+
+function PCPScreen({ onBack }) {
+  return <div style={{ display:'flex', flexDirection:'column', height:'100%', background:Z.bg, overflow:'hidden' }}><ScreenHeader title="PCP" onBack={onBack} right={<IcPlus s={18} c={Z.accent}/>}/><div style={{ flex:1, overflowY:'auto', padding:'8px 14px 16px', display:'flex', flexDirection:'column', gap:14 }}><div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}><KPICard title="OP em andamento" value="15" color={Z.yellow} spark={[10,12,11,14,13,15,14,16,15,15]}/><KPICard title="Eficiência" value="87%" change="+3%" up={true} color={Z.green} spark={[80,82,81,84,83,85,84,86,85,87]}/></div><div><SectionLabel text="Ordens de Produção"/><ZCard style={{ overflow:'hidden', padding:0 }}>{[{ op:'OP-2401', prod:'Perfil 45x90', qtd:'500 kg', prog:75, status:'Em produção', sc:Z.yellow, sd:Z.yellowDim },{ op:'OP-2402', prod:'Tubo Ret. 40x20', qtd:'300 kg', prog:40, status:'Em produção', sc:Z.yellow, sd:Z.yellowDim },{ op:'OP-2403', prod:'Chapa 3mm', qtd:'1.200 kg', prog:100, status:'Concluída', sc:Z.green, sd:Z.greenDim }].map((o,i,a) => <div key={i} style={{ padding:'11px 14px', borderBottom: i<a.length-1 ? `1px solid ${Z.border}` : 'none' }}><div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}><div><span style={{ fontSize:13, fontWeight:600, color:Z.text, fontFamily:Z.font }}>{o.op}</span><span style={{ fontSize:12, color:Z.muted, fontFamily:Z.font }}> — {o.prod}</span></div><StatusPill label={o.status} color={o.sc} bg={o.sd}/></div><div style={{ display:'flex', alignItems:'center', gap:8 }}><div style={{ flex:1, height:5, background:Z.surface, borderRadius:4, overflow:'hidden' }}><div style={{ width:`${o.prog}%`, height:'100%', background:o.sc, borderRadius:4 }}/></div><span style={{ fontSize:11, fontWeight:600, color:o.sc, fontFamily:Z.font, width:30, textAlign:'right' }}>{o.prog}%</span></div><div style={{ fontSize:11, color:Z.muted, fontFamily:Z.font, marginTop:3 }}>{o.qtd}</div></div>)}</ZCard></div></div></div>;
+}
+
+function LogisticaScreen({ onBack }) {
+  return <div style={{ display:'flex', flexDirection:'column', height:'100%', background:Z.bg, overflow:'hidden' }}><ScreenHeader title="Logística" onBack={onBack} right={<IcFilter s={18} c={Z.accent}/>}/><div style={{ flex:1, overflowY:'auto', padding:'8px 14px 16px', display:'flex', flexDirection:'column', gap:14 }}><div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>{[{ l:'Entregas', v:'22', c:Z.teal },{ l:'Em rota', v:'14', c:Z.yellow },{ l:'Concluídas', v:'8', c:Z.green }].map((k,i)=><ZCard key={i} style={{ padding:'12px 10px', textAlign:'center' }}><div style={{ fontSize:9, color:Z.muted, fontFamily:Z.font, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, marginBottom:4 }}>{k.l}</div><div style={{ fontSize:22, fontWeight:700, color:k.c, fontFamily:Z.font }}>{k.v}</div></ZCard>)}</div><div><SectionLabel text="Entregas do Dia"/><ZCard style={{ overflow:'hidden', padding:0 }}>{[{ id:'ENT-892', dest:'São Paulo — SP', transp:'LogFast', status:'Concluída', sc:Z.green, sd:Z.greenDim },{ id:'ENT-893', dest:'Campinas — SP', transp:'RapidLog', status:'Em rota', sc:Z.yellow, sd:Z.yellowDim },{ id:'ENT-894', dest:'Santos — SP', transp:'TransSul', status:'Em rota', sc:Z.yellow, sd:Z.yellowDim }].map((e,i,a)=><div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 14px', borderBottom: i<a.length-1 ? `1px solid ${Z.border}` : 'none' }}><div><div style={{ fontSize:13, fontWeight:600, color:Z.text, fontFamily:Z.font }}>{e.id}</div><div style={{ fontSize:11, color:Z.muted, fontFamily:Z.font, marginTop:1 }}>{e.dest} · {e.transp}</div></div><StatusPill label={e.status} color={e.sc} bg={e.sd}/></div>)}</ZCard></div></div></div>;
+}
+
+function FaturamentoScreen({ onBack }) {
+  return <div style={{ display:'flex', flexDirection:'column', height:'100%', background:Z.bg, overflow:'hidden' }}><ScreenHeader title="Faturamento" onBack={onBack} right={<IcPlus s={18} c={Z.accent}/>}/><div style={{ flex:1, overflowY:'auto', padding:'8px 14px 16px', display:'flex', flexDirection:'column', gap:14 }}><div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}><KPICard title="NF-e hoje" value="34" change="+6 vs ontem" up={true} color={Z.red} spark={[22,28,25,30,27,32,29,34,31,34]}/><KPICard title="Total faturado" value="R$ 487K" change="+9%" up={true} color={Z.orange} spark={[350,380,365,410,390,440,420,460,445,487]}/></div><div><SectionLabel text="NF-e Emitidas Hoje"/><ZCard style={{ overflow:'hidden', padding:0 }}>{[{ nf:'NF-001204', dest:'Alpha Ltda', valor:'R$ 28.540', status:'Autorizada', sc:Z.green, sd:Z.greenDim },{ nf:'NF-001205', dest:'Beta S.A.', valor:'R$ 12.000', status:'Autorizada', sc:Z.green, sd:Z.greenDim },{ nf:'NF-001206', dest:'Gama Corp', valor:'R$ 45.800', status:'Em processamento', sc:Z.yellow, sd:Z.yellowDim }].map((n,i,a)=><div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'11px 14px', borderBottom: i<a.length-1 ? `1px solid ${Z.border}` : 'none' }}><div><div style={{ fontSize:13, fontWeight:600, color:Z.text, fontFamily:Z.font }}>{n.nf}</div><div style={{ fontSize:11, color:Z.muted, fontFamily:Z.font, marginTop:1 }}>{n.dest}</div></div><div style={{ textAlign:'right', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}><span style={{ fontSize:13, fontWeight:700, color:Z.text, fontFamily:Z.font }}>{n.valor}</span><StatusPill label={n.status} color={n.sc} bg={n.sd}/></div></div>)}</ZCard></div></div></div>;
+}
+
+function ComprasScreen({ onBack }) {
+  return <div style={{ display:'flex', flexDirection:'column', height:'100%', background:Z.bg, overflow:'hidden' }}><ScreenHeader title="Compras" onBack={onBack} right={<IcPlus s={18} c={Z.accent}/>}/><div style={{ flex:1, overflowY:'auto', padding:'8px 14px 16px', display:'flex', flexDirection:'column', gap:14 }}><div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>{[{ l:'PC Abertos', v:'8', c:Z.orange },{ l:'Aprovados', v:'24', c:Z.green },{ l:'Aguardando', v:'5', c:Z.yellow }].map((k,i)=><ZCard key={i} style={{ padding:'12px 10px', textAlign:'center' }}><div style={{ fontSize:9, color:Z.muted, fontFamily:Z.font, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, marginBottom:4 }}>{k.l}</div><div style={{ fontSize:20, fontWeight:700, color:k.c, fontFamily:Z.font }}>{k.v}</div></ZCard>)}</div><div><SectionLabel text="Pedidos de Compra"/><ZCard style={{ overflow:'hidden', padding:0 }}>{[{ pc:'PC-0431', forn:'AluBras Ltda', valor:'R$ 42.000', status:'Aprovação', sc:Z.yellow, sd:Z.yellowDim },{ pc:'PC-0430', forn:'MetalPrime', valor:'R$ 18.500', status:'Aprovado', sc:Z.green, sd:Z.greenDim },{ pc:'PC-0429', forn:'Insumos Sul', valor:'R$ 7.800', status:'Recebido', sc:Z.teal, sd:Z.tealDim }].map((p,i,a)=><div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 14px', borderBottom: i<a.length-1 ? `1px solid ${Z.border}` : 'none' }}><div><div style={{ fontSize:13, fontWeight:600, color:Z.text, fontFamily:Z.font }}>{p.pc}</div><div style={{ fontSize:11, color:Z.muted, fontFamily:Z.font, marginTop:1 }}>{p.forn}</div></div><div style={{ textAlign:'right', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}><span style={{ fontSize:13, fontWeight:700, color:Z.text, fontFamily:Z.font }}>{p.valor}</span><StatusPill label={p.status} color={p.sc} bg={p.sd}/></div></div>)}</ZCard></div></div></div>;
+}
+
+function ModulosScreen({ onModuleOpen }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:Z.bg, overflow:'hidden' }}>
+      <div style={{ padding:'14px 18px 10px', flexShrink:0 }}><div style={{ fontSize:20, fontWeight:700, color:Z.text, fontFamily:Z.font, letterSpacing:-0.3 }}>Módulos</div><div style={{ fontSize:13, color:Z.muted, fontFamily:Z.font, marginTop:2 }}>Plataforma ERP Zyntra</div></div>
+      <div style={{ flex:1, overflowY:'auto', padding:'8px 14px 16px' }}><div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+        {MODULES.map(m => <button key={m.id} onClick={() => onModuleOpen(m.id)} style={{ background:Z.card, border:`1px solid ${Z.border}`, borderRadius:18, padding:'20px 16px', cursor:'pointer', textAlign:'left', display:'flex', flexDirection:'column', gap:10, transition:'all 0.2s' }}><div style={{ width:44, height:44, borderRadius:13, background:m.dim, display:'flex', alignItems:'center', justifyContent:'center' }}><ModIcon id={m.id} s={22} c={m.color}/></div><div><div style={{ fontSize:15, fontWeight:700, color:Z.text, fontFamily:Z.font }}>{m.label}</div><div style={{ fontSize:11, color:Z.muted, fontFamily:Z.font, marginTop:2 }}>{{financeiro:'Contas, DRE, Fluxo',vendas:'Pedidos, Funil, Metas',rh:'Colaboradores, Ponto',pcp:'Ordens de Produção',logistica:'Entregas, Rotas',faturamento:'NF-e, Faturas',compras:'PC, Fornecedores'}[m.id]}</div></div></button>)}
+      </div></div>
+    </div>
+  );
+}
+
+// ── Screen transition wrapper ────────────────────────────────
+function AnimatedScreen({ children, screenKey }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    requestAnimationFrame(() => setVisible(true));
+    return () => setVisible(false);
+  }, [screenKey]);
+  return (
+    <div style={{
+      position: 'absolute', inset: 0,
+      opacity: visible ? 1 : 0,
+      transform: visible ? 'translateX(0)' : 'translateX(24px)',
+      transition: 'opacity 0.22s ease, transform 0.22s ease',
+    }}>
+      {children}
+    </div>
+  );
+}
+
+// ── Main App ─────────────────────────────────────────────────
+function ZyntraApp() {
+  const [screen, setScreen] = useState('login');   // 'login' | 'main'
+  const [tab, setTab] = useState('home');           // bottom nav tab
+  const [module, setModule] = useState(null);       // active module id or null
+  const [prevTab, setPrevTab] = useState('home');
+
+  const notifCount = 3;
+
+  const openModule = (id) => {
+    setPrevTab(tab);
+    setModule(id);
+  };
+  const closeModule = () => {
+    setModule(null);
+  };
+  const changeTab = (t) => {
+    setModule(null);
+    setTab(t);
+  };
+
+  const moduleComponents = {
+    financeiro: <FinanceiroScreen onBack={closeModule}/>,
+    vendas: <VendasScreen onBack={closeModule}/>,
+    rh: <RHScreen onBack={closeModule}/>,
+    pcp: <PCPScreen onBack={closeModule}/>,
+    logistica: <LogisticaScreen onBack={closeModule}/>,
+    faturamento: <FaturamentoScreen onBack={closeModule}/>,
+    compras: <ComprasScreen onBack={closeModule}/>,
+  };
+
+  const mainContent = module
+    ? <AnimatedScreen screenKey={module}>{moduleComponents[module]}</AnimatedScreen>
+    : <AnimatedScreen screenKey={tab}>
+        {tab === 'home' && <HomeScreen onModuleOpen={openModule} onGoNotifications={() => changeTab('notifications')}/>}
+        {tab === 'modules' && <ModulosScreen onModuleOpen={openModule}/>}
+        {tab === 'notifications' && <NotificacoesScreen/>}
+        {tab === 'profile' && <PerfilScreen onLogout={() => { setScreen('login'); setTab('home'); setModule(null); }}/>}
+      </AnimatedScreen>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32, padding: '40px 24px' }}>
+      {/* Header label */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <img src="uploads/logo-1777551715119.png" style={{ width: 28, height: 28, objectFit: 'contain', filter: 'invert(1) brightness(2)' }} alt=""/>
+        <span style={{ fontSize: 14, fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5 }}>ZYNTRA — APP MOBILE</span>
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', fontWeight: 400 }}>iOS prototype</span>
+      </div>
+
+      {/* Phones row */}
+      <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'center' }}>
+
+        {/* Phone 1: Login */}
+        <div style={{ position: 'relative' }}>
+          <div className="screen-label">Login</div>
+          <IOSDevice width={360} height={780} dark={true}>
+            <IOSStatusBar dark={true} time="9:41"/>
+            <div style={{ position: 'absolute', top: 60, left: 0, right: 0, bottom: 0, overflow: 'hidden' }}>
+              <LoginScreen onLogin={() => {}}/>
+            </div>
+          </IOSDevice>
+        </div>
+
+        {/* Phone 2: Main App (interactive) */}
+        <div style={{ position: 'relative' }}>
+          <div className="screen-label">App Principal (interativo)</div>
+          <IOSDevice width={360} height={780} dark={true}>
+            <IOSStatusBar dark={true} time="9:41"/>
+            <div style={{ position: 'absolute', top: 60, left: 0, right: 0, bottom: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#090C14' }}>
+              {screen === 'login' ? (
+                <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                  <LoginScreen onLogin={() => { setScreen('main'); setTab('home'); }}/>
+                </div>
+              ) : (
+                <>
+                  <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                    {mainContent}
+                  </div>
+                  <BottomNav tab={module ? prevTab : tab} onChange={changeTab} notifCount={notifCount}/>
+                </>
+              )}
+            </div>
+          </IOSDevice>
+        </div>
+
+        {/* Phone 3: Dashboard */}
+        <div style={{ position: 'relative' }}>
+          <div className="screen-label">Dashboard</div>
+          <IOSDevice width={360} height={780} dark={true}>
+            <IOSStatusBar dark={true} time="9:41"/>
+            <div style={{ position: 'absolute', top: 60, left: 0, right: 0, bottom: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#090C14' }}>
+              <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                <HomeScreen onModuleOpen={() => {}} onGoNotifications={() => {}}/>
+              </div>
+              <BottomNav tab="home" onChange={() => {}} notifCount={3}/>
+            </div>
+          </IOSDevice>
+        </div>
+
+        {/* Phone 4: Financeiro */}
+        <div style={{ position: 'relative' }}>
+          <div className="screen-label">Financeiro</div>
+          <IOSDevice width={360} height={780} dark={true}>
+            <IOSStatusBar dark={true} time="9:41"/>
+            <div style={{ position: 'absolute', top: 60, left: 0, right: 0, bottom: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#090C14' }}>
+              <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                <FinanceiroScreen onBack={() => {}}/>
+              </div>
+              <BottomNav tab="modules" onChange={() => {}} notifCount={0}/>
+            </div>
+          </IOSDevice>
+        </div>
+
+        {/* Phone 5: Vendas */}
+        <div style={{ position: 'relative' }}>
+          <div className="screen-label">Vendas</div>
+          <IOSDevice width={360} height={780} dark={true}>
+            <IOSStatusBar dark={true} time="9:41"/>
+            <div style={{ position: 'absolute', top: 60, left: 0, right: 0, bottom: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#090C14' }}>
+              <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                <VendasScreen onBack={() => {}}/>
+              </div>
+              <BottomNav tab="modules" onChange={() => {}} notifCount={0}/>
+            </div>
+          </IOSDevice>
+        </div>
+
+        {/* Phone 6: RH */}
+        <div style={{ position: 'relative' }}>
+          <div className="screen-label">RH</div>
+          <IOSDevice width={360} height={780} dark={true}>
+            <IOSStatusBar dark={true} time="9:41"/>
+            <div style={{ position: 'absolute', top: 60, left: 0, right: 0, bottom: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#090C14' }}>
+              <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                <RHScreen onBack={() => {}}/>
+              </div>
+              <BottomNav tab="modules" onChange={() => {}} notifCount={0}/>
+            </div>
+          </IOSDevice>
+        </div>
+
+        {/* Phone 7: Notificações */}
+        <div style={{ position: 'relative' }}>
+          <div className="screen-label">Notificações</div>
+          <IOSDevice width={360} height={780} dark={true}>
+            <IOSStatusBar dark={true} time="9:41"/>
+            <div style={{ position: 'absolute', top: 60, left: 0, right: 0, bottom: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#090C14' }}>
+              <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                <NotificacoesScreen/>
+              </div>
+              <BottomNav tab="notifications" onChange={() => {}} notifCount={3}/>
+            </div>
+          </IOSDevice>
+        </div>
+
+        {/* Phone 8: Perfil */}
+        <div style={{ position: 'relative' }}>
+          <div className="screen-label">Perfil</div>
+          <IOSDevice width={360} height={780} dark={true}>
+            <IOSStatusBar dark={true} time="9:41"/>
+            <div style={{ position: 'absolute', top: 60, left: 0, right: 0, bottom: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#090C14' }}>
+              <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                <PerfilScreen onLogout={() => {}}/>
+              </div>
+              <BottomNav tab="profile" onChange={() => {}} notifCount={0}/>
+            </div>
+          </IOSDevice>
+        </div>
+
+      </div>
+
+      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', marginBottom: 24 }}>
+        O segundo celular é totalmente interativo — navegue pelas telas, módulos e notificações.
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<ZyntraApp/>);
+</script>
+</body>
+</html>

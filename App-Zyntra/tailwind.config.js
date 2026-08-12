@@ -1,0 +1,40 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './app/**/*.{js,jsx,ts,tsx}',
+    './components/**/*.{js,jsx,ts,tsx}',
+  ],
+  presets: [require('nativewind/preset')],
+  theme: {
+    extend: {
+      colors: {
+        bg: '#f3f5f9',
+        surface: '#eaecf3',
+        card: '#ffffff',
+        card2: '#f0f2f7',
+        border: '#dbe0ea',
+        'border-light': '#e8ecf3',
+        accent: '#19295e',
+        'accent-dim': 'rgba(25,41,94,0.10)',
+        'accent-glow': 'rgba(25,41,94,0.06)',
+        text: '#18213a',
+        'text-soft': '#344060',
+        muted: '#60708c',
+        'muted-light': '#8898b4',
+        green: '#16a34a',
+        'green-dim': 'rgba(22,163,74,0.12)',
+        red: '#dc2626',
+        'red-dim': 'rgba(220,38,38,0.10)',
+        yellow: '#d97706',
+        'yellow-dim': 'rgba(217,119,6,0.12)',
+        purple: '#7c3aed',
+        'purple-dim': 'rgba(124,58,237,0.12)',
+        teal: '#0d9488',
+        'teal-dim': 'rgba(13,148,136,0.12)',
+        orange: '#ea580c',
+        'orange-dim': 'rgba(234,88,12,0.12)',
+      },
+    },
+  },
+  plugins: [],
+};
