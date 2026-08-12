@@ -11,7 +11,8 @@ import {
   TextStyle,
 } from 'react-native';
 import Svg, { Path, Circle, Rect, Polyline, G, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { Colors } from '@/lib/constants';
+import { router } from 'expo-router';
+import { Colors, CAMINHOS_ERP_WEB } from '@/lib/constants';
 
 // ═══════════════════════════════════════════════════════════════
 // CARD COMPONENT
@@ -319,6 +320,30 @@ export function ScreenHeader({ title, onBack, right }: ScreenHeaderProps) {
       <Text style={styles.headerTitle}>{title}</Text>
       <View style={styles.headerRight}>{right}</View>
     </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ABRIR NO ERP WEB
+//
+// Atalho para o módulo correspondente dentro da tela `sistema` (WebView). Vive no
+// header porque é ação de escape — quando o que o usuário precisa não existe na
+// tela nativa — e não algo do fluxo principal.
+// ═══════════════════════════════════════════════════════════════
+export function BotaoErpWeb({ modulo }: { modulo: string }) {
+  const caminho = CAMINHOS_ERP_WEB[modulo];
+  if (!caminho) return null;
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel="Abrir este módulo no ERP web"
+      onPress={() => router.push(`/(auth)/sistema?path=${encodeURIComponent(caminho)}` as never)}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+    >
+      <IconGlobe size={16} color={Colors.accent} />
+      <Text style={{ color: Colors.accent, fontSize: 13, fontWeight: '600' }}>ERP web</Text>
+    </TouchableOpacity>
   );
 }
 

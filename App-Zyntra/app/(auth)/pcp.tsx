@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { pcpApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Colors } from '@/lib/constants';
-import { Card, SectionLabel, ScreenHeader, StatusPill, KPICard } from '@/components/ui';
+import { Card, SectionLabel, ScreenHeader, StatusPill, KPICard, BotaoErpWeb } from '@/components/ui';
 import Svg, { Path, Circle } from 'react-native-svg';
 
 // ─── tipos ────────────────────────────────────────────────────
@@ -573,7 +573,7 @@ export default function PCPScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }} edges={['top']}>
-      <ScreenHeader title="PCP — Apontamentos" onBack={() => router.back()} />
+      <ScreenHeader title="PCP — Apontamentos" onBack={() => router.back()} right={<BotaoErpWeb modulo="pcp" />} />
 
       {/* KPIs — visíveis apenas para administradores/gestores */}
       {isAdmin && (

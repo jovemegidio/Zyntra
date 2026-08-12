@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { logisticaApi } from '@/lib/api';
 import { Colors } from '@/lib/constants';
-import { Card, SectionLabel, ScreenHeader, StatusPill, IconFilter } from '@/components/ui';
+import { Card, SectionLabel, ScreenHeader, StatusPill, IconFilter, BotaoErpWeb } from '@/components/ui';
 import type { Entrega } from '@/types';
 
 function fmtDate(dateStr?: string | null) {
@@ -76,17 +76,20 @@ export default function LogisticaScreen() {
         title="Logística"
         onBack={() => router.back()}
         right={
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Filtrar entregas por status"
-            onPress={() => setStatusFilter((current) => current === 'todos' ? 'em_transporte' : current === 'em_transporte' ? 'entregue' : 'todos')}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
-          >
-            <IconFilter size={18} color={Colors.accent} />
-            <Text style={{ fontSize: 11, color: Colors.accent, fontWeight: '600' }}>
-              {statusFilter === 'todos' ? 'Todos' : statusFilter === 'em_transporte' ? 'Em rota' : 'Concluídas'}
-            </Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Filtrar entregas por status"
+              onPress={() => setStatusFilter((current) => current === 'todos' ? 'em_transporte' : current === 'em_transporte' ? 'entregue' : 'todos')}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+            >
+              <IconFilter size={18} color={Colors.accent} />
+              <Text style={{ fontSize: 11, color: Colors.accent, fontWeight: '600' }}>
+                {statusFilter === 'todos' ? 'Todos' : statusFilter === 'em_transporte' ? 'Em rota' : 'Concluídas'}
+              </Text>
+            </TouchableOpacity>
+            <BotaoErpWeb modulo="logistica" />
+          </View>
         }
       />
 

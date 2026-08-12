@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { comprasApi } from '@/lib/api';
 import { Colors } from '@/lib/constants';
-import { Card, SectionLabel, ScreenHeader, StatusPill, IconSearch } from '@/components/ui';
+import { Card, SectionLabel, ScreenHeader, StatusPill, IconSearch, BotaoErpWeb } from '@/components/ui';
 import type { PedidoCompra, Fornecedor } from '@/types';
 
 function fmtCurrency(value?: number | null) {
@@ -91,6 +91,7 @@ export default function ComprasScreen() {
       <ScreenHeader
         title="Compras"
         onBack={() => router.back()}
+        right={<BotaoErpWeb modulo="compras" />}
       />
 
       <ScrollView

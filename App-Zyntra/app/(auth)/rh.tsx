@@ -19,7 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { rhApi } from '@/lib/api';
 import { Colors, getAvatarUrl } from '@/lib/constants';
-import { Card, SectionLabel, ScreenHeader, StatusPill, Badge, IconPlus } from '@/components/ui';
+import { Card, SectionLabel, ScreenHeader, StatusPill, Badge, IconPlus, BotaoErpWeb } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import type { Funcionario } from '@/types';
@@ -508,6 +508,7 @@ export default function RHScreen() {
       <ScreenHeader
         title="RH & Colaborador"
         onBack={() => router.back()}
+        right={<BotaoErpWeb modulo="rh" />}
       />
 
       <AtestadoModal visible={atestadoModal} onClose={() => setAtestadoModal(false)} />

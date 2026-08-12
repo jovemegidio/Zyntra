@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { faturamentoApi } from '@/lib/api';
 import { Colors } from '@/lib/constants';
-import { Card, SectionLabel, ScreenHeader, KPICard, StatusPill } from '@/components/ui';
+import { Card, SectionLabel, ScreenHeader, KPICard, StatusPill, BotaoErpWeb } from '@/components/ui';
 import type { NotaFiscal } from '@/types';
 
 function fmtCurrency(value?: number | null) {
@@ -69,6 +69,7 @@ export default function FaturamentoScreen() {
       <ScreenHeader
         title="Faturamento"
         onBack={() => router.back()}
+        right={<BotaoErpWeb modulo="faturamento" />}
       />
 
       <ScrollView

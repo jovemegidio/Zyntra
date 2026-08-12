@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { vendasApi } from '@/lib/api';
 import { Colors } from '@/lib/constants';
 import { useTheme } from '@/lib/theme';
-import { Card, SectionLabel, ScreenHeader, KPICard, StatusPill, IconSearch } from '@/components/ui';
+import { Card, SectionLabel, ScreenHeader, KPICard, StatusPill, IconSearch, BotaoErpWeb } from '@/components/ui';
 import type { Pedido } from '@/types';
 
 function fmtCurrency(value?: number | null) {
@@ -95,6 +95,7 @@ export default function VendasScreen() {
       <ScreenHeader
         title="Vendas"
         onBack={() => router.back()}
+        right={<BotaoErpWeb modulo="vendas" />}
       />
 
       <ScrollView

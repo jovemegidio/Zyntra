@@ -247,6 +247,26 @@ export function getAvatarUrl(path?: string | null): string | null {
   return `${base}${path}`;
 }
 
+/**
+ * Caminho de cada módulo no ERP web, para abrir na tela `sistema` (WebView).
+ * As telas nativas cobrem o dia a dia; o que só existe no web (cadastros longos,
+ * ações fiscais, relatórios) fica a um toque de distância em vez de virar
+ * "tem que abrir no computador".
+ *
+ * `/index.html` é explícito de propósito: `/Vendas` responde 302 e o menu do web
+ * não marca o item como ativo. Os prefixos aqui precisam bater com a allowlist de
+ * `routes/mobile-app.js` no backend — fora dela, a sessão cai em /index.html.
+ */
+export const CAMINHOS_ERP_WEB: Record<string, string> = {
+  financeiro: '/Financeiro/index.html',
+  vendas: '/Vendas/index.html',
+  rh: '/RH/index.html',
+  pcp: '/PCP/index.html',
+  logistica: '/Logistica/index.html',
+  faturamento: '/Faturamento/index.html',
+  compras: '/Compras/index.html',
+};
+
 // App Info
 export const APP_VERSION = '1.1.0';
 export const APP_NAME = 'Zyntra';

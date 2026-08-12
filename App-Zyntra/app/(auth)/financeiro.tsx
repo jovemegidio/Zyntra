@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { financeiroApi } from '@/lib/api';
 import { Colors } from '@/lib/constants';
 import { useTheme } from '@/lib/theme';
-import { Card, SectionLabel, ScreenHeader, StatusPill } from '@/components/ui';
+import { Card, SectionLabel, ScreenHeader, StatusPill, BotaoErpWeb } from '@/components/ui';
 import type { ContaReceber, ContaPagar, FinanceiroDashboard } from '@/types';
 
 function fmtCurrency(value?: number | null) {
@@ -88,6 +88,7 @@ export default function FinanceiroScreen() {
       <ScreenHeader
         title="Financeiro"
         onBack={() => router.back()}
+        right={<BotaoErpWeb modulo="financeiro" />}
       />
 
       <ScrollView

@@ -42,6 +42,11 @@ validado contra uma allowlist de prefixos no backend.
 Se a sessão web cair, a tela detecta a ida para o login web e renova a sessão sozinha; caindo de
 novo, manda o usuário para o login do aplicativo.
 
+Cada tela de módulo tem no header o atalho **ERP web**, que abre o módulo correspondente já no
+caminho certo (`CAMINHOS_ERP_WEB` em `lib/constants.ts`). Os caminhos usam `/index.html` explícito —
+`/Vendas` responde 302 e o menu do web não marca o item como ativo — e precisam bater com a
+allowlist de `routes/mobile-app.js`; fora dela a sessão cai em `/index.html`.
+
 ## Notificações
 
 Em um dispositivo físico, o app registra o Expo Push Token em `/api/push/register`. Ao tocar em uma notificação com `data.moduleId`, abre o módulo correspondente; notificações sem destino válido abrem a central de alertas.
