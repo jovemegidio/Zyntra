@@ -1,12 +1,30 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { useColorScheme } from 'react-native';
 import * as SecureStore from './secure-store';
 import { Colors } from './constants';
 
+/** Tema efetivamente pintado na tela. */
 export type ThemeMode = 'light' | 'dark';
+
+/**
+ * O que o usuário escolheu. `system` acompanha o aparelho — é o padrão, porque
+ * o `app.json` declara `userInterfaceStyle: 'automatic'` e o app ignorava isso:
+ * abria sempre claro, mesmo com o celular inteiro no escuro.
+ */
+export type ThemePreference = ThemeMode | 'system';
 
 const THEME_KEY = 'zyntra_theme_mode';
 
-const lightColors = {
+/**
+ * Paleta clara.
+ *
+ * Exportada porque as telas públicas (login, recuperar senha) são, por desenho, um
+ * cartão CLARO sobre um fundo escuro — espelhando a `login.html` do web — e o fundo
+ * desse cartão é fixo (`rgba(255,255,255,0.97)`). Elas NÃO podem seguir o tema do
+ * aparelho: com o celular em modo escuro, `Colors.text` vira quase-branco e some
+ * dentro do cartão branco, junto com os rótulos dos campos.
+ */
+export const lightColors = {
   bg: '#f3f5f9',
   surface: '#eaecf3',
   card: '#ffffff',
@@ -62,12 +80,24 @@ const darkColors = {
   orangeDim: 'rgba(251,146,60,0.15)',
 };
 
+// As telas leem `Colors.x` direto no estilo inline, então trocar de tema é
+// mutar o objeto e forçar um render — não há um provider de cores para elas
+// consumirem. Feio, mas é o contrato que o app inteiro já usa.
 function applyTheme(mode: ThemeMode) {
   Object.assign(Colors, mode === 'dark' ? darkColors : lightColors);
 }
 
+function lerPreferencia(salvo: string | null): ThemePreference {
+  return salvo === 'dark' || salvo === 'light' || salvo === 'system' ? salvo : 'system';
+}
+
 interface ThemeContextValue {
+  /** Tema resolvido — é o que está pintado agora. */
   mode: ThemeMode;
+  /** Escolha do usuário, incluindo "acompanhar o sistema". */
+  preferencia: ThemePreference;
+  setPreferencia: (preferencia: ThemePreference) => Promise<void>;
+  /** Mantido para quem só quer fixar claro/escuro. */
   setMode: (mode: ThemeMode) => Promise<void>;
   colors: typeof Colors;
 }
@@ -75,25 +105,48 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>('light');
+  const esquemaDoSistema = useColorScheme();
+  const [preferencia, setPreferenciaState] = useState<ThemePreference>('system');
+  const [pronto, setPronto] = useState(false);
+
+  const mode: ThemeMode =
+    preferencia === 'system' ? (esquemaDoSistema === 'dark' ? 'dark' : 'light') : preferencia;
+
+  // Pinta ANTES do primeiro paint (e a cada mudança do sistema): com useEffect,
+  // o primeiro frame sairia com as cores do tema anterior e piscaria.
+  const modoPintado = React.useRef<ThemeMode | null>(null);
+  if (modoPintado.current !== mode) {
+    applyTheme(mode);
+    modoPintado.current = mode;
+  }
 
   useEffect(() => {
-    let mounted = true;
-    SecureStore.getItemAsync(THEME_KEY).then((saved) => {
-      const nextMode: ThemeMode = saved === 'dark' ? 'dark' : 'light';
-      applyTheme(nextMode);
-      if (mounted) setModeState(nextMode);
+    let montado = true;
+    SecureStore.getItemAsync(THEME_KEY).then((salvo) => {
+      if (!montado) return;
+      setPreferenciaState(lerPreferencia(salvo));
+      setPronto(true);
     });
-    return () => { mounted = false; };
+    return () => {
+      montado = false;
+    };
   }, []);
 
-  const setMode = async (nextMode: ThemeMode) => {
-    applyTheme(nextMode);
-    setModeState(nextMode);
-    await SecureStore.setItemAsync(THEME_KEY, nextMode);
+  const setPreferencia = async (proxima: ThemePreference) => {
+    setPreferenciaState(proxima);
+    await SecureStore.setItemAsync(THEME_KEY, proxima);
   };
 
-  const value = useMemo(() => ({ mode, setMode, colors: Colors }), [mode]);
+  const value = useMemo<ThemeContextValue>(
+    () => ({
+      mode,
+      preferencia,
+      setPreferencia,
+      setMode: (proximo: ThemeMode) => setPreferencia(proximo),
+      colors: Colors,
+    }),
+    [mode, preferencia, pronto]
+  );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

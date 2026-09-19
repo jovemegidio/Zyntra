@@ -4,11 +4,28 @@ import { Colors } from '@/lib/constants';
 import { useTheme } from '@/lib/theme';
 import { IconHome, IconGrid, IconBell, IconUser } from '@/components/ui';
 import { useNotifications } from '@/hooks/useNotifications';
+import { OfflineBanner } from '@/components/offline-banner';
+
+/** Altura da tab bar — o banner offline flutua logo acima dela. */
+const ALTURA_TABBAR = 70;
 
 export default function AuthLayout() {
   useTheme();
   useNotifications();
 
+  return (
+    <View style={{ flex: 1 }}>
+      <TabsAutenticadas />
+      {/* Fora do <Tabs> e posicionado por cima: dentro dele o banner iria parar
+          abaixo da tab bar, no rodapé, onde ninguém olha. */}
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: ALTURA_TABBAR }}>
+        <OfflineBanner />
+      </View>
+    </View>
+  );
+}
+
+function TabsAutenticadas() {
   return (
     <Tabs
       screenOptions={{
@@ -19,7 +36,7 @@ export default function AuthLayout() {
           borderTopWidth: 1,
           paddingBottom: 10,
           paddingTop: 10,
-          height: 70,
+          height: ALTURA_TABBAR,
           shadowColor: '#1e2a42',
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.06,
@@ -131,11 +148,14 @@ export default function AuthLayout() {
       {/* Telas de módulo — ocultas na tab bar */}
       <Tabs.Screen name="financeiro"  options={{ href: null }} />
       <Tabs.Screen name="vendas"      options={{ href: null }} />
+      <Tabs.Screen name="crm"         options={{ href: null }} />
       <Tabs.Screen name="rh"          options={{ href: null }} />
+      <Tabs.Screen name="meu-rh"      options={{ href: null }} />
       <Tabs.Screen name="pcp"         options={{ href: null }} />
       <Tabs.Screen name="logistica"   options={{ href: null }} />
       <Tabs.Screen name="faturamento" options={{ href: null }} />
       <Tabs.Screen name="compras"     options={{ href: null }} />
+      <Tabs.Screen name="tarefas"     options={{ href: null }} />
       <Tabs.Screen name="sistema"     options={{ href: null }} />
     </Tabs>
   );

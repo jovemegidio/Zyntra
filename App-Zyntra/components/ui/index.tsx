@@ -653,6 +653,25 @@ export function ModuleIcon({ id, size = 20, color }: { id: string; size?: number
         <Path d="M14 7h5v5" stroke={color} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
       </Svg>
     ),
+    crm: (
+      // Funil — a metáfora que a própria tela usa (pipeline por etapa)
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Path
+          d="M3 4h18l-7 8v7l-4 2v-9L3 4z"
+          stroke={color}
+          strokeWidth="1.7"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    ),
+    tarefas: (
+      // Checklist
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Path d="M4 7l2 2 3.5-3.5" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <Path d="M4 17l2 2 3.5-3.5" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <Path d="M13 7.5h7M13 17.5h7" stroke={color} strokeWidth="1.7" strokeLinecap="round" />
+      </Svg>
+    ),
     rh: (
       <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
         <Circle cx="9" cy="7" r="3.5" stroke={color} strokeWidth="1.7" />

@@ -34,6 +34,7 @@ function RootContent() {
           >
             <Stack.Screen name="(public)" options={{ animation: 'fade' }} />
             <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+            <Stack.Screen name="(trevo)" options={{ animation: 'fade' }} />
             <Stack.Screen
               name="configuracoes"
               options={{ presentation: 'modal', animation: 'slide_from_bottom' }}

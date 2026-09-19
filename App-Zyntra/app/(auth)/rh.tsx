@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { rhApi } from '@/lib/api';
+import { rhApi, foiEnfileirado, periodoDoMes } from '@/lib/api';
 import { Colors, getAvatarUrl } from '@/lib/constants';
 import { Card, SectionLabel, ScreenHeader, StatusPill, Badge, IconPlus, BotaoErpWeb } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
@@ -254,7 +254,15 @@ function SolicitacaoModal({
       setDescricao(''); setDataInicio(''); setDataFim('');
       onClose();
     },
-    onError: () => Alert.alert('Erro', 'Não foi possível enviar a solicitação. Tente novamente.'),
+    onError: (erro) => {
+      if (foiEnfileirado(erro)) {
+        Alert.alert('Salva offline', 'Sem conexão agora. A solicitação foi guardada e sobe sozinha quando a rede voltar.');
+        setDescricao(''); setDataInicio(''); setDataFim('');
+        onClose();
+        return;
+      }
+      Alert.alert('Erro', 'Não foi possível enviar a solicitação. Tente novamente.');
+    },
   });
 
   return (
@@ -329,7 +337,13 @@ function PontoPanel() {
     mutationFn: (tipo: 'entrada' | 'saida' | 'almoco_saida' | 'almoco_retorno') =>
       rhApi.registrarPonto(tipo),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rh', 'ponto', 'hoje'] }),
-    onError: () => Alert.alert('Erro', 'Não foi possível registrar o ponto.'),
+    onError: (erro) =>
+      Alert.alert(
+        foiEnfileirado(erro) ? 'Batida salva offline' : 'Erro',
+        foiEnfileirado(erro)
+          ? 'Sem conexão agora. A batida foi guardada com o horário exato e sobe sozinha quando a rede voltar.'
+          : 'Não foi possível registrar o ponto.'
+      ),
   });
 
   // getPontoHoje retorna { data: Record<tipo, hora>, marcacoes }
@@ -401,6 +415,130 @@ function PontoPanel() {
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 10, backgroundColor: Colors.greenDim, borderRadius: 10 }}>
               <IconCheck size={14} color={Colors.green} />
               <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.green }}>Ponto completo hoje</Text>
+            </View>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+// ─── Painel de espelho de ponto (mensal) ───────────────────────
+const NOMES_MES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+function statusEspelhoTag(status?: string) {
+  if (status === 'atraso') return { color: Colors.yellow, bg: Colors.yellowDim, label: 'Atraso' };
+  if (status === 'falta') return { color: Colors.red, bg: Colors.redDim, label: 'Falta' };
+  if (status === 'folga') return { color: Colors.teal, bg: Colors.tealDim, label: 'Folga' };
+  return { color: Colors.green, bg: Colors.greenDim, label: 'Normal' };
+}
+
+function EspelhoPontoPanel() {
+  const agora = new Date();
+  const [ref, setRef] = useState({ ano: agora.getFullYear(), mes: agora.getMonth() + 1 });
+  const ehMesAtual = ref.ano === agora.getFullYear() && ref.mes === agora.getMonth() + 1;
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['rh', 'espelho', ref.ano, ref.mes],
+    queryFn: () => rhApi.getEspelhoPonto(periodoDoMes(ref.ano, ref.mes)),
+    retry: 1,
+  });
+
+  const mesAnterior = () =>
+    setRef((r) => (r.mes === 1 ? { ano: r.ano - 1, mes: 12 } : { ano: r.ano, mes: r.mes - 1 }));
+  const mesSeguinte = () => {
+    if (ehMesAtual) return;
+    setRef((r) => (r.mes === 12 ? { ano: r.ano + 1, mes: 1 } : { ano: r.ano, mes: r.mes + 1 }));
+  };
+
+  const dias = data?.dias ?? [];
+
+  return (
+    <Card style={{ padding: 14, gap: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <TouchableOpacity onPress={mesAnterior} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ padding: 4 }}>
+          <Text style={{ fontSize: 20, color: Colors.accent, fontWeight: '700' }}>‹</Text>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 13.5, fontWeight: '700', color: Colors.text }}>
+          {NOMES_MES[ref.mes - 1]} {ref.ano}
+        </Text>
+        <TouchableOpacity
+          onPress={mesSeguinte}
+          disabled={ehMesAtual}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ padding: 4, opacity: ehMesAtual ? 0.3 : 1 }}
+        >
+          <Text style={{ fontSize: 20, color: Colors.accent, fontWeight: '700' }}>›</Text>
+        </TouchableOpacity>
+      </View>
+
+      {isLoading || isFetching ? (
+        <ActivityIndicator color={Colors.accent} />
+      ) : data?.vinculado === false ? (
+        <Text style={{ fontSize: 13, color: Colors.muted, textAlign: 'center', paddingVertical: 8 }}>
+          {data?.message ?? 'Você não está vinculado a um cadastro de funcionário.'}
+        </Text>
+      ) : (
+        <>
+          {data?.resumo && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              {[
+                { label: 'Dias trabalhados', value: String(data.resumo.dias_trabalhados) },
+                { label: 'Horas', value: data.resumo.horas_trabalhadas },
+                { label: 'Atrasos', value: String(data.resumo.atrasos) },
+                { label: 'Faltas', value: String(data.resumo.faltas) },
+              ].map((r, i) => (
+                <View key={i} style={{ flex: 1, minWidth: '45%', backgroundColor: Colors.surface, borderRadius: 10, padding: 8, gap: 2 }}>
+                  <Text style={{ fontSize: 9.5, color: Colors.muted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                    {r.label}
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.text }}>{r.value}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {dias.length === 0 ? (
+            <Text style={{ fontSize: 13, color: Colors.muted, textAlign: 'center', paddingVertical: 4 }}>
+              Nenhum registro no período
+            </Text>
+          ) : (
+            <View style={{ gap: 2 }}>
+              {dias.map((d, i) => {
+                const st = statusEspelhoTag(d.status);
+                return (
+                  <View
+                    key={d.data ?? i}
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      paddingVertical: 7,
+                      borderBottomWidth: i < dias.length - 1 ? 1 : 0,
+                      borderBottomColor: Colors.border,
+                    }}
+                  >
+                    <View>
+                      <Text style={{ fontSize: 12.5, fontWeight: '600', color: Colors.text }}>
+                        {d.data} · {d.dia}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: Colors.muted }}>
+                        {[d.entrada, d.saidaAlmoco, d.retornoAlmoco, d.saida]
+                          .filter((h) => h && h !== '-')
+                          .join('  ·  ') || '--'}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {d.horas && d.horas !== '-' && (
+                        <Text style={{ fontSize: 11.5, fontWeight: '700', color: Colors.text }}>{d.horas}</Text>
+                      )}
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: st.bg, borderRadius: 999 }}>
+                        <Text style={{ fontSize: 10.5, fontWeight: '600', color: st.color }}>{st.label}</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           )}
         </>
@@ -567,6 +705,12 @@ export default function RHScreen() {
         <View>
           <SectionLabel text="Ponto Eletrônico" />
           <PontoPanel />
+        </View>
+
+        {/* ── Espelho de ponto ── */}
+        <View>
+          <SectionLabel text="Espelho de Ponto" />
+          <EspelhoPontoPanel />
         </View>
 
         {/* ── Holerite ── */}

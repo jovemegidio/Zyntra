@@ -6,7 +6,7 @@ import {
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { pcpApi } from '@/lib/api';
+import { pcpApi, foiEnfileirado } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Colors } from '@/lib/constants';
 import { Card, SectionLabel, ScreenHeader, StatusPill, KPICard, BotaoErpWeb } from '@/components/ui';
@@ -299,7 +299,14 @@ function NovoApontamento({ ordens }: { ordens: OrdemProducao[] }) {
         Alert.alert('Erro', data?.message ?? 'Não foi possível salvar o apontamento.');
       }
     },
-    onError: () => Alert.alert('Erro', 'Falha na conexão. Tente novamente.'),
+    onError: (erro) => {
+      if (foiEnfileirado(erro)) {
+        Alert.alert('Apontamento salvo offline', 'Sem conexão no chão de fábrica. O apontamento foi guardado e sobe sozinho quando a rede voltar.');
+        reset();
+        return;
+      }
+      Alert.alert('Erro', 'Falha na conexão. Tente novamente.');
+    },
   });
 
   const iniciar = (a: ApontTipo) => {

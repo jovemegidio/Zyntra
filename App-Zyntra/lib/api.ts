@@ -1,6 +1,9 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import * as SecureStore from './secure-store';
-import { API_BASE_URL, API_TIMEOUT } from './constants';
+import { API_BASE_URL, API_TIMEOUT, TREVO_API_BASE_URL, apiBaseForEmail, setCurrentApiBase } from './constants';
+import * as fila from './offline-queue';
+import type { ItemFila, MetodoEscrita } from './offline-queue';
+import type { EspelhoPontoDia, EspelhoPontoResponse, User } from '@/types';
 
 // Create axios instance — withCredentials removido: mobile usa Bearer token, não cookie
 export const api = axios.create({
@@ -42,6 +45,26 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * `data_inicio`/`data_fim` (1º ao último dia do mês) para GET /rh/espelho-ponto.
+ * Trunca no dia de hoje quando o mês pedido é o atual (não há ponto no futuro).
+ */
+export function periodoDoMes(ano: number, mes: number): { data_inicio: string; data_fim: string } {
+  const inicio = new Date(ano, mes - 1, 1);
+  const ultimoDia = new Date(ano, mes, 0);
+  const hoje = new Date();
+  const fim = ultimoDia > hoje ? hoje : ultimoDia;
+  return { data_inicio: inicio.toISOString().slice(0, 10), data_fim: fim.toISOString().slice(0, 10) };
+}
+
+/** Nomes de batida legíveis, para o rótulo da fila offline. */
+const ROTULO_PONTO: Record<string, string> = {
+  entrada: 'entrada',
+  saida: 'saída',
+  almoco_saida: 'saída para almoço',
+  almoco_retorno: 'retorno do almoço',
+};
+
 // Token storage keys
 const TOKEN_KEY = 'zyntra_auth_token';
 const REFRESH_TOKEN_KEY = 'zyntra_refresh_token';
@@ -53,13 +76,6 @@ const PUSH_TOKEN_KEY = 'zyntra_expo_push_token';
 let unauthorizedHandler: (() => void) | undefined;
 export function setUnauthorizedHandler(handler?: () => void) {
   unauthorizedHandler = handler;
-}
-
-function apiBaseForEmail(email: string): string {
-  const domain = String(email || '').split('@')[1]?.toLowerCase() || '';
-  if (['labor.com.br', 'laboreletric.com.br'].includes(domain)) return 'https://eletric.zyntraerp.com.br/api';
-  if (['laborenergy.com.br', 'energy.com.br'].includes(domain)) return 'https://energy.zyntraerp.com.br/api';
-  return 'https://zyntraerp.com.br/api';
 }
 
 // Token management
@@ -136,6 +152,58 @@ export const tokenStorage = {
   },
 };
 
+// ============================================================
+// FILA OFFLINE — ver lib/offline-queue.ts
+// ============================================================
+
+// Campos que o app pendura no config do axios para controlar a fila. Declarados
+// no próprio tipo do axios para que `api.post(url, dados, { rotuloOffline })`
+// seja verificado pelo TypeScript em vez de precisar de cast em cada chamada.
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    /** Rótulo curto mostrado ao usuário no banner ("Ponto — entrada"). */
+    rotuloOffline?: string;
+    /** Impede o enfileiramento (login, logout: refazer na mão é o certo). */
+    semFila?: boolean;
+    /** true quando a própria fila está reenviando — não enfileirar de novo. */
+    _daFila?: boolean;
+    /** Chave de idempotência desta escrita, criada na PRIMEIRA tentativa. */
+    _chaveIdem?: string;
+  }
+}
+
+type ConfigComFila = InternalAxiosRequestConfig & { _retry?: boolean };
+
+/** Rótulo de fallback, quando a chamada não informou um. */
+function rotuloPadrao(config: InternalAxiosRequestConfig): string {
+  const url = String(config.url || '').replace(/^\//, '');
+  return url ? `Envio para ${url}` : 'Envio pendente';
+}
+
+/**
+ * Erro de rede = requisição saiu e não voltou resposta nenhuma. Um 500 tem
+ * `response` e NÃO é falta de rede: repetir um 500 automaticamente é insistir
+ * num bug do servidor. Timeout entra porque no celular é quase sempre sinal
+ * ruim, não servidor lento.
+ */
+function ehErroDeRede(error: AxiosError): boolean {
+  if (error.response) return false;
+  if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') return true;
+  if (error.code === 'ERR_NETWORK' || error.code === 'ERR_CANCELED') return error.code !== 'ERR_CANCELED';
+  return Boolean(error.request);
+}
+
+/** Marca posta no erro quando a escrita foi salva na fila em vez de perdida. */
+export interface ErroEnfileirado extends AxiosError {
+  enfileirado?: boolean;
+  itemFila?: ItemFila;
+}
+
+/** A tela usa isto para dizer "salvo, vai quando a rede voltar" em vez de "erro". */
+export function foiEnfileirado(erro: unknown): boolean {
+  return Boolean((erro as ErroEnfileirado)?.enfileirado);
+}
+
 // Request interceptor - add auth token
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
@@ -145,6 +213,16 @@ api.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Chave de idempotência em TODA escrita, já na primeira tentativa. Se a rede
+    // cair depois de o servidor gravar, o reenvio leva a mesma chave e o
+    // middleware do backend devolve a resposta original em vez de gravar de novo.
+    const comFila = config as ConfigComFila;
+    if (config.headers && fila.podeEnfileirar(config.method, config.data) && !comFila.semFila) {
+      if (!comFila._chaveIdem) comFila._chaveIdem = fila.novaChaveIdempotencia();
+      config.headers['X-Idempotency-Key'] = comFila._chaveIdem;
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -152,9 +230,44 @@ api.interceptors.request.use(
 
 // Response interceptor - handle errors and token refresh
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Resposta boa = a rede voltou. É o gatilho mais barato que existe para
+    // drenar a fila: não precisa de NetInfo nem de timer, e acontece
+    // naturalmente assim que o usuário abre qualquer tela que carrega dados.
+    const config = response.config as ConfigComFila;
+    if (!config?._daFila) void drenarFilaSeHouver();
+    return response;
+  },
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const originalRequest = error.config as ConfigComFila;
+
+    // Sem resposta do servidor numa escrita: guarda em vez de perder.
+    if (
+      originalRequest &&
+      !originalRequest._daFila &&
+      !originalRequest.semFila &&
+      ehErroDeRede(error) &&
+      fila.podeEnfileirar(originalRequest.method, originalRequest.data)
+    ) {
+      try {
+        const item = await fila.enfileirar({
+          id: originalRequest._chaveIdem || fila.novaChaveIdempotencia(),
+          metodo: String(originalRequest.method).toLowerCase() as MetodoEscrita,
+          url: String(originalRequest.url || ''),
+          dados: desserializarCorpo(originalRequest.data),
+          rotulo: originalRequest.rotuloOffline || rotuloPadrao(originalRequest),
+        });
+        if (item) {
+          const marcado = error as ErroEnfileirado;
+          marcado.enfileirado = true;
+          marcado.itemFila = item;
+        }
+      } catch {
+        // Falha ao gravar na fila não pode virar um segundo erro por cima do
+        // erro de rede: o usuário recebe o original e tenta de novo.
+      }
+      return Promise.reject(error);
+    }
 
     // Handle 401 - try refresh token
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -196,6 +309,108 @@ api.interceptors.response.use(
   }
 );
 
+/**
+ * No handler de erro o axios já serializou o corpo para string. Guardar a
+ * string crua faria o reenvio mandar JSON dentro de JSON (`"{\"tipo\":...}"`),
+ * que o servidor recebe como texto e rejeita.
+ */
+function desserializarCorpo(dados: unknown): unknown {
+  if (typeof dados !== 'string') return dados;
+  try {
+    return JSON.parse(dados);
+  } catch {
+    return dados;
+  }
+}
+
+/** Classifica a resposta de um reenvio para a fila decidir o que fazer. */
+function classificarFalha(error: AxiosError): fila.ResultadoEnvio {
+  if (ehErroDeRede(error)) return { ok: false, semRede: true };
+
+  const status = error.response?.status ?? 0;
+  // 4xx é o servidor dizendo que a requisição está errada — repetir não conserta.
+  // 408 (timeout) e 429 (excesso) são as exceções: valem nova tentativa depois.
+  const definitivo = status >= 400 && status < 500 && status !== 408 && status !== 429;
+  const corpo = error.response?.data as { message?: string } | undefined;
+  return {
+    ok: false,
+    definitivo,
+    erro: corpo?.message || error.message || `Erro ${status}`,
+  };
+}
+
+/**
+ * Reenvia a fila inteira. `_daFila` evita que uma falha aqui reenfileire o item
+ * (ele já está na fila) e que um sucesso dispare outro dreno recursivo.
+ */
+export async function enviarFilaOffline(): Promise<fila.ResumoSincronizacao> {
+  return fila.sincronizar(async (item) => {
+    try {
+      await api.request({
+        method: item.metodo,
+        url: item.url,
+        data: item.dados,
+        // A MESMA chave da tentativa original: é isso que faz o servidor
+        // reconhecer o reenvio e devolver a resposta de antes em vez de gravar
+        // um segundo registro.
+        headers: { 'X-Idempotency-Key': item.id },
+        _daFila: true,
+      });
+      return { ok: true };
+    } catch (error) {
+      return classificarFalha(error as AxiosError);
+    }
+  });
+}
+
+let drenoAgendado = false;
+
+/**
+ * Dreno oportunista, chamado a cada resposta bem-sucedida. Só roda se houver
+ * fila, e coalesce as chamadas: uma tela que dispara seis requisições em
+ * paralelo não pode disparar seis drenos.
+ */
+export async function drenarFilaSeHouver(): Promise<void> {
+  if (drenoAgendado) return;
+  drenoAgendado = true;
+  try {
+    if (await fila.contarPendentes()) await enviarFilaOffline();
+  } catch {
+    // dreno é best-effort: nunca pode quebrar a requisição que o disparou
+  } finally {
+    drenoAgendado = false;
+  }
+}
+
+export { fila as filaOffline };
+
+/**
+ * Aponta o axios para o backend da empresa detectada PELO E-MAIL DIGITADO, antes do
+ * login em si.
+ *
+ * Até 12/09/2026 só `authApi.login` trocava a base (e só no momento do envio do
+ * formulário). Duas chamadas que acontecem ANTES disso, enquanto a pessoa ainda
+ * digita — `previewUser` (saudação com nome/foto) e `getCaptchaStatus` (chave do
+ * Cloudflare Turnstile) — continuavam batendo sempre na base com que o axios foi
+ * criado (Aluforce, num app recém-instalado). Resultado prático para Energy/
+ * Eletric/Cobal num aparelho novo:
+ *   - a saudação nunca aparecia (o preview consultava o cadastro de outra empresa);
+ *   - pior, o captcha carregava a site key do CLOUDFLARE DA ALUFORCE — como o
+ *     Turnstile valida a site key contra o domínio de origem, o token gerado não
+ *     validava no /auth/login da empresa certa, e o login travava com erro de
+ *     captcha sem explicação plausível para quem está tentando entrar.
+ *
+ * Não persiste em SecureStore — é só um palpite de sessão enquanto o e-mail não
+ * foi confirmado por um login bem-sucedido. A persistência de verdade continua
+ * acontecendo dentro de `authApi.login`.
+ */
+export function apontarBackendParaEmail(email: string): string {
+  const base = apiBaseForEmail(email);
+  api.defaults.baseURL = base;
+  setCurrentApiBase(base);
+  return base;
+}
+
 // ============================================================
 // AUTH API - /api/login, /api/logout, /api/me
 // Based on routes/auth-rbac.js
@@ -206,11 +421,63 @@ export const authApi = {
    * Usa auth-rbac.js que retorna token no body (mobile-safe).
    * /api/login retorna token apenas via httpOnly cookie — inacessível no mobile.
    */
-  login: async (credentials: { email: string; password: string }) => {
+  /**
+   * Política de captcha do servidor - GET /api/captcha/status
+   *
+   * Em produção as 3 instâncias respondem `modo: "always"` com Cloudflare
+   * Turnstile: sem `captchaResposta` o login volta 400/CAPTCHA_REQUIRED, com senha
+   * certa ou errada. Por isso a tela consulta isto antes de deixar enviar.
+   */
+  getCaptchaStatus: async (): Promise<{
+    obrigatorio: boolean;
+    provedor: string;
+    siteKey?: string;
+    modo?: string;
+  } | null> => {
+    try {
+      const response = await api.get('/captcha/status', { timeout: 10000 });
+      const d = response.data;
+      if (!d?.success) return null;
+      return {
+        obrigatorio: !!d.obrigatorio,
+        provedor: String(d.provedor || ''),
+        siteKey: d.siteKey || undefined,
+        modo: d.modo,
+      };
+    } catch {
+      // Sem resposta, a tela deixa tentar: quem decide de verdade é o servidor,
+      // e travar o login por causa de uma sonda que falhou seria pior.
+      return null;
+    }
+  },
+
+  /**
+   * Login - POST /api/auth/login
+   *
+   * `captchaResposta` é o nome que o backend espera TAMBÉM para provedor externo:
+   * `utils/captcha.js` → `validar()` manda `entrada.resposta` para o siteverify da
+   * Cloudflare. O campo `captchaToken` só é usado pelo desafio interno (imagem SVG).
+   */
+  login: async (credentials: {
+    email: string;
+    password: string;
+    captchaResposta?: string;
+    /**
+     * CPF (só dígitos) quando o usuário entrou pela aba CPF.
+     *
+     * Vai JUNTO com o e-mail, e não no lugar dele, porque os dois têm papéis
+     * diferentes: o e-mail (resolvido pelo preview) escolhe a INSTÂNCIA para onde
+     * a requisição vai; o CPF é o que autentica e é o que faz o servidor carimbar
+     * `escopo: 'rh'` no token. Mandar só o e-mail — como o app fazia — abria uma
+     * sessão PLENA, mais acesso do que o mesmo CPF tem na web.
+     */
+    cpf?: string;
+  }) => {
     const companyBase = apiBaseForEmail(credentials.email);
     await SecureStore.setItemAsync(API_BASE_KEY, companyBase);
     api.defaults.baseURL = companyBase;
-    const response = await api.post('/auth/login', credentials);
+    setCurrentApiBase(companyBase); // getAvatarUrl (síncrona) passa a resolver a foto certa já neste login
+    const response = await api.post('/auth/login', credentials, { semFila: true });
 
     if (response.data.success) {
       if (response.data.user)         await tokenStorage.setUserData(response.data.user);
@@ -225,7 +492,7 @@ export const authApi = {
   /** Logout - POST /api/auth/logout */
   logout: async () => {
     try {
-      await api.post('/auth/logout');
+      await api.post('/auth/logout', undefined, { semFila: true });
     } finally {
       await tokenStorage.clearTokens();
     }
@@ -268,7 +535,7 @@ export const authApi = {
    */
   requestPasswordReset: async (email: string) => {
     try {
-      const response = await api.post('/auth/forgot-password', { email: email.trim().toLowerCase() });
+      const response = await api.post('/auth/forgot-password', { email: email.trim().toLowerCase() }, { semFila: true });
       return { success: true, ...response.data };
     } catch {
       // Resposta silenciosa por segurança — mesmo texto do backend
@@ -561,6 +828,77 @@ export const rhApi = {
   },
 
   /**
+   * Minha ficha - GET /api/rh/meus-dados
+   * Self-scoped no backend (resolve usuarios.funcionario_id → e-mail → nome).
+   * `/api/me` NÃO serve: devolve a conta de acesso, sem cargo/setor/admissão.
+   */
+  getMeusDados: async () => {
+    const response = await api.get('/rh/meus-dados');
+    return unwrapData<any>(response.data, response.data);
+  },
+
+  /**
+   * Meus holerites - GET /api/rh/holerites/meus
+   * Lista completa por competência. O app mostrava só `/meu-ultimo`.
+   */
+  getMeusHolerites: async () => {
+    const response = await api.get('/rh/holerites/meus');
+    return asArray<any>(response.data);
+  },
+
+  /**
+   * Confirmar recebimento - PUT /api/rh/holerites/:id/confirmar
+   * Equivale ao aceite do portal web; o handler confere o dono.
+   */
+  confirmarHolerite: async (id: number) => {
+    const response = await api.put(`/rh/holerites/${id}/confirmar`, {}, {
+      rotuloOffline: `Confirmação de holerite #${id}`,
+    });
+    return response.data;
+  },
+
+  /**
+   * Detalhe do holerite - GET /api/rh/holerites/:id
+   * Traz as verbas (proventos/descontos) para mostrar o demonstrativo na tela.
+   */
+  getHolerite: async (id: number) => {
+    const response = await api.get(`/rh/holerites/${id}`);
+    const d = response.data;
+    return {
+      holerite: d?.holerite ?? d?.data ?? d,
+      itens: asArray<any>(d?.itens ?? d?.verbas ?? d?.lancamentos),
+    };
+  },
+
+  /** Benefícios da empresa - GET /api/rh/beneficios */
+  getBeneficios: async () => {
+    const response = await api.get('/rh/beneficios');
+    return asArray<any>(response.data);
+  },
+
+  /**
+   * Espelho de ponto - GET /api/rh/espelho-ponto
+   * Vive em `routes/rh-extras.js`, que exige só login (não a área `rh`).
+   * A rota aceita `data_inicio`/`data_fim` (não `mes`/`ano`) e devolve o array de dias
+   * em `registros` — quem chama calcula o período do mês desejado.
+   */
+  getEspelhoPonto: async (params: {
+    data_inicio: string;
+    data_fim: string;
+  }): Promise<EspelhoPontoResponse> => {
+    const response = await api.get('/rh/espelho-ponto', { params });
+    const d = response.data;
+    return {
+      vinculado: d?.vinculado !== false,
+      funcionario: d?.funcionario,
+      periodo: d?.periodo ?? null,
+      resumo: d?.resumo ?? null,
+      dias: asArray<EspelhoPontoDia>(d?.registros),
+      message: d?.message,
+    };
+  },
+
+  /**
    * Minhas férias - GET /api/rh/ferias/minhas
    */
   getMinhasFerias: async () => {
@@ -584,12 +922,19 @@ export const rhApi = {
    * Registrar ponto - POST /api/rh/ponto
    */
   registrarPonto: async (tipo: 'entrada' | 'saida' | 'almoco_saida' | 'almoco_retorno') => {
-    const response = await api.post('/rh/ponto/marcacoes', {
-      tipo,
-      data: todayISO(),
-      hora: new Date().toTimeString().slice(0, 8),
-      origem: 'app',
-    });
+    // `data`/`hora` são calculados AQUI, não no servidor: se a batida for para a
+    // fila e só subir horas depois, o horário que vale é o do momento em que o
+    // usuário bateu — não o do reenvio.
+    const response = await api.post(
+      '/rh/ponto/marcacoes',
+      {
+        tipo,
+        data: todayISO(),
+        hora: new Date().toTimeString().slice(0, 8),
+        origem: 'app',
+      },
+      { rotuloOffline: `Ponto — ${ROTULO_PONTO[tipo] ?? tipo}` }
+    );
     return response.data;
   },
 
@@ -654,7 +999,9 @@ export const rhApi = {
     data_inicio?: string;
     data_fim?: string;
   }) => {
-    const response = await api.post('/rh/solicitacoes', dados);
+    const response = await api.post('/rh/solicitacoes', dados, {
+      rotuloOffline: `Solicitação de RH — ${dados.tipo}`,
+    });
     return response.data;
   },
 };
@@ -744,7 +1091,154 @@ export const pcpApi = {
     turno?: string;
     observacoes?: string;
   }) => {
-    const response = await api.post('/pcp/apontamentos/chao', dados);
+    const response = await api.post('/pcp/apontamentos/chao', dados, {
+      rotuloOffline: `Apontamento — ${dados.nome_atividade || dados.tipo_atividade}`,
+    });
+    return response.data;
+  },
+};
+
+// ============================================================
+// CRM API - /api/crm/*
+// Based on routes/crm-routes.js
+//
+// O router inteiro é protegido por authorizeArea('vendas'): usuário sem a área
+// recebe 403, não lista vazia. A tela é escondida pelo mesmo gate (MODULES).
+// ============================================================
+export const crmApi = {
+  /**
+   * Funil + totais - GET /api/crm/funil
+   * → { funil: [{etapa,nome,cor,qtd,valor,valor_ponderado}], totais: {...}, etapas: [...] }
+   */
+  getFunil: async () => {
+    const response = await api.get('/crm/funil');
+    const d = response.data ?? {};
+    return {
+      funil: asArray<any>(d.funil),
+      etapas: asArray<any>(d.etapas),
+      totais: (d.totais ?? {}) as {
+        pipeline?: number;
+        ganho?: number;
+        perdido?: number;
+        ponderado?: number;
+        abertas?: number;
+        ganhas?: number;
+        perdidas?: number;
+        taxa_conversao?: number;
+      },
+    };
+  },
+
+  /** Oportunidades - GET /api/crm/oportunidades */
+  getOportunidades: async (params?: {
+    etapa?: string;
+    status?: string;
+    temperatura?: string;
+    q?: string;
+  }) => {
+    const response = await api.get('/crm/oportunidades', { params });
+    return asArray<any>(response.data);
+  },
+
+  /**
+   * Tarefas - GET /api/crm/tarefas
+   * `minhas=1` filtra pelo usuário da sessão; `hoje`/`vencidas` são os recortes
+   * que interessam no celular.
+   */
+  getTarefas: async (params?: {
+    minhas?: '1';
+    concluida?: 0 | 1;
+    hoje?: '1';
+    vencidas?: '1';
+  }) => {
+    const response = await api.get('/crm/tarefas', { params });
+    return asArray<any>(response.data);
+  },
+
+  /** Concluir/reabrir tarefa - PATCH /api/crm/tarefas/:id/concluir */
+  concluirTarefa: async (id: number, concluida: boolean) => {
+    const response = await api.patch(
+      `/crm/tarefas/${id}/concluir`,
+      { concluida: concluida ? 1 : 0 },
+      { rotuloOffline: `Tarefa ${concluida ? 'concluída' : 'reaberta'} (#${id})` }
+    );
+    return response.data;
+  },
+
+  /** Nova tarefa - POST /api/crm/tarefas */
+  criarTarefa: async (dados: {
+    titulo: string;
+    descricao?: string;
+    tipo?: string;
+    data_prevista?: string;
+    prioridade?: 'baixa' | 'media' | 'alta';
+    oportunidade_id?: number | null;
+  }) => {
+    const response = await api.post('/crm/tarefas', dados, {
+      rotuloOffline: `Tarefa — ${dados.titulo}`,
+    });
+    return response.data;
+  },
+};
+
+// ============================================================
+// TAREFAS API - /api/tarefas/*
+// Based on routes/tarefas-routes.js (tabela painel_tarefas)
+//
+// Só exige login — não tem área própria, é o quadro do painel. Por isso a tela
+// nativa entra sem `area` no catálogo de MODULES.
+// ============================================================
+export type StatusTarefa = 'pendente' | 'em_execucao' | 'realizada' | 'cancelada';
+
+export const tarefasApi = {
+  /**
+   * Lista + contadores - GET /api/tarefas
+   * → { tarefas: [...], counts: {total,pendente,em_execucao,realizada}, origens: [...] }
+   */
+  listar: async (params?: {
+    status?: StatusTarefa | 'todos';
+    origem?: string;
+    q?: string;
+    previsto?: 'todos' | 'hoje' | 'semana' | 'mes' | 'atrasadas';
+    limit?: number;
+  }) => {
+    const response = await api.get('/tarefas', { params });
+    const d = response.data ?? {};
+    return {
+      tarefas: asArray<any>(d.tarefas),
+      counts: (d.counts ?? {}) as {
+        total?: number;
+        pendente?: number;
+        em_execucao?: number;
+        realizada?: number;
+      },
+      origens: asArray<string>(d.origens),
+    };
+  },
+
+  /** Nova tarefa - POST /api/tarefas */
+  criar: async (dados: {
+    descricao: string;
+    prioridade?: 'baixa' | 'media' | 'alta';
+    previsao?: string | null;
+    observacoes?: string;
+    tipo?: string;
+  }) => {
+    const response = await api.post(
+      '/tarefas',
+      { ...dados, origem: 'App' },
+      { rotuloOffline: `Tarefa — ${dados.descricao.slice(0, 40)}` }
+    );
+    return response.data;
+  },
+
+  /** Mudar status - PUT /api/tarefas/:id */
+  mudarStatus: async (id: number, status: StatusTarefa) => {
+    const response = await api.put(
+      `/tarefas/${id}`,
+      { status },
+      { rotuloOffline: `Tarefa #${id} → ${status.replace('_', ' ')}` }
+    );
     return response.data;
   },
 };
@@ -883,6 +1377,25 @@ export const notificacoesApi = {
     return d?.count ?? d?.total ?? 0;
   },
 
+  /**
+   * Alertas de movimentação - GET /api/notificacoes-movimentacoes/pendentes
+   *
+   * Consultar esta rota também DISPARA a detecção no servidor (pedido aprovado,
+   * pedido faturado para o vendedor, holerite publicado, resumo do dia a
+   * pagar/receber). O servidor também roda um passe a cada 5 min por conta
+   * própria — é ele que faz o push chegar com o app fechado —, mas chamar aqui
+   * garante que abrir a tela mostra o que acabou de acontecer.
+   */
+  getMovimentacoes: async () => {
+    try {
+      const response = await api.get('/notificacoes-movimentacoes/pendentes');
+      return asArray<any>(response.data?.pendentes);
+    } catch {
+      // Instância ainda sem o módulo: a tela continua com as outras fontes.
+      return [];
+    }
+  },
+
   /** Alertas automáticos do sistema - GET /api/notificacoes/alertas */
   getAlertas: async () => {
     try {
@@ -909,11 +1422,11 @@ export const notificacoesApi = {
 
 export const pushApi = {
   register: async (token: string, platform: 'ios' | 'android' | 'web') => {
-    const response = await api.post('/push/register', { token, platform });
+    const response = await api.post('/push/register', { token, platform }, { semFila: true });
     return response.data;
   },
   unregister: async (token: string) => {
-    const response = await api.delete('/push/unregister', { data: { token } });
+    const response = await api.delete('/push/unregister', { data: { token }, semFila: true });
     return response.data;
   },
 };
@@ -944,5 +1457,111 @@ export const produtosApi = {
   getEstoque: async (id: number) => {
     const response = await api.get(`/produtos/${id}/estoque`);
     return response.data;
+  },
+};
+
+// ============================================================
+// TREVO API — sistema separado (modules/Trevo/server.js), fora do grupo
+// Aluforce/Energy/Eletric/Cobal. Login por usuário+senha (não e-mail de domínio
+// corporativo), sem RH/PCP — ERP de loja de autopeças (vendas, estoque, financeiro).
+// Reaproveita a mesma instância `api` (Bearer + baseURL dinâmica); só o login e os
+// paths batem com o formato próprio do backend da Trevo (sem prefixo /auth).
+// ============================================================
+export const trevoApi = {
+  /** Login - POST /login (no host da Trevo). Guarda token + um User sintético. */
+  login: async (
+    usuario: string,
+    senha: string,
+    lembrar?: boolean
+  ): Promise<{ success: true; user: User; token?: string }> => {
+    await SecureStore.setItemAsync(API_BASE_KEY, TREVO_API_BASE_URL);
+    api.defaults.baseURL = TREVO_API_BASE_URL;
+    setCurrentApiBase(TREVO_API_BASE_URL);
+    const response = await api.post('/login', { usuario, senha, lembrar }, { semFila: true });
+    const d = response.data;
+    const user: User = {
+      id: Number(d.id) || 0,
+      nome: d.nome,
+      email: d.usuario,
+      role: 'usuario',
+      is_admin: false,
+      areas: [],
+      company: 'trevo',
+    };
+    if (d.token) await tokenStorage.setToken(d.token);
+    await tokenStorage.setUserData(user);
+    return { success: true, user, token: d.token };
+  },
+
+  /** GET /me — usado para validar/atualizar a sessão ao reabrir o app. */
+  getMe: async () => {
+    const response = await api.get('/me');
+    return response.data as { usuario: string; nome: string };
+  },
+
+  /** POST /logout */
+  logout: async () => {
+    try {
+      await api.post('/logout', undefined, { semFila: true });
+    } finally {
+      await tokenStorage.clearTokens();
+    }
+  },
+
+  /** Resumo para o Painel - GET /dashboard */
+  getDashboard: async () => {
+    const response = await api.get('/dashboard');
+    return response.data;
+  },
+
+  /** GET /vendas */
+  getVendas: async (params?: { busca?: string; status?: string; limite?: number }) => {
+    const response = await api.get('/vendas', { params });
+    return asArray<any>(response.data);
+  },
+
+  /** GET /produtos */
+  getProdutos: async (params?: {
+    busca?: string;
+    ativos?: '1';
+    abaixo_minimo?: '1';
+    categoria?: string;
+  }) => {
+    const response = await api.get('/produtos', { params });
+    return asArray<any>(response.data);
+  },
+
+  /** GET /fornecedores */
+  getFornecedores: async (params?: { busca?: string }) => {
+    const response = await api.get('/fornecedores', { params });
+    return asArray<any>(response.data);
+  },
+
+  /** GET /contas-pagar */
+  getContasPagar: async (params?: {
+    status?: string;
+    categoria?: string;
+    fornecedor_id?: number;
+    em_aberto?: '1';
+    de?: string;
+    ate?: string;
+    busca?: string;
+  }) => {
+    const response = await api.get('/contas-pagar', { params });
+    return asArray<any>(response.data);
+  },
+
+  /** GET /contas-receber */
+  getContasReceber: async (params?: {
+    status?: string;
+    categoria?: string;
+    cliente_id?: number;
+    em_aberto?: '1';
+    de?: string;
+    ate?: string;
+    busca?: string;
+  }) => {
+    const response = await api.get('/contas-receber', { params });
+    return asArray<any>(response.data);
   },
 };

@@ -187,6 +187,24 @@ export default function NotificacoesScreen() {
     retry: 1,
   });
 
+  // Abrir a tela dispara a detecção no servidor (pedido aprovado/faturado,
+  // holerite publicado, resumo do dia). O resultado cai em `notificacoes`, que a
+  // consulta acima já lê — por isso aqui só invalidamos aquela lista quando algo
+  // novo aparece, em vez de renderizar uma segunda fonte com os mesmos itens.
+  useQuery({
+    queryKey: ['notificacoes', 'movimentacoes', user?.id],
+    queryFn: async () => {
+      const pendentes = await notificacoesApi.getMovimentacoes();
+      if (pendentes.length) {
+        queryClient.invalidateQueries({ queryKey: ['notificacoes', 'pessoais'] });
+      }
+      return pendentes;
+    },
+    enabled: !!user?.id,
+    retry: 0,
+    staleTime: 30000,
+  });
+
   const markReadMutation = useMutation({
     mutationFn: (id: number) => notificacoesApi.markAsRead(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notificacoes', 'pessoais'] }),

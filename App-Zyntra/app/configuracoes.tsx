@@ -15,8 +15,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth, setBiometricsEnabled, getBiometricsEnabled } from '@/lib/auth';
 import { useBiometrics } from '@/hooks/useBiometrics';
 import { ensureNotificationPermission } from '@/hooks/useNotifications';
-import { Colors, APP_VERSION, APP_NAME, COMPANY_NAME, getAvatarUrl } from '@/lib/constants';
-import { useTheme, ThemeMode } from '@/lib/theme';
+import { Colors, APP_VERSION, APP_BUILD, APP_NAME, COMPANY_NAME, getAvatarUrl, currentApiBase } from '@/lib/constants';
+import { useTheme, ThemePreference } from '@/lib/theme';
 import { loadSettings, saveSettings, resetSettings, AppSettings, DEFAULT_SETTINGS } from '@/lib/settings';
 import {
   Card,
@@ -40,7 +40,11 @@ import {
 } from '@/components/ui';
 import type { User } from '@/types';
 
-const SITE_URL = 'https://zyntraerp.com.br';
+// Antes fixo em zyntraerp.com.br (Aluforce): "Abrir web", Termos e Privacidade
+// levavam usuário de Energy/Eletric/Cobal para o portal de outra empresa. Uma
+// função (não uma const) porque `currentApiBase` muda depois do login — precisa
+// ser lido no momento do toque, não travado no valor de quando o módulo carregou.
+const getSiteUrl = () => currentApiBase.replace(/\/api\/?$/, '');
 const SUPORTE_EMAIL = 'suporte@zyntra.com.br';
 
 function getUserInitials(nome?: string | null) {
@@ -133,7 +137,7 @@ function SettingRow({
 
 export default function ConfiguracoesScreen() {
   const { user, logout } = useAuth();
-  const { mode, setMode } = useTheme();
+  const { preferencia, setPreferencia } = useTheme();
   const bio = useBiometrics();
   const queryClient = useQueryClient();
 
@@ -216,7 +220,7 @@ export default function ConfiguracoesScreen() {
   const handleChangePassword = () => {
     Alert.alert('Alterar senha', 'Por segurança, a alteração de senha é feita na versão web do Zyntra.', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Abrir web', onPress: () => openLink(SITE_URL) },
+      { text: 'Abrir web', onPress: () => openLink(getSiteUrl()) },
     ]);
   };
 
@@ -235,11 +239,11 @@ export default function ConfiguracoesScreen() {
   };
 
   // Controle de tema segmentado
-  const ThemeOption = ({ value, label }: { value: ThemeMode; label: string }) => {
-    const active = mode === value;
+  const ThemeOption = ({ value, label }: { value: ThemePreference; label: string }) => {
+    const active = preferencia === value;
     return (
       <TouchableOpacity
-        onPress={() => setMode(value)}
+        onPress={() => setPreferencia(value)}
         activeOpacity={0.85}
         style={{
           flex: 1,
@@ -252,7 +256,7 @@ export default function ConfiguracoesScreen() {
           borderColor: active ? Colors.accent : Colors.border,
         }}
       >
-        <Text style={{ fontSize: 13, fontWeight: '700', color: active ? '#fff' : Colors.textSoft }}>{label}</Text>
+        <Text style={{ fontSize: 12.5, fontWeight: '700', color: active ? '#fff' : Colors.textSoft }}>{label}</Text>
       </TouchableOpacity>
     );
   };
@@ -336,10 +340,11 @@ export default function ConfiguracoesScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14.5, color: Colors.textSoft }}>Tema do app</Text>
-                  <Text style={{ fontSize: 11.5, color: Colors.muted, marginTop: 1 }}>Escolha claro ou escuro</Text>
+                  <Text style={{ fontSize: 11.5, color: Colors.muted, marginTop: 1 }}>Acompanhe o sistema ou fixe claro/escuro</Text>
                 </View>
               </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
+                <ThemeOption value="system" label="Sistema" />
                 <ThemeOption value="light" label="Claro" />
                 <ThemeOption value="dark" label="Escuro" />
               </View>
@@ -486,10 +491,19 @@ export default function ConfiguracoesScreen() {
         <View>
           <SectionLabel text="Sobre" />
           <Card style={{ padding: 0, overflow: 'hidden' }}>
-            <SettingRow icon={<IconInfo size={18} color={muted} />} label="Versao do app" right={<Text style={{ fontSize: 14, color: Colors.muted }}>{APP_NAME} {APP_VERSION}</Text>} />
+            <SettingRow
+              icon={<IconInfo size={18} color={muted} />}
+              label="Versao do app"
+              right={
+                <Text style={{ fontSize: 14, color: Colors.muted }}>
+                  {APP_NAME} {APP_VERSION}
+                  {APP_BUILD ? ` (${APP_BUILD})` : ''}
+                </Text>
+              }
+            />
             <SettingRow icon={<IconHelp size={18} color={muted} />} label="Central de ajuda" sub="Fale com o suporte" onPress={() => openLink(`mailto:${SUPORTE_EMAIL}`)} />
-            <SettingRow label="Termos de uso" onPress={() => openLink(`${SITE_URL}/termos-de-uso.html`)} />
-            <SettingRow label="Politica de privacidade" onPress={() => openLink(`${SITE_URL}/politica-de-privacidade.html`)} last />
+            <SettingRow label="Termos de uso" onPress={() => openLink(`${getSiteUrl()}/termos-de-uso.html`)} />
+            <SettingRow label="Politica de privacidade" onPress={() => openLink(`${getSiteUrl()}/politica-de-privacidade.html`)} last />
           </Card>
         </View>
 

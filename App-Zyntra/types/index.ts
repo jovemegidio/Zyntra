@@ -15,7 +15,11 @@ export interface User {
   bio?: string;
   ultimo_login?: string;
   areas: string[];
+  /** 'rh' quando a sessao foi aberta por CPF (acesso limitado ao RH). */
+  escopo?: string | null;
   status?: 'ativo' | 'inativo';
+  /** Presente só para sessões da Trevo (backend/API separados do grupo principal). */
+  company?: 'trevo';
 }
 
 export interface AuthState {
@@ -231,6 +235,35 @@ export interface RegistroPonto {
   almoco_retorno?: string;
   saida?: string;
   total_horas?: string;
+}
+
+/** Um dia do período de GET /api/rh/espelho-ponto (campo `registros` da resposta). */
+export interface EspelhoPontoDia {
+  data: string; // "DD/MM/AAAA"
+  dia: string; // "Segunda".."Domingo"
+  entrada: string; // "HH:MM" ou "-"
+  saidaAlmoco: string;
+  retornoAlmoco: string;
+  saida: string;
+  horas: string; // "8h02" ou "-"
+  status: 'normal' | 'atraso' | 'folga' | 'falta';
+}
+
+export interface EspelhoPontoResumo {
+  dias_trabalhados: number;
+  horas_trabalhadas: string;
+  total_minutos: number;
+  atrasos: number;
+  faltas: number;
+}
+
+export interface EspelhoPontoResponse {
+  vinculado: boolean;
+  funcionario?: string;
+  periodo?: { inicio: string | null; fim: string | null };
+  resumo: EspelhoPontoResumo | null;
+  dias: EspelhoPontoDia[];
+  message?: string;
 }
 
 export interface Holerite {

@@ -1,28 +1,30 @@
-import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/lib/auth';
-import { SplashScreen } from '@/components/splash-screen';
+import { lightColors as C } from '@/lib/theme';
 
-// Tempo mínimo de exibição do splash (ms) para a animação ser apreciada
-const MIN_SPLASH_DURATION = 2600;
-
+/**
+ * Porta de entrada: decide entre app e login, sem tela intermediária.
+ *
+ * Antes havia um splash em JS (`components/splash-screen.tsx`) segurado por um
+ * tempo mínimo de 2,6 s — animação bonita que atrasava o login em quase três
+ * segundos toda vez que o app abria. Foi removido a pedido.
+ *
+ * `isLoading` dura só o tempo de ler o token do SecureStore (milissegundos).
+ * Durante ele pintamos um retângulo da cor de fundo em vez de `null`: sem isso o
+ * primeiro frame é transparente e pisca branco antes da tela real.
+ */
 export default function Index() {
-  const { isAuthenticated, isLoading } = useAuth();
-  const [minTimePassed, setMinTimePassed] = useState(false);
+  const { isAuthenticated, isLoading, user } = useAuth();
 
-  useEffect(() => {
-    const timer = setTimeout(() => setMinTimePassed(true), MIN_SPLASH_DURATION);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Mantém o splash até o auth resolver E o tempo mínimo passar
-  if (isLoading || !minTimePassed) {
-    return <SplashScreen />;
+  if (isLoading) {
+    return <View style={{ flex: 1, backgroundColor: C.bg }} />;
   }
 
-  if (isAuthenticated) {
-    return <Redirect href="/(auth)" />;
+  if (!isAuthenticated) {
+    return <Redirect href="/(public)/login" />;
   }
 
-  return <Redirect href="/(public)/login" />;
+  // Sessão da Trevo Autopeças: backend/telas separados do restante do grupo.
+  return <Redirect href={user?.company === 'trevo' ? '/(trevo)' : '/(auth)'} />;
 }

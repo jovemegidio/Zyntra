@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, memo } from 'react';
 import {
   View,
   Text,
+  Pressable,
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
@@ -16,9 +17,9 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuth, saveCredentialsForBiometrics } from '@/lib/auth';
-import { authApi } from '@/lib/api';
+import { authApi, apontarBackendParaEmail } from '@/lib/api';
 import {
-  Colors,
+  API_BASE_URL,
   LOGIN_PRIMARY,
   COMPANIES,
   NEUTRAL_COMPANY,
@@ -26,13 +27,32 @@ import {
   getAvatarUrl,
   type CompanyConfig,
 } from '@/lib/constants';
+import { lightColors as C } from '@/lib/theme';
+import { CaptchaTurnstile } from '@/components/captcha-turnstile';
 import Svg, { Path, Rect, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import type { User } from '@/types';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
+/**
+ * Origem apresentada à Cloudflare pela WebView do captcha.
+ *
+ * Precisa ser um domínio cadastrado na sitekey — o Turnstile recusa o desafio se a
+ * origem não bater. Usa o host da própria API (sem o sufixo `/api`), então
+ * acompanha automaticamente `EXPO_PUBLIC_API_URL` em vez de ficar preso a um
+ * domínio escrito à mão.
+ */
+const ORIGEM_CAPTCHA = API_BASE_URL.replace(/\/api\/?$/, '');
+
 // ─── tipos ────────────────────────────────────────────────────
 type TabType = 'email' | 'cpf';
+
+interface CaptchaCfg {
+  obrigatorio: boolean;
+  provedor: string;
+  siteKey?: string;
+  modo?: string;
+}
 
 interface PreviewData {
   nome?: string;
@@ -105,7 +125,7 @@ function WelcomeOverlay({ user, visible, tint = LOGIN_PRIMARY }: { user: User | 
         {avatarUrl ? (
           <Image
             source={{ uri: avatarUrl }}
-            style={{ width: 86, height: 86, borderRadius: 22, backgroundColor: Colors.surface }}
+            style={{ width: 86, height: 86, borderRadius: 22, backgroundColor: C.surface }}
             resizeMode="cover"
           />
         ) : (
@@ -121,8 +141,8 @@ function WelcomeOverlay({ user, visible, tint = LOGIN_PRIMARY }: { user: User | 
         )}
 
         <View style={{ alignItems: 'center', gap: 4 }}>
-          <Text style={{ fontSize: 13, color: Colors.muted, fontWeight: '600' }}>{greeting}</Text>
-          <Text style={{ fontSize: 24, fontWeight: '800', color: Colors.text, letterSpacing: 0, textAlign: 'center' }}>
+          <Text style={{ fontSize: 13, color: C.muted, fontWeight: '600' }}>{greeting}</Text>
+          <Text style={{ fontSize: 24, fontWeight: '800', color: C.text, letterSpacing: 0, textAlign: 'center' }}>
             Ola, {displayName}
           </Text>
         </View>
@@ -131,11 +151,11 @@ function WelcomeOverlay({ user, visible, tint = LOGIN_PRIMARY }: { user: User | 
           style={{
             paddingVertical: 6,
             paddingHorizontal: 16,
-            backgroundColor: Colors.greenDim,
+            backgroundColor: C.greenDim,
             borderRadius: 999,
           }}
         >
-          <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.green }}>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: C.green }}>
             Acesso liberado
           </Text>
         </View>
@@ -261,16 +281,23 @@ function FieldInput({
   leftIcon, rightSlot, focused, onFocus, onBlur,
   tint = LOGIN_PRIMARY,
 }: FieldInputProps) {
+  // Ref própria quando a tela não passou uma: é ela que o toque na linha usa para
+  // dar foco. Sem isso, tocar no ícone ou no espaço vazio ao lado do texto não abre
+  // o teclado — a área útil ficava só em cima do TextInput.
+  const refInterna = useRef<TextInput>(null);
+  const ref = inputRef ?? refInterna;
+
   return (
-    <View
+    <Pressable
+      onPress={() => ref.current?.focus()}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
         height: 46,
-        backgroundColor: Colors.card,
+        backgroundColor: C.card,
         borderRadius: 9,
         borderWidth: 1,
-        borderColor: focused ? tint : Colors.border,
+        borderColor: focused ? tint : C.border,
         paddingHorizontal: 12,
         gap: 10,
         shadowColor: focused ? tint : 'transparent',
@@ -282,11 +309,11 @@ function FieldInput({
     >
       {leftIcon}
       <TextInput
-        ref={inputRef}
+        ref={ref}
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}
-        placeholderTextColor={Colors.muted}
+        placeholderTextColor={C.muted}
         keyboardType={keyboardType}
         autoCapitalize="none"
         secureTextEntry={secure && !showPass}
@@ -295,19 +322,16 @@ function FieldInput({
         returnKeyType={returnKeyType}
         blurOnSubmit={false}
         onSubmitEditing={onSubmitEditing}
-        editable={true}
-        contextMenuHidden={false}
-        selectTextOnFocus={false}
-        style={{ flex: 1, minHeight: 44, fontSize: 15, color: Colors.text, padding: 0, zIndex: 2 }}
+        style={{ flex: 1, height: '100%', fontSize: 15, color: C.text, padding: 0 }}
         autoCorrect={false}
       />
       {secure && onTogglePass && (
         <TouchableOpacity onPress={onTogglePass} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <IconEye open={!!showPass} size={17} color={Colors.muted} />
+          <IconEye open={!!showPass} size={17} color={C.muted} />
         </TouchableOpacity>
       )}
       {rightSlot}
-    </View>
+    </Pressable>
   );
 }
 
@@ -318,7 +342,14 @@ const LoginBackground = memo(function LoginBackground({
   accent = '#16b6c8',
 }: { primary?: string; accent?: string }) {
   return (
-    <Svg width={SCREEN_W} height={SCREEN_H} pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0 }}>
+    // `pointerEvents` vai no STYLE, não como prop: em <Svg> o react-native-svg trata
+    // `pointerEvents` como atributo SVG e ele não chega ao sistema de toque do RN —
+    // o fundo de tela cheia continuaria elegível a receber toques.
+    <Svg
+      width={SCREEN_W}
+      height={SCREEN_H}
+      style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
+    >
       <Defs>
         <LinearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor="#1b2350" stopOpacity="1" />
@@ -352,6 +383,16 @@ export default function LoginScreen() {
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [searching, setSearching] = useState(false);
 
+  // ── Captcha ────────────────────────────────────────────────────────────────
+  // O servidor exige o desafio em TODO login (`CAPTCHA_LOGIN=always` nas 3
+  // instâncias). Sem token, `/auth/login` responde 400 CAPTCHA_REQUIRED mesmo com
+  // a senha certa — era por isso que não dava para entrar pelo app.
+  const [captchaCfg, setCaptchaCfg] = useState<CaptchaCfg | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  // Trocar a chave remonta a WebView: o token do Turnstile é de uso único, então
+  // depois de cada tentativa é preciso um desafio novo.
+  const [captchaGeracao, setCaptchaGeracao] = useState(0);
+
   const logoOpacity = useRef(new Animated.Value(1)).current;
   const idInputRef = useRef<TextInput>(null);
   const passwordInputRef = useRef<TextInput>(null);
@@ -360,8 +401,21 @@ export default function LoginScreen() {
 
   useEffect(() => {
     checkBiometrics().then(setCanUseBiometrics);
+    authApi.getCaptchaStatus().then(setCaptchaCfg);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, []);
+
+  // Turnstile é o provedor em produção. O desafio interno (imagem SVG) só entra
+  // quando faltam as chaves da Cloudflare no servidor — aí não há widget para
+  // mostrar aqui, e a tela avisa em vez de falhar sem explicação.
+  const captchaExterno = !!(captchaCfg?.obrigatorio && captchaCfg.siteKey);
+  const captchaSemSuporte = !!captchaCfg?.obrigatorio && !captchaCfg.siteKey;
+  const captchaPendente = captchaExterno && !captchaToken;
+
+  const novoCaptcha = () => {
+    setCaptchaToken(null);
+    setCaptchaGeracao((g) => g + 1);
+  };
 
   const fadeLogo = () => {
     Animated.sequence([
@@ -407,7 +461,16 @@ export default function LoginScreen() {
     if (tab === 'email') {
       const detected = detectCompanyByEmail(value);
       const next = detected ? COMPANIES[detected] : NEUTRAL_COMPANY;
-      if (next.id !== company.id) { fadeLogo(); setCompany(next); }
+      if (next.id !== company.id) {
+        fadeLogo();
+        setCompany(next);
+        // Aponta o axios para o backend certo ANTES do preview/captcha rodarem —
+        // sem isto os dois continuavam sempre na base com que o app abriu (Aluforce
+        // num aparelho novo), e o captcha carregava a site key da empresa errada,
+        // travando o login de Energy/Eletric/Cobal num aparelho recém-instalado.
+        apontarBackendParaEmail(value);
+        authApi.getCaptchaStatus().then(setCaptchaCfg);
+      }
     }
     schedulePreview(formatted);
   };
@@ -438,6 +501,17 @@ export default function LoginScreen() {
       return;
     }
 
+    if (captchaSemSuporte) {
+      setErrorMsg(
+        'A verificacao de seguranca deste servidor nao e suportada no aplicativo. Entre pelo navegador.'
+      );
+      return;
+    }
+    if (captchaPendente) {
+      setErrorMsg('Aguarde a verificacao de seguranca terminar e tente de novo.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const email = await resolveEmail();
@@ -447,7 +521,14 @@ export default function LoginScreen() {
         return;
       }
 
-      const credentials = { email, password: senha };
+      const credentials = {
+        email,
+        password: senha,
+        // Entrando por CPF, o CPF vai junto: e o servidor abre a sessao restrita ao
+        // RH a partir dele. So o e-mail abriria sessao plena.
+        ...(tab === 'cpf' ? { cpf: onlyDigits(field) } : {}),
+        ...(captchaToken ? { captchaResposta: captchaToken } : {}),
+      };
       const response = await login(credentials);
 
       if (response.success) {
@@ -464,22 +545,33 @@ export default function LoginScreen() {
         setTimeout(() => router.replace('/(auth)'), 2200);
       } else {
         setSubmitting(false);
+        novoCaptcha();
         setErrorMsg(response.message || 'Nao foi possivel entrar. Verifique suas credenciais.');
       }
     } catch (error: any) {
       setSubmitting(false);
+      // O token já foi consumido pelo servidor nesta tentativa: reusá-lo dá
+      // 'timeout-or-duplicate' na Cloudflare, que pareceria senha errada.
+      novoCaptcha();
       setErrorMsg(error?.message || 'Nao foi possivel entrar. Verifique suas credenciais.');
     }
   };
 
   const handleBiometricLogin = async () => {
     setErrorMsg(null);
+    // A digital não dispensa o captcha: o servidor exige o desafio em toda
+    // tentativa, e a credencial guardada não tem token.
+    if (captchaPendente) {
+      setErrorMsg('Aguarde a verificacao de seguranca terminar e tente de novo.');
+      return;
+    }
     try {
-      const response = await loginWithBiometrics();
+      const response = await loginWithBiometrics(captchaToken ?? undefined);
       setWelcomeUser((response.user as User) || user);
       setSuccess(true);
       setTimeout(() => router.replace('/(auth)'), 2200);
     } catch (error: any) {
+      novoCaptcha();
       setErrorMsg(error?.message || 'Falha na autenticacao biometrica.');
     }
   };
@@ -487,7 +579,7 @@ export default function LoginScreen() {
   const busy = isLoading || submitting;
   // Cor primária dinâmica: acompanha a empresa detectada pelo e-mail (espelha o web)
   const primary = company.primary ?? LOGIN_PRIMARY;
-  const idIconColor = focusedField === 'id' ? primary : Colors.muted;
+  const idIconColor = focusedField === 'id' ? primary : C.muted;
   const previewName = preview?.nome || preview?.apelido || preview?.email;
   const previewAvatar = getAvatarUrl(preview?.foto);
 
@@ -546,34 +638,34 @@ export default function LoginScreen() {
               }}
             >
               {/* Badge */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 12 }}>
                 <IconShield size={13} color={primary} />
-                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.muted }}>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: C.muted }}>
                   Acesso restrito a colaboradores
                 </Text>
               </View>
 
               {/* Título */}
               <View style={{ gap: 4 }}>
-                <Text style={{ fontSize: 22, fontWeight: '700', color: Colors.text, letterSpacing: -0.3 }}>
+                <Text style={{ fontSize: 22, fontWeight: '700', color: C.text, letterSpacing: -0.3 }}>
                   Acesso ao sistema
                 </Text>
-                <Text style={{ fontSize: 13, color: Colors.muted, lineHeight: 19 }}>
+                <Text style={{ fontSize: 13, color: C.muted, lineHeight: 19 }}>
                   Use suas credenciais corporativas para acessar o portal interno —{' '}
-                  <Text style={{ color: Colors.text, fontWeight: '600' }}>{company.name}</Text>.
+                  <Text style={{ color: C.text, fontWeight: '600' }}>{company.name}</Text>.
                 </Text>
               </View>
 
               {/* Erro inline */}
               {errorMsg && (
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(220,38,38,0.24)', backgroundColor: 'rgba(254,242,242,0.95)' }}>
-                  <IconAlert size={18} color={Colors.red} />
+                  <IconAlert size={18} color={C.red} />
                   <Text style={{ flex: 1, fontSize: 13, color: '#991b1b', lineHeight: 18 }}>{errorMsg}</Text>
                 </View>
               )}
 
               {/* Tabs E-mail / CPF */}
-              <View style={{ flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 8, padding: 3, gap: 3 }}>
+              <View style={{ flexDirection: 'row', backgroundColor: C.surface, borderRadius: 8, padding: 3, gap: 3 }}>
                 {(['email', 'cpf'] as TabType[]).map((t) => {
                   const active = tab === t;
                   return (
@@ -583,7 +675,7 @@ export default function LoginScreen() {
                       style={{
                         flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
                         paddingVertical: 8, borderRadius: 6,
-                        backgroundColor: active ? Colors.card : 'transparent',
+                        backgroundColor: active ? C.card : 'transparent',
                         shadowColor: active ? '#000' : 'transparent',
                         shadowOffset: { width: 0, height: 1 },
                         shadowOpacity: active ? 0.08 : 0,
@@ -592,9 +684,9 @@ export default function LoginScreen() {
                       }}
                     >
                       {t === 'email'
-                        ? <IconMail size={14} color={active ? primary : Colors.muted} />
-                        : <IconUser size={14} color={active ? primary : Colors.muted} />}
-                      <Text style={{ fontSize: 13.5, fontWeight: '500', color: active ? Colors.text : Colors.muted }}>
+                        ? <IconMail size={14} color={active ? primary : C.muted} />
+                        : <IconUser size={14} color={active ? primary : C.muted} />}
+                      <Text style={{ fontSize: 13.5, fontWeight: '500', color: active ? C.text : C.muted }}>
                         {t === 'email' ? 'E-mail' : 'CPF'}
                       </Text>
                     </TouchableOpacity>
@@ -604,7 +696,7 @@ export default function LoginScreen() {
 
               {/* Campo identificação */}
               <View style={{ gap: 6 }}>
-                <Text style={{ fontSize: 13.5, fontWeight: '500', color: Colors.text }}>
+                <Text style={{ fontSize: 13.5, fontWeight: '500', color: C.text }}>
                   {tab === 'email' ? 'E-mail corporativo' : 'CPF'}
                 </Text>
                 <FieldInput
@@ -616,7 +708,7 @@ export default function LoginScreen() {
                   returnKeyType="next"
                   onSubmitEditing={() => passwordInputRef.current?.focus()}
                   leftIcon={tab === 'email' ? <IconMail size={16} color={idIconColor} /> : <IconUser size={16} color={idIconColor} />}
-                  rightSlot={searching ? <ActivityIndicator size="small" color={Colors.muted} /> : undefined}
+                  rightSlot={searching ? <ActivityIndicator size="small" color={C.muted} /> : undefined}
                   focused={focusedField === 'id'}
                   onFocus={() => setFocusedField('id')}
                   onBlur={() => setFocusedField(null)}
@@ -626,9 +718,9 @@ export default function LoginScreen() {
 
               {/* Saudação (preview do colaborador) */}
               {previewName && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 9, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.card2 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 9, borderWidth: 1, borderColor: C.border, backgroundColor: C.card2 }}>
                   {previewAvatar ? (
-                    <Image source={{ uri: previewAvatar }} style={{ width: 42, height: 42, borderRadius: 999, backgroundColor: Colors.surface }} resizeMode="cover" />
+                    <Image source={{ uri: previewAvatar }} style={{ width: 42, height: 42, borderRadius: 999, backgroundColor: C.surface }} resizeMode="cover" />
                   ) : (
                     <View style={{ width: 42, height: 42, borderRadius: 999, backgroundColor: primary, alignItems: 'center', justifyContent: 'center' }}>
                       <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
@@ -637,10 +729,10 @@ export default function LoginScreen() {
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 11, color: Colors.muted }}>Olá, bem-vindo(a) de volta</Text>
-                    <Text style={{ fontSize: 13.5, fontWeight: '600', color: Colors.text }} numberOfLines={1}>{previewName}</Text>
+                    <Text style={{ fontSize: 11, color: C.muted }}>Olá, bem-vindo(a) de volta</Text>
+                    <Text style={{ fontSize: 13.5, fontWeight: '600', color: C.text }} numberOfLines={1}>{previewName}</Text>
                     {!!(preview?.cargo || preview?.departamento) && (
-                      <Text style={{ fontSize: 11.5, color: Colors.muted }} numberOfLines={1}>
+                      <Text style={{ fontSize: 11.5, color: C.muted }} numberOfLines={1}>
                         {preview?.cargo || preview?.departamento}
                       </Text>
                     )}
@@ -651,7 +743,7 @@ export default function LoginScreen() {
               {/* Campo senha */}
               <View style={{ gap: 6 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13.5, fontWeight: '500', color: Colors.text }}>Senha</Text>
+                  <Text style={{ fontSize: 13.5, fontWeight: '500', color: C.text }}>Senha</Text>
                   <TouchableOpacity onPress={() => router.push('/(public)/recuperar-senha')}>
                     <Text style={{ fontSize: 12.5, fontWeight: '500', color: primary }}>Esqueceu a senha?</Text>
                   </TouchableOpacity>
@@ -666,7 +758,7 @@ export default function LoginScreen() {
                   secure
                   showPass={showPass}
                   onTogglePass={() => setShowPass((p) => !p)}
-                  leftIcon={<IconLock size={16} color={focusedField === 'pw' ? primary : Colors.muted} />}
+                  leftIcon={<IconLock size={16} color={focusedField === 'pw' ? primary : C.muted} />}
                   focused={focusedField === 'pw'}
                   onFocus={() => setFocusedField('pw')}
                   onBlur={() => setFocusedField(null)}
@@ -684,15 +776,36 @@ export default function LoginScreen() {
                   style={{
                     width: 19, height: 19, borderRadius: 5,
                     borderWidth: 1.5,
-                    borderColor: remember ? primary : Colors.border,
+                    borderColor: remember ? primary : C.border,
                     backgroundColor: remember ? primary : 'transparent',
                     alignItems: 'center', justifyContent: 'center',
                   }}
                 >
                   {remember && <IconCheck size={12} color="#fff" />}
                 </View>
-                <Text style={{ fontSize: 13, color: Colors.muted }}>Manter-me conectado neste dispositivo</Text>
+                <Text style={{ fontSize: 13, color: C.muted }}>Manter-me conectado neste dispositivo</Text>
               </TouchableOpacity>
+
+              {/* Verificação de segurança (Cloudflare Turnstile).
+                  O servidor exige em todo login; sem isto o app não entra. */}
+              {captchaExterno && (
+                <CaptchaTurnstile
+                  key={captchaGeracao}
+                  siteKey={captchaCfg!.siteKey!}
+                  baseUrl={ORIGEM_CAPTCHA}
+                  onToken={setCaptchaToken}
+                  onErro={(motivo) => setErrorMsg(motivo)}
+                />
+              )}
+
+              {captchaSemSuporte && (
+                <View style={{ padding: 12, borderRadius: 9, backgroundColor: C.yellowDim }}>
+                  <Text style={{ fontSize: 12.5, color: C.text, lineHeight: 18 }}>
+                    Este servidor esta usando uma verificacao de seguranca que o aplicativo nao
+                    consegue exibir. Entre pelo navegador em {company.apiHost ?? 'zyntraerp.com.br'}.
+                  </Text>
+                </View>
+              )}
 
               {/* Botão entrar */}
               <TouchableOpacity
@@ -701,7 +814,7 @@ export default function LoginScreen() {
                 activeOpacity={0.88}
                 style={{
                   height: 48, borderRadius: 9,
-                  backgroundColor: success ? Colors.green : primary,
+                  backgroundColor: success ? C.green : primary,
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
                   opacity: busy || success ? 0.85 : 1,
                   shadowColor: primary,
@@ -721,16 +834,16 @@ export default function LoginScreen() {
               {canUseBiometrics && (
                 <>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
-                    <Text style={{ fontSize: 11.5, color: Colors.muted }}>ou acesse com</Text>
-                    <View style={{ flex: 1, height: 1, backgroundColor: Colors.border }} />
+                    <View style={{ flex: 1, height: 1, backgroundColor: C.border }} />
+                    <Text style={{ fontSize: 11.5, color: C.muted }}>ou acesse com</Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: C.border }} />
                   </View>
                   <TouchableOpacity
                     onPress={handleBiometricLogin}
                     activeOpacity={0.8}
-                    style={{ height: 44, borderRadius: 9, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' }}
+                    style={{ height: 44, borderRadius: 9, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' }}
                   >
-                    <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.textSoft }}>
+                    <Text style={{ fontSize: 14, fontWeight: '500', color: C.textSoft }}>
                       Face ID / Touch ID
                     </Text>
                   </TouchableOpacity>
@@ -743,6 +856,17 @@ export default function LoginScreen() {
               Sem acesso ou esqueceu suas credenciais?{'\n'}
               <Text style={{ color: '#fff', fontWeight: '600' }}>Abra um chamado no suporte de TI</Text>
             </Text>
+
+            {/* Trevo Autopeças: sistema/login separado do restante do grupo */}
+            <TouchableOpacity
+              onPress={() => router.push('/(public)/trevo-login')}
+              style={{ marginTop: 18, alignSelf: 'center' }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={{ textAlign: 'center', fontSize: 12.5, color: 'rgba(223,231,245,0.75)' }}>
+                É da Trevo Autopeças? <Text style={{ color: '#fff', fontWeight: '600' }}>Entrar aqui</Text>
+              </Text>
+            </TouchableOpacity>
 
             <Text style={{ textAlign: 'center', fontSize: 11, color: 'rgba(223,231,245,0.45)', marginTop: 16 }}>
               © 2026 {company.name} · Sistema interno · Uso autorizado

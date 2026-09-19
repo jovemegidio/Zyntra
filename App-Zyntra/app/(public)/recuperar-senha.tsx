@@ -3,7 +3,8 @@ import { View, Text, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { authApi } from '@/lib/api';
-import { Colors } from '@/lib/constants';
+
+import { lightColors as C } from '@/lib/theme';
 import { Button, Input, ScreenHeader } from '@/components/ui';
 
 export default function RecuperarSenhaScreen() {
@@ -30,7 +31,7 @@ export default function RecuperarSenhaScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
       <ScreenHeader title="Recuperar Senha" onBack={() => router.back()} />
 
       <View style={{ flex: 1, padding: 28, justifyContent: 'center' }}>
@@ -41,7 +42,7 @@ export default function RecuperarSenhaScreen() {
                 width: 72,
                 height: 72,
                 borderRadius: 36,
-                backgroundColor: Colors.greenDim,
+                backgroundColor: C.greenDim,
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: 24,
@@ -49,10 +50,10 @@ export default function RecuperarSenhaScreen() {
             >
               <Text style={{ fontSize: 32 }}>✓</Text>
             </View>
-            <Text style={{ fontSize: 20, fontWeight: '700', color: Colors.text, marginBottom: 8, textAlign: 'center' }}>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: C.text, marginBottom: 8, textAlign: 'center' }}>
               E-mail enviado!
             </Text>
-            <Text style={{ fontSize: 14, color: Colors.muted, textAlign: 'center', lineHeight: 20 }}>
+            <Text style={{ fontSize: 14, color: C.muted, textAlign: 'center', lineHeight: 20 }}>
               Verifique sua caixa de entrada e siga as instrucoes para redefinir sua senha.
             </Text>
             <Button
@@ -64,10 +65,10 @@ export default function RecuperarSenhaScreen() {
           </View>
         ) : (
           <>
-            <Text style={{ fontSize: 20, fontWeight: '700', color: Colors.text, marginBottom: 8 }}>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: C.text, marginBottom: 8 }}>
               Esqueceu sua senha?
             </Text>
-            <Text style={{ fontSize: 14, color: Colors.muted, marginBottom: 32, lineHeight: 20 }}>
+            <Text style={{ fontSize: 14, color: C.muted, marginBottom: 32, lineHeight: 20 }}>
               Digite seu e-mail corporativo e enviaremos um link para redefinir sua senha.
             </Text>
 
