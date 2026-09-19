@@ -18,16 +18,44 @@
 
 const jwt = require('jsonwebtoken');
 const permissionService = require('../services/permission.service');
+// Escopo da sessão: login por CPF só enxerga o RH (utils/login-scope.js).
+const loginScope = require('../utils/login-scope');
+const { resolverIdentidadeUsuario } = require('./identidade-canonica');
+const pcpPagePermissions = require('../utils/pcp-page-permissions');
+const {
+    createVendasAccessProfile,
+    isFinanceiroVendasReadOnly,
+    blockVendasReadOnly
+} = require('../utils/vendas-readonly-access');
+
+async function hasConfiguredPcpPageAccess(pool, userId, requestPath) {
+    if (!pool || !userId) return false;
+    const [rows] = await pool.query(
+        'SELECT permissoes_pcp FROM usuarios WHERE id = ? LIMIT 1',
+        [userId]
+    );
+    if (!rows.length) return false;
+    return pcpPagePermissions.isAllowed(rows[0].permissoes_pcp, requestPath);
+}
 
 // SEC-021: Cache service para verificar tokens revogados (blacklist)
 let _cacheService;
 try { _cacheService = require('../services/cache'); } catch (_) { _cacheService = null; }
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.SECRET_KEY;
-if (!JWT_SECRET) {
-    console.error('❌ [AUTH-CENTRAL] ERRO FATAL: JWT_SECRET não definido no .env');
-    process.exit(1);
-}
+// Em produção, servir sem segredo configurado é pior do que não servir: qualquer
+// um forjaria um JWT. O processo morre na hora, como antes.
+// Fora de produção o `process.exit(1)` no topo do módulo era uma armadilha —
+// derrubava QUALQUER script ou suíte de teste que apenas exigisse este arquivo,
+// sem sequer chegar ao primeiro teste. Aqui vale o mesmo critério do server.js:
+// segredo efêmero, com aviso (os tokens não sobrevivem ao restart).
+const JWT_SECRET = process.env.JWT_SECRET || process.env.SECRET_KEY || (() => {
+    if (process.env.NODE_ENV === 'production') {
+        console.error('❌ [AUTH-CENTRAL] ERRO FATAL: JWT_SECRET não definido no .env');
+        process.exit(1);
+    }
+    console.warn('⚠️  [AUTH-CENTRAL] JWT_SECRET não definida — segredo efêmero (apenas dev/teste)');
+    return require('crypto').randomBytes(64).toString('hex');
+})();
 
 // TC-AUTH-03-001: Inactivity timeout — 15 minutos (em milissegundos)
 const SESSION_INACTIVITY_MS = parseInt(process.env.SESSION_INACTIVITY_TIMEOUT_MS, 10) || 15 * 60 * 1000;
@@ -87,6 +115,49 @@ function authenticateToken(req, res, next) {
             }
         }
 
+        // Senha alterada ou acesso revogado invalida imediatamente os JWTs de
+        // todos os dispositivos. Tokens antigos sem a claim equivalem à versão
+        // zero, preservando compatibilidade até a primeira rotação de senha.
+        const authenticatedUserId = user.id || user.userId;
+        const authPool = req.app?.locals?.pool;
+        if (authenticatedUserId && authPool) {
+            try {
+                const versionCacheKey = `auth_token_version:${authenticatedUserId}`;
+                let currentVersion = _cacheService
+                    ? await _cacheService.cacheGet(versionCacheKey)
+                    : null;
+                if (currentVersion === null || currentVersion === undefined) {
+                    const [[versionRow]] = await authPool.query(
+                        'SELECT COALESCE(token_version, 0) AS token_version FROM usuarios WHERE id = ? LIMIT 1',
+                        [authenticatedUserId]
+                    );
+                    if (!versionRow) {
+                        return res.status(401).json({ message: 'Usuário não encontrado.', code: 'AUTH_USER_MISSING' });
+                    }
+                    currentVersion = Number(versionRow.token_version) || 0;
+                    if (_cacheService) {
+                        await _cacheService.cacheSet(versionCacheKey, currentVersion, 30000);
+                    }
+                }
+                if ((Number(user.tokenVersion) || 0) !== (Number(currentVersion) || 0)) {
+                    return res.status(401).json({
+                        message: 'Sua credencial foi alterada. Entre novamente.',
+                        code: 'AUTH_VERSION_CHANGED'
+                    });
+                }
+            } catch (versionError) {
+                if (versionError && versionError.code === 'ER_BAD_FIELD_ERROR') {
+                    currentVersion = 0;
+                } else {
+                console.error('[AUTH] Falha ao validar versão da sessão:', versionError.message);
+                return res.status(503).json({
+                    message: 'Não foi possível validar sua sessão agora. Tente novamente.',
+                    code: 'AUTH_VERSION_UNAVAILABLE'
+                });
+                }
+            }
+        }
+
         // TC-AUTH-03-001: Inactivity timeout — 15 min sem atividade encerra a sessão
         if (_cacheService && user.id) {
             const sessionKey = `session_activity:${user.id}:${user.deviceId || 'default'}`;
@@ -101,13 +172,23 @@ function authenticateToken(req, res, next) {
                 // Apenas permitir passagem se for a primeira requisição pós-login
                 // (o login SEMPRE cria a chave, então null = inatividade).
                 if (lastActivity === null || lastActivity === undefined) {
-                    return res.status(401).json({
-                        message: 'Sessão encerrada por inatividade.',
-                        code: 'AUTH_INACTIVE'
-                    });
-                }
+                    // Alguns fluxos legados de login ainda não inicializam esta chave.
+                    // Aceitar somente a primeira requisição de um JWT recém-emitido;
+                    // tokens antigos continuam expirando por inatividade normalmente.
+                    const issuedAtMs = Number(user.iat) * 1000;
+                    const isFreshToken = Number.isFinite(issuedAtMs) &&
+                        Date.now() - issuedAtMs >= 0 &&
+                        Date.now() - issuedAtMs <= SESSION_INACTIVITY_MS;
 
-                if (Date.now() - lastActivity > SESSION_INACTIVITY_MS) {
+                    if (!isFreshToken) {
+                        return res.status(401).json({
+                            message: 'Sessão encerrada por inatividade.',
+                            code: 'AUTH_INACTIVE'
+                        });
+                    }
+
+                    await _cacheService.cacheSet(sessionKey, Date.now(), SESSION_INACTIVITY_MS + 60000);
+                } else if (Date.now() - lastActivity > SESSION_INACTIVITY_MS) {
                     // Sessão expirou por inatividade — limpar a chave
                     await _cacheService.cacheDelete(sessionKey).catch(() => {});
                     return res.status(401).json({
@@ -115,6 +196,7 @@ function authenticateToken(req, res, next) {
                         code: 'AUTH_INACTIVE'
                     });
                 }
+
                 // Renovar timestamp de atividade APENAS se NÃO for check passivo
                 if (!isPassiveCheck) {
                     await _cacheService.cacheSet(sessionKey, Date.now(), SESSION_INACTIVITY_MS + 60000);
@@ -160,6 +242,43 @@ function optionalAuth(req, res, next) {
     next();
 }
 
+/**
+ * SEC-021 — Revoga um access token pelo `jti`, colocando-o na blacklist lida por
+ * authenticateToken/optionalAuth.
+ *
+ * O `jti` já era emitido no login (routes/auth-rbac.js) e a leitura da blacklist já
+ * existia aqui, mas NADA gravava nela: o único `revokeToken` do repositório está em
+ * middleware/_deprecated/. Na prática o logout derrubava o refresh token e a sessão
+ * da tela de segurança, mas o access token continuava aceito até expirar sozinho.
+ *
+ * A entrada expira junto com o token (`exp`), então a blacklist não cresce
+ * indefinidamente. Sem serviço de cache disponível a revogação é no-op — daí o
+ * retorno booleano, para quem chama poder registrar em log.
+ *
+ * @param {string} token JWT de acesso (não precisa estar válido para ser revogado)
+ * @returns {Promise<boolean>} true se o jti entrou na blacklist
+ */
+async function revogarAccessToken(token) {
+    if (!token || !_cacheService) return false;
+    try {
+        // decode e não verify: token expirado/rejeitado não precisa ser revogado,
+        // mas um token que falhe por outro motivo ainda deve entrar na lista.
+        const payload = jwt.decode(token);
+        if (!payload || !payload.jti) return false;
+
+        const restanteMs = payload.exp
+            ? (payload.exp * 1000) - Date.now()
+            : SESSION_INACTIVITY_MS;
+        if (restanteMs <= 0) return false; // já expirou: nada a revogar
+
+        await _cacheService.cacheSet(`revoked_jwt:${payload.jti}`, 1, restanteMs);
+        return true;
+    } catch (err) {
+        console.warn('[AUTH] Falha ao revogar access token:', err.message);
+        return false;
+    }
+}
+
 // ============================================================
 // 2. AUTORIZAÇÃO — Admin
 // ============================================================
@@ -171,6 +290,14 @@ function optionalAuth(req, res, next) {
 function requireAdmin(req, res, next) {
     if (!req.user) {
         return res.status(401).json({ message: 'Não autenticado.', code: 'AUTH_REQUIRED' });
+    }
+
+    // Sessão por CPF é sempre restrita ao RH — nunca administrativa.
+    if (loginScope.isEscopoRestrito(req.user)) {
+        return res.status(403).json({
+            message: 'Sessão iniciada por CPF tem acesso somente ao módulo de RH.',
+            code: 'ESCOPO_RH'
+        });
     }
 
     const role = String(req.user.role || '').toLowerCase().trim();
@@ -188,39 +315,46 @@ function requireAdmin(req, res, next) {
 /**
  * Middleware que requer admin OU RH (para rotas de RH que precisam de admin/rh).
  */
-function requireAdminOrRH(req, res, next) {
+async function requireAdminOrRH(req, res, next) {
     if (!req.user) {
         return res.status(401).json({ message: 'Não autenticado.', code: 'AUTH_REQUIRED' });
     }
 
-    const role = String(req.user.role || '').toLowerCase().trim();
-    const isAdm = role === 'admin' || role === 'administrador' ||
-                  req.user.is_admin === 1 || req.user.is_admin === true || req.user.is_admin === '1';
-    const isRH = role === 'rh' || role === 'recursos humanos';
-
-    if (isAdm || isRH) return next();
-
-    // Fallback: verificar permissão via DB
-    const pool = req.app?.locals?.pool;
-    if (pool) {
-        permissionService.hasModuleAccess(pool, req.user.id, 'rh', req.user)
-            .then(hasAccess => {
-                if (hasAccess) return next();
-                return res.status(403).json({
-                    message: 'Acesso negado. Requer privilégios de administrador ou RH.',
-                    code: 'ADMIN_RH_REQUIRED'
-                });
-            })
-            .catch(() => res.status(403).json({
-                message: 'Acesso negado. Requer privilégios de administrador ou RH.',
-                code: 'ADMIN_RH_REQUIRED'
-            }));
-    } else {
+    // Sessão por CPF é autoatendimento: nada de API administrativa do RH, nem
+    // para admin. As rotas self-service (holerite próprio, ponto, solicitações)
+    // não passam por aqui — elas ficam na allowlist do rh-routes.
+    if (loginScope.isEscopoRestrito(req.user)) {
         return res.status(403).json({
-            message: 'Acesso negado. Requer privilégios de administrador ou RH.',
-            code: 'ADMIN_RH_REQUIRED'
+            message: 'Sessão iniciada por CPF tem acesso somente ao autoatendimento de RH.',
+            code: 'ESCOPO_RH'
         });
     }
+
+    const pool = req.app?.locals?.pool;
+    try {
+        await resolverIdentidadeUsuario(pool, req.user);
+        // A conta funcional de Logistica pode continuar administrando os demais
+        // modulos, mas tem veto explicito sobre dados de pessoal.
+        if (!loginScope.podeAcessarRh(req.user)) {
+            return res.status(403).json({
+                message: 'Acesso negado. Requer privilégios de administrador ou RH.',
+                code: 'ADMIN_RH_REQUIRED'
+            });
+        }
+        if (loginScope.isContaRh(req.user)) return next();
+
+        // Administradores continuam sendo resolvidos tanto pelo JWT quanto pelo DB.
+        if (await permissionService.isAdmin(req.user, pool, req.user.id)) {
+            req.user.is_admin = true;
+            return next();
+        }
+    } catch (_) {
+        if (res.headersSent) return;
+    }
+    return res.status(403).json({
+        message: 'Acesso negado. Requer privilégios de administrador ou RH.',
+        code: 'ADMIN_RH_REQUIRED'
+    });
 }
 
 // ============================================================
@@ -256,14 +390,28 @@ function requirePageAccess(moduleNames) {
             }
             req.user = user;
             try {
-                if (await permissionService.isAdmin(user)) return next();
-                if (permissionService.isConsultoria(user)) {
+                const pool = req.app?.locals?.pool;
+                await resolverIdentidadeUsuario(pool, user);
+                const isAdmin = await permissionService.isAdmin(user, pool, user.id);
+                const effectiveUser = isAdmin ? { ...user, is_admin: true } : user;
+                req.user = effectiveUser;
+                const scopedModules = modules.filter(m => loginScope.moduloLiberado(effectiveUser, m));
+                if (!scopedModules.length) throw new Error('Módulo bloqueado pela política da sessão');
+                if (isAdmin) return next();
+                if (scopedModules.some(m => loginScope.isModuloOperacionalLogistica(effectiveUser, m))) return next();
+                if (scopedModules.some(m => String(m).toLowerCase() === loginScope.ESCOPO_RH) &&
+                    loginScope.isContaRh(effectiveUser)) return next();
+                if (permissionService.isConsultoria(effectiveUser)) {
                     permissionService.applyConsultoriaFlags(req);
                     return next();
                 }
-                const pool = req.app?.locals?.pool;
-                for (const m of modules) {
-                    if (await permissionService.hasModuleAccess(pool, user.id, m, user)) return next();
+                for (const m of scopedModules) {
+                    if (!await permissionService.hasModuleAccess(pool, effectiveUser.id, m, effectiveUser)) continue;
+                    if (String(m).toLowerCase() === 'pcp' &&
+                        !await hasConfiguredPcpPageAccess(pool, effectiveUser.id, req.originalUrl || req.path)) {
+                        continue;
+                    }
+                    return next();
                 }
             } catch (e) {
                 console.error('[AUTH-CENTRAL] Erro ao verificar acesso de página:', e.message);
@@ -300,6 +448,12 @@ function _parsePermVendas(raw) {
 function _isVendasKanbanOnly(pv) {
     return !!(pv && pv.kanban === true && pv.pedidos !== true && pv.clientes !== true && pv.gestao !== true);
 }
+function _isComprasVendasUser(user) {
+    if (!user) return false;
+    const role = String(user.role || '').toLowerCase().trim();
+    const identidade = String(user.email || user.login || '').toLowerCase().trim().split('@')[0];
+    return role === 'compras' || role === 'aprovador' || identidade === 'compras';
+}
 function _vendas403(res) {
     return res.status(403).send(
         '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Acesso Negado</title></head>' +
@@ -326,10 +480,15 @@ function requireVendasPage() {
             req.user = user;
             try {
                 if (await permissionService.isAdmin(user)) return next();
+                if (loginScope.isModuloOperacionalLogistica(user, 'vendas')) return next();
                 if (permissionService.isConsultoria(user)) {
                     permissionService.applyConsultoriaFlags(req);
                     return next();
                 }
+                // A conta funcional de Compras opera o Kanban e cria pedidos de venda
+                // vinculados à equipe comercial, inclusive nas instâncias em que ela
+                // possui apenas o módulo `compras` no cadastro de permissões.
+                if (_isComprasVendasUser(user)) return next();
                 const pool = req.app?.locals?.pool;
                 let pv = null;
                 if (pool) {
@@ -375,10 +534,24 @@ function requireModule(module) {
             return res.status(401).json({ message: 'Não autenticado.', code: 'AUTH_REQUIRED' });
         }
 
-        // Admin tem acesso a tudo
-        if (await permissionService.isAdmin(req.user)) {
+        const pool = req.app?.locals?.pool;
+        await resolverIdentidadeUsuario(pool, req.user);
+        const isAdmin = await permissionService.isAdmin(req.user, pool, req.user.id);
+        if (isAdmin) {
+            req.user.is_admin = true;
             return next();
         }
+        const scopedModules = modules.filter(m => loginScope.moduloLiberado(req.user, m));
+        if (!scopedModules.length) {
+            return res.status(403).json({
+                message: `Acesso negado ao módulo ${modules.join('/')}. Você não tem permissão.`,
+                code: 'MODULE_DENIED'
+            });
+        }
+        if (scopedModules.some(m => loginScope.isModuloOperacionalLogistica(req.user, m))) return next();
+
+        if (scopedModules.some(m => String(m).toLowerCase() === loginScope.ESCOPO_RH) &&
+            loginScope.isContaRh(req.user)) return next();
 
         // Consultoria: acesso de leitura
         if (permissionService.isConsultoria(req.user)) {
@@ -387,8 +560,7 @@ function requireModule(module) {
         }
 
         // Verificar módulo via permission.service (basta ter acesso a um dos módulos)
-        const pool = req.app?.locals?.pool;
-        for (const m of modules) {
+        for (const m of scopedModules) {
             if (await permissionService.hasModuleAccess(pool, req.user.id, m, req.user)) {
                 return next();
             }
@@ -418,14 +590,27 @@ function requireAction(module, actions) {
             return res.status(401).json({ message: 'Não autenticado.', code: 'AUTH_REQUIRED' });
         }
 
-        // Admin tem acesso total
-        if (await permissionService.isAdmin(req.user)) {
+        const pool = req.app?.locals?.pool;
+        await resolverIdentidadeUsuario(pool, req.user);
+        if (!loginScope.moduloLiberado(req.user, module)) {
+            return res.status(403).json({
+                message: `Acesso negado. Você não tem permissão para esta ação no módulo ${module}.`,
+                code: 'ACTION_DENIED'
+            });
+        }
+
+        // Admin do ERP e rh@ (somente no RH) têm acesso total às ações.
+        if (await permissionService.isAdmin(req.user, pool, req.user.id) ||
+            (String(module).toLowerCase() === loginScope.ESCOPO_RH && loginScope.isContaRh(req.user))) {
             req.userPermissions = Array.isArray(actions) ? actions : [actions];
             return next();
         }
 
-        const pool = req.app?.locals?.pool;
         const actionsArray = Array.isArray(actions) ? actions : [actions];
+        if (loginScope.isModuloOperacionalLogistica(req.user, module)) {
+            req.userPermissions = actionsArray;
+            return next();
+        }
 
         const permittedActions = await permissionService.filterPermittedActions(
             pool, req.user.id, module, actionsArray, req.user
@@ -459,9 +644,20 @@ function checkModuleAccess(moduloCodigo, tipoPermissao = 'visualizar') {
             return res.status(401).json({ message: 'Não autenticado.', code: 'AUTH_REQUIRED' });
         }
 
-        if (await permissionService.isAdmin(req.user)) return next();
-
         const pool = req.app?.locals?.pool;
+        await resolverIdentidadeUsuario(pool, req.user);
+        if (!loginScope.moduloLiberado(req.user, moduloCodigo)) {
+            return res.status(403).json({
+                message: `Acesso negado ao módulo ${moduloCodigo}`,
+                code: 'MODULE_ACCESS_DENIED'
+            });
+        }
+        if (await permissionService.isAdmin(req.user, pool, req.user.id) ||
+            (String(moduloCodigo).toLowerCase() === loginScope.ESCOPO_RH && loginScope.isContaRh(req.user))) {
+            return next();
+        }
+        if (loginScope.isModuloOperacionalLogistica(req.user, moduloCodigo)) return next();
+
         if (!pool) {
             return res.status(403).json({
                 message: `Acesso negado ao módulo ${moduloCodigo}`,
@@ -470,7 +666,7 @@ function checkModuleAccess(moduloCodigo, tipoPermissao = 'visualizar') {
         }
 
         const hasPermission = await permissionService.checkModulePermission(
-            pool, req.user.id, moduloCodigo, tipoPermissao
+            pool, req.user.id, moduloCodigo, tipoPermissao, req.user
         );
 
         if (hasPermission) return next();
@@ -492,6 +688,12 @@ function checkModuleAccess(moduloCodigo, tipoPermissao = 'visualizar') {
  */
 function writeGuard(req, res, next) {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+
+    if (permissionService.isConsultoria(req.user)) {
+        permissionService.applyConsultoriaFlags(req);
+    }
+
+    if (blockVendasReadOnly(req, res)) return;
 
     // Se flags não foram setadas, permitir (backward compat)
     if (req.canEdit === undefined && req.canCreate === undefined && req.canDelete === undefined) {
@@ -585,6 +787,7 @@ module.exports = {
     // Autenticação
     authenticateToken,
     optionalAuth,
+    revogarAccessToken,
     // Admin
     requireAdmin,
     requireAdminOrRH,
@@ -598,10 +801,17 @@ module.exports = {
     checkModuleAccess,
     // Write guard
     writeGuard,
+    createVendasAccessProfile,
     // IDOR protection
     checkOwnership,
     // Re-export do service
     permissionService,
+    // Helpers puros expostos para testes da allowlist de paginas PCP.
+    _pcpPermissionForPath: pcpPagePermissions.permissionForPath,
+    _isPcpPageAllowedByConfig: pcpPagePermissions.isAllowed,
+    hasConfiguredPcpPageAccess,
+    _isComprasVendasUser,
+    _isFinanceiroVendasReadOnly: isFinanceiroVendasReadOnly,
     // Aliases para backward compatibility
     adminOnly: requireAdmin,
     authorizeArea: requireModule,

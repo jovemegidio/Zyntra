@@ -8,6 +8,193 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { normalizeOpCode, getNextOpCode } = require('../utils/op-numbering');
+const { desdobrarProdutosPorLances } = require('../utils/lances');
+// A árvore de produto é lida do arquivo VIVO (fora da árvore do projeto) — ver
+// utils/arvore-produto-fonte.js: gravar dentro de api/ fazia um deploy apagar os
+// preços ajustados em produção.
+const arvoreFonte = require('../utils/arvore-produto-fonte');
+const { hasConfiguredPcpPageAccess } = require('../middleware/auth-central');
+
+const VENDEDORES_OP_OBRIGATORIOS = ['Lorena Silva'];
+
+// Formata telefone BR: (DD) 9XXXX-XXXX (celular) / (DD) XXXX-XXXX (fixo). Tira DDI +55.
+// Sem dígitos suficientes ou formato não reconhecido → devolve o valor original.
+function formatarTelefoneBR(v) {
+    const raw = String(v == null ? '' : v).trim();
+    if (!raw) return '';
+    let d = raw.replace(/\D/g, '');
+    if (!d) return raw;
+    if (d.length > 11 && d.startsWith('55')) d = d.slice(2);
+    if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+    if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+    if (d.length === 9)  return `${d.slice(0, 5)}-${d.slice(5)}`;
+    if (d.length === 8)  return `${d.slice(0, 4)}-${d.slice(4)}`;
+    return raw;
+}
+
+function normalizarNomeLista(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function completarVendedoresOP(rows, query = '') {
+    const lista = Array.isArray(rows) ? rows.slice() : [];
+    const termo = normalizarNomeLista(query);
+    const nomesExistentes = new Set(lista.map(v => normalizarNomeLista(v.nome || v.nome_completo)));
+
+    for (const nome of VENDEDORES_OP_OBRIGATORIOS) {
+        const nomeNormalizado = normalizarNomeLista(nome);
+        if (nomesExistentes.has(nomeNormalizado)) continue;
+        if (termo && !nomeNormalizado.includes(termo)) continue;
+        lista.push({
+            id: `fixo-${nomeNormalizado.replace(/\s+/g, '-')}`,
+            nome,
+            cargo: 'Vendedora',
+            departamento: 'Comercial'
+        });
+        nomesExistentes.add(nomeNormalizado);
+    }
+
+    return lista.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+}
+
+// Converte "lances" (formato qtd x metragem) em metros totais.
+// Aceita: "2x100", "2x100;1x50", "2 x 100 + 1x50", "2X100/1x50".
+// Sem separador "x" trata o valor como metros diretos. Retorna Number (0 se vazio).
+function lancesParaMetros(v) {
+    if (v == null) return 0;
+    const s = String(v).trim();
+    if (!s) return 0;
+    let total = 0, matched = false;
+    const re = /(\d+(?:[.,]\d+)?)\s*[xX×*]\s*(\d+(?:[.,]\d+)?)/g;
+    let m;
+    while ((m = re.exec(s)) !== null) {
+        matched = true;
+        const qtd = parseFloat(m[1].replace(',', '.')) || 0;
+        const met = parseFloat(m[2].replace(',', '.')) || 0;
+        total += qtd * met;
+    }
+    if (matched) return total;
+    const n = parseFloat(s.replace(',', '.'));
+    return isNaN(n) ? 0 : n;
+}
+
+// ---------------------------------------------------------------------------
+// VEIAS DE UM CABO
+//
+// Um cabo multiplexado é produzido veia a veia: um TRIPLEX de 1.000 m exige
+// 1.000 m de cada uma das 3 veias. O operador aponta metros de VEIA, então o
+// cabo só avança 1/n a cada metro apontado.
+//
+// Cores conforme a prática de chão de fábrica (3 veias = preta, azul, cinza).
+// Cabo sem quantidade de veias reconhecida devolve [] e segue o fluxo antigo.
+// ---------------------------------------------------------------------------
+const CORES_VEIAS = ['Preta', 'Azul', 'Cinza', 'Branca', 'Vermelha', 'Marrom'];
+const SEPARADOR_VEIA = ' | Veia ';
+
+function quantidadeDeVeias(descricao) {
+    const d = String(descricao || '').toUpperCase();
+    if (/QUADR[UI]PLEX/.test(d)) return 4;
+    if (/TRIPLEX/.test(d)) return 3;
+    if (/DUPLEX/.test(d)) return 2;
+    // Formatos "3x2.5", "4 x 1,5" (nº de condutores × seção)
+    const m = /(\d+)\s*[xX×]\s*\d+(?:[.,]\d+)?/.exec(d);
+    if (m) {
+        const n = Number(m[1]);
+        if (n >= 2 && n <= 6) return n;
+    }
+    return 0;
+}
+
+function veiasDoCabo(descricao) {
+    const n = quantidadeDeVeias(descricao);
+    return n >= 2 ? CORES_VEIAS.slice(0, n) : [];
+}
+
+// "CB TRIPLEX 16mm | Veia Preta" -> { base: 'CB TRIPLEX 16mm', veia: 'Preta' }
+function separarVeia(produtoDescricao) {
+    const s = String(produtoDescricao || '');
+    const i = s.indexOf(SEPARADOR_VEIA);
+    if (i === -1) return { base: s.trim(), veia: null };
+    return { base: s.slice(0, i).trim(), veia: s.slice(i + SEPARADOR_VEIA.length).trim() };
+}
+
+// ---------------------------------------------------------------------------
+// Previsão de conclusão da OP a partir dos APONTAMENTOS.
+//
+// Ritmo = (quantidade apontada) / (dias corridos entre o 1º e o último apontamento).
+// Previsão = âncora + ceil(restante / ritmo), onde a âncora é o último apontamento
+// (ou hoje, se ele já passou — não se projeta conclusão para o passado).
+//
+// Sem apontamento com quantidade não existe ritmo: devolve origem 'planejada'
+// (a data cadastrada na OP, se houver) ou nenhuma data. NÃO se inventa previsão.
+// ---------------------------------------------------------------------------
+const DIA_MS = 86400000;
+// Aceita Date (mysql2 devolve colunas DATE assim) ou string. Duck-typing em vez de
+// `instanceof Date` porque o operador falha entre realms (vm/worker).
+const soData = v => {
+    if (!v) return null;
+    if (typeof v.getTime === 'function' && typeof v.toISOString === 'function') {
+        return new Date(v.getTime() - v.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    }
+    return String(v).slice(0, 10);
+};
+const paraDia = ymd => (ymd ? new Date(`${ymd}T12:00:00Z`) : null);
+const hojeYmd = () => new Date().toISOString().slice(0, 10);
+
+function calcularPrevisaoPorApontamentos(op) {
+    const planejada = Number(op.quantidade_planejada) || 0;
+    const produzido = Number(op.quantidade_produzida) || 0;
+    const apontQtd = Number(op.apont_qtd) || 0;
+    const apontN = Number(op.apont_n) || 0;
+    const primeiro = soData(op.apont_primeiro);
+    const ultimo = soData(op.apont_ultimo);
+    const restante = Math.max(0, planejada - produzido);
+
+    const previsao = {
+        data: null,
+        origem: null,           // 'apontamentos' | 'planejada' | null
+        ritmo_dia: 0,
+        dias_restantes: null,
+        dias_apontados: 0,
+        quantidade_apontada: apontQtd,
+        apontamentos: apontN,
+        primeiro_apontamento: primeiro,
+        ultimo_apontamento: ultimo,
+        restante,
+    };
+
+    if (!apontN || apontQtd <= 0 || !primeiro || !ultimo) {
+        const planejadaData = soData(op.data_prevista);
+        if (planejadaData) { previsao.data = planejadaData; previsao.origem = 'planejada'; }
+        return previsao;
+    }
+
+    // Janela de produção em dias corridos (o primeiro dia conta como 1).
+    const dias = Math.max(1, Math.round((paraDia(ultimo) - paraDia(primeiro)) / DIA_MS) + 1);
+    previsao.dias_apontados = dias;
+    previsao.ritmo_dia = Number((apontQtd / dias).toFixed(3));
+
+    if (restante <= 0) {
+        previsao.data = ultimo;
+        previsao.origem = 'apontamentos';
+        previsao.dias_restantes = 0;
+        return previsao;
+    }
+
+    const diasRestantes = Math.ceil(restante / previsao.ritmo_dia);
+    const hoje = hojeYmd();
+    const ancora = paraDia(ultimo > hoje ? ultimo : hoje);
+    previsao.dias_restantes = diasRestantes;
+    previsao.data = new Date(ancora.getTime() + diasRestantes * DIA_MS).toISOString().slice(0, 10);
+    previsao.origem = 'apontamentos';
+    return previsao;
+}
 
 module.exports = function createPCPRoutes(deps) {
     const { pool, authenticateToken, authorizeArea, authorizeAdmin, writeAuditLog, cacheMiddleware, CACHE_CONFIG, jwt, JWT_SECRET, writeGuard } = deps;
@@ -17,7 +204,9 @@ module.exports = function createPCPRoutes(deps) {
     const { body, param, query, validationResult } = require('express-validator');
     const SAFE_MIMES = new Set(['image/jpeg','image/png','image/gif','image/webp','application/pdf','text/csv','text/plain','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/xml','text/xml']);
     const safeFileFilter = (req, file, cb) => SAFE_MIMES.has(file.mimetype) ? cb(null, true) : cb(new multer.MulterError('LIMIT_UNEXPECTED_FILE', file.fieldname));
-    const upload = multer({ dest: path.join(__dirname, '..', 'uploads'), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: safeFileFilter });
+    const uploadsRoot = path.resolve(path.join(__dirname, '..', 'uploads'));
+    fs.mkdirSync(uploadsRoot, { recursive: true });
+    const upload = multer({ dest: uploadsRoot, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: safeFileFilter });
     const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
     // LGPD Crypto - descriptografia PII (pode não existir)
@@ -30,51 +219,68 @@ module.exports = function createPCPRoutes(deps) {
         next();
     };
 
-    // Registra baixa de materiais em estoque_movimentos ao concluir OP
-    // Alimenta K235 (via itens_ordem_producao) e K270 (ajuste de inventário)
+    // Registra baixa de matéria-prima ao concluir OP.
+    // AUDIT-FIX: a versão anterior gravava em `estoque_movimentos`/`estoque_saldos`,
+    // tabelas que ninguém mais lê — Compras e a própria tela de materiais do PCP usam
+    // `materiais.quantidade_estoque`/`estoque.quantidade_atual` (ver AUDIT-FIX em
+    // modules/Compras/api/estoque.js). Além disso o JOIN original casava
+    // `itens_ordem_producao.codigo_material` contra `produtos.codigo` — que nunca bate
+    // pra item de matéria-prima real — então o filtro `produto_id` descartava toda
+    // linha e a baixa nunca rodava de fato. Agora usa `itens_ordem_producao.material_id`
+    // (ou resolve por `codigo_material` quando ausente) e atualiza as tabelas reais.
+    // O log em `movimentacoes_estoque` é best-effort: se o nome de coluna divergir,
+    // a baixa em si (a parte que importa) já foi commitada antes dessa tentativa.
     async function registrarBaixaEstoqueOP(pool, opId, usuarioId) {
         const [itens] = await pool.query(
-            `SELECT io.id, io.codigo_material, io.quantidade_utilizada, io.quantidade_necessaria,
-                    p.id AS produto_id
-             FROM itens_ordem_producao io
-             LEFT JOIN produtos p ON p.codigo = io.codigo_material
-             WHERE io.ordem_producao_id = ?`,
+            `SELECT id, material_id, codigo_material, quantidade_utilizada, quantidade_necessaria
+             FROM itens_ordem_producao
+             WHERE ordem_producao_id = ?`,
             [opId]
         );
         if (!itens.length) return;
 
-        const now = new Date();
-        const rows = itens
-            .filter(i => i.produto_id)
-            .map(i => [
-                i.produto_id,
-                'saida_producao',
-                Math.abs(parseFloat(i.quantidade_utilizada || i.quantidade_necessaria) || 0),
-                'ordem_producao',
-                opId,
-                `Baixa automática OP #${opId}`,
-                usuarioId || null,
-                now
-            ]);
+        for (const item of itens) {
+            const qtd = parseFloat(item.quantidade_utilizada || item.quantidade_necessaria) || 0;
+            if (qtd <= 0) continue;
 
-        if (!rows.length) return;
+            let materialId = item.material_id;
+            if (!materialId && item.codigo_material) {
+                const [[mat]] = await pool.query('SELECT id FROM materiais WHERE codigo_material = ?', [item.codigo_material]);
+                materialId = mat ? mat.id : null;
+            }
+            if (!materialId) continue; // sem vínculo com materiais — não há o que baixar
 
-        await pool.query(
-            `INSERT INTO estoque_movimentos
-             (produto_id, tipo_movimento, quantidade, documento_tipo, documento_id, observacoes, usuario_id, data_movimento)
-             VALUES ${rows.map(() => '(?,?,?,?,?,?,?,?)').join(',')}`,
-            rows.flat()
-        );
+            const conn = await pool.getConnection();
+            let quantidadeAnterior = 0, novaQuantidade = 0;
+            try {
+                await conn.beginTransaction();
+                const [[estoqueRow]] = await conn.query('SELECT quantidade_atual FROM estoque WHERE material_id = ? FOR UPDATE', [materialId]);
+                if (!estoqueRow) {
+                    await conn.query('INSERT INTO estoque (material_id, quantidade_atual) VALUES (?, 0)', [materialId]);
+                } else {
+                    quantidadeAnterior = parseFloat(estoqueRow.quantidade_atual) || 0;
+                }
+                novaQuantidade = Math.max(0, quantidadeAnterior - qtd);
+                await conn.query('UPDATE estoque SET quantidade_atual = ? WHERE material_id = ?', [novaQuantidade, materialId]);
+                await conn.query('UPDATE materiais SET quantidade_estoque = ? WHERE id = ?', [novaQuantidade, materialId]);
+                await conn.commit();
+            } catch (err) {
+                try { await conn.rollback(); } catch (_) {}
+                console.error(`[PCP] Erro ao dar baixa em estoque (OP #${opId}, material ${materialId}):`, err.message);
+                conn.release();
+                continue;
+            }
+            conn.release();
 
-        // Debitar saldo — ignora erros (pode não ter saldo cadastrado por codigo)
-        for (const i of itens) {
-            const qtd = parseFloat(i.quantidade_utilizada || i.quantidade_necessaria) || 0;
-            if (qtd > 0) {
+            try {
                 await pool.query(
-                    `UPDATE estoque_saldos SET quantidade_fisica = GREATEST(0, quantidade_fisica - ?)
-                     WHERE codigo_material = ?`,
-                    [qtd, i.codigo_material]
-                ).catch(() => {});
+                    `INSERT INTO movimentacoes_estoque
+                     (material_id, tipo, quantidade, quantidade_anterior, quantidade_atual, observacoes, local, documento, usuario_id, created_at)
+                     VALUES (?, 'SAIDA', ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                    [materialId, qtd, quantidadeAnterior, novaQuantidade, `Baixa automática OP #${opId}`, 'PRINCIPAL', String(opId), usuarioId || null]
+                );
+            } catch (logErr) {
+                console.error(`[PCP] Baixa em estoque OK (material ${materialId}, OP #${opId}), mas log em movimentacoes_estoque falhou:`, logErr.message);
             }
         }
     }
@@ -90,7 +296,8 @@ module.exports = function createPCPRoutes(deps) {
             return next(); // Transportadoras são usadas por Vendas, Logística e PCP
         }
         // Árvore de produto (GET somente-leitura) é usada pelo módulo Vendas para parâmetros fiscais (DIFAL/ICMS-ST)
-        if (req.path === '/arvore-produto' && req.method === 'GET') {
+        // e, por item, para o preço sugerido/piso na montagem do orçamento.
+        if (req.method === 'GET' && (req.path === '/arvore-produto' || req.path.startsWith('/arvore-produto/preco/'))) {
             return next();
         }
         // Helper: tenta autorizar por uma área sem enviar resposta de erro
@@ -100,6 +307,18 @@ module.exports = function createPCPRoutes(deps) {
             };
             authorizeArea(area)(req, fakeRes, () => resolve(true)).catch(() => resolve(false));
         });
+
+        // A carteira de pedidos usa somente estes dois recursos de integração.
+        // A exceção é deliberadamente estreita: Vendas não ganha acesso ao restante
+        // do PCP nem às rotas gerais de Compras.
+        const rotaMaterialDoPedido = /^\/pedidos\/\d+\/(calculo-material|requisicao-material)$/.test(req.path);
+        // O repricing por frete/UF/condição é disparado pelo modal de Vendas, que
+        // não tem (nem deve ter) acesso ao resto do PCP.
+        const rotaRepricarPedido = req.method === 'POST'
+            && /^\/arvore-produto\/repricar-pedido\/\d+$/.test(req.path);
+        if ((rotaMaterialDoPedido || rotaRepricarPedido) && await tryAuth('vendas')) {
+            return next();
+        }
 
         if (await tryAuth('pcp') || await tryAuth('compras')) {
             return next();
@@ -111,6 +330,25 @@ module.exports = function createPCPRoutes(deps) {
     });
     // AUDIT-FIX PERM-004: Block mutations for consultoria/restricted roles
     router.use(writeGuard || ((req, res, next) => next()));
+    // Permissão fina "apontamentos" (usuarios.permissoes_pcp) — a web já aplica isso nas
+    // páginas HTML (requirePageAccess); aqui estende a mesma regra às rotas de API JSON
+    // que o app mobile usa. Fail-open: só bloqueia quem tem permissoes_pcp configurado
+    // sem incluir 'apontamentos' — quem nunca teve essa coluna preenchida não é afetado.
+    router.use('/apontamentos', async (req, res, next) => {
+        try {
+            const ok = await hasConfiguredPcpPageAccess(pool, req.user?.id, '/pcp/apontamentos');
+            if (!ok) {
+                return res.status(403).json({
+                    message: 'Você não tem permissão para acessar apontamentos do PCP.',
+                    code: 'PCP_APONTAMENTOS_DENIED'
+                });
+            }
+            next();
+        } catch (err) {
+            next(err);
+        }
+    });
+    router.use('/ordens-servico', require('./pcp-os-routes')({ pool, authorizeArea }));
     // ----------------- ROTAS PCP (Compras, Estoque e Produção) UNIFICADAS -----------------
 
     // Cache de colunas da tabela produtos (evita INFORMATION_SCHEMA a cada request)
@@ -176,6 +414,10 @@ module.exports = function createPCPRoutes(deps) {
         dados.numero_pedido = dados.numero_pedido || dados.num_pedido || dados.pedido_referencia || '';
         dados.prazo_entrega = dados.prazo_entrega || dados.data_previsao_entrega || null;
         dados.tipo_frete = dados.tipo_frete || dados.frete || '';
+        // O frontend usa tanto a forma singular (campo de pedidos) quanto a plural
+        // (formulário da OP). Normalize aqui para todos os geradores de planilha.
+        dados.observacao_producao = dados.observacao_producao || dados.observacoes_producao || '';
+        dados.observacoes_producao = dados.observacoes_producao || dados.observacao_producao || '';
         dados.produtos = parseOrdemProducaoItems(dados).map(item => ({
             ...item,
             quantidade: parseFloat(item.quantidade) || 0,
@@ -207,7 +449,9 @@ module.exports = function createPCPRoutes(deps) {
                 const unit = parseFloat(item.valor_unitario || item.preco_unitario || item.preco) || 0;
                 return sum + (parseFloat(item.total) || qtd * unit);
             }, 0);
-        const numeroOrdem = dados.numero_ordem || dados.codigo || `OP-${Date.now()}`;
+        const numeroInformado = dados.numero_ordem || dados.codigo;
+        const numeroOrdem = normalizeOpCode(numeroInformado)
+            || await getNextOpCode(pool, new Date().getFullYear(), { lock: false });
         const numeroPedido = dados.numero_pedido || dados.pedido_referencia || dados.num_pedido || null;
         const pedidoId = dados.pedido_id || dados.pedido_vinculado_id || null;
         const produtosJson = JSON.stringify(itens);
@@ -261,6 +505,8 @@ module.exports = function createPCPRoutes(deps) {
         add('transportadora_email_nfe', dados.transportadora_email_nfe || null);
         add('observacoes', dados.observacoes || null);
         add('observacoes_pedido', dados.observacoes_pedido || null);
+        add('observacao_producao', dados.observacao_producao || dados.observacoes_producao || null);
+        add('observacoes_producao', dados.observacoes_producao || dados.observacao_producao || null);
         add('produtos', produtosJson);
         add('produtos_json', produtosJson);
         add('arquivo_xlsx', arquivoXlsx || null);
@@ -279,6 +525,95 @@ module.exports = function createPCPRoutes(deps) {
             values
         );
         return result.insertId;
+    }
+
+    // -------------------------------------------------------------
+    // AVISO DE ORDEM DE PRODUÇÃO GERADA
+    // Quem gerou a OP recebe no e-mail o resumo dela. O CNPJ não vem
+    // do formulário: é buscado no cadastro do cliente.
+    // -------------------------------------------------------------
+    const { enviarEmail: enviarEmailZyntra, isConfigured: emailConfigurado } = require('../utils/email');
+    const { templateOrdemProducao, REMETENTE_NOTIFICACOES } = require('../services/email-templates');
+
+    async function buscarCnpjCliente(clienteId, clienteNome) {
+        try {
+            if (clienteId) {
+                const [[linha]] = await pool.query(
+                    'SELECT COALESCE(cnpj, cnpj_cpf, cpf) AS documento FROM clientes WHERE id = ? LIMIT 1',
+                    [clienteId]
+                );
+                if (linha?.documento) return linha.documento;
+            }
+            if (clienteNome) {
+                const [[linha]] = await pool.query(
+                    `SELECT COALESCE(cnpj, cnpj_cpf, cpf) AS documento FROM clientes
+                     WHERE nome = ? OR razao_social = ? OR nome_fantasia = ? LIMIT 1`,
+                    [clienteNome, clienteNome, clienteNome]
+                );
+                if (linha?.documento) return linha.documento;
+            }
+        } catch (erro) {
+            console.warn('[PCP/OP-EMAIL] Não foi possível resolver o CNPJ do cliente:', erro.message);
+        }
+        return null;
+    }
+
+    /**
+     * Manda o aviso de OP gerada. Nunca estoura: a OP já está gravada e
+     * uma falha de SMTP não pode derrubar a resposta da rota.
+     *
+     * @param {object} dados   campos da OP (nomes soltos, como vêm do form)
+     * @param {object} usuario req.user
+     * @param {Array}  [anexos]
+     */
+    async function notificarOrdemProducao(dados, usuario, anexos) {
+        try {
+            const destinatario = String(usuario?.email || '').trim();
+            if (!destinatario) return { enviado: false, motivo: 'usuário sem e-mail cadastrado' };
+            if (!emailConfigurado()) return { enviado: false, motivo: 'SMTP não configurado' };
+
+            const clienteNome = dados.clienteNome || null;
+            const mensagem = templateOrdemProducao({
+                numero: dados.numero,
+                clienteNome,
+                clienteCnpj: dados.clienteCnpj || await buscarCnpjCliente(dados.clienteId, clienteNome),
+                produto: dados.produto,
+                quantidade: dados.quantidade,
+                unidade: dados.unidade,
+                numeroPedido: dados.numeroPedido,
+                numeroOrcamento: dados.numeroOrcamento,
+                dataPrevisao: dados.dataPrevisao,
+                vendedor: dados.vendedor,
+                prioridade: dados.prioridade,
+                valorTotal: dados.valorTotal,
+                observacoes: dados.observacoes,
+                criadoPor: usuario?.nome || usuario?.email,
+                geradaEm: new Date(),
+                destinatarioNome: usuario?.nome,
+                itens: dados.itens,
+                comAnexo: Array.isArray(anexos) && anexos.length > 0
+            });
+
+            const resultado = await enviarEmailZyntra({
+                rota: 'sistema',
+                de: REMETENTE_NOTIFICACOES,
+                para: destinatario,
+                assunto: mensagem.assunto,
+                html: mensagem.html,
+                texto: mensagem.texto,
+                anexos
+            });
+
+            if (resultado.success) {
+                console.log(`[PCP/OP-EMAIL] ✅ ${dados.numero} → ${destinatario}`);
+            } else {
+                console.warn(`[PCP/OP-EMAIL] ⚠️ Falha ao avisar ${destinatario}: ${resultado.error}`);
+            }
+            return { enviado: resultado.success, destinatario, erro: resultado.error };
+        } catch (erro) {
+            console.error('[PCP/OP-EMAIL] ❌ Erro ao notificar ordem de produção:', erro.message);
+            return { enviado: false, motivo: erro.message };
+        }
     }
 
     // Rota /me para o PCP retornar dados do usuário logado
@@ -346,10 +681,12 @@ module.exports = function createPCPRoutes(deps) {
                 `SELECT COUNT(*) as total FROM produtos WHERE (ativo = 1 OR ativo IS NULL) AND (categoria IS NULL OR categoria != 'GERAL')`
             );
 
-            // Ordens em produção (status ativa ou em_producao)
+            // AUDIT-2026-07 #3: Ordens ativas — definição única (utils/status-op),
+            // mesma query do dashboard geral. Antes a whitelist local divergia da
+            // contagem do Dashboard (14 vs 16).
+            const { SQL_OP_ATIVA } = require('../utils/status-op');
             const [[ordensResult]] = await pool.query(
-                `SELECT COUNT(*) as total FROM ordens_producao
-                 WHERE status IN ('ativa', 'em_producao', 'Em Produção', 'em_andamento', 'A Fazer', 'pendente')`
+                `SELECT COUNT(*) as total FROM ordens_producao WHERE ${SQL_OP_ATIVA}`
             );
 
             // Produtos COM estoque (estoque_atual > 0, com fallback para quantidade_estoque)
@@ -392,6 +729,274 @@ module.exports = function createPCPRoutes(deps) {
                 totalMateriais: 0,
                 entregasPendentes: 0
             });
+        }
+    });
+
+    // Detalhes dos quatro indicadores do dashboard. Os filtros abaixo precisam
+    // permanecer alinhados com /dashboard para que o total do modal seja o mesmo
+    // exibido no respectivo cartão.
+    router.get('/dashboard/detalhes/:tipo', async (req, res, next) => {
+        try {
+            const tipo = String(req.params.tipo || '').toLowerCase();
+            const limite = Math.min(Math.max(parseInt(req.query.limit, 10) || 2000, 1), 2000);
+            const { SQL_OP_ATIVA } = require('../utils/status-op');
+
+            const consultas = {
+                produtos: `
+                    SELECT id, codigo,
+                           COALESCE(NULLIF(nome, ''), NULLIF(descricao, ''), codigo) AS descricao,
+                           categoria,
+                           COALESCE(estoque_atual, quantidade_estoque, 0) AS estoque,
+                           COALESCE(NULLIF(unidade_medida, ''), 'UN') AS unidade
+                    FROM produtos
+                    WHERE (ativo = 1 OR ativo IS NULL)
+                      AND (categoria IS NULL OR categoria != 'GERAL')
+                    ORDER BY descricao ASC
+                    LIMIT ?`,
+                estoque: `
+                    SELECT id, codigo,
+                           COALESCE(NULLIF(nome, ''), NULLIF(descricao, ''), codigo) AS descricao,
+                           categoria,
+                           COALESCE(estoque_atual, quantidade_estoque, 0) AS estoque,
+                           COALESCE(NULLIF(unidade_medida, ''), 'UN') AS unidade
+                    FROM produtos
+                    WHERE COALESCE(estoque_atual, quantidade_estoque, 0) > 0
+                      AND (ativo = 1 OR ativo IS NULL)
+                      AND (categoria IS NULL OR categoria != 'GERAL')
+                    ORDER BY estoque DESC, descricao ASC
+                    LIMIT ?`,
+                ordens: `
+                    SELECT id, codigo, produto_nome AS descricao, cliente, numero_pedido,
+                           quantidade, COALESCE(quantidade_produzida, 0) AS quantidade_produzida,
+                           COALESCE(NULLIF(unidade, ''), 'UN') AS unidade, status,
+                           COALESCE(data_prevista, data_previsao_entrega) AS previsao
+                    FROM ordens_producao
+                    WHERE ${SQL_OP_ATIVA}
+                    ORDER BY COALESCE(data_prevista, data_previsao_entrega) ASC, id DESC
+                    LIMIT ?`,
+                materiais: `
+                    SELECT id, codigo_material AS codigo, descricao, fornecedor_padrao AS fornecedor,
+                           COALESCE(quantidade_estoque, 0) AS estoque,
+                           COALESCE(estoque_minimo, 0) AS estoque_minimo,
+                           COALESCE(NULLIF(unidade_medida, ''), 'UN') AS unidade
+                    FROM materiais
+                    ORDER BY descricao ASC
+                    LIMIT ?`
+            };
+
+            if (!consultas[tipo]) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Indicador inválido. Use produtos, ordens, estoque ou materiais.'
+                });
+            }
+
+            const [itens] = await pool.query(consultas[tipo], [limite]);
+            return res.json({ success: true, tipo, total: itens.length, itens });
+        } catch (error) {
+            console.error('[PCP/DASHBOARD/DETALHES] Erro:', error);
+            next(error);
+        }
+    });
+
+    // Andamento dos cabos em produção — dados reais das OPs ativas.
+    router.get('/dashboard/andamento-cabos', async (req, res, next) => {
+        try {
+            const limite = Math.min(Math.max(parseInt(req.query.limite, 10) || 12, 1), 50);
+
+            const SELECT_OPS = (comApontamentos) => `
+                SELECT op.id, op.codigo AS numero_op, op.produto_nome AS cabo,
+                       op.responsavel AS cliente, op.quantidade AS quantidade_planejada,
+                       COALESCE(op.quantidade_produzida, 0) AS quantidade_produzida,
+                       COALESCE(op.unidade, 'MT') AS unidade, op.status,
+                       op.data_inicio, op.data_prevista, op.updated_at,
+                       ${comApontamentos ? `
+                       COALESCE(ap.apont_qtd, 0) AS apont_qtd,
+                       COALESCE(ap.apont_n, 0) AS apont_n,
+                       ap.apont_primeiro, ap.apont_ultimo,` : `
+                       0 AS apont_qtd, 0 AS apont_n,
+                       NULL AS apont_primeiro, NULL AS apont_ultimo,`}
+                       LEAST(100, GREATEST(0,
+                           CASE
+                               WHEN COALESCE(op.quantidade, 0) > 0
+                                   THEN ROUND((COALESCE(op.quantidade_produzida, 0) / op.quantidade) * 100, 1)
+                               ELSE COALESCE(op.progresso, 0)
+                           END
+                       )) AS percentual
+                  FROM ordens_producao op
+                  ${comApontamentos ? `
+                  LEFT JOIN (
+                        SELECT ordem_producao_id,
+                               SUM(COALESCE(quantidade_produzida, 0)) AS apont_qtd,
+                               COUNT(*) AS apont_n,
+                               DATE_FORMAT(MIN(COALESCE(data_apontamento, DATE(created_at))), '%Y-%m-%d') AS apont_primeiro,
+                               DATE_FORMAT(MAX(COALESCE(data_apontamento, DATE(created_at))), '%Y-%m-%d') AS apont_ultimo
+                          FROM apontamentos_producao
+                         WHERE ordem_producao_id IS NOT NULL
+                           AND COALESCE(quantidade_produzida, 0) > 0
+                         GROUP BY ordem_producao_id
+                  ) ap ON ap.ordem_producao_id = op.id` : ''}
+                 WHERE op.status NOT IN ('concluida','concluído','Concluída','finalizada','Finalizada','cancelada','Cancelada')
+                   AND COALESCE(op.produto_nome, '') <> ''
+                 ORDER BY
+                       CASE WHEN op.status IN ('em_producao','Em Produção','em_andamento') THEN 0 ELSE 1 END,
+                       COALESCE(op.data_prevista, '2999-12-31'), op.updated_at DESC
+                 LIMIT ?`;
+
+            // O JOIN com apontamentos é opcional: se a tabela/colunas não existirem nesta
+            // instância o painel continua funcionando, só sem previsão calculada.
+            let ordens;
+            try {
+                [ordens] = await pool.query(SELECT_OPS(true), [limite]);
+            } catch (err) {
+                console.warn('[PCP/ANDAMENTO-CABOS] Apontamentos indisponíveis para a previsão:', err.message);
+                [ordens] = await pool.query(SELECT_OPS(false), [limite]);
+            }
+
+            const cabos = ordens.map(op => {
+                const linha = { ...op,
+                    quantidade_planejada: Number(op.quantidade_planejada) || 0,
+                    quantidade_produzida: Number(op.quantidade_produzida) || 0,
+                    percentual: Number(op.percentual) || 0
+                };
+                linha.previsao = calcularPrevisaoPorApontamentos(linha);
+                // Compatibilidade: quem lê data_prevista continua recebendo a melhor data conhecida.
+                linha.data_prevista = linha.previsao.data || op.data_prevista || null;
+                delete linha.apont_qtd; delete linha.apont_n;
+                delete linha.apont_primeiro; delete linha.apont_ultimo;
+                return linha;
+            });
+            // AUDIT-2026-07 #3: o total do resumo é a contagem real de OPs ativas
+            // (definição única de utils/status-op), não o tamanho da lista limitada
+            // pelo LIMIT — que fazia o painel exibir "12 OPs" enquanto o KPI mostrava 14/16.
+            const { SQL_OP_ATIVA } = require('../utils/status-op');
+            const [[{ totalAtivas }]] = await pool.query(
+                `SELECT COUNT(*) as totalAtivas FROM ordens_producao WHERE ${SQL_OP_ATIVA}`
+            );
+            res.json({ cabos, resumo: {
+                total: Number(totalAtivas) || cabos.length,
+                em_producao: cabos.filter(op => ['em_producao','Em Produção','em_andamento'].includes(op.status)).length,
+                percentual_medio: cabos.length ? Number((cabos.reduce((s, op) => s + op.percentual, 0) / cabos.length).toFixed(1)) : 0
+            }, atualizado_em: new Date().toISOString() });
+        } catch (error) {
+            console.error('[PCP/ANDAMENTO-CABOS] Erro:', error);
+            next(error);
+        }
+    });
+
+    // Detalhe de uma OP do painel "Andamento dos Cabos" (modal do card):
+    // dados da ordem + previsão calculada + apontamentos que a alimentaram.
+    router.get('/dashboard/andamento-cabos/:id', async (req, res, next) => {
+        try {
+            const id = parseInt(req.params.id, 10);
+            if (!Number.isInteger(id) || id <= 0) {
+                return res.status(400).json({ message: 'Id de ordem inválido' });
+            }
+
+            const [[op]] = await pool.query('SELECT * FROM ordens_producao WHERE id = ? LIMIT 1', [id]);
+            if (!op) return res.status(404).json({ message: 'Ordem de produção não encontrada' });
+
+            // Apontamentos desta OP (todos, inclusive os sem quantidade — paradas/setup
+            // contam para o histórico mesmo sem entrar no cálculo do ritmo).
+            let apontamentos = [];
+            let agregado = { apont_qtd: 0, apont_n: 0, apont_primeiro: null, apont_ultimo: null };
+            try {
+                const [linhas] = await pool.query(
+                    `SELECT id, DATE_FORMAT(COALESCE(data_apontamento, DATE(created_at)), '%Y-%m-%d') AS data,
+                            tipo_atividade, nome_atividade, operador, maquina, turno,
+                            COALESCE(quantidade_produzida, 0) AS quantidade_produzida,
+                            COALESCE(quantidade_refugo, 0) AS quantidade_refugo,
+                            COALESCE(duracao_segundos, 0) AS duracao_segundos,
+                            tempo_producao, tempo_parada, observacoes, created_at
+                       FROM apontamentos_producao
+                      WHERE ordem_producao_id = ?
+                      ORDER BY COALESCE(data_apontamento, DATE(created_at)) DESC, id DESC
+                      LIMIT 100`, [id]);
+                apontamentos = linhas.map(a => ({
+                    ...a,
+                    quantidade_produzida: Number(a.quantidade_produzida) || 0,
+                    quantidade_refugo: Number(a.quantidade_refugo) || 0,
+                    duracao_segundos: Number(a.duracao_segundos) || 0,
+                }));
+                const comQtd = apontamentos.filter(a => a.quantidade_produzida > 0);
+                if (comQtd.length) {
+                    const datas = comQtd.map(a => a.data).filter(Boolean).sort();
+                    agregado = {
+                        apont_qtd: comQtd.reduce((s, a) => s + a.quantidade_produzida, 0),
+                        apont_n: comQtd.length,
+                        apont_primeiro: datas[0] || null,
+                        apont_ultimo: datas[datas.length - 1] || null,
+                    };
+                }
+            } catch (err) {
+                console.warn('[PCP/ANDAMENTO-CABOS/:id] Apontamentos indisponíveis:', err.message);
+            }
+
+            const planejada = Number(op.quantidade) || 0;
+            const produzida = Number(op.quantidade_produzida) || 0;
+            const percentual = planejada > 0
+                ? Math.max(0, Math.min(100, Number(((produzida / planejada) * 100).toFixed(1))))
+                : Number(op.progresso) || 0;
+
+            const previsao = calcularPrevisaoPorApontamentos({
+                quantidade_planejada: planejada,
+                quantidade_produzida: produzida,
+                data_prevista: op.data_prevista,
+                ...agregado,
+            });
+
+            // A OP guarda os itens ora em `produtos`, ora em `produtos_json` (texto JSON).
+            const listaProdutos = (() => {
+                for (const campo of ['produtos', 'produtos_json']) {
+                    const bruto = op[campo];
+                    if (!bruto) continue;
+                    if (Array.isArray(bruto)) return bruto;
+                    try {
+                        const parsed = JSON.parse(bruto);
+                        if (Array.isArray(parsed)) return parsed;
+                        if (parsed && Array.isArray(parsed.produtos)) return parsed.produtos;
+                    } catch (_) { /* conteúdo não-JSON — ignora */ }
+                }
+                return [];
+            })();
+
+            res.json({
+                ordem: {
+                    id: op.id,
+                    numero_op: op.codigo,
+                    produto_nome: op.produto_nome,
+                    cliente: op.cliente_nome || op.cliente || null,
+                    responsavel: op.responsavel || null,
+                    vendedor: op.vendedor_nome || op.vendedor || null,
+                    status: op.status,
+                    prioridade: op.prioridade,
+                    maquina: op.maquina || op.extrusora || null,
+                    unidade: op.unidade || 'MT',
+                    quantidade_planejada: planejada,
+                    quantidade_produzida: produzida,
+                    restante: Math.max(0, planejada - produzida),
+                    percentual,
+                    revisao: op.revisao || null,
+                    numero_pedido: op.numero_pedido || op.num_pedido || null,
+                    pedido_id: op.pedido_vinculado_id || op.pedido_id || null,
+                    tipo_frete: op.tipo_frete || null,
+                    data_inicio: soData(op.data_inicio),
+                    data_prevista: soData(op.data_prevista),
+                    data_conclusao: soData(op.data_conclusao),
+                    criada_em: op.created_at,
+                    atualizada_em: op.updated_at,
+                    observacoes: op.observacoes || null,
+                    observacoes_pedido: op.observacoes_pedido || null,
+                    observacoes_entrega: op.observacoes_entrega || null,
+                },
+                previsao,
+                produtos: listaProdutos,
+                apontamentos,
+                apontamentos_total: apontamentos.length,
+            });
+        } catch (error) {
+            console.error('[PCP/ANDAMENTO-CABOS/:id] Erro:', error);
+            next(error);
         }
     });
 
@@ -687,26 +1292,6 @@ module.exports = function createPCPRoutes(deps) {
     });
 
     // MATERIAIS (com fallback para tabela produtos se materiais não existir)
-    router.get('/materiais', async (req, res, next) => {
-        try {
-            const limit = parseInt(req.query.limit) || 1000;
-            const offset = parseInt(req.query.offset) || 0;
-
-            // Detectar qual tabela existe
-            let tabela = 'materiais';
-            let colunas = 'id, codigo_material, descricao, unidade_medida, quantidade_estoque, fornecedor_padrao, tipo, custo_unitario, ncm, gtin, ativo';
-            try {
-                await pool.query("SELECT 1 FROM materiais LIMIT 1");
-            } catch (e) {
-                // Tabela materiais não existe — usar produtos
-                tabela = 'produtos';
-                colunas = '*';
-            }
-
-            const [rows] = await pool.query(`SELECT ${colunas} FROM ${tabela} ORDER BY descricao ASC LIMIT ? OFFSET ?`, [limit, offset]);
-            res.json(rows);
-        } catch (error) { next(error); }
-    });
     router.post('/materiais', [
         body('codigo_material').trim().notEmpty().withMessage('Código do material é obrigatório')
             .isLength({ max: 100 }).withMessage('Código muito longo (máx 100 caracteres)'),
@@ -865,6 +1450,26 @@ module.exports = function createPCPRoutes(deps) {
     });
 
     // PRODUTOS
+    async function atualizarTributacaoProduto(connection, produtoId, dados = {}) {
+        const colunas = await getTableColumnsSet('produtos');
+        const camposPermitidos = [
+            'aliquota_icms', 'aliquota_ipi', 'calcular_ipi',
+            'calcular_icms_st', 'mva_st', 'aliquota_icms_st'
+        ];
+        const updates = [];
+        const valores = [];
+        for (const campo of camposPermitidos) {
+            if (!colunas.has(campo) || dados[campo] === undefined) continue;
+            updates.push(`\`${campo}\` = ?`);
+            valores.push(['calcular_ipi', 'calcular_icms_st'].includes(campo)
+                ? (dados[campo] === true || dados[campo] === 1 || dados[campo] === '1' ? 1 : 0)
+                : (dados[campo] === '' ? null : dados[campo]));
+        }
+        if (!updates.length) return;
+        valores.push(produtoId);
+        await connection.query(`UPDATE produtos SET ${updates.join(', ')} WHERE id = ?`, valores);
+    }
+
     // PRODUTOS - Listar produtos (com filtros para catálogo)
     router.get('/produtos', async (req, res, next) => {
         try {
@@ -1005,7 +1610,7 @@ module.exports = function createPCPRoutes(deps) {
 
             if (!query) {
                 const [rows] = await pool.query('SELECT id, codigo, nome, descricao, sku, gtin, unidade_medida as unidade, preco_venda, estoque_atual, quantidade_estoque, estoque_minimo, categoria, status FROM produtos WHERE status = "ativo" LIMIT ?', [limit]);
-                return res.json(rows);
+                return res.json(completarVendedoresOP(rows));
             }
 
             const searchPattern = `%${query}%`;
@@ -1023,7 +1628,7 @@ module.exports = function createPCPRoutes(deps) {
                     END
                 LIMIT ?
             `, [searchPattern, searchPattern, searchPattern, searchPattern, query, `${query}%`, `${query}%`, limit]);
-            res.json(rows);
+            res.json(completarVendedoresOP(rows, query));
         } catch (error) { next(error); }
     });
 
@@ -1135,9 +1740,10 @@ module.exports = function createPCPRoutes(deps) {
                 estoque || 0, estoque || 0, estoque_minimo || 0, localizacao || null,
                 peso_bruto || null, peso_liquido || null, ncm || null, cest || null,
                 status || 'ativo', cor || null, margem || 0, origem || '0',
-                cfop_saida_interna || '5102', obs_internas || null, info_adicional_produto || null,
+                cfop_saida_interna || '5101', obs_internas || null, info_adicional_produto || null,
                 observacoes || null, tipo_produto || 'produto', controle_lote || 0, ativo !== undefined ? ativo : 1
             ]);
+            await atualizarTributacaoProduto(pool, result.insertId, req.body);
 
             // Emitir evento WebSocket para sincronização em tempo real
             const newProduct = {
@@ -1227,10 +1833,11 @@ module.exports = function createPCPRoutes(deps) {
                 prazo_entrega || 0, qtd_minima_compra || 1,
                 obs_internas || null, obs_fornecedor || null, obs_venda || null,
                 observacoesFinal, ativo !== undefined ? ativo : 1, tipo_produto || 'produto',
-                margem || 0, origem || '0', cfop_saida_interna || '5102',
+                margem || 0, origem || '0', cfop_saida_interna || '5101',
                 info_adicional_produto || null, controle_lote !== undefined ? controle_lote : 0,
                 id
             ]);
+            await atualizarTributacaoProduto(pool, id, req.body);
 
             if (result.affectedRows === 0) {
                 return res.status(404).json({ message: 'Produto não encontrado' });
@@ -1257,6 +1864,55 @@ module.exports = function createPCPRoutes(deps) {
                 message: 'Produto atualizado com sucesso'
             });
         } catch (error) { next(error); }
+    });
+
+    // PRODUTOS - Exclusão em massa. A remoção do cadastro-mestre atualiza
+    // automaticamente todos os catálogos; FKs preservam históricos com SET NULL.
+    router.post('/produtos/excluir-lote', async (req, res, next) => {
+        let connection;
+        try {
+            const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : [])
+                .map(Number)
+                .filter(id => Number.isInteger(id) && id > 0))];
+            if (!ids.length || ids.length > 500) {
+                return res.status(400).json({ success: false, message: 'Informe de 1 a 500 produtos válidos.' });
+            }
+
+            connection = await pool.getConnection();
+            await connection.beginTransaction();
+            const placeholders = ids.map(() => '?').join(',');
+            const [produtos] = await connection.query(
+                `SELECT id, codigo, nome FROM produtos WHERE id IN (${placeholders}) FOR UPDATE`,
+                ids
+            );
+            const idsEncontrados = produtos.map(produto => Number(produto.id));
+            if (idsEncontrados.length) {
+                const encontradosPlaceholders = idsEncontrados.map(() => '?').join(',');
+                await connection.query(
+                    `DELETE FROM produtos WHERE id IN (${encontradosPlaceholders})`,
+                    idsEncontrados
+                );
+            }
+            await connection.commit();
+
+            if (global.io && idsEncontrados.length) {
+                global.io.emit('products-deleted', { ids: idsEncontrados });
+                idsEncontrados.forEach(id => global.io.emit('product-deleted', { id }));
+            }
+            return res.json({
+                success: true,
+                message: `${idsEncontrados.length} produto(s) excluído(s) do sistema.`,
+                excluidos: idsEncontrados,
+                nao_encontrados: ids.filter(id => !idsEncontrados.includes(id))
+            });
+        } catch (error) {
+            if (connection) {
+                try { await connection.rollback(); } catch (_) { /* noop */ }
+            }
+            next(error);
+        } finally {
+            if (connection) connection.release();
+        }
     });
 
     // PRODUTOS - Deletar produto
@@ -1307,7 +1963,8 @@ module.exports = function createPCPRoutes(deps) {
             const limit = Math.min(parseInt(req.query.limit) || 200, 500);
             const offset = parseInt(req.query.offset) || 0;
             const [rows] = await pool.query(`
-                SELECT id, numero, cliente_id, cliente_nome, valor, data_programada, status, tipo, observacoes, numero_nfe, created_at
+                SELECT id, numero, cliente_id, cliente_nome, valor, data_programada, data_vencimento,
+                       condicoes_pagamento, status, tipo, observacoes, numero_nfe, chave_acesso, created_at
                 FROM programacao_faturamento
                 ORDER BY data_programada DESC, id DESC
                 LIMIT ? OFFSET ?
@@ -1348,12 +2005,14 @@ module.exports = function createPCPRoutes(deps) {
                 return res.status(400).json({ errors: errors.array() });
             }
 
-            const { numero, cliente_id, cliente_nome, valor, status, tipo, data_programada, data_vencimento, observacoes } = req.body;
+            const { numero, cliente_id, cliente_nome, valor, status, tipo, data_programada,
+                data_vencimento, condicoes_pagamento, observacoes } = req.body;
 
             const sql = `
                 INSERT INTO programacao_faturamento
-                (numero, cliente_id, cliente_nome, valor, status, tipo, data_programada, data_vencimento, observacoes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                (numero, cliente_id, cliente_nome, valor, status, tipo, data_programada,
+                 data_vencimento, condicoes_pagamento, observacoes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             `;
 
             const [result] = await pool.query(sql, [
@@ -1365,6 +2024,7 @@ module.exports = function createPCPRoutes(deps) {
                 tipo || 'nfe',
                 data_programada,
                 data_vencimento || null,
+                condicoes_pagamento || null,
                 observacoes || null
             ]);
 
@@ -1380,19 +2040,20 @@ module.exports = function createPCPRoutes(deps) {
     router.put('/faturamentos/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
-            const { cliente_nome, valor, status, tipo, data_programada, data_vencimento, numero_nfe, chave_acesso, observacoes } = req.body;
+            const { cliente_nome, valor, status, tipo, data_programada, data_vencimento,
+                condicoes_pagamento, numero_nfe, chave_acesso, observacoes } = req.body;
 
             const sql = `
                 UPDATE programacao_faturamento
                 SET cliente_nome = ?, valor = ?, status = ?, tipo = ?,
-                    data_programada = ?, data_vencimento = ?, numero_nfe = ?,
+                    data_programada = ?, data_vencimento = ?, condicoes_pagamento = ?, numero_nfe = ?,
                     chave_acesso = ?, observacoes = ?, updated_at = NOW()
                 WHERE id = ?
             `;
 
             const [result] = await pool.query(sql, [
                 cliente_nome, valor, status, tipo, data_programada,
-                data_vencimento, numero_nfe, chave_acesso, observacoes, id
+                data_vencimento, condicoes_pagamento, numero_nfe, chave_acesso, observacoes, id
             ]);
 
             if (result.affectedRows === 0) {
@@ -1428,72 +2089,479 @@ module.exports = function createPCPRoutes(deps) {
     // =====================================================
 
     // GET - Próximo número de OP para o Kanban
+    // ================================================================
+    // CALCULADORA DE MATERIAL E BOBINA + REQUISIÇÃO DE COMPRA
+    //
+    // Responde, para um pedido de venda, quanto de cada matéria-prima ele
+    // consome e quantas bobinas vai ocupar — tudo pela Árvore de Produto
+    // (`kg_m` por insumo, `precos_kg`, `perdas_pct` e a lista de `bobinas`).
+    // A conta vive em utils/calculo-material.js; aqui só entram os dados.
+    // ================================================================
+
+    const {
+        calcularMaterialDoPedido,
+        candidatosCodigoArvore,
+        normalizarCodigo
+    } = require('../utils/calculo-material');
+
+    const CAMPOS_PIGMENTO_COMPOSICAO = [
+        ['MB_PVC', 'peso_mb_pvc_kg_m'],
+        ['MB_UV_PE', 'peso_mbuvpe_kg_m'],
+        ['MB_UV_PT', 'peso_mbuvpt_kg_m'],
+        ['MB_UV_CZ', 'peso_mbuvcz_kg_m'],
+        ['MB_UV_AZ', 'peso_mbuvaz_kg_m'],
+        ['MB_UV_VM', 'peso_mbuvvm_kg_m'],
+        ['MB_PE_AM', 'peso_mbpeam_kg_m'],
+        ['MB_PE_VD', 'peso_mbpevd_kg_m'],
+        ['MB_PE_VM', 'peso_mbpevm_kg_m'],
+        ['MB_PE_AZ', 'peso_mbpeaz_kg_m'],
+        ['MB_PE_BC', 'peso_mbpebc_kg_m'],
+        ['MB_PE_LJ', 'peso_mbpelj_kg_m'],
+        ['MB_PE_MR', 'peso_mbpemr_kg_m'],
+        ['MB_PVC_CZ', 'peso_mbpvccz_kg_m'],
+        ['MB_PVC_PT', 'peso_mbpvcpt_kg_m']
+    ];
+
+    async function enriquecerItensComPigmentosComposicao(itens) {
+        if (!Array.isArray(itens) || !itens.length) return itens;
+
+        const candidatosPorItem = itens.map(item => candidatosCodigoArvore(item.codigo));
+        const codigos = [...new Set(candidatosPorItem.flat().filter(Boolean))];
+        if (!codigos.length) return itens;
+
+        try {
+            const campos = CAMPOS_PIGMENTO_COMPOSICAO.map(([, campo]) => campo).join(', ');
+            const [rows] = await pool.query(
+                `SELECT codigo, cores, ${campos}
+                   FROM cabos_composicao
+                  WHERE ativo = 1 AND codigo IN (?)`,
+                [codigos]
+            );
+
+            const porCodigo = new Map();
+            rows.forEach(row => porCodigo.set(normalizarCodigo(row.codigo), row));
+
+            for (let idx = 0; idx < itens.length; idx++) {
+                const row = candidatosPorItem[idx]
+                    .map(c => porCodigo.get(normalizarCodigo(c)))
+                    .find(Boolean);
+                if (!row) continue;
+
+                const pigmentos = {};
+                for (const [insumo, campo] of CAMPOS_PIGMENTO_COMPOSICAO) {
+                    const kgPorMetro = Number(row[campo]) || 0;
+                    if (kgPorMetro > 0) pigmentos[insumo] = kgPorMetro;
+                }
+
+                if (Object.keys(pigmentos).length) {
+                    itens[idx].pigmentos_kg_m = pigmentos;
+                    itens[idx].codigo_composicao = row.codigo;
+                    itens[idx].cores = row.cores || null;
+                }
+            }
+        } catch (error) {
+            console.warn('[PCP/CALCULO-MATERIAL] Pigmentos da composição indisponíveis:', error.message);
+        }
+
+        return itens;
+    }
+
+    async function itensDoPedidoParaCalculo(pedidoId) {
+        const [[pedido]] = await pool.query(`
+            SELECT p.id, p.numero_pedido, p.status,
+                   COALESCE(c.razao_social, c.nome_fantasia, c.nome, p.cliente_nome, p.cliente) AS cliente_nome
+              FROM pedidos p
+              LEFT JOIN clientes c ON c.id = p.cliente_id
+             WHERE p.id = ? LIMIT 1
+        `, [pedidoId]);
+        if (!pedido) return null;
+
+        const [itens] = await pool.query(`
+            SELECT codigo, descricao, quantidade, unidade, lances
+              FROM pedido_itens WHERE pedido_id = ? ORDER BY id ASC
+        `, [pedidoId]);
+
+        await enriquecerItensComPigmentosComposicao(itens);
+
+        return { pedido, itens };
+    }
+
+    router.get('/pedidos/:id/calculo-material', async (req, res) => {
+        try {
+            const pedidoId = parseInt(req.params.id, 10);
+            if (!Number.isInteger(pedidoId) || pedidoId < 1) {
+                return res.status(400).json({ success: false, message: 'Pedido inválido.' });
+            }
+
+            const dados = await itensDoPedidoParaCalculo(pedidoId);
+            if (!dados) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+            if (!dados.itens.length) {
+                return res.status(400).json({ success: false, message: 'Este pedido não tem itens para calcular.' });
+            }
+
+            const arvore = arvoreFonte.lerArvore();
+            if (!arvore) {
+                return res.status(503).json({ success: false, message: 'Árvore de Produto indisponível no servidor.' });
+            }
+
+            const calculo = calcularMaterialDoPedido(dados.itens, arvore);
+            res.json({
+                success: true,
+                pedido: {
+                    id: dados.pedido.id,
+                    numero: dados.pedido.numero_pedido || String(dados.pedido.id),
+                    cliente: dados.pedido.cliente_nome,
+                    status: dados.pedido.status
+                },
+                ...calculo
+            });
+        } catch (error) {
+            console.error('[PCP/CALCULO-MATERIAL] Erro:', error.message);
+            res.status(500).json({ success: false, message: 'Não foi possível calcular o material.' });
+        }
+    });
+
+    // Manda para o Compras a necessidade de matéria-prima do pedido. A rota de
+    // requisições montada primeiro pelo server.js usa `requisicoes_compras` +
+    // `itens_requisicao`; gravar nessa tabela é o que faz a requisição aparecer
+    // na tela real do Compras em todas as instâncias.
+    // Quantidade pedida é o kg BRUTO: é o que precisa entrar no estoque para
+    // sobrar o líquido depois da perda.
+    router.post('/pedidos/:id/requisicao-material', async (req, res) => {
+        let conexao;
+        try {
+            const pedidoId = parseInt(req.params.id, 10);
+            if (!Number.isInteger(pedidoId) || pedidoId < 1) {
+                return res.status(400).json({ success: false, message: 'Pedido inválido.' });
+            }
+
+            const dados = await itensDoPedidoParaCalculo(pedidoId);
+            if (!dados) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+
+            const arvore = arvoreFonte.lerArvore();
+            if (!arvore) {
+                return res.status(503).json({ success: false, message: 'Árvore de Produto indisponível no servidor.' });
+            }
+
+            const calculo = calcularMaterialDoPedido(dados.itens, arvore);
+            const incluirBobinas = req.body?.incluir_bobinas !== false;
+
+            const linhasCalculadas = calculo.insumos.map(i => ({
+                descricao: `${i.rotulo} (${i.insumo})`,
+                quantidade: i.kg_bruto,
+                unidade: 'KG',
+                valor_estimado: i.preco_kg,
+                subtotal: i.custo,
+                observacao: `Comprimento ${Number(i.comprimento_m || 0).toFixed(2)} m | Líquido ${i.kg_liquido} kg + ${i.perda_pct}% de perda`
+            }));
+            if (incluirBobinas) {
+                for (const b of calculo.bobinas) {
+                    linhasCalculadas.push({
+                        descricao: `Bobina ${b.modelo} (até ${b.capacidade_kg} kg)`,
+                        quantidade: b.quantidade,
+                        unidade: 'UN',
+                        valor_estimado: b.valor_unitario,
+                        subtotal: b.custo,
+                        observacao: b.insuficiente ? 'Capacidade insuficiente para o lance — conferir' : null
+                    });
+                }
+            }
+            // O cadastro de Compras exige preço estimado positivo. Não criar
+            // uma linha com preço zero: ela pareceria requisitada, mas não seria
+            // utilizável para cotação. O aviso deixa claro o que foi omitido.
+            const linhasSemPreco = linhasCalculadas.filter(l => !(Number(l.valor_estimado) > 0));
+            const linhas = linhasCalculadas.filter(l => Number(l.quantidade) > 0 && Number(l.valor_estimado) > 0);
+            const avisosRequisicao = [...(calculo.avisos || [])];
+            linhasSemPreco.forEach(l => avisosRequisicao.push(`${l.descricao}: preço estimado ausente; não foi incluído na requisição.`));
+            if (!linhas.length) {
+                return res.status(400).json({ success: false, message: 'Nada a requisitar: nenhum item do pedido tem estrutura na Árvore de Produto.' });
+            }
+
+            // Uma requisição por pedido: reenviar duplicaria a compra.
+            const numeroPedido = dados.pedido.numero_pedido || String(dados.pedido.id);
+            const [jaExiste] = await pool.query(
+                "SELECT id, numero FROM requisicoes_compras WHERE projeto = ? AND status <> 'cancelada' ORDER BY id DESC LIMIT 1",
+                [`Pedido #${numeroPedido}`]
+            );
+            if (jaExiste.length && req.body?.forcar !== true) {
+                return res.status(409).json({
+                    success: false, ja_existe: true, requisicao: jaExiste[0],
+                    message: `Já existe a requisição ${jaExiste[0].numero} para o pedido #${numeroPedido}.`
+                });
+            }
+
+            conexao = await pool.getConnection();
+            await conexao.beginTransaction();
+
+            const [[ultimo]] = await conexao.query(
+                'SELECT numero FROM requisicoes_compras ORDER BY id DESC LIMIT 1 FOR UPDATE'
+            );
+            const casado = ultimo && String(ultimo.numero || '').match(/(\d+)$/);
+            const numero = `REQ-${String(casado ? parseInt(casado[1], 10) + 1 : 1).padStart(4, '0')}`;
+
+            const valorEstimado = linhas.reduce((s, l) => s + Number(l.subtotal || 0), 0);
+            const [ins] = await conexao.query(`
+                INSERT INTO requisicoes_compras
+                    (numero, solicitante, solicitante_id, departamento, data_requisicao,
+                     prioridade, projeto, justificativa, observacoes, status, valor_estimado)
+                VALUES (?, ?, ?, 'Produção', CURDATE(), 'media', ?, ?, ?, 'pendente', ?)
+            `, [
+                numero,
+                req.user?.nome || req.user?.email || 'PCP',
+                req.user?.id || null,
+                `Pedido #${numeroPedido}`,
+                `Matéria-prima do pedido #${numeroPedido}${dados.pedido.cliente_nome ? ' — ' + dados.pedido.cliente_nome : ''}, calculada pela Árvore de Produto (${calculo.revisao || 'sem revisão'}).`,
+                req.body?.observacoes || null,
+                valorEstimado
+            ]);
+
+            for (const l of linhas) {
+                await conexao.query(`
+                    INSERT INTO itens_requisicao
+                        (requisicao_id, descricao, quantidade, unidade, valor_estimado, observacao)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `, [ins.insertId, l.descricao, l.quantidade, l.unidade, l.valor_estimado, l.observacao]);
+            }
+
+            await conexao.commit();
+
+            if (typeof writeAuditLog === 'function') {
+                writeAuditLog({
+                    userId: req.user?.id, action: 'CREATE', module: 'pcp-requisicao',
+                    description: `Requisição ${numero} enviada ao Compras a partir do pedido #${numeroPedido}`,
+                    newData: { pedido_id: pedidoId, numero, itens: linhas.length, valor_estimado: valorEstimado },
+                    ip: req.ip, userAgent: req.headers['user-agent']
+                });
+            }
+
+            console.log(`[PCP/REQUISICAO] ${numero} criada do pedido #${numeroPedido} — ${linhas.length} itens, R$ ${valorEstimado.toFixed(2)}`);
+            res.status(201).json({
+                success: true, numero, id: ins.insertId,
+                itens: linhas.length, valor_estimado: valorEstimado,
+                avisos: avisosRequisicao
+            });
+        } catch (error) {
+            if (conexao) await conexao.rollback().catch(() => {});
+            console.error('[PCP/REQUISICAO] Erro:', error.message);
+            res.status(500).json({ success: false, message: 'Não foi possível enviar a requisição ao Compras.' });
+        } finally {
+            if (conexao) conexao.release();
+        }
+    });
+
+    // Mesma calculadora do ícone 🧮 individual, mas para VÁRIOS pedidos de uma vez (a
+    // seleção "N selecionados" da Carteira). Concatena os itens de todos os pedidos numa
+    // única chamada a calcularMaterialDoPedido — assim insumos e bobinas saem consolidados
+    // entre pedidos (duas notas do mesmo insumo viram uma linha só), igual ao comportamento
+    // de um pedido só. Somar os `totais` de N chamadas separadas perderia essa consolidação.
+    router.post('/carteira/calculo-material-lote', async (req, res) => {
+        try {
+            const pedidoIds = Array.isArray(req.body?.pedido_ids)
+                ? [...new Set(req.body.pedido_ids.map(id => parseInt(id, 10)).filter(id => Number.isInteger(id) && id > 0))]
+                : [];
+            if (!pedidoIds.length) {
+                return res.status(400).json({ success: false, message: 'Selecione ao menos um pedido.' });
+            }
+            if (pedidoIds.length > 200) {
+                return res.status(400).json({ success: false, message: 'Selecione no máximo 200 pedidos por vez.' });
+            }
+
+            const arvore = arvoreFonte.lerArvore();
+            if (!arvore) {
+                return res.status(503).json({ success: false, message: 'Árvore de Produto indisponível no servidor.' });
+            }
+
+            const pedidosEncontrados = [];
+            const pedidosSemItens = [];
+            const pedidosNaoEncontrados = [];
+            const todosItens = [];
+
+            for (const id of pedidoIds) {
+                const dados = await itensDoPedidoParaCalculo(id);
+                if (!dados) { pedidosNaoEncontrados.push(id); continue; }
+                if (!dados.itens.length) { pedidosSemItens.push(dados.pedido.numero_pedido || String(id)); continue; }
+                pedidosEncontrados.push({
+                    id: dados.pedido.id,
+                    numero: dados.pedido.numero_pedido || String(dados.pedido.id),
+                    cliente: dados.pedido.cliente_nome
+                });
+                todosItens.push(...dados.itens);
+            }
+
+            if (!todosItens.length) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Nenhum dos pedidos selecionados tem itens para calcular.'
+                });
+            }
+
+            const calculo = calcularMaterialDoPedido(todosItens, arvore);
+            const avisos = [...calculo.avisos];
+            if (pedidosSemItens.length) avisos.push(`Sem itens cadastrados: pedido(s) ${pedidosSemItens.join(', ')}.`);
+            if (pedidosNaoEncontrados.length) avisos.push(`Não encontrado(s): pedido(s) #${pedidosNaoEncontrados.join(', #')}.`);
+
+            res.json({
+                success: true,
+                pedidos: pedidosEncontrados,
+                total_pedidos: pedidosEncontrados.length,
+                revisao: calculo.revisao,
+                revisao_data: calculo.revisao_data,
+                insumos: calculo.insumos,
+                bobinas: calculo.bobinas,
+                totais: calculo.totais,
+                avisos
+            });
+        } catch (error) {
+            console.error('[PCP/CALCULO-MATERIAL-LOTE] Erro:', error.message);
+            res.status(500).json({ success: false, message: 'Não foi possível calcular o material dos pedidos selecionados.' });
+        }
+    });
+
     router.get('/ordens-kanban/proximo-numero', async (req, res) => {
         try {
             const ano = new Date().getFullYear();
-            const prefix = `OP Nº ${ano}/`;
-
-            // Buscar o maior número sequencial do ano corrente
-            const [rows] = await pool.query(
-                `SELECT codigo FROM ordens_producao
-                 WHERE codigo LIKE ?
-                 ORDER BY CAST(SUBSTRING_INDEX(codigo, '/', -1) AS UNSIGNED) DESC
-                 LIMIT 1`,
-                [`${prefix}%`]
-            );
-
-            let proximoSeq = 1;
-            if (rows && rows.length > 0) {
-                const ultimo = rows[0].codigo;
-                const partes = ultimo.split('/');
-                const ultimoNum = parseInt(partes[partes.length - 1]) || 0;
-                proximoSeq = ultimoNum + 1;
-            }
-
-            const numero = `${prefix}${String(proximoSeq).padStart(5, '0')}`;
+            const numero = await getNextOpCode(pool, ano, { lock: false });
+            const proximoSeq = parseInt(numero.split('/')[1], 10);
             res.json({ numero, sequencial: proximoSeq, ano });
         } catch (error) {
             console.error('[PCP/PROXIMO-NUMERO] Erro:', error.message);
-            // Fallback com timestamp
-            const ano = new Date().getFullYear();
-            const seq = String(Date.now()).slice(-5);
-            res.json({ numero: `OP Nº ${ano}/${seq}`, sequencial: parseInt(seq), ano });
+            res.status(500).json({ success: false, message: 'Não foi possível obter a sequência da OP' });
         }
     });
 
     // GET - Listar ordens para o Kanban
     router.get('/ordens-kanban', async (req, res, next) => {
         try {
+            const carregarTodas = String(req.query.all || '').toLowerCase() === '1' || String(req.query.all || '').toLowerCase() === 'true';
+            const limiteSolicitado = parseInt(req.query.limit, 10);
+            const limite = Number.isFinite(limiteSolicitado) && limiteSolicitado > 0
+                ? Math.min(limiteSolicitado, 800)
+                : 350;
+            const limiteSql = carregarTodas ? '' : 'LIMIT ?';
+            const params = carregarTodas ? [] : [limite];
+
             const [rows] = await pool.query(`
                 SELECT
-                    id,
-                    codigo as numero,
-                    produto_nome as produto,
-                    quantidade,
-                    quantidade_produzida as produzido,
-                    unidade,
-                    status,
-                    prioridade,
-                    data_inicio,
-                    data_prevista as dataConclusao,
-                    data_conclusao,
-                    responsavel,
-                    progresso,
-                    observacoes,
-                    created_at,
-                    updated_at
-                FROM ordens_producao
+                    op.id,
+                    COALESCE(p_id.numero_pedido, p_num.numero_pedido, NULLIF(op.numero_orcamento, ''), NULLIF(op.numero_pedido, ''), NULLIF(op.num_pedido, ''), NULLIF(op.pedido_referencia, ''), op.codigo) as numero,
+                    op.codigo as numero_op,
+                    COALESCE(p_id.numero_pedido, p_num.numero_pedido, NULLIF(op.numero_orcamento, ''), NULLIF(op.numero_pedido, ''), NULLIF(op.num_pedido, ''), NULLIF(op.pedido_referencia, ''), op.codigo) AS numero_orcamento,
+                    COALESCE(NULLIF(c_id.nome, ''), NULLIF(p_id.cliente_nome, ''), NULLIF(p_id.cliente, ''), NULLIF(c_num.nome, ''), NULLIF(p_num.cliente_nome, ''), NULLIF(p_num.cliente, ''), NULLIF(op.cliente_nome, ''), NULLIF(op.cliente, ''), 'Produção interna') AS cliente,
+                    COALESCE(NULLIF(p_id.valor, 0), NULLIF(p_num.valor, 0), NULLIF(op.valor_total, 0), NULLIF(op.total_geral, 0), 0) AS valor_pedido,
+                    COALESCE(
+                        (
+                            SELECT GROUP_CONCAT(DISTINCT NULLIF(TRIM(pi.descricao), '') SEPARATOR ', ')
+                            FROM pedido_itens pi
+                            WHERE pi.pedido_id = COALESCE(p_id.id, p_num.id)
+                        ),
+                        NULLIF(op.produto_nome, ''),
+                        NULLIF(op.descricao_produto, '')
+                    ) as produto,
+                    (
+                        SELECT GROUP_CONCAT(DISTINCT NULLIF(TRIM(pi.codigo), '') SEPARATOR ', ')
+                        FROM pedido_itens pi
+                        WHERE pi.pedido_id = COALESCE(p_id.id, p_num.id)
+                    ) AS produto_codigo,
+                    COALESCE(
+                        (
+                            SELECT GROUP_CONCAT(TRIM(CONCAT_WS(' - ', NULLIF(pi.codigo, ''), NULLIF(pi.descricao, ''))) SEPARATOR ', ')
+                            FROM pedido_itens pi
+                            WHERE pi.pedido_id = COALESCE(p_id.id, p_num.id)
+                        ),
+                        NULLIF(op.descricao_produto, ''),
+                        op.produto_nome
+                    ) as descricao_interna,
+                    COALESCE(
+                        (
+                            SELECT SUM(COALESCE(pi.quantidade, 0))
+                            FROM pedido_itens pi
+                            WHERE pi.pedido_id = COALESCE(p_id.id, p_num.id)
+                        ),
+                        op.quantidade
+                    ) AS quantidade,
+                    (
+                        SELECT SUM(COALESCE(pi.quantidade, 0))
+                        FROM pedido_itens pi
+                        WHERE pi.pedido_id = COALESCE(p_id.id, p_num.id)
+                    ) AS quantidade_pedido,
+                    op.quantidade AS quantidade_op,
+                    op.quantidade_produzida as produzido,
+                    COALESCE(
+                        (
+                            SELECT CASE
+                                WHEN COUNT(*) = 0 THEN NULL
+                                WHEN COUNT(DISTINCT COALESCE(NULLIF(pi.unidade, ''), 'UN')) = 1 THEN MAX(COALESCE(NULLIF(pi.unidade, ''), 'UN'))
+                                ELSE 'itens'
+                            END
+                            FROM pedido_itens pi
+                            WHERE pi.pedido_id = COALESCE(p_id.id, p_num.id)
+                        ),
+                        op.unidade
+                    ) AS unidade,
+                    (
+                        SELECT CASE
+                            WHEN COUNT(*) = 0 THEN NULL
+                            WHEN COUNT(DISTINCT COALESCE(NULLIF(pi.unidade, ''), 'UN')) = 1 THEN MAX(COALESCE(NULLIF(pi.unidade, ''), 'UN'))
+                            ELSE 'itens'
+                        END
+                        FROM pedido_itens pi
+                        WHERE pi.pedido_id = COALESCE(p_id.id, p_num.id)
+                    ) AS unidade_pedido,
+                    op.unidade AS unidade_op,
+                    op.status,
+                    op.prioridade,
+                    op.data_inicio,
+                    -- A data reprogramada na própria OP (PUT /ordens-producao/:id grava em
+                    -- op.data_prevista) manda; só quando a OP não tem data é que vale a
+                    -- previsão do pedido de Vendas.
+                    COALESCE(op.data_prevista, op.data_previsao_entrega, p_id.data_prevista, p_id.data_previsao, p_num.data_prevista, p_num.data_previsao) as dataConclusao,
+                    op.data_conclusao,
+                    op.responsavel,
+                    op.progresso,
+                    COALESCE(op.pedido_vinculado_id, op.pedido_id) AS pedido_id,
+                    COALESCE(p_id.numero_pedido, p_num.numero_pedido, op.numero_pedido, op.num_pedido) AS numero_pedido,
+                    op.observacoes,
+                    op.created_at,
+                    op.updated_at
+                FROM ordens_producao op
+                LEFT JOIN pedidos p_id ON p_id.id = COALESCE(op.pedido_vinculado_id, op.pedido_id)
+                LEFT JOIN clientes c_id ON c_id.id = COALESCE(op.cliente_id, p_id.cliente_id)
+                LEFT JOIN (
+                    SELECT MAX(id) AS id, numero_pedido
+                    FROM pedidos
+                    WHERE numero_pedido IS NOT NULL
+                      AND deleted_at IS NULL
+                      AND COALESCE(status, '') NOT IN ('excluido', 'excluído', 'cancelado', 'cancelada')
+                    GROUP BY numero_pedido
+                ) p_num_ref ON p_num_ref.numero_pedido = COALESCE(
+                    CASE WHEN op.numero_orcamento REGEXP '^[0-9]+$' THEN CAST(op.numero_orcamento AS UNSIGNED) ELSE NULL END,
+                    CASE WHEN op.numero_pedido REGEXP '^[0-9]+$' THEN CAST(op.numero_pedido AS UNSIGNED) ELSE NULL END,
+                    CASE WHEN op.num_pedido REGEXP '^[0-9]+$' THEN CAST(op.num_pedido AS UNSIGNED) ELSE NULL END,
+                    CASE WHEN op.pedido_referencia REGEXP '^[0-9]+$' THEN CAST(op.pedido_referencia AS UNSIGNED) ELSE NULL END,
+                    CASE
+                        WHEN op.codigo REGEXP '/[0-9]+$' THEN CAST(SUBSTRING_INDEX(op.codigo, '/', -1) AS UNSIGNED)
+                        WHEN op.codigo REGEXP '^[0-9]+$' THEN CAST(op.codigo AS UNSIGNED)
+                        ELSE NULL
+                    END
+                )
+                LEFT JOIN pedidos p_num ON p_num.id = p_num_ref.id
+                LEFT JOIN clientes c_num ON c_num.id = p_num.cliente_id
                 ORDER BY
-                    CASE status
+                    CASE op.status
                         WHEN 'ativa' THEN 1
                         WHEN 'em_producao' THEN 2
                         WHEN 'pendente' THEN 3
-                        WHEN 'concluida' THEN 4
-                        WHEN 'cancelada' THEN 5
+                        WHEN 'qualidade' THEN 3
+                        WHEN 'conferido' THEN 4
+                        WHEN 'concluida' THEN 5
+                        WHEN 'armazenado' THEN 6
+                        WHEN 'cancelada' THEN 7
+                        ELSE 8
                     END,
-                    data_prevista ASC,
-                    id DESC
-            `);
+                    op.data_prevista ASC,
+                    op.id DESC
+                ${limiteSql}
+            `, params);
 
             // Mapear status para o formato esperado pelo frontend
             const ordensFormatadas = rows.map(ordem => ({
@@ -1516,9 +2584,10 @@ module.exports = function createPCPRoutes(deps) {
         const connection = await pool.getConnection();
         try {
             const {
-                cliente, produto, codigo, quantidade, unidade,
+                cliente, cliente_nome, produto, codigo, quantidade, unidade,
                 data_previsao_entrega, vendedor, observacoes, observacoes_pedido, prioridade,
                 numero_orcamento, tipo_frete, prazo_entrega,
+                numero_pedido, num_pedido,
                 pedido_id, // Sprint 2 (P-01): vínculo real pedido→OP
                 produtos // Array de produtos do modal
             } = req.body;
@@ -1529,7 +2598,7 @@ module.exports = function createPCPRoutes(deps) {
             let pedidoVinculado = null;
             if (pedido_id) {
                 const [pedidoRows] = await connection.query(
-                    'SELECT id, status, cliente_nome, valor FROM pedidos WHERE id = ? FOR UPDATE', [pedido_id]
+                    'SELECT id, numero_pedido, status, cliente_nome, valor FROM pedidos WHERE id = ? FOR UPDATE', [pedido_id]
                 );
                 if (pedidoRows.length === 0) {
                     await connection.rollback();
@@ -1558,28 +2627,27 @@ module.exports = function createPCPRoutes(deps) {
                 }
             }
 
-            // Gerar código da ordem (com FOR UPDATE para evitar race condition P-04)
-            const [ultimaOrdem] = await connection.query(`
-                SELECT codigo FROM ordens_producao
-                WHERE codigo LIKE 'OP N° %'
-                ORDER BY id DESC LIMIT 1
-                FOR UPDATE
-            `);
-
-            let proximoNumero = 1;
-            if (ultimaOrdem.length > 0 && ultimaOrdem[0].codigo) {
-                const match = ultimaOrdem[0].codigo.match(/(\d+)$/);
-                if (match) proximoNumero = parseInt(match[1]) + 1;
-            }
-
-            const ano = new Date().getFullYear();
-            const codigoOrdem = `OP N° ${ano}/${String(proximoNumero).padStart(5, '0')}`;
+            // Sequência única: lê os formatos antigos e grava somente AAAA/NNNNN.
+            const codigoOrdem = await getNextOpCode(connection);
 
             // Nome do produto (pode vir do array ou do campo direto)
             const nomeProduto = produto || (produtos && produtos[0]?.descricao) || cliente || 'Produto não especificado';
             const codigoProduto = codigo || (produtos && produtos[0]?.codigo) || '';
             const qtd = quantidade || (produtos && produtos[0]?.quantidade) || 0;
             const und = unidade || (produtos && produtos[0]?.unidade) || 'M';
+            const clienteFinal = cliente || cliente_nome || pedidoVinculado?.cliente_nome || null;
+            // O número que a OP cita tem de ser o MESMO que o Vendas mostra:
+            // `pedidos.numero_pedido` é o número do documento lá (nasce orçamento e vira
+            // pedido com o mesmo número). Nem o `id` interno do pedido nem o código da OP
+            // servem — usar um deles era o que fazia o Nº Orçamento da OP não bater com o
+            // do Vendas. Com pedido vinculado ele manda; só a OP avulsa usa o da tela.
+            const numeroOrcamentoFinal = pedidoVinculado?.numero_pedido
+                || numero_orcamento || req.body.num_orcamento || req.body['num_orçamento'] || null;
+            const numeroPedidoFinal = pedidoVinculado?.numero_pedido || numero_pedido || num_pedido || null;
+            const valorProdutos = Array.isArray(produtos)
+                ? produtos.reduce((total, item) => total + Number(item.valor_total || item.subtotal || ((Number(item.quantidade) || 0) * (Number(item.valor_unitario) || 0))), 0)
+                : 0;
+            const valorTotalFinal = Number(pedidoVinculado?.valor || req.body.valor_total || req.body.total_geral || valorProdutos || 0);
 
             // Observações - aceita ambos os campos
             const obs = observacoes || observacoes_pedido || null;
@@ -1588,8 +2656,10 @@ module.exports = function createPCPRoutes(deps) {
                 INSERT INTO ordens_producao (
                     codigo, produto_nome, quantidade, unidade,
                     status, prioridade, data_prevista, responsavel, observacoes,
-                    progresso, quantidade_produzida, pedido_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'ativa', ?, ?, ?, ?, 0, 0, ?, NOW(), NOW())
+                    progresso, quantidade_produzida, pedido_id, pedido_vinculado_id,
+                    numero_pedido, numero_orcamento, cliente, cliente_nome,
+                    codigo_produto, descricao_produto, valor_total, total_geral, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'ativa', ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             `, [
                 codigoOrdem,
                 `${nomeProduto}${codigoProduto ? ' - ' + codigoProduto : ''}`,
@@ -1599,7 +2669,16 @@ module.exports = function createPCPRoutes(deps) {
                 data_previsao_entrega || null,
                 vendedor || null,
                 obs,
-                pedido_id || null
+                pedido_id || null,
+                pedido_id || null,
+                numeroPedidoFinal,
+                numeroOrcamentoFinal,
+                clienteFinal,
+                clienteFinal,
+                codigoProduto || null,
+                nomeProduto || null,
+                valorTotalFinal || 0,
+                valorTotalFinal || 0
             ]);
 
             // Sprint 2 (P-01): Marcar pedido com produção iniciada
@@ -1619,6 +2698,11 @@ module.exports = function createPCPRoutes(deps) {
             const novaOrdem = {
                 id: result.insertId,
                 numero: codigoOrdem,
+                numero_op: codigoOrdem,
+                numero_orcamento: numeroOrcamentoFinal,
+                cliente: clienteFinal,
+                cliente_nome: clienteFinal,
+                valor_pedido: valorTotalFinal || 0,
                 produto: nomeProduto,
                 codigo: codigoProduto,
                 quantidade: qtd,
@@ -1633,6 +2717,25 @@ module.exports = function createPCPRoutes(deps) {
             };
 
             console.log('✅ Ordem de produção criada:', codigoOrdem, pedido_id ? `(Pedido #${pedido_id})` : '');
+
+            notificarOrdemProducao({
+                numero: codigoOrdem,
+                clienteNome: cliente,
+                clienteId: req.body.cliente_id,
+                produto: nomeProduto,
+                quantidade: qtd,
+                unidade: und,
+                // O e-mail cita os mesmos números gravados na OP — antes mandava o `id`
+                // interno do pedido, que não existe para quem lê o aviso.
+                numeroPedido: numeroPedidoFinal,
+                numeroOrcamento: numeroOrcamentoFinal,
+                dataPrevisao: data_previsao_entrega,
+                vendedor,
+                prioridade: prioridade || 'media',
+                observacoes: obs,
+                itens: Array.isArray(produtos) ? produtos : []
+            }, req.user).catch((erro) => console.error('[PCP/OP-EMAIL] Erro assíncrono:', erro.message));
+
             res.status(201).json(novaOrdem);
         } catch (error) {
             await connection.rollback();
@@ -1685,6 +2788,14 @@ module.exports = function createPCPRoutes(deps) {
             updates.push('updated_at = NOW()');
             values.push(id);
 
+            // Se for concluir, verifica ANTES se já estava concluída — evita duplicar a baixa
+            // de estoque e o avanço do pedido caso a mesma conclusão seja enviada de novo.
+            let jaEstavaConcluida = false;
+            if (dbStatus === 'concluida') {
+                const [statusAtualRows] = await pool.query('SELECT status FROM ordens_producao WHERE id = ?', [id]);
+                jaEstavaConcluida = statusAtualRows.length > 0 && statusAtualRows[0].status === 'concluida';
+            }
+
             if (updates.length > 1) {
                 const [result] = await pool.query(
                     `UPDATE ordens_producao SET ${updates.join(', ')} WHERE id = ?`,
@@ -1695,7 +2806,7 @@ module.exports = function createPCPRoutes(deps) {
                     return res.status(404).json({ error: 'Ordem não encontrada' });
                 }
 
-                if (dbStatus === 'concluida') {
+                if (dbStatus === 'concluida' && !jaEstavaConcluida) {
                     // Pipeline: OP concluída → pedido para "faturar"
                     const pipeConn = await pool.getConnection();
                     try {
@@ -1874,8 +2985,15 @@ module.exports = function createPCPRoutes(deps) {
         const map = {
             'ativa': 'a_produzir',
             'em_producao': 'produzindo',
+            // 'pendente' é o valor legado (antes de qualidade/conferido terem status próprios)
+            // — mantido apontando para "qualidade" para não mudar a coluna de OPs antigas.
             'pendente': 'qualidade',
+            'qualidade': 'qualidade',
+            'conferido': 'conferido',
+            // 'concluida' é o valor legado de concluido/armazenado (antes de terem status
+            // próprios) — mantido apontando para "concluido" para não mudar OPs antigas.
             'concluida': 'concluido',
+            'armazenado': 'armazenado',
             'cancelada': 'cancelado'
         };
         return map[status] || 'a_produzir';
@@ -1886,7 +3004,10 @@ module.exports = function createPCPRoutes(deps) {
             'ativa': 'A Produzir',
             'em_producao': 'Produzindo',
             'pendente': 'Em Qualidade',
+            'qualidade': 'Em Qualidade',
+            'conferido': 'Conferido',
             'concluida': 'Concluída',
+            'armazenado': 'Armazenado',
             'cancelada': 'Cancelada'
         };
         return map[status] || 'Nova';
@@ -1894,13 +3015,17 @@ module.exports = function createPCPRoutes(deps) {
 
     function mapKanbanToStatus(statusKanban) {
         const map = {
-            // Kanban → DB
+            // Kanban → DB (cada coluna agora grava seu próprio status distinto, para
+            // não perder a posição no kanban ao recarregar — antes "qualidade" e
+            // "conferido" gravavam o mesmo valor 'pendente', e "concluido"/"armazenado"
+            // gravavam o mesmo valor 'concluida', fazendo o card "voltar" para a
+            // coluna errada após um refresh)
             'a_produzir': 'ativa',
             'produzindo': 'em_producao',
-            'qualidade': 'pendente',
-            'conferido': 'pendente',
+            'qualidade': 'qualidade',
+            'conferido': 'conferido',
             'concluido': 'concluida',
-            'armazenado': 'concluida',
+            'armazenado': 'armazenado',
             'cancelado': 'cancelada',
             // Identity (já é DB status)
             'ativa': 'ativa',
@@ -1918,7 +3043,8 @@ module.exports = function createPCPRoutes(deps) {
             const limit = Math.min(parseInt(req.query.limit) || 300, 500);
             const offset = parseInt(req.query.offset) || 0;
             const [rows] = await pool.query(`
-                SELECT id, codigo_produto, descricao_produto, quantidade, status, data_previsao_entrega, num_pedido, numero_pedido, cliente, observacoes, setor, created_at, updated_at
+                SELECT id, codigo_produto, descricao_produto, quantidade, status, data_previsao_entrega,
+                       num_pedido, numero_pedido, cliente, observacoes, NULL AS setor, created_at, updated_at
                 FROM ordens_producao
                 ORDER BY id DESC
                 LIMIT ? OFFSET ?
@@ -1974,6 +3100,55 @@ module.exports = function createPCPRoutes(deps) {
 
             const ordemId = await persistirOrdemProducaoGerada(dadosOrdem, req.user, downloadName);
             res.setHeader('X-Ordem-Producao-Id', String(ordemId));
+
+            // Fila automática PCP → Vendas: assim que a OP é gerada, o pedido de origem
+            // avança direto para "Aguardando Faturamento". Antes disso, o PCP tinha que
+            // gerar a OP aqui E depois abrir o Vendas só para arrastar o card — esse
+            // segundo passo manual deixa de existir. Só move pedidos que ainda estão em
+            // etapa anterior (não mexe se já faturado/cancelado/etc.), e uma falha aqui
+            // não pode derrubar a geração da OP em si (por isso fica fora da transação
+            // e não propaga erro).
+            const pedidoOrigemId = dadosOrdem.pedido_id || dadosOrdem.pedido_vinculado_id || null;
+            if (pedidoOrigemId) {
+                try {
+                    const [movResult] = await pool.query(
+                        `UPDATE pedidos
+                            SET status = 'aguardando-faturamento', updated_at = NOW()
+                          WHERE id = ?
+                            AND status IN ('orcamento','orçamento','analise','analise-credito','aprovado','pedido-aprovado')`,
+                        [pedidoOrigemId]
+                    );
+                    if (movResult.affectedRows > 0) {
+                        console.log(`[PIPELINE_AUTO] Pedido #${pedidoOrigemId} movido para "aguardando-faturamento" após geração da OP ${ordemId}`);
+                    }
+                } catch (moveErr) {
+                    console.error(`[PIPELINE_AUTO] Falha ao mover pedido #${pedidoOrigemId} para "aguardando-faturamento" após OP ${ordemId}:`, moveErr.message);
+                }
+            }
+
+            // Aviso por e-mail com a planilha anexa. Assíncrono de propósito:
+            // a resposta é o download do arquivo e não pode esperar o SMTP.
+            const itensOrdem = dadosOrdem.produtos || [];
+            const quantidadeTotalOrdem = itensOrdem.reduce((soma, item) => soma + (parseFloat(item.quantidade) || 0), 0);
+            notificarOrdemProducao({
+                numero: dadosOrdem.numero_ordem || dadosOrdem.codigo || `OP-${ordemId}`,
+                clienteNome: dadosOrdem.cliente || dadosOrdem.cliente_nome,
+                clienteId: dadosOrdem.cliente_id,
+                clienteCnpj: dadosOrdem.cliente_cnpj || dadosOrdem.cnpj,
+                produto: itensOrdem[0]?.descricao || itensOrdem[0]?.nome || dadosOrdem.produto_nome,
+                quantidade: quantidadeTotalOrdem,
+                unidade: itensOrdem[0]?.unidade || dadosOrdem.unidade,
+                numeroPedido: dadosOrdem.numero_pedido,
+                numeroOrcamento: dadosOrdem.numero_orcamento || dadosOrdem.num_orcamento,
+                dataPrevisao: dadosOrdem.data_previsao_entrega || dadosOrdem.prazo_entrega,
+                vendedor: dadosOrdem.vendedor || dadosOrdem.vendedor_nome,
+                prioridade: dadosOrdem.prioridade,
+                valorTotal: dadosOrdem.valor_total,
+                observacoes: dadosOrdem.observacao_producao || dadosOrdem.observacoes,
+                itens: itensOrdem
+            }, req.user, [{ filename: downloadName, content: Buffer.from(fileBuffer), contentType }])
+                .catch((erro) => console.error('[PCP/OP-EMAIL] Erro assíncrono:', erro.message));
+
             const encodedFilename = encodeURIComponent(downloadName).replace(/'/g, '%27');
             const asciiFilename = downloadName.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
             const buffer = Buffer.from(fileBuffer);
@@ -2206,32 +3381,7 @@ module.exports = function createPCPRoutes(deps) {
 
         } catch (error) {
             console.error('❌ Erro ao buscar materiais:', error);
-
-            // Fallback com dados de exemplo
-            const materiaisExemplo = [
-                {
-                    id: 1,
-                    codigo_material: 'ALU-001',
-                    descricao: 'Perfil de Alumínio 20x20mm',
-                    unidade_medida: 'M',
-                    preco_unitario: 15.50,
-                    quantidade_estoque: 100,
-                    fornecedor_padrao: 'ALUFORCE',
-                    categoria: 'Perfis'
-                },
-                {
-                    id: 2,
-                    codigo_material: 'ALU-002',
-                    descricao: 'Chapa de Alumínio 2mm',
-                    unidade_medida: 'M2',
-                    preco_unitario: 85.00,
-                    quantidade_estoque: 50,
-                    fornecedor_padrao: 'ALUFORCE',
-                    categoria: 'Chapas'
-                }
-            ];
-
-            res.json(materiaisExemplo);
+            res.status(500).json({ error: 'Erro ao buscar materiais' });
         }
     });
 
@@ -2249,6 +3399,36 @@ module.exports = function createPCPRoutes(deps) {
             let rows = [];
             let total = 0;
             let strategy = 'none';
+
+            // Tentativa 0 (PREFERIDA): produtos com saldo FÍSICO real em estoque_saldos —
+            // a fonte de verdade do estoque. produtos.estoque_atual está zerado, então sem
+            // isto a tela mostrava 0 / poucos itens. Casa por codigo = codigo_material.
+            if (total === 0) {
+                try {
+                    const sql0 = `
+                        SELECT p.*, s.quantidade_fisica AS saldo_fisico,
+                               s.quantidade_disponivel AS saldo_disponivel,
+                               s.quantidade_reservada AS saldo_reservado
+                        FROM produtos p
+                        INNER JOIN estoque_saldos s ON s.codigo_material COLLATE utf8mb4_general_ci = p.codigo COLLATE utf8mb4_general_ci
+                        WHERE s.quantidade_fisica > 0 AND (p.status = 'ativo' OR p.status IS NULL)
+                        ORDER BY COALESCE(p.descricao, p.nome) ASC
+                        LIMIT ? OFFSET ?
+                    `;
+                    [rows] = await pool.query(sql0, [limit, offset]);
+                    const [count0] = await pool.query(`
+                        SELECT COUNT(*) AS total
+                        FROM produtos p
+                        INNER JOIN estoque_saldos s ON s.codigo_material COLLATE utf8mb4_general_ci = p.codigo COLLATE utf8mb4_general_ci
+                        WHERE s.quantidade_fisica > 0 AND (p.status = 'ativo' OR p.status IS NULL)
+                    `);
+                    total = count0[0]?.total || 0;
+                    if (total > 0) strategy = 'estoque_saldos';
+                    console.log('[API_PRODUTOS_COM_ENTRADA] Tentativa 0 (estoque_saldos):', total);
+                } catch (err0) {
+                    console.warn('[API_PRODUTOS_COM_ENTRADA] estoque_saldos falhou:', err0.message);
+                }
+            }
 
             // Tentativa 1: tabela estoque_movimentacoes (com COLLATE para resolver mix de collations)
             if (total === 0) {
@@ -2352,7 +3532,9 @@ module.exports = function createPCPRoutes(deps) {
                                SUM(CASE WHEN b.tipo = 'rolo' THEN 1 ELSE 0 END) as qtd_rolos,
                                COALESCE(SUM(b.quantidade), 0) as quantidade_total
                         FROM produtos p
-                        INNER JOIN bobinas_estoque b ON b.produto_id = p.id
+                        -- BUG-ESTOQUE-001: bobinas_estoque.produto_id nao referencia produtos.id
+                        -- (espacos de ID disjuntos); a chave real e codigo_produto <-> p.codigo.
+                        INNER JOIN bobinas_estoque b ON b.codigo_produto COLLATE utf8mb4_general_ci = p.codigo COLLATE utf8mb4_general_ci
                         WHERE (p.status = 'ativo' OR p.status IS NULL)
                         GROUP BY p.id
                         ORDER BY COUNT(b.id) DESC, COALESCE(p.descricao, p.nome) ASC
@@ -2361,9 +3543,9 @@ module.exports = function createPCPRoutes(deps) {
                     [rows] = await pool.query(sql4, [limit, offset]);
 
                     const [countResult4] = await pool.query(`
-                        SELECT COUNT(DISTINCT b.produto_id) as total
+                        SELECT COUNT(DISTINCT p.id) as total
                         FROM bobinas_estoque b
-                        INNER JOIN produtos p ON p.id = b.produto_id
+                        INNER JOIN produtos p ON p.codigo COLLATE utf8mb4_general_ci = b.codigo_produto COLLATE utf8mb4_general_ci
                         WHERE (p.status = 'ativo' OR p.status IS NULL)
                     `);
                     total = countResult4[0]?.total || 0;
@@ -2372,6 +3554,31 @@ module.exports = function createPCPRoutes(deps) {
                 } catch (err4) {
                     console.warn('[API_PRODUTOS_COM_ENTRADA] bobinas_estoque falhou:', err4.message);
                 }
+            }
+
+            // FONTE ÚNICA DE SALDO: enriquecer TODAS as linhas com o saldo real de
+            // estoque_saldos (produtos.estoque_atual está zerado). Casa por codigo.
+            try {
+                const codigos = [...new Set(rows.map(r => r.codigo).filter(Boolean).map(String))];
+                if (codigos.length) {
+                    const ph = codigos.map(() => '?').join(',');
+                    const [saldos] = await pool.query(
+                        `SELECT codigo_material, quantidade_fisica, quantidade_disponivel, quantidade_reservada
+                         FROM estoque_saldos
+                         WHERE codigo_material COLLATE utf8mb4_general_ci IN (${ph})`, codigos);
+                    const smap = new Map(saldos.map(s => [String(s.codigo_material).trim().toLowerCase(), s]));
+                    rows.forEach(r => {
+                        const s = smap.get(String(r.codigo || '').trim().toLowerCase());
+                        if (s) {
+                            r.saldo_fisico = Number(s.quantidade_fisica) || 0;
+                            r.saldo_disponivel = Number(s.quantidade_disponivel) || 0;
+                            r.saldo_reservado = Number(s.quantidade_reservada) || 0;
+                            if (!Number(r.estoque_atual)) r.estoque_atual = r.saldo_fisico;
+                        }
+                    });
+                }
+            } catch (eSaldo) {
+                console.warn('[API_PRODUTOS_COM_ENTRADA] enriquecimento estoque_saldos falhou:', eSaldo.message);
             }
 
             // Calcular estatísticas
@@ -2413,51 +3620,241 @@ module.exports = function createPCPRoutes(deps) {
         }
     });
 
+    // Lista de almoxarifados (locais) existentes — p/ escolher ou ADICIONAR outro no endereçamento.
+    router.get('/estoque/almoxarifados', authenticateToken, async (req, res) => {
+        try {
+            const [rows] = await pool.query(
+                `SELECT DISTINCT localizacao_almoxarifado AS nome FROM produtos
+                 WHERE localizacao_almoxarifado IS NOT NULL AND TRIM(localizacao_almoxarifado) <> ''
+                 ORDER BY nome`);
+            const lista = rows.map(r => r.nome).filter(Boolean);
+            if (!lista.some(x => x.toLowerCase() === 'estoque')) lista.unshift('Estoque');
+            res.json({ success: true, almoxarifados: lista });
+        } catch (e) {
+            console.error('[PCP] Erro ao listar almoxarifados:', e.message);
+            res.json({ success: true, almoxarifados: ['Estoque'] });
+        }
+    });
+
+    // Consulta rápida p/ o SCANNER: produto + saldo real + endereço, por código do QR ou id.
+    router.get('/estoque/consulta', authenticateToken, async (req, res) => {
+        try {
+            const { codigo, produto_id } = req.query;
+            let where, param;
+            if (produto_id) { where = 'p.id = ?'; param = parseInt(produto_id); }
+            else if (codigo) { where = 'p.codigo COLLATE utf8mb4_general_ci = ?'; param = String(codigo).trim(); }
+            else return res.status(400).json({ success: false, message: 'Informe codigo ou produto_id' });
+            const [[p]] = await pool.query(
+                `SELECT p.id, p.codigo, COALESCE(p.nome, p.descricao) AS nome,
+                        COALESCE(p.unidade_medida, 'UN') AS unidade,
+                        COALESCE(s.quantidade_fisica, p.estoque_atual, 0) AS saldo,
+                        COALESCE(s.quantidade_disponivel, s.quantidade_fisica, p.estoque_atual, 0) AS disponivel,
+                        p.localizacao_almoxarifado, p.localizacao_corredor,
+                        p.localizacao_prateleira, p.localizacao_posicao, p.localizacao
+                 FROM produtos p
+                 LEFT JOIN estoque_saldos s ON s.codigo_material COLLATE utf8mb4_general_ci = p.codigo COLLATE utf8mb4_general_ci
+                 WHERE ${where} LIMIT 1`, [param]);
+            if (!p) return res.status(404).json({ success: false, message: 'Produto não encontrado' });
+            res.json({ success: true, produto: p });
+        } catch (e) {
+            console.error('[PCP] Erro na consulta de estoque:', e.message);
+            res.status(500).json({ success: false, message: 'Erro na consulta' });
+        }
+    });
+
+    // Salvar ENDEREÇAMENTO (localização física) de um produto — chão de fábrica.
+    router.put('/produtos/:id(\\d+)/localizacao', authenticateToken, async (req, res) => {
+        try {
+            const id = parseInt(req.params.id);
+            const almoxarifado = (req.body.almoxarifado || '').trim() || null;
+            const corredor = (req.body.corredor || '').trim() || null;
+            const prateleira = (req.body.prateleira || '').trim() || null;
+            const posicao = (req.body.posicao || '').trim() || null;
+            const resumo = [almoxarifado, corredor && ('Corr ' + corredor), prateleira && ('Prat ' + prateleira), posicao && ('Pos ' + posicao)]
+                .filter(Boolean).join(' · ') || null;
+            const [r] = await pool.query(
+                `UPDATE produtos SET localizacao_almoxarifado = ?, localizacao_corredor = ?,
+                        localizacao_prateleira = ?, localizacao_posicao = ?, localizacao = ?
+                 WHERE id = ?`,
+                [almoxarifado, corredor, prateleira, posicao, resumo, id]);
+            if (!r.affectedRows) return res.status(404).json({ success: false, message: 'Produto não encontrado' });
+            res.json({ success: true, message: 'Localização salva', localizacao: resumo });
+        } catch (e) {
+            console.error('[PCP] Erro ao salvar localização:', e.message);
+            res.status(500).json({ success: false, message: 'Erro ao salvar localização' });
+        }
+    });
+
+    // Inativar produto — o botão "Inativar" do modal de produto do PCP
+    // (modules/PCP/index.html) chamava PATCH /produtos/:id/inativar, que não
+    // existia: a tela dizia "Erro ao inativar produto" para todo mundo.
+    //
+    // É diferente do DELETE /produtos/:id logo acima: inativar PRESERVA o produto
+    // e o histórico de movimentação; só tira ele das listas de seleção.
+    // `produtos.ativo` é a coluna que as telas já leem (373 ativos / 3 inativos).
+    router.patch('/produtos/:id(\\d+)/inativar', authenticateToken, async (req, res) => {
+        try {
+            const id = parseInt(req.params.id, 10);
+            // `reativar: true` no corpo faz o caminho de volta — sem isso não
+            // haveria como desfazer um clique errado a não ser no banco.
+            const ativo = (req.body && (req.body.reativar === true || req.body.reativar === 'true')) ? 1 : 0;
+
+            const [r] = await pool.query('UPDATE produtos SET ativo = ? WHERE id = ?', [ativo, id]);
+            if (!r.affectedRows) return res.status(404).json({ success: false, message: 'Produto não encontrado' });
+
+            // `status` é texto livre e algumas telas filtram por ele — mantido
+            // coerente com `ativo` para as duas leituras concordarem.
+            try {
+                await pool.query('UPDATE produtos SET status = ? WHERE id = ?', [ativo ? 'ativo' : 'inativo', id]);
+            } catch (e) { /* base sem a coluna `status` */ }
+
+            console.log(`[PCP] Produto #${id} ${ativo ? 'reativado' : 'inativado'} por usuário ${req.user?.id || '?'}`);
+            res.json({
+                success: true,
+                message: ativo ? 'Produto reativado' : 'Produto inativado',
+                ativo
+            });
+        } catch (e) {
+            console.error('[PCP] Erro ao inativar produto:', e.message);
+            res.status(500).json({ success: false, message: 'Erro ao inativar produto' });
+        }
+    });
+
+    // Saldo de um produto POR CÓDIGO — usado pela checagem de disponibilidade
+    // antes de aprovar pedido de venda (modules/_shared/integracoes/pcp-vendas.js),
+    // que esperava `{ quantidade_disponivel }` e recebia 404. Sem a rota, a
+    // verificação passava batido e o pedido era aprovado sem conferir estoque.
+    //
+    // O saldo vem de `produtos.estoque_atual` — o mesmo razão que a venda baixa
+    // (ver services/estoque-ponte.service.js). O que está reservado para outros
+    // pedidos é descontado quando a tabela de reservas existe nesta base.
+    router.get('/estoque/produto/:codigo', authenticateToken, async (req, res) => {
+        try {
+            const codigo = String(req.params.codigo || '').trim();
+            if (!codigo) return res.status(400).json({ success: false, message: 'Código obrigatório' });
+
+            const [[produto]] = await pool.query(
+                `SELECT id, codigo, nome, unidade_medida,
+                        COALESCE(estoque_atual, 0)  AS estoque_atual,
+                        COALESCE(estoque_minimo, 0) AS estoque_minimo,
+                        COALESCE(ativo, 1)          AS ativo
+                   FROM produtos
+                  WHERE TRIM(codigo) = ? OR TRIM(sku) = ?
+                  LIMIT 1`,
+                [codigo, codigo]
+            );
+
+            if (!produto) {
+                // 200 com zero, e não 404: para quem chama, "produto que não existe
+                // no PCP" e "produto sem saldo" levam à mesma decisão, e um 404 aqui
+                // fazia o `if (estoqueResponse.ok)` pular a checagem inteira.
+                return res.json({
+                    codigo, encontrado: false,
+                    quantidade_disponivel: 0, quantidade_reservada: 0, estoque_atual: 0
+                });
+            }
+
+            let reservada = 0;
+            try {
+                const [[r]] = await pool.query(
+                    `SELECT COALESCE(SUM(quantidade), 0) AS q
+                       FROM estoque_reservas
+                      WHERE TRIM(codigo_material) = ? AND status = 'ativa'`,
+                    [codigo]
+                );
+                reservada = parseFloat(r && r.q) || 0;
+            } catch (e) {
+                // Base sem controle de reservas — o disponível é o saldo cheio.
+                if (e.code !== 'ER_NO_SUCH_TABLE') {
+                    console.warn('[PCP] Reservas não consultadas:', e.message);
+                }
+            }
+
+            const atual = parseFloat(produto.estoque_atual) || 0;
+            res.json({
+                codigo: produto.codigo,
+                encontrado: true,
+                produto_id: produto.id,
+                descricao: produto.nome,
+                unidade: produto.unidade_medida || 'UN',
+                estoque_atual: atual,
+                quantidade_reservada: reservada,
+                quantidade_disponivel: Math.max(0, Math.round((atual - reservada) * 1000) / 1000),
+                estoque_minimo: parseFloat(produto.estoque_minimo) || 0,
+                ativo: !!produto.ativo
+            });
+        } catch (e) {
+            console.error('[PCP] Erro ao consultar saldo do produto:', e.message);
+            res.status(500).json({ success: false, message: 'Erro ao consultar saldo do produto' });
+        }
+    });
+
     // API para buscar movimentações de estoque de um produto
     // SECURITY: Requer autenticação
     router.get('/estoque/movimentacoes', authenticateToken, async (req, res) => {
         console.log('[API_ESTOQUE_MOVIMENTACOES] Requisição recebida:', req.query);
         try {
             const { produto_id, codigo_material, limit = 20 } = req.query;
+            const lim = Math.min(parseInt(limit) || 20, 500);
 
-            if (!produto_id && !codigo_material) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Informe produto_id ou codigo_material'
-                });
-            }
+            // HISTÓRICO UNIFICADO: junta as 3 tabelas de movimento que os módulos gravam
+            // (movimentacoes_estoque=PCP, estoque_movimentacoes=Compras/fiscal,
+            // estoque_movimentos=Vendas) para que TUDO apareça — antes o front lia só uma
+            // tabela e o que era lançado por outra sumia. Aliases compatíveis com o front:
+            // tipo/data_movimentacao/quantidade[_anterior/_atual]/produto_nome/documento/motivo.
+            let pid = produto_id ? parseInt(produto_id) : null;
+            let cod = codigo_material || null;
+            if (pid && !cod) { const [[p]] = await pool.query('SELECT codigo FROM produtos WHERE id=?', [pid]); cod = p?.codigo || null; }
+            if (cod && !pid) { const [[p]] = await pool.query('SELECT id FROM produtos WHERE codigo=? LIMIT 1', [cod]); pid = p?.id || null; }
+            const temFiltro = !!(pid || cod);
+            const fME = temFiltro ? 'WHERE me.produto_id = ?' : '';
+            const fEM = temFiltro ? 'WHERE em.codigo_material COLLATE utf8mb4_general_ci = ?' : '';
+            const fMV = temFiltro ? 'WHERE mv.produto_id = ?' : '';
 
-            // Buscar código do produto se foi passado o ID
-            let codigoMaterial = codigo_material;
-            if (produto_id && !codigo_material) {
-                const [[produto]] = await pool.query(
-                    'SELECT codigo FROM produtos WHERE id = ?',
-                    [produto_id]
-                );
-                codigoMaterial = produto?.codigo || produto_id;
-            }
-
-            // Buscar movimentações
             const sql = `
-                SELECT em.*,
-                       u.nome as usuario_nome,
-                       DATE_FORMAT(em.data_movimento, '%d/%m/%Y %H:%i') as data_formatada
-                FROM estoque_movimentacoes em
-                LEFT JOIN usuarios u ON em.usuario_id = u.id
-                WHERE em.codigo_material = ? OR em.codigo_material = ?
-                ORDER BY em.data_movimento DESC
+                SELECT t.*, u.nome AS usuario_nome,
+                       DATE_FORMAT(t.data_movimentacao, '%d/%m/%Y %H:%i') AS data_formatada
+                FROM (
+                    SELECT COALESCE(me.data_movimentacao, me.created_at) AS data_movimentacao,
+                           UPPER(me.tipo) COLLATE utf8mb4_general_ci AS tipo, me.quantidade AS quantidade,
+                           me.quantidade_anterior AS quantidade_anterior, me.quantidade_atual AS quantidade_atual,
+                           me.produto_id AS produto_id, CAST(p.codigo AS CHAR) COLLATE utf8mb4_general_ci AS codigo,
+                           CAST(COALESCE(p.nome, p.descricao) AS CHAR) COLLATE utf8mb4_general_ci AS produto_nome,
+                           CAST(me.documento AS CHAR) COLLATE utf8mb4_general_ci AS documento,
+                           CAST(COALESCE(me.observacoes, me.motivo) AS CHAR) COLLATE utf8mb4_general_ci AS motivo,
+                           CAST('PCP' AS CHAR) COLLATE utf8mb4_general_ci AS origem, me.usuario_id AS usuario_id
+                    FROM movimentacoes_estoque me
+                    LEFT JOIN produtos p ON p.id = me.produto_id
+                    ${fME}
+                    UNION ALL
+                    SELECT em.data_movimento, UPPER(em.tipo_movimento) COLLATE utf8mb4_general_ci, em.quantidade,
+                           em.quantidade_anterior, em.quantidade_atual, p.id, CAST(em.codigo_material AS CHAR) COLLATE utf8mb4_general_ci,
+                           CAST(COALESCE(p.nome, p.descricao, em.codigo_material) AS CHAR) COLLATE utf8mb4_general_ci,
+                           CAST(em.documento_numero AS CHAR) COLLATE utf8mb4_general_ci,
+                           CAST(em.observacao AS CHAR) COLLATE utf8mb4_general_ci, CAST(COALESCE(em.origem, 'Compras') AS CHAR) COLLATE utf8mb4_general_ci, em.usuario_id
+                    FROM estoque_movimentacoes em
+                    LEFT JOIN produtos p ON p.codigo COLLATE utf8mb4_general_ci = em.codigo_material COLLATE utf8mb4_general_ci
+                    ${fEM}
+                    UNION ALL
+                    SELECT mv.data_movimento, UPPER(mv.tipo_movimento) COLLATE utf8mb4_general_ci, mv.quantidade,
+                           NULL, NULL, mv.produto_id, CAST(p.codigo AS CHAR) COLLATE utf8mb4_general_ci,
+                           CAST(COALESCE(p.nome, p.descricao) AS CHAR) COLLATE utf8mb4_general_ci, CAST(mv.documento_id AS CHAR) COLLATE utf8mb4_general_ci,
+                           CAST(mv.observacoes AS CHAR) COLLATE utf8mb4_general_ci, CAST('Venda' AS CHAR) COLLATE utf8mb4_general_ci, mv.usuario_id
+                    FROM estoque_movimentos mv
+                    LEFT JOIN produtos p ON p.id = mv.produto_id
+                    ${fMV}
+                ) t
+                LEFT JOIN usuarios u ON u.id = t.usuario_id
+                ORDER BY t.data_movimentacao DESC
                 LIMIT ?
             `;
+            const params = [];
+            if (temFiltro) { params.push(pid, cod, pid); }
+            params.push(lim);
+            const [rows] = await pool.query(sql, params);
 
-            const [rows] = await pool.query(sql, [codigoMaterial, String(produto_id), parseInt(limit)]);
-
-            console.log('[API_ESTOQUE_MOVIMENTACOES] Encontradas', rows.length, 'movimentações para', codigoMaterial);
-
-            res.json({
-                success: true,
-                movimentacoes: rows,
-                total: rows.length
-            });
+            console.log('[API_ESTOQUE_MOVIMENTACOES] Unificado:', rows.length, 'movimentações', temFiltro ? `(produto ${pid||cod})` : '(global)');
+            res.json({ success: true, movimentacoes: rows, rows, total: rows.length });
 
         } catch (error) {
             console.error('[API_ESTOQUE_MOVIMENTACOES] Erro:', error.message);
@@ -2490,23 +3887,62 @@ module.exports = function createPCPRoutes(deps) {
             const colunaSelect = tabela === 'produtos'
                 ? 'COALESCE(estoque_atual, 0) as quantidade, nome, codigo'
                 : 'quantidade_estoque as quantidade, descricao as nome, codigo_material as codigo';
-            const [[item]] = await pool.query(`SELECT ${colunaSelect} FROM ${tabela} WHERE id = ?`, [itemId]);
-            if (!item) return res.status(404).json({ success: false, message: `${tabela === 'materiais' ? 'Material' : 'Produto'} não encontrado` });
-
-            const quantidadeAnterior = parseFloat(item.quantidade) || 0;
-            let novaQuantidade;
             const qtd = parseFloat(quantidade);
-            switch (tipoNorm) {
-                case 'ENTRADA':  novaQuantidade = quantidadeAnterior + qtd; break;
-                case 'SAIDA':    novaQuantidade = quantidadeAnterior - qtd; break;
-                case 'AJUSTE':   novaQuantidade = qtd; break;
-            }
-            if (novaQuantidade < 0) return res.status(400).json({ success: false, message: 'Quantidade insuficiente em estoque' });
 
+            // K-CONC: leitura + escrita do saldo tem que ser atômica. O SELECT roda dentro
+            // da transação com FOR UPDATE p/ travar a linha; sem isso, duas SAIDA concorrentes
+            // liam o mesmo saldo, gravavam por cima (lost update) e furavam o guard de estoque negativo.
             const conn = await pool.getConnection();
+            let quantidadeAnterior, novaQuantidade, item;
             try {
                 await conn.beginTransaction();
-                await conn.query(`UPDATE ${tabela} SET ${coluna} = ? WHERE id = ?`, [novaQuantidade, itemId]);
+                const [[row]] = await conn.query(`SELECT ${colunaSelect} FROM ${tabela} WHERE id = ? FOR UPDATE`, [itemId]);
+                if (!row) {
+                    await conn.rollback();
+                    return res.status(404).json({ success: false, message: `${tabela === 'materiais' ? 'Material' : 'Produto'} não encontrado` });
+                }
+                item = row;
+
+                if (tabela === 'produtos') {
+                    // FONTE ÚNICA: o saldo do produto vive em estoque_saldos (por codigo).
+                    // Lemos/gravamos lá com FOR UPDATE e espelhamos em produtos.estoque_atual.
+                    const codigoProd = item.codigo;
+                    const [[saldoRow]] = await conn.query(
+                        'SELECT quantidade_fisica, quantidade_reservada FROM estoque_saldos WHERE codigo_material = ? FOR UPDATE',
+                        [codigoProd]
+                    );
+                    quantidadeAnterior = saldoRow ? (parseFloat(saldoRow.quantidade_fisica) || 0) : (parseFloat(item.quantidade) || 0);
+                    const reservada = saldoRow ? (parseFloat(saldoRow.quantidade_reservada) || 0) : 0;
+                    switch (tipoNorm) {
+                        case 'ENTRADA':  novaQuantidade = quantidadeAnterior + qtd; break;
+                        case 'SAIDA':    novaQuantidade = quantidadeAnterior - qtd; break;
+                        case 'AJUSTE':   novaQuantidade = qtd; break;
+                    }
+                    if (novaQuantidade < 0) {
+                        await conn.rollback();
+                        return res.status(400).json({ success: false, message: 'Quantidade insuficiente em estoque' });
+                    }
+                    // quantidade_disponivel é COLUNA GERADA (fisica - reservada) → não gravar.
+                    const campoData = tipoNorm === 'SAIDA' ? 'ultima_saida' : 'ultima_entrada';
+                    if (saldoRow) {
+                        await conn.query(`UPDATE estoque_saldos SET quantidade_fisica = ?, ${campoData} = NOW() WHERE codigo_material = ?`, [novaQuantidade, codigoProd]);
+                    } else {
+                        await conn.query(`INSERT INTO estoque_saldos (codigo_material, descricao, quantidade_fisica, quantidade_reservada, ${campoData}) VALUES (?, ?, ?, 0, NOW())`, [codigoProd, item.nome || codigoProd, novaQuantidade]);
+                    }
+                    await conn.query('UPDATE produtos SET estoque_atual = ? WHERE id = ?', [novaQuantidade, itemId]);
+                } else {
+                    quantidadeAnterior = parseFloat(item.quantidade) || 0;
+                    switch (tipoNorm) {
+                        case 'ENTRADA':  novaQuantidade = quantidadeAnterior + qtd; break;
+                        case 'SAIDA':    novaQuantidade = quantidadeAnterior - qtd; break;
+                        case 'AJUSTE':   novaQuantidade = qtd; break;
+                    }
+                    if (novaQuantidade < 0) {
+                        await conn.rollback();
+                        return res.status(400).json({ success: false, message: 'Quantidade insuficiente em estoque' });
+                    }
+                    await conn.query(`UPDATE ${tabela} SET ${coluna} = ? WHERE id = ?`, [novaQuantidade, itemId]);
+                }
                 await conn.query(`
                     INSERT INTO movimentacoes_estoque
                     (material_id, produto_id, tipo, quantidade, quantidade_anterior, quantidade_atual, observacoes, local, documento, usuario_id, created_at)
@@ -4034,9 +5470,12 @@ module.exports = function createPCPRoutes(deps) {
 
                 console.log('✅ ExcelJS carregado');
 
-                // Usar caminho relativo simples para evitar problemas de encoding
-                // 🔧 USAR TEMPLATE ORIGINAL COMPLETO para preservar formatação e fórmulas
-                const templatePath = 'modules/PCP/Ordem de Produção.xlsx';
+                // 🔧 TEMPLATE POR EMPRESA (23/07/2026): cada marca tem seu modelo de OP.
+                // Os modelos de Aluforce e Energy foram atualizados pelo cliente e divergem
+                // entre si no rodapé (observações/pagamento/total ficam em linhas diferentes),
+                // por isso o layout é DETECTADO em runtime — ver detectarLayoutOP().
+                // labor-eletric segue no template genérico até receber modelo próprio.
+                const templatePath = resolverTemplateOP();
                 const dataOrdem = dadosOrdem.data_liberacao || new Date().toLocaleDateString('pt-BR');
                 // Formatar nome do cliente para nome de arquivo válido
                 const nomeCliente = (dadosOrdem.cliente || dadosOrdem.cliente_razao || 'Cliente').replace(/[/\\:*?"<>|]/g, '_').trim();
@@ -4106,8 +5545,13 @@ module.exports = function createPCPRoutes(deps) {
 
     // ==================== ORDEM DE PRODUÇÃO → PDF (XSL-FO / Apache FOP) ====================
     // Pipeline: dados → XML (xmlbuilder2) → XSLT transforma em XSL-FO → Apache FOP gera PDF
-    const { gerarOrdemXML } = require('../services/ordem-xml-generator');
+    const { gerarOrdemXML, formatarData } = require('../services/ordem-xml-generator');
     const { gerarPdfComFop, verificarFop } = require('../services/fop-pdf-service');
+    // PDF da OP sai diretamente do template HTML aprovado
+    // (modules/PCP/Ordem de Produção - Template.html), renderizado pelo Puppeteer.
+    // A exportação em .xlsx NÃO foi tocada e continua no caminho do ExcelJS.
+    const { montarHtmlOrdemProducao } = require('../services/op-html-render.service');
+    const { htmlParaPdf } = require('../services/pdf-render.service');
     const { buscarConfiguracoesEmpresa, formatarDadosParaPDF } = require('../modules/_shared/services/empresa-config.service');
 
     // GET /api/ordem-pdf/status - Verifica se FOP está disponível
@@ -4196,16 +5640,32 @@ module.exports = function createPCPRoutes(deps) {
                     estado: dadosEmpPDF.estado,
                     enderecoCompleto: `${dadosEmpPDF.endereco}, ${dadosEmpPDF.numero || ''} - ${dadosEmpPDF.bairro || ''}`.replace(/ - $/, '')
                 };
+                // O objeto acima é um recorte (sem CNPJ/IE/telefone/e-mail/site). O
+                // cabeçalho do template HTML precisa dos campos completos.
+                dadosOrdem.empresaPDF = dadosEmpPDF;
             } catch (empErr) {
                 console.warn('⚠️ Erro ao buscar config empresa para OP PDF:', empErr.message);
             }
 
-            // 1. Gerar XML estruturado
-            const xmlContent = gerarOrdemXML(dadosOrdem);
-            console.log(`📝 XML gerado: ${xmlContent.length} bytes`);
+            // 1. Montar o HTML a partir do template aprovado da OP
+            const htmlOrdem = montarHtmlOrdemProducao(dadosOrdem, dadosOrdem.empresaPDF);
+            console.log(`📝 HTML da OP montado: ${htmlOrdem.length} bytes`);
 
-            // 2. Converter XML → PDF via Apache FOP (XSL-FO)
-            const pdfBuffer = await gerarPdfComFop(xmlContent);
+            // `formato=html` devolve o próprio template para a tela. Antes, a tela
+            // montava um HTML PRÓPRIO no cliente (gerarPdfOP em modules/PCP/js/
+            // index-inline.js) e o PDF saía daqui: eram dois documentos diferentes
+            // para a mesma OP. Agora a tela e o PDF são o mesmo template.
+            const formato = String(req.query.formato || dadosOrdem.formato || '').toLowerCase();
+            if (formato === 'html') {
+                res.setHeader('Content-Type', 'text/html; charset=utf-8');
+                return res.send(htmlOrdem);
+            }
+
+            // 2. HTML → PDF (Puppeteer). O template já define as margens em mm
+            // dentro do .report-page, então a página sai sem margem extra.
+            const pdfBuffer = await htmlParaPdf(htmlOrdem, {
+                margens: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' }
+            });
             console.log(`✅ PDF gerado: ${pdfBuffer.length} bytes`);
 
             // 3. Enviar PDF
@@ -4227,6 +5687,178 @@ module.exports = function createPCPRoutes(deps) {
                 error: 'Erro ao gerar PDF da Ordem de Produção',
                 detalhe: error.message
             });
+        }
+    });
+
+    // GET /ordens-producao/:id/pdf-completo - Gera o PDF (mesmo template XSL-FO do /api/gerar-ordem-pdf)
+    // para uma ordem JÁ SALVA no banco. Usado pela tela de visualização/impressão da OP, que antes
+    // não tinha acesso aos dados comerciais (cliente, vendedor, orçamento etc.) porque a listagem
+    // (GET /ordens-kanban) não seleciona essas colunas.
+    router.get('/ordens-producao/:id/pdf-completo', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const [[ordem]] = await pool.query('SELECT * FROM ordens_producao WHERE id = ?', [id]);
+            if (!ordem) {
+                return res.status(404).json({ success: false, message: 'Ordem de produção não encontrada' });
+            }
+
+            // A OP guarda os dados de produção, mas os dados comerciais continuam no
+            // pedido que a originou. A mesma resolução usada pela aba Produtos evita
+            // PDFs com cliente preenchido e preço/lance/cores/pesos zerados.
+            const resultadoItens = await produtosDaOrdem(id);
+            const pedidoBasico = resultadoItens && resultadoItens.pedido;
+            let pedido = null;
+            if (pedidoBasico && pedidoBasico.id) {
+                const [[linhaPedido]] = await pool.query(`
+                    SELECT p.*,
+                           COALESCE(c.razao_social, c.nome, p.cliente_nome, p.cliente) AS cliente_razao_social,
+                           COALESCE(c.cnpj_cpf, c.cnpj, c.cpf) AS cliente_documento,
+                           COALESCE(p.contato, c.nome_contato, c.contato) AS cliente_contato_real,
+                           COALESCE(p.email_cliente, c.email_nfe, c.email) AS cliente_email_real,
+                           COALESCE(c.telefone, c.fone, c.celular) AS cliente_telefone_real,
+                           c.cep AS cliente_cep_real,
+                           CONCAT_WS(', ', NULLIF(c.endereco, ''), NULLIF(c.numero, '')) AS cliente_logradouro,
+                           CONCAT_WS(' - ', NULLIF(c.bairro, ''),
+                               NULLIF(CONCAT_WS('/', NULLIF(c.cidade, ''), NULLIF(c.estado, '')), '')) AS cliente_localidade,
+                           COALESCE(NULLIF(p.vendedor_nome, ''), NULLIF(p.vendedor_orcamento_nome, ''),
+                               NULLIF(u.nome, ''), NULLIF(c.vendedor_padrao, ''), NULLIF(c.vendedor_responsavel, '')) AS vendedor_real,
+                           COALESCE(NULLIF(t.razao_social, ''), NULLIF(t.nome_fantasia, ''),
+                               NULLIF(p.transportadora_nome, ''), NULLIF(p.transportadora, '')) AS transportadora_real,
+                           t.cnpj_cpf AS transportadora_documento,
+                           t.telefone AS transportadora_telefone_real,
+                           t.email AS transportadora_email_real,
+                           t.cep AS transportadora_cep_real,
+                           CONCAT_WS(', ', NULLIF(t.endereco, ''), NULLIF(t.numero, '')) AS transportadora_logradouro,
+                           CONCAT_WS(' - ', NULLIF(t.bairro, ''),
+                               NULLIF(CONCAT_WS('/', NULLIF(t.cidade, ''), NULLIF(t.estado, '')), '')) AS transportadora_localidade
+                    FROM pedidos p
+                    LEFT JOIN clientes c ON c.id = p.cliente_id
+                    LEFT JOIN usuarios u ON u.id = p.vendedor_id
+                    LEFT JOIN transportadoras t ON t.id = p.transportadora_id
+                    WHERE p.id = ?
+                    LIMIT 1
+                `, [pedidoBasico.id]);
+                pedido = linhaPedido || pedidoBasico;
+            }
+
+            // Itens próprios da produção têm prioridade; sem materialização, a rotina
+            // traz pedido_itens e completa cores/pesos pela árvore e estrutura.
+            let produtos = [];
+            if (resultadoItens && Array.isArray(resultadoItens.itens) && resultadoItens.itens.length) {
+                produtos = resultadoItens.itens
+                    .filter(item => item.status !== 'cancelado')
+                    .map(item => ({
+                        ...item,
+                        valor_unitario: item.valor_unitario,
+                        valor_total: item.valor_total
+                    }));
+            }
+            const produtosRaw = ordem.produtos_json || ordem.produtos;
+            if (!produtos.length && produtosRaw) {
+                try {
+                    produtos = typeof produtosRaw === 'string' ? JSON.parse(produtosRaw) : produtosRaw;
+                    if (!Array.isArray(produtos)) produtos = [];
+                } catch (_) { produtos = []; }
+            }
+            if (produtos.length === 0) {
+                produtos = [{
+                    codigo: ordem.codigo_produto || ordem.codigo || '',
+                    descricao: ordem.descricao_produto || ordem.produto_nome || '',
+                    embalagem: ordem.tipo_embalagem_entrega || 'Bobina',
+                    lances: '',
+                    quantidade: ordem.quantidade || 0,
+                    valor_unitario: 0,
+                    codigo_cores: ordem.cores_pe || '',
+                    peso_liquido: ordem.peso_liquido || '',
+                    lote: ordem.codigo || ''
+                }];
+            }
+
+            const somarProdutos = campo => produtos.reduce(
+                (total, item) => total + (Number(item && item[campo]) || 0), 0
+            );
+            const embalagensProdutos = [...new Set(produtos
+                .map(item => String((item && item.embalagem) || '').trim())
+                .filter(Boolean))];
+            const volumesPorLances = produtos.reduce((total, item) => {
+                const texto = String((item && item.lances) || '').trim();
+                const match = texto.match(/^(\d+)\s*[xX]/);
+                return total + (match ? Number(match[1]) : (texto ? 1 : 0));
+            }, 0);
+            const pesoBrutoItens = somarProdutos('peso_bruto');
+            const pesoLiquidoItens = somarProdutos('peso_liquido');
+
+            const dadosOrdem = {
+                numero_orcamento: ordem.numero_orcamento || ordem.codigo || '',
+                revisao: ordem.revisao || '01',
+                numero_pedido: ordem.numero_pedido || ordem.num_pedido || (pedido && pedido.numero_pedido) || '',
+                data_liberacao: ordem.data_liberacao ? formatarData(ordem.data_liberacao) : formatarData(ordem.created_at),
+                vendedor: ordem.vendedor || ordem.vendedor_nome || (pedido && pedido.vendedor_real) || '',
+                prazo_entrega: ordem.prazo_entrega || (pedido && (pedido.prazo_entrega || (pedido.data_prevista && formatarData(pedido.data_prevista)))) || (ordem.data_prevista ? formatarData(ordem.data_prevista) : ''),
+                tipo_frete: ordem.tipo_frete || ordem.frete || (pedido && (pedido.tipo_frete || pedido.frete)) || 'CIF',
+                cliente: ordem.cliente_nome || ordem.cliente || (pedido && pedido.cliente_razao_social) || '',
+                contato_cliente: ordem.cliente_contato || ordem.contato || (pedido && pedido.cliente_contato_real) || '',
+                fone_cliente: ordem.cliente_telefone || ordem.telefone || (pedido && pedido.cliente_telefone_real) || '',
+                email_cliente: ordem.cliente_email || ordem.email || (pedido && pedido.cliente_email_real) || '',
+                cpf_cnpj: ordem.cliente_cnpj || (pedido && pedido.cliente_documento) || '',
+                endereco: ordem.cliente_endereco || (pedido && [pedido.cliente_logradouro, pedido.cliente_localidade].filter(Boolean).join(' - ')) || '',
+                cep: ordem.cliente_cep || (pedido && pedido.cliente_cep_real) || '',
+                transportadora_nome: ordem.transportadora_nome || (pedido && pedido.transportadora_real) || '',
+                transportadora_fone: ordem.transportadora_telefone || ordem.transportadora_fone || (pedido && pedido.transportadora_telefone_real) || '',
+                transportadora_cep: ordem.transportadora_cep || (pedido && pedido.transportadora_cep_real) || '',
+                transportadora_endereco: ordem.transportadora_endereco || (pedido && [pedido.transportadora_logradouro, pedido.transportadora_localidade].filter(Boolean).join(' - ')) || '',
+                transportadora_cpf_cnpj: ordem.transportadora_cnpj || ordem.transportadora_cpf_cnpj || (pedido && pedido.transportadora_documento) || '',
+                transportadora_email_nfe: ordem.transportadora_email_nfe || (pedido && pedido.transportadora_email_real) || '',
+                produtos,
+                forma_pagamento: ordem.forma_pagamento || (pedido && (pedido.condicao_pagamento || pedido.condicoes_pagamento)) || '',
+                prazo_pagamento: ordem.condicoes_pagamento || (pedido && (pedido.parcelas || pedido.condicoes_pagamento)) || '',
+                observacoes: ordem.observacoes_pedido || ordem.observacoes || (pedido && (pedido.observacao_cliente || pedido.info_complementar)) || '',
+                observacoes_entrega: ordem.observacoes_entrega || '',
+                observacao_producao: ordem.observacao_producao || ordem.observacoes_producao || (pedido && pedido.observacao_producao) || '',
+                observacoes_producao: ordem.observacoes_producao || ordem.observacao_producao || (pedido && pedido.observacao_producao) || '',
+                qtd_volumes: Number(ordem.qtd_volumes) || (pedido && Number(pedido.qtd_volumes)) || volumesPorLances || '',
+                embalagem_resumo: ordem.tipo_embalagem_entrega || (pedido && pedido.especie_volumes) || embalagensProdutos.join(', '),
+                peso_bruto: Number(ordem.peso_bruto) || (pedido && Number(pedido.peso_bruto)) || pesoBrutoItens || '',
+                peso_liquido: Number(ordem.peso_liquido) || (pedido && Number(pedido.peso_liquido)) || pesoLiquidoItens || '',
+                status_entrega: (ordem.status === 'concluida' || ordem.status === 'armazenado') ? 'COMPLETO' : 'PARCIAL'
+            };
+
+            try {
+                const empresaConfig = await buscarConfiguracoesEmpresa(pool);
+                const dadosEmpPDF = formatarDadosParaPDF(empresaConfig);
+                dadosOrdem.empresa = {
+                    nome: dadosEmpPDF.nome,
+                    razao_social: dadosEmpPDF.nome,
+                    endereco: dadosEmpPDF.endereco,
+                    bairro: dadosEmpPDF.bairro || '',
+                    cep: dadosEmpPDF.cep,
+                    cidade: dadosEmpPDF.cidade,
+                    estado: dadosEmpPDF.estado,
+                    enderecoCompleto: `${dadosEmpPDF.endereco}, ${dadosEmpPDF.numero || ''} - ${dadosEmpPDF.bairro || ''}`.replace(/ - $/, '')
+                };
+                // O objeto acima é um recorte (sem CNPJ/IE/telefone/e-mail/site). O
+                // cabeçalho do template HTML precisa dos campos completos.
+                dadosOrdem.empresaPDF = dadosEmpPDF;
+            } catch (empErr) {
+                console.warn('⚠️ Erro ao buscar config empresa para OP PDF (completo):', empErr.message);
+            }
+
+            const htmlOrdem = montarHtmlOrdemProducao(dadosOrdem, dadosOrdem.empresaPDF);
+            const pdfBuffer = await htmlParaPdf(htmlOrdem, {
+                margens: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' }
+            });
+
+            const nomeArquivo = `Ordem de Produção - ${ordem.codigo || id}.pdf`;
+            const encodedFilename = encodeURIComponent(nomeArquivo).replace(/'/g, '%27');
+            const asciiFilename = nomeArquivo.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
+
+            res.setHeader('Content-Disposition', `inline; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Length', pdfBuffer.length);
+            res.send(pdfBuffer);
+        } catch (error) {
+            console.error('❌ Erro ao gerar PDF completo da ordem de produção:', error);
+            res.status(500).json({ success: false, message: 'Erro ao gerar PDF da Ordem de Produção', detalhe: error.message });
         }
     });
 
@@ -4259,6 +5891,92 @@ module.exports = function createPCPRoutes(deps) {
     });
 
     // Função para gerar Excel da Ordem de Produção usando ExcelJS COM TEMPLATE CORRETO
+    /**
+     * Resolve o template de Ordem de Produção da empresa desta instância.
+     * Modelos atualizados em 23/07/2026 (pasta "modules/PCP/Modelo OP - Atualizado").
+     */
+    // A escolha do modelo mora em utils/op-template.js porque agora o admin pode
+    // enviar um .xlsx próprio pelas Configurações do Sistema — o gerador e a tela de
+    // configuração têm de concordar sobre qual arquivo está valendo.
+    const resolverTemplateOP = require('../utils/op-template').resolverTemplateOP;
+
+    /**
+     * Descobre, LENDO O PRÓPRIO TEMPLATE, onde ficam as seções da OP.
+     * Necessário porque os modelos de Aluforce e Energy não são iguais: o Energy tem
+     * o rodapé deslocado ~1 linha (total, observações, formas de pagamento, COMPLETO/
+     * PARCIAL) e mais um bloco de item na aba PRODUÇÃO. Hardcodar linhas quebraria um
+     * dos dois — e quebraria de novo a cada revisão do modelo.
+     */
+    function detectarLayoutOP(abaVendas, abaProducao) {
+        const txt = (cell) => {
+            const v = cell && cell.value;
+            if (v == null) return '';
+            if (typeof v === 'object') {
+                if (v.richText) return v.richText.map(t => t.text).join('');
+                if (v.formula) return '';
+                return '';
+            }
+            return String(v);
+        };
+        const formula = (cell) => (cell && cell.value && typeof cell.value === 'object' && cell.value.formula) ? cell.value.formula : '';
+        const achaLinha = (col, teste, ini, fim) => {
+            for (let r = ini; r <= fim; r++) {
+                if (teste(txt(abaVendas.getCell(`${col}${r}`)).trim().toUpperCase())) return r;
+            }
+            return null;
+        };
+
+        // Última linha de produto: coluna A numera os itens (1,2,3...) a partir da 18.
+        let ultimaLinhaProduto = 32;
+        for (let r = 18; r <= 60; r++) {
+            const v = abaVendas.getCell(`A${r}`).value;
+            if (typeof v === 'number' || (typeof v === 'string' && /^\d+$/.test(v.trim()))) ultimaLinhaProduto = r;
+            else if (r > 18) break;
+        }
+
+        // Total do pedido: primeira célula da coluna I cuja fórmula soma a faixa de produtos.
+        let totalCell = 'I35';
+        for (let r = ultimaLinhaProduto; r <= ultimaLinhaProduto + 8; r++) {
+            if (/^SUM\(J18:J\d+\)$/i.test(formula(abaVendas.getCell(`I${r}`)).replace(/\s/g, ''))) { totalCell = `I${r}`; break; }
+        }
+
+        // "Observações do Pedido": o conteúdo fica na linha seguinte ao rótulo.
+        const lblObsPedido = achaLinha('E', t => t.includes('OBSERVAÇÕES DO PEDIDO'), ultimaLinhaProduto, ultimaLinhaProduto + 10)
+            || achaLinha('A', t => t.includes('OBSERVAÇÕES DO PEDIDO'), ultimaLinhaProduto, ultimaLinhaProduto + 10);
+        const obsPedidoCell = `A${(lblObsPedido || 36) + 1}`;
+
+        // "FORMAS DE PAGAMENTO": cabeçalho; as 2 formas ficam nas 2 linhas seguintes.
+        const lblFormas = achaLinha('A', t => t === 'FORMAS DE PAGAMENTO', ultimaLinhaProduto, ultimaLinhaProduto + 20) || 44;
+        const pagLinha1 = lblFormas + 1;
+        const pagLinha2 = lblFormas + 2;
+
+        // "QTD - VOLUME:" (mesma linha traz "EMBALAGEM:" na coluna F, valor em H).
+        const qtdVolumeRow = achaLinha('A', t => t.includes('QTD - VOLUME'), lblFormas, lblFormas + 10) || 48;
+
+        // "OBSERVAÇÕES:" (para a produção) — conteúdo na linha seguinte.
+        const lblObsProd = achaLinha('E', t => t === 'OBSERVAÇÕES:', qtdVolumeRow, qtdVolumeRow + 8) || 50;
+        const obsProducaoCell = `E${lblObsProd + 1}`;
+
+        // COMPLETO / PARCIAL (marcação de entrega na coluna C).
+        const completoRow = achaLinha('C', t => t === 'COMPLETO', lblObsProd, lblObsProd + 8) || 51;
+        const parcialRow = achaLinha('C', t => t === 'PARCIAL', completoRow, completoRow + 8) || 53;
+
+        // Aba PRODUÇÃO: blocos de item de 3 em 3 linhas, ligados a VENDAS_PCP!B{n}.
+        const linhasProducao = [];
+        if (abaProducao) {
+            for (let r = 13; r <= 90; r += 3) {
+                if (/VENDAS_PCP!B\d+/i.test(formula(abaProducao.getCell(`B${r}`)))) linhasProducao.push(r);
+                else if (linhasProducao.length) break;
+            }
+        }
+
+        return {
+            ultimaLinhaProduto, totalCell, obsPedidoCell, pagLinha1, pagLinha2,
+            qtdVolumeRow, obsProducaoCell, completoRow, parcialRow,
+            linhasProducao: linhasProducao.length ? linhasProducao : [13, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 52, 55]
+        };
+    }
+
     async function gerarExcelOrdemProducaoCompleta(dados, ExcelJS, templatePath) {
         console.log('📂 Carregando template Excel...');
 
@@ -4272,6 +5990,10 @@ module.exports = function createPCPRoutes(deps) {
         if (!abaVendas) {
             throw new Error('Aba VENDAS_PCP não encontrada no template!');
         }
+
+        // Layout lido do próprio template (Aluforce e Energy divergem no rodapé)
+        const layout = detectarLayoutOP(abaVendas, abaProducao);
+        console.log(`📐 Layout detectado: ${JSON.stringify(layout)}`);
 
         console.log(`✅ Template carregado! Abas encontradas: ${workbook.worksheets.map(w => w.name).join(', ')}`);
         console.log('🔧 Usando template PREENCHIDO - fórmulas serão preservadas!\n');
@@ -4306,11 +6028,12 @@ module.exports = function createPCPRoutes(deps) {
         // 🔧 FIX BUG-OP-04: E4 - Revisão (campo existente no modal mas nunca escrito no template)
         abaVendas.getCell('E4').value = dados.revisao || '';
 
-        // G4 - Número do Pedido (como número se possível)
+        // G4 - Número da OP: sempre texto puro AAAA/NNNNN, sem "OP Nº".
         const numPedido = dados.numero_pedido || dados.num_pedido || '0';
-        // Se for vazio ou NaN, usar 0
-        const numPedidoFinal = numPedido === '' || numPedido === null || numPedido === undefined ? '0' : numPedido;
-        abaVendas.getCell('G4').value = isNaN(numPedidoFinal) ? numPedidoFinal : parseFloat(numPedidoFinal);
+        const numPedidoBruto = numPedido === '' || numPedido === null || numPedido === undefined ? '0' : numPedido;
+        const numPedidoFinal = normalizeOpCode(numPedidoBruto) || String(numPedidoBruto).trim();
+        abaVendas.getCell('G4').value = numPedidoFinal;
+        abaVendas.getCell('G4').numFmt = '@';
 
         // J4 - Data de Liberação (como objeto Date)
         if (dados.data_liberacao) {
@@ -4363,6 +6086,19 @@ module.exports = function createPCPRoutes(deps) {
                 // 🔧 FIX BUG-R4-22: <input type="date"> envia yyyy-mm-dd → parsear sem UTC
                 const [y, m, d] = dados.prazo_entrega.split('-');
                 abaVendas.getCell('H6').value = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+            } else if (/^\s*\d+\s*(dias?)?\s*$/i.test(String(dados.prazo_entrega))) {
+                // O prazo vem do Vendas como PRAZO EM DIAS ("30", "30 Dias"), não como data
+                // — é o que o select da OP guarda. Sem este ramo o texto "30 Dias" caía
+                // cru na célula e a OP saía sem data de entrega.
+                const diasPrazo = parseInt(String(dados.prazo_entrega).match(/\d+/)[0], 10);
+                const dataLibPrazo = abaVendas.getCell('J4').value;
+                if (dataLibPrazo instanceof Date) {
+                    const vencimento = new Date(dataLibPrazo);
+                    vencimento.setDate(vencimento.getDate() + diasPrazo);
+                    abaVendas.getCell('H6').value = vencimento;
+                } else {
+                    abaVendas.getCell('H6').value = dados.prazo_entrega;
+                }
             } else {
                 abaVendas.getCell('H6').value = dados.prazo_entrega;
             }
@@ -4382,12 +6118,9 @@ module.exports = function createPCPRoutes(deps) {
         abaVendas.getCell('C7').value = dados.cliente || '';
         abaVendas.getCell('C8').value = dados.contato || dados.contato_cliente || '';
 
-        // H8 - Telefone (como texto formatado, NÃO parseFloat — perde precisão em 11+ dígitos)
+        // H8 - Telefone FORMATADO (texto): (DD) 9XXXX-XXXX. Antes saía só dígitos (11962397527).
         const telefone = dados.telefone || dados.fone_cliente || '';
-        const telefoneNum = String(telefone).replace(/\D/g, '');
-        // 🔧 FIX BUG-R5-30: parseFloat('11999887766') → 11999887766 OK, mas parseFloat('119998877660') → perde dígitos
-        // Manter como string para números com 11+ dígitos
-        abaVendas.getCell('H8').value = telefoneNum || telefone;
+        abaVendas.getCell('H8').value = formatarTelefoneBR(telefone);
 
         abaVendas.getCell('C9').value = dados.email || dados.email_cliente || '';
         abaVendas.getCell('J9').value = dados.frete || dados.tipo_frete || '';
@@ -4404,8 +6137,7 @@ module.exports = function createPCPRoutes(deps) {
         // 🔧 H12 - Telefone da transportadora (manter como string — NÃO parseFloat)
         const telefoneTransp = dados.transportadora_fone || dados.transportadora?.fone || telefone || '';
         if (telefoneTransp) {
-            const telefoneTranspNum = String(telefoneTransp).replace(/\D/g, '');
-            abaVendas.getCell('H12').value = telefoneTranspNum || telefoneTransp;
+            abaVendas.getCell('H12').value = formatarTelefoneBR(telefoneTransp);
             console.log(`   Transportadora Fone: ${telefoneTransp}`);
         } else {
             abaVendas.getCell('H12').value = '';
@@ -4448,9 +6180,13 @@ module.exports = function createPCPRoutes(deps) {
         }
         const cellC15 = abaVendas.getCell('C15');
         if (cnpjStr && cnpjStr.length >= 11) {
-            cellC15.value = Number(cnpjStr);
-            // Formatação visual igual ao template preenchido
-            cellC15.numFmt = '[<=99999999999]000.000.000-00;00.000.000/0000-00';
+            // CPF/CNPJ nunca pode ser convertido para Number: documentos de 14 dígitos
+            // são exibidos pelo Excel em notação científica e podem perder precisão.
+            const documentoFormatado = cnpjStr.length === 11
+                ? cnpjStr.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
+                : cnpjStr.slice(0, 14).replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+            cellC15.value = documentoFormatado;
+            cellC15.numFmt = '@';
         } else {
             cellC15.value = ''; // Deixar vazio quando não informado (evita "TEMP" com formato)
         }
@@ -4507,7 +6243,7 @@ module.exports = function createPCPRoutes(deps) {
 
         // ⚠️ LINHA 17 É CABEÇALHO, PRODUTOS COMEÇAM NA LINHA 18!
         let linhaAtual = 18;
-        const LINHA_MAXIMA_PRODUTOS = 32; // Última linha de produtos
+        const LINHA_MAXIMA_PRODUTOS = layout.ultimaLinhaProduto; // detectado do template (32/33)
 
         // 🔧 Construir catálogo de produtos do template (colunas N:O)
         const catalogoProdutos = {};
@@ -4520,9 +6256,29 @@ module.exports = function createPCPRoutes(deps) {
         }
         console.log(`📚 Catálogo carregado: ${Object.keys(catalogoProdutos).length} produtos`);
 
+        // 🎨 Catálogo de CÓDIGO DE CORES (aba PRODUÇÃO, colunas N=código e P=Cod. Cores).
+        // O template já traz um VLOOKUP nessa coluna, mas ele só resolve quando o Excel
+        // RECALCULA o arquivo. Em visualizadores que não recalculam (preview do navegador,
+        // Google Drive, alguns leitores) a cor saía EM BRANCO. Aqui resolvemos o valor no
+        // servidor e gravamos como resultado da fórmula — a cor aparece em qualquer visualizador.
+        const catalogoCores = {};
+        if (abaProducao) {
+            for (let r = 18; r <= 320; r++) {
+                const cod = abaProducao.getCell(`N${r}`).value;
+                const cor = abaProducao.getCell(`P${r}`).value;
+                if (cod && cor && String(cod).trim().toUpperCase() !== 'PRODUTO') {
+                    catalogoCores[String(cod).trim().toUpperCase()] = String(cor).trim();
+                }
+            }
+        }
+        console.log(`🎨 Catálogo de cores carregado: ${Object.keys(catalogoCores).length} códigos`);
+
         produtos.forEach((prod, index) => {
             if (prod && linhaAtual <= LINHA_MAXIMA_PRODUTOS) {
-                const codigoProd = String(prod.codigo || '').trim().toUpperCase();
+                // 🐛 FIX 23/07/2026: o modal de OP envia a chave ACENTUADA (`código`), então
+                // `prod.codigo` vinha UNDEFINED e o produto ia para a planilha SEM CÓDIGO —
+                // o que quebrava o VLOOKUP da descrição E o do Cod. Cores (cor em branco).
+                const codigoProd = String(prod.codigo || prod['código'] || '').trim().toUpperCase();
                 // 🔧 FIX BUG-OP-05: Fallback para 'descrição' com cedilha (frontend envia com ç)
                 const descricaoCatalogo = catalogoProdutos[codigoProd] || prod.descricao || prod['descrição'] || prod.nome || '';
 
@@ -4543,6 +6299,11 @@ module.exports = function createPCPRoutes(deps) {
                 // C - Descrição do produto: SEMPRE forçar texto direto (evita "VLOOKUP" visível)
                 const cellC = abaVendas.getCell(`C${linhaAtual}`);
                 cellC.value = descricaoCatalogo || prod.descricao || prod['descrição'] || prod.nome || '';
+                // Fonte 8: a descrição ocupa o merge C:E (~38 de largura). No modelo da Aluforce e
+                // no genérico (o que Eletric e Cobal usam) ela vinha em 10 e o nome do cabo era
+                // cortado — só o da Energy já nascia em 8. Mantém família/negrito do template e
+                // muda apenas o tamanho, para as 4 saírem iguais.
+                cellC.font = { ...(cellC.font || {}), size: 8 };
 
                 // F - Embalagem (default 'Bobina' conforme dropdown do frontend)
                 abaVendas.getCell(`F${linhaAtual}`).value = prod.embalagem || 'Bobina';
@@ -4584,7 +6345,7 @@ module.exports = function createPCPRoutes(deps) {
 
         // Reforçar formatação de I18-I32 e J18-J32 após o preenchimento dos produtos
         // Linha 17 é cabeçalho, produtos começam na 18
-        for (let i = 18; i <= 32; i++) {
+        for (let i = 18; i <= LINHA_MAXIMA_PRODUTOS; i++) {
             // Preço unitário
             abaVendas.getCell(`I${i}`).numFmt = 'R$ #,##0.00';
             const valorUnit = abaVendas.getCell(`I${i}`).value;
@@ -4603,15 +6364,15 @@ module.exports = function createPCPRoutes(deps) {
         // Calcular e preencher TOTAL GERAL (somando todas as linhas de produtos)
         // Produtos nas linhas 18-32
         let totalGeral = 0;
-        for (let i = 18; i <= 32; i++) {
+        for (let i = 18; i <= LINHA_MAXIMA_PRODUTOS; i++) {
             const valorLinha = parseFloat(abaVendas.getCell(`J${i}`).value) || 0;
             totalGeral += valorLinha;
         }
 
         // Preencher célula de total (I35 conforme template)
         // Template mostra: I34="Total do Pedido:$" e I35=fórmula de soma
-        abaVendas.getCell('I35').value = totalGeral;
-        abaVendas.getCell('I35').numFmt = 'R$ #,##0.00';
+        abaVendas.getCell(layout.totalCell).value = totalGeral;
+        abaVendas.getCell(layout.totalCell).numFmt = 'R$ #,##0.00';
         console.log(`💰 Total Geral calculado: R$ ${totalGeral.toFixed(2)}`);
 
         console.log(`✅ ${produtos.length} produtos preenchidos!`);
@@ -4620,13 +6381,15 @@ module.exports = function createPCPRoutes(deps) {
         // ABA VENDAS_PCP - OBSERVAÇÕES (linhas 36-54)
         // ========================================
 
-        // Observações do Pedido (área 36-42 tem merge de células A-J)
-        if (dados.observacoes || dados.observacoes_pedido) {
-            console.log('📝 Preenchendo observações do pedido...');
-            // Linha 37-42 são células mescladas para observações
-            const obs = dados.observacoes || dados.observacoes_pedido || '';
-            abaVendas.getCell('A37').value = obs;
-        }
+        // Observações do Pedido (área mesclada A:J logo abaixo do rótulo)
+        // SEMPRE escrever, mesmo vazio: os modelos novos de Aluforce/Energy trazem uma
+        // observação de EXEMPLO nessa área ("FRETE FOB F9/50%" / "FRETE FOB - ENTREGA 30
+        // DIAS"). Sem limpar, ela sairia em TODAS as ordens de produção.
+        // O modal envia `observações` ACENTUADO; sem aceitar essa chave a observação
+        // digitada pelo usuário era descartada silenciosamente.
+        const obsPedido = dados.observacoes || dados['observações'] || dados.observacoes_pedido || '';
+        console.log(`📝 Observações do pedido → ${layout.obsPedidoCell}`);
+        abaVendas.getCell(layout.obsPedidoCell).value = obsPedido;
 
         // ========================================
         // CONDIÇÕES DE PAGAMENTO (linhas 44-46)
@@ -4641,26 +6404,26 @@ module.exports = function createPCPRoutes(deps) {
 
         if (formasPag.length > 0) {
             // Linha 45: Primeira forma de pagamento
-            abaVendas.getCell('A45').value = formasPag[0].forma || dados.forma_pagamento || 'A_VISTA';
+            abaVendas.getCell(`A${layout.pagLinha1}`).value = formasPag[0].forma || dados.forma_pagamento || 'A_VISTA';
             const perc1 = parseFloat(formasPag[0].percentual || dados.percentual_pagamento || 100) / 100;
-            abaVendas.getCell('E45').value = perc1;
-            abaVendas.getCell('E45').numFmt = '0%';
-            abaVendas.getCell('F45').value = formasPag[0].metodo || dados.metodo_pagamento || 'BOLETO';
+            abaVendas.getCell(`E${layout.pagLinha1}`).value = perc1;
+            abaVendas.getCell(`E${layout.pagLinha1}`).numFmt = '0%';
+            abaVendas.getCell(`F${layout.pagLinha1}`).value = formasPag[0].metodo || dados.metodo_pagamento || 'BOLETO';
             const valor1 = totalGeral * perc1;
-            abaVendas.getCell('I45').value = valor1;
-            abaVendas.getCell('I45').numFmt = 'R$ #,##0.00';
+            abaVendas.getCell(`I${layout.pagLinha1}`).value = valor1;
+            abaVendas.getCell(`I${layout.pagLinha1}`).numFmt = 'R$ #,##0.00';
 
             // Linha 46: Segunda forma de pagamento (se houver)
             if (formasPag.length > 1) {
-                abaVendas.getCell('A46').value = formasPag[1].forma || 'ENTREGA';
+                abaVendas.getCell(`A${layout.pagLinha2}`).value = formasPag[1].forma || 'ENTREGA';
                 const perc2 = parseFloat(formasPag[1].percentual || 0) / 100;
-                abaVendas.getCell('E46').value = perc2;
-                abaVendas.getCell('E46').numFmt = '0%';
-                abaVendas.getCell('F46').value = formasPag[1].metodo || '';
+                abaVendas.getCell(`E${layout.pagLinha2}`).value = perc2;
+                abaVendas.getCell(`E${layout.pagLinha2}`).numFmt = '0%';
+                abaVendas.getCell(`F${layout.pagLinha2}`).value = formasPag[1].metodo || '';
                 // 🔧 FIX BUG-R5-28: Valor da 2ª forma de pagamento nunca era preenchido
                 const valor2 = totalGeral * perc2;
-                abaVendas.getCell('I46').value = valor2;
-                abaVendas.getCell('I46').numFmt = 'R$ #,##0.00';
+                abaVendas.getCell(`I${layout.pagLinha2}`).value = valor2;
+                abaVendas.getCell(`I${layout.pagLinha2}`).numFmt = 'R$ #,##0.00';
             }
 
             // 🔧 FIX BUG-R5-28b: 3ª forma de pagamento (frontend coleta 3, backend só escrevia 2)
@@ -4669,24 +6432,24 @@ module.exports = function createPCPRoutes(deps) {
                 const perc3 = parseFloat(formasPag[2].percentual || 0);
                 const valor3 = totalGeral * (perc3 / 100);
                 const pag3Texto = `3ª Pag: ${formasPag[2].forma || ''} ${perc3}% ${formasPag[2].metodo || ''} R$ ${valor3.toFixed(2)}`;
-                const obsExistente = abaVendas.getCell('A37').value || '';
-                abaVendas.getCell('A37').value = obsExistente ? `${obsExistente}\n${pag3Texto}` : pag3Texto;
+                const obsExistente = abaVendas.getCell(layout.obsPedidoCell).value || '';
+                abaVendas.getCell(layout.obsPedidoCell).value = obsExistente ? `${obsExistente}\n${pag3Texto}` : pag3Texto;
             }
         } else {
             // Fallback: usar campos legados
-            abaVendas.getCell('A45').value = dados.forma_pagamento || 'A_VISTA';
+            abaVendas.getCell(`A${layout.pagLinha1}`).value = dados.forma_pagamento || 'A_VISTA';
             const perc = parseFloat(dados.percentual_pagamento || 100) / 100;
-            abaVendas.getCell('E45').value = perc;
-            abaVendas.getCell('E45').numFmt = '0%';
-            abaVendas.getCell('F45').value = dados.metodo_pagamento || 'BOLETO';
-            abaVendas.getCell('I45').value = totalGeral;
-            abaVendas.getCell('I45').numFmt = 'R$ #,##0.00';
+            abaVendas.getCell(`E${layout.pagLinha1}`).value = perc;
+            abaVendas.getCell(`E${layout.pagLinha1}`).numFmt = '0%';
+            abaVendas.getCell(`F${layout.pagLinha1}`).value = dados.metodo_pagamento || 'BOLETO';
+            abaVendas.getCell(`I${layout.pagLinha1}`).value = totalGeral;
+            abaVendas.getCell(`I${layout.pagLinha1}`).numFmt = 'R$ #,##0.00';
 
             // Se parcelado, calcular segunda linha
             if (perc < 1) {
-                abaVendas.getCell('A46').value = 'ENTREGA';
-                abaVendas.getCell('E46').value = 1 - perc;
-                abaVendas.getCell('E46').numFmt = '0%';
+                abaVendas.getCell(`A${layout.pagLinha2}`).value = 'ENTREGA';
+                abaVendas.getCell(`E${layout.pagLinha2}`).value = 1 - perc;
+                abaVendas.getCell(`E${layout.pagLinha2}`).numFmt = '0%';
             }
         }
 
@@ -4694,26 +6457,28 @@ module.exports = function createPCPRoutes(deps) {
         // EMBALAGEM E OBSERVAÇÕES FINAIS (linhas 48-54)
         // ========================================
 
-        // E50-E54: Seção OBSERVAÇÕES do template
-        // E51:J54 são merged - preencher apenas E51 (célula principal)
-        // Template: C51="COMPLETO", C53="PARCIAL" (status da entrega)
-        const obsEntrega = dados.observacoes_entrega || '';
-        const obsGeral = dados.observacoes || dados.observacoes_pedido || '';
-        const obsTexto = obsEntrega ? `${obsEntrega}${obsGeral ? '\n' + obsGeral : ''}` : obsGeral;
-        if (obsTexto) {
-            console.log('📝 Preenchendo observações finais (E51)...');
-            abaVendas.getCell('E51').value = obsTexto;
-        }
+        // Seção OBSERVAÇÕES (para a produção) — célula mesclada logo abaixo do rótulo.
+        const obsProducao = dados.observacao_producao || dados.observacoes_producao || dados['observação_producao'] || '';
+        const cellObsProd = abaVendas.getCell(layout.obsProducaoCell);
+        // O modelo da ENERGY traz uma INSTRUÇÃO FIXA nessa área ("*ATENÇÃO* FAZER EXATAMENTE
+        // COMO ESTÁ NO PEDIDO."). Ela é do template, não do pedido: preservar e apenas
+        // acrescentar a observação desta OP embaixo.
+        const textoFixoProd = (() => {
+            const v = cellObsProd.value;
+            const t = (v && typeof v === 'object' && v.richText)
+                ? v.richText.map(x => x.text).join('')
+                : (typeof v === 'string' ? v : '');
+            return t.includes('*ATENÇÃO*') ? t.trim() : '';
+        })();
+        console.log(`📝 Observações para Produção → ${layout.obsProducaoCell}`);
+        cellObsProd.value = textoFixoProd
+            ? (obsProducao ? `${textoFixoProd}\n${obsProducao}` : textoFixoProd)
+            : obsProducao;
 
-        // Status de entrega: COMPLETO ou PARCIAL (C51/C53)
+        // Status de entrega: COMPLETO ou PARCIAL (linhas detectadas no template)
         const statusEntrega = dados.status_entrega || 'COMPLETO';
-        if (statusEntrega === 'PARCIAL') {
-            abaVendas.getCell('C51').value = '';
-            abaVendas.getCell('C53').value = 'X';
-        } else {
-            abaVendas.getCell('C51').value = 'X';
-            abaVendas.getCell('C53').value = '';
-        }
+        abaVendas.getCell(`C${layout.completoRow}`).value = statusEntrega === 'PARCIAL' ? '' : 'X';
+        abaVendas.getCell(`C${layout.parcialRow}`).value = statusEntrega === 'PARCIAL' ? 'X' : '';
 
         // ========================================
         // ABA VENDAS_PCP - CONDIÇÕES DE PAGAMENTO (linhas 43-46)
@@ -4722,9 +6487,9 @@ module.exports = function createPCPRoutes(deps) {
         // A43 é label fixo "CONDIÇOES DE PAGAMENTO." - NÃO sobrescrever
         // Condições extras vão na área de observações (B37) junto com as obs do pedido
         if (dados.condicoes_pagamento) {
-            const obsExistente = abaVendas.getCell('A37').value || '';
+            const obsExistente = abaVendas.getCell(layout.obsPedidoCell).value || '';
             const condPag = `Cond. Pagamento: ${dados.condicoes_pagamento}`;
-            abaVendas.getCell('A37').value = obsExistente ? `${obsExistente}\n${condPag}` : condPag;
+            abaVendas.getCell(layout.obsPedidoCell).value = obsExistente ? `${obsExistente}\n${condPag}` : condPag;
         }
 
         // ========================================
@@ -4732,11 +6497,11 @@ module.exports = function createPCPRoutes(deps) {
         // ========================================
 
         if (dados.qtd_volumes) {
-            abaVendas.getCell('C48').value = dados.qtd_volumes;
+            abaVendas.getCell(`C${layout.qtdVolumeRow}`).value = dados.qtd_volumes;
         }
 
         if (dados.tipo_embalagem_entrega) {
-            abaVendas.getCell('H48').value = dados.tipo_embalagem_entrega;
+            abaVendas.getCell(`H${layout.qtdVolumeRow}`).value = dados.tipo_embalagem_entrega;
         }
 
         // ========================================
@@ -4746,15 +6511,26 @@ module.exports = function createPCPRoutes(deps) {
         let cnpjStrFinal = String(cnpjClienteFinal).replace(/\D/g, '');
         if (cnpjStrFinal && cnpjStrFinal.length >= 11) {
             const cellC15Final = abaVendas.getCell('C15');
-            // 🔧 FIX BUG-R4-24: Usar Number() em vez de string para que numFmt funcione
-            cellC15Final.value = Number(cnpjStrFinal);
-            cellC15Final.numFmt = '[<=99999999999]000.000.000-00;00.000.000/0000-00';
+            const documentoFormatadoFinal = cnpjStrFinal.length === 11
+                ? cnpjStrFinal.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
+                : cnpjStrFinal.slice(0, 14).replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+            cellC15Final.value = documentoFormatadoFinal;
+            cellC15Final.numFmt = '@';
         }
         // ========================================
         // 🔧 ABA PRODUÇÃO: Atualizar fórmulas VLOOKUP com results
         // ========================================
         if (abaProducao) {
             console.log('\n🔧 Atualizando aba PRODUÇÃO...');
+
+            // O ExcelJS não recalcula a fórmula VENDAS_PCP!E51 ao abrir o arquivo
+            // em todos os visualizadores. Grave também o resultado no segundo bloco.
+            const cellObsProducao = abaProducao.getCell('E61');
+            if (cellObsProducao.value && typeof cellObsProducao.value === 'object' && cellObsProducao.value.formula) {
+                cellObsProducao.value = { formula: cellObsProducao.value.formula, result: obsProducao };
+            } else {
+                cellObsProducao.value = obsProducao;
+            }
 
             // ========================================
             // 🔧 FIX BUG-OP-PAGE2: Replicar cabeçalho/dados do cliente na aba PRODUÇÃO
@@ -4796,11 +6572,11 @@ module.exports = function createPCPRoutes(deps) {
                 { cell: 'C6', value: dados.vendedor || '', desc: 'Vendedor' },
                 { cell: 'C7', value: dados.cliente || '', desc: 'Cliente' },
                 { cell: 'C8', value: dados.contato || dados.contato_cliente || '', desc: 'Contato' },
-                { cell: 'H8', value: dados.telefone || dados.fone_cliente || '', desc: 'Telefone' },
+                { cell: 'H8', value: formatarTelefoneBR(dados.telefone || dados.fone_cliente || ''), desc: 'Telefone' },
                 { cell: 'C9', value: dados.email || dados.email_cliente || '', desc: 'Email' },
                 { cell: 'J9', value: dados.frete || dados.tipo_frete || '', desc: 'Tipo Frete' },
                 { cell: 'C12', value: dados.transportadora_nome || '', desc: 'Transportadora' },
-                { cell: 'H12', value: dados.transportadora_fone || '', desc: 'Transp. Fone' },
+                { cell: 'H12', value: formatarTelefoneBR(dados.transportadora_fone || ''), desc: 'Transp. Fone' },
                 { cell: 'C13', value: dados.transportadora_cep || '', desc: 'Transp. CEP' },
                 { cell: 'F13', value: dados.transportadora_endereco || '', desc: 'Transp. Endereço' },
             ];
@@ -4839,7 +6615,9 @@ module.exports = function createPCPRoutes(deps) {
             // Também precisa atualizar a coluna F (Código de Cores)
 
             // Pegar produtos já preenchidos na VENDAS_PCP
-            const linhasProducao = [13, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 52, 55];
+            // Blocos de item da aba PRODUÇÃO, detectados no template (Aluforce tem 15,
+            // Energy tem 16 — hardcodar deixaria o 16º item de fora ou escreveria fora do lugar).
+            const linhasProducao = layout.linhasProducao;
 
             // Mapeamento: linha VENDAS_PCP (18,19,20...) -> linha PRODUÇÃO (13,16,19...)
             // VENDAS_PCP linha 18 = primeiro produto -> PRODUÇÃO linha 13
@@ -4849,7 +6627,10 @@ module.exports = function createPCPRoutes(deps) {
             produtos.forEach((prod, index) => {
                 if (index < linhasProducao.length && prod) {
                     const linhaProd = linhasProducao[index];
-                    const codigoProd = String(prod.codigo || '').trim().toUpperCase();
+                    // 🐛 FIX 23/07/2026: o modal de OP envia a chave ACENTUADA (`código`), então
+                // `prod.codigo` vinha UNDEFINED e o produto ia para a planilha SEM CÓDIGO —
+                // o que quebrava o VLOOKUP da descrição E o do Cod. Cores (cor em branco).
+                const codigoProd = String(prod.codigo || prod['código'] || '').trim().toUpperCase();
                     // 🔧 FIX BUG-OP-05: Fallback para 'descrição' com cedilha (frontend envia com ç)
                     const descricaoCatalogo = catalogoProdutos[codigoProd] || prod.descricao || prod['descrição'] || prod.nome || '';
 
@@ -4896,36 +6677,38 @@ module.exports = function createPCPRoutes(deps) {
                         cellPeso.numFmt = '#,##0.00';
                     }
 
-                    // F - Código de Cores
-                    const codigoCores = prod.codigo_cores || prod.cores || '';
-                    if (codigoCores) {
-                        const cellCodCores = abaProducao.getCell(`F${linhaProd}`);
-                        if (cellCodCores.value && typeof cellCodCores.value === 'object' && cellCodCores.value.formula) {
-                            cellCodCores.value = { formula: cellCodCores.value.formula, result: codigoCores };
+                    // 🐛 FIX 23/07/2026 — as colunas estavam DESLOCADAS EM UMA POSIÇÃO.
+                    // Layout real da aba PRODUÇÃO (linha 12 do template):
+                    //   F:G (MESCLADAS) = "Cod. Cores"   |   H = "Embalagem:"   |   I = "Lance(s)"
+                    // O código antigo escrevia cor em F, embalagem em G e lances em H. Como
+                    // F:G é mesclada, escrever em G grava no MESTRE (F) e SOBRESCREVIA o código
+                    // de cores com a embalagem (por isso a cor "não aparecia"); e a embalagem
+                    // caía na coluna H, que é a de Lance(s) — o "embalagem saindo em lance(s)".
+                    // Agora: cor→F (nunca G), embalagem→H, lances→I.
+                    const escrever = (col, valor) => {
+                        const cell = abaProducao.getCell(`${col}${linhaProd}`);
+                        if (cell.value && typeof cell.value === 'object' && cell.value.formula) {
+                            // Mantém a fórmula do template e injeta o resultado (para quem
+                            // abrir o arquivo sem recalcular).
+                            cell.value = { formula: cell.value.formula, result: valor };
                         } else {
-                            cellCodCores.value = codigoCores;
+                            cell.value = valor;
                         }
-                    }
+                    };
 
-                    // G - Embalagem (default 'Bobina')
+                    // F - Código de Cores. Prioriza o que veio no pedido; se não veio, resolve
+                    // pelo catálogo do próprio template (mesma fonte do VLOOKUP). A fórmula é
+                    // mantida — gravamos só o resultado — para o arquivo continuar íntegro.
+                    const codigoCores = prod.codigo_cores || prod.cores || catalogoCores[codigoProd] || '';
+                    if (codigoCores) escrever('F', codigoCores);
+
+                    // H - Embalagem (default 'Bobina')
                     const embalagemProd = prod.embalagem || 'Bobina';
-                    const cellEmb = abaProducao.getCell(`G${linhaProd}`);
-                    if (cellEmb.value && typeof cellEmb.value === 'object' && cellEmb.value.formula) {
-                        cellEmb.value = { formula: cellEmb.value.formula, result: embalagemProd };
-                    } else {
-                        cellEmb.value = embalagemProd;
-                    }
+                    escrever('H', embalagemProd);
 
-                    // H - Lance(s)
+                    // I - Lance(s)
                     const lancesProd = prod.lances || '';
-                    if (lancesProd) {
-                        const cellLances = abaProducao.getCell(`H${linhaProd}`);
-                        if (cellLances.value && typeof cellLances.value === 'object' && cellLances.value.formula) {
-                            cellLances.value = { formula: cellLances.value.formula, result: lancesProd };
-                        } else {
-                            cellLances.value = lancesProd;
-                        }
-                    }
+                    if (lancesProd) escrever('I', lancesProd);
 
                     // Preencher LOTE na coluna G da linha seguinte (linhaProd + 1)
                     if (prod.lote) {
@@ -4996,7 +6779,7 @@ module.exports = function createPCPRoutes(deps) {
         csv.push(['Dados do Cliente:']);
         csv.push(['Nome do Cliente:', dados.cliente || '']);
         csv.push(['Contato:', dados.contato_cliente || '']);
-        csv.push(['Telefone:', dados.fone_cliente || '']);
+        csv.push(['Telefone:', formatarTelefoneBR(dados.fone_cliente || '')]);
         csv.push(['Email:', dados.email_cliente || '']);
         csv.push(['Tipo de Frete:', dados.tipo_frete || '']);
         csv.push(['']);
@@ -5004,7 +6787,7 @@ module.exports = function createPCPRoutes(deps) {
         // Dados da Transportadora
         csv.push(['Dados da Transportadora:']);
         csv.push(['Nome:', dados.transportadora_nome || '']);
-        csv.push(['Telefone:', dados.transportadora_fone || '']);
+        csv.push(['Telefone:', formatarTelefoneBR(dados.transportadora_fone || '')]);
         csv.push(['CEP:', dados.transportadora_cep || '']);
         csv.push(['Endereço:', dados.transportadora_endereco || '']);
         csv.push(['CPF/CNPJ:', dados.transportadora_cpf_cnpj || '']);
@@ -5188,17 +6971,20 @@ module.exports = function createPCPRoutes(deps) {
     // PEDIDOS FATURADOS - AUDITORIA 02/02/2026: Otimizado
     router.get('/pedidos/faturados', async (req, res, next) => {
         try {
+            const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
             const [rows] = await pool.query(`
                 SELECT
                     p.id, p.cliente_id, p.empresa_id, p.vendedor_id,
                     p.valor, p.valor AS valor_total, p.status, p.prioridade,
-                    p.prazo_entrega, p.nfe_numero, p.nfe_chave,
+                    p.prazo_entrega, p.numero_nf AS nfe_numero, p.nfe_chave,
+                    p.numero_pedido, p.data_faturamento, p.faturado_em,
+                    p.data_entrega_efetiva, p.transportadora_nome,
                     p.created_at, p.updated_at,
                     c.nome as cliente_nome
                 FROM pedidos p
                 LEFT JOIN clientes c ON p.cliente_id = c.id
                 WHERE p.status IN ('faturado', 'recibo')
-                ORDER BY p.id DESC LIMIT 10`);
+                ORDER BY p.id DESC LIMIT ?`, [limit]);
             res.json(rows);
         } catch (error) { next(error); }
     });
@@ -5215,7 +7001,39 @@ module.exports = function createPCPRoutes(deps) {
     router.get('/acompanhamento', async (req, res, next) => {
         try {
             const limit = Math.min(parseInt(req.query.limit) || 200, 500);
-            const [rows] = await pool.query("SELECT id, numero, produto, produto_id, cliente, quantidade, status, prioridade, prazo_entrega, data_criacao, data_inicio, data_fim, observacoes, responsavel FROM ordens_producao WHERE status != 'Concluído' ORDER BY id DESC LIMIT ?", [limit]);
+            const columns = await getTableColumnsSet('ordens_producao');
+            const firstColumn = (names, fallback = 'NULL') => {
+                const name = names.find(column => columns.has(column));
+                return name ? `\`${name}\`` : fallback;
+            };
+            const numeroExpr = firstColumn(['numero_ordem', 'codigo', 'id'], 'id');
+            const produtoExpr = firstColumn(['produto_nome', 'descricao_produto', 'produto', 'codigo_produto'], "''");
+            const clienteExpr = firstColumn(['cliente', 'cliente_nome'], "''");
+            const prazoExpr = firstColumn(['prazo_entrega', 'data_previsao_entrega', 'data_prevista']);
+            const dataCriacaoExpr = firstColumn(['created_at', 'data_criacao'], 'NULL');
+            const dataInicioExpr = firstColumn(['data_inicio'], 'NULL');
+            const dataFimExpr = firstColumn(['data_conclusao', 'data_fim'], 'NULL');
+            const produtoIdExpr = firstColumn(['produto_id'], 'NULL');
+            const prioridadeExpr = firstColumn(['prioridade'], "'normal'");
+            const observacoesExpr = firstColumn(['observacoes', 'observacao'], "''");
+            const responsavelExpr = firstColumn(['responsavel', 'responsavel_nome'], "''");
+            const [rows] = await pool.query(`
+                SELECT id,
+                       ${numeroExpr} AS numero,
+                       ${produtoExpr} AS produto,
+                       ${produtoIdExpr} AS produto_id,
+                       ${clienteExpr} AS cliente,
+                       quantidade, status, ${prioridadeExpr} AS prioridade,
+                       ${prazoExpr} AS prazo_entrega,
+                       ${dataCriacaoExpr} AS data_criacao,
+                       ${dataInicioExpr} AS data_inicio,
+                       ${dataFimExpr} AS data_fim,
+                       ${observacoesExpr} AS observacoes,
+                       ${responsavelExpr} AS responsavel
+                FROM ordens_producao
+                WHERE LOWER(COALESCE(status, '')) NOT IN ('concluido', 'concluída', 'concluida', 'cancelado', 'cancelada')
+                ORDER BY id DESC LIMIT ?
+            `, [limit]);
             res.json(rows);
         } catch (error) { next(error); }
     });
@@ -5487,7 +7305,7 @@ module.exports = function createPCPRoutes(deps) {
 
         const transportadoraFields = [
             { label: 'Nome:', cell: 'B13', value: dados.transportadora_nome || '' },
-            { label: 'Telefone:', cell: 'B14', value: dados.transportadora_fone || dados.transportadora_telefone || '' },
+            { label: 'Telefone:', cell: 'B14', value: formatarTelefoneBR(dados.transportadora_fone || dados.transportadora_telefone || '') },
             { label: 'CEP:', cell: 'B15', value: dados.transportadora_cep || '' },
             { label: 'Endereço:', cell: 'B16', value: dados.transportadora_endereco || '' },
             { label: 'CPF/CNPJ:', cell: 'B17', value: dados.transportadora_cpf_cnpj || '' },
@@ -6255,6 +8073,26 @@ module.exports = function createPCPRoutes(deps) {
         }
     });
 
+    // O modal de cadastro da máquina coleta tipo/descrição/responsável/custo da
+    // última manutenção, mas isso nunca virava um registro em
+    // historico_manutencoes — ficava só na tela. A OS de manutenção (abaixo) é
+    // gerada a partir dessa tabela, então sem isto ela nunca teria dado real
+    // pra mostrar. A checagem por (maquina_id, data, descrição) evita duplicar
+    // a mesma manutenção a cada "Salvar" do formulário.
+    async function registrarManutencaoDoFormulario(maquinaId, dados) {
+        const { ultima_manutencao, tipo_manutencao, descricao_manutencao, responsavel_manutencao, custo_manutencao } = dados;
+        if (!descricao_manutencao || !ultima_manutencao) return;
+        const [existentes] = await pool.query(
+            'SELECT id FROM historico_manutencoes WHERE maquina_id = ? AND data_manutencao = ? AND descricao = ? LIMIT 1',
+            [maquinaId, ultima_manutencao, descricao_manutencao]
+        );
+        if (existentes.length) return;
+        await pool.query(`
+            INSERT INTO historico_manutencoes (maquina_id, data_manutencao, tipo, descricao, custo, responsavel, status)
+            VALUES (?, ?, ?, ?, ?, ?, 'concluida')
+        `, [maquinaId, ultima_manutencao, tipo_manutencao || 'preventiva', descricao_manutencao, custo_manutencao || 0, responsavel_manutencao || '']);
+    }
+
     // Criar nova máquina
     router.post('/maquinas', async (req, res, next) => {
         try {
@@ -6267,6 +8105,8 @@ module.exports = function createPCPRoutes(deps) {
                 INSERT INTO maquinas_producao (codigo, nome, setor, status, ultima_manutencao, proxima_manutencao, observacoes)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             `, [codigoFinal, nome, setor || 'Geral', status || 'ativa', ultima_manutencao, proxima_manutencao, observacoes]);
+
+            await registrarManutencaoDoFormulario(result.insertId, req.body);
 
             res.status(201).json({
                 message: 'Máquina criada com sucesso',
@@ -6289,6 +8129,8 @@ module.exports = function createPCPRoutes(deps) {
                 UPDATE maquinas_producao SET nome = ?, setor = ?, status = ?, ultima_manutencao = ?, proxima_manutencao = ?, observacoes = ?
                 WHERE id = ?
             `, [nome, setor, status, ultima_manutencao, proxima_manutencao, observacoes, id]);
+
+            await registrarManutencaoDoFormulario(id, req.body);
 
             res.json({ message: 'Máquina atualizada com sucesso' });
         } catch (error) {
@@ -6363,6 +8205,136 @@ module.exports = function createPCPRoutes(deps) {
         } catch (error) {
             console.error('[API_MANUTENCOES] Erro ao excluir:', error.message);
             next(error);
+        }
+    });
+
+    // ===================== OS DE MANUTENÇÃO → PDF =====================
+    // Ordem de Serviço de manutenção de máquina, no mesmo template HTML +
+    // Puppeteer usado pelos relatórios do PCP e pelo Pedido de Compra
+    // (html-relatorio-renderer + services/pdf-render.service).
+    function corpoOsManutencao(maquina, manutencao) {
+        const { escapeHtml, statusBadgeClass } = require('../src/services/html-relatorio-renderer');
+        const texto = (v) => escapeHtml(v == null || v === '' ? '—' : v);
+        const dataBr = (v) => {
+            if (!v) return '—';
+            const d = new Date(v);
+            return Number.isNaN(d.getTime()) ? texto(v) : d.toLocaleDateString('pt-BR');
+        };
+        const moeda = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const tipoLabel = { preventiva: 'Preventiva', corretiva: 'Corretiva', preditiva: 'Preditiva' };
+        const statusLabel = { concluida: 'Concluída', pendente: 'Pendente', em_andamento: 'Em andamento', cancelada: 'Cancelada' };
+        const statusRaw = String(manutencao.status || '').toLowerCase();
+        const badge = statusBadgeClass(statusRaw === 'concluida' ? 'finalizado' : statusRaw === 'cancelada' ? 'cancelado' : 'orcamento');
+
+        let h = '<section class="grid-2 avoid-break"><div><h2 class="section-title">Dados da máquina</h2><div class="doc-box"><dl class="kv-grid cols-1">';
+        h += `<div class="kv"><dt class="k">Código</dt><dd class="v">${texto(maquina.codigo)}</dd></div>`;
+        h += `<div class="kv"><dt class="k">Nome</dt><dd class="v">${texto(maquina.nome)}</dd></div>`;
+        h += `<div class="kv"><dt class="k">Setor</dt><dd class="v">${texto(maquina.setor)}</dd></div>`;
+        h += `<div class="kv"><dt class="k">Tipo</dt><dd class="v">${texto(maquina.tipo)}</dd></div>`;
+        h += `<div class="kv"><dt class="k">Fabricante / Modelo</dt><dd class="v">${texto([maquina.fabricante, maquina.modelo].filter(Boolean).join(' / ') || null)}</dd></div>`;
+        h += `<div class="kv"><dt class="k">Nº patrimônio</dt><dd class="v">${texto(maquina.num_patrimonio)}</dd></div>`;
+        h += '</dl></div></div><div><h2 class="section-title">Dados da manutenção</h2><div class="doc-box"><dl class="kv-grid cols-1">';
+        const tipoRaw = String(manutencao.tipo || '').toLowerCase();
+        h += `<div class="kv"><dt class="k">Tipo</dt><dd class="v">${texto(tipoLabel[tipoRaw] || manutencao.tipo)}</dd></div>`;
+        h += `<div class="kv"><dt class="k">Data</dt><dd class="v">${dataBr(manutencao.data_manutencao)}</dd></div>`;
+        h += `<div class="kv"><dt class="k">Responsável</dt><dd class="v">${texto(manutencao.responsavel)}</dd></div>`;
+        h += `<div class="kv"><dt class="k">Tempo de parada</dt><dd class="v">${manutencao.tempo_parada_horas ? `${Number(manutencao.tempo_parada_horas).toLocaleString('pt-BR')} h` : '—'}</dd></div>`;
+        h += `<div class="kv"><dt class="k">Status</dt><dd class="v"><span class="status-badge ${badge}">${texto(statusLabel[statusRaw] || manutencao.status)}</span></dd></div>`;
+        h += `<div class="kv"><dt class="k">Próxima manutenção prevista</dt><dd class="v">${dataBr(maquina.proxima_manutencao)}</dd></div>`;
+        h += '</dl></div></div></section>';
+
+        h += `<section class="avoid-break"><h2 class="section-title">Descrição do serviço</h2><div class="note-box"><p>${texto(manutencao.descricao).replace(/\n/g, '<br>')}</p></div></section>`;
+        if (manutencao.pecas_trocadas) {
+            h += `<section class="avoid-break"><h2 class="section-title">Peças trocadas</h2><div class="note-box"><p>${texto(manutencao.pecas_trocadas).replace(/\n/g, '<br>')}</p></div></section>`;
+        }
+        h += `<section class="totals avoid-break"><div class="box"><div class="row grand"><span>Custo da manutenção</span><strong>${moeda(manutencao.custo)}</strong></div></div></section>`;
+        h += '<section class="signature-block avoid-break"><div class="signature"><div class="line"></div><p class="name">Técnico responsável</p><p class="role">Execução do serviço</p></div><div class="signature"><div class="line"></div><p class="name">Supervisão / PCP</p><p class="role">Aprovação</p></div></section>';
+        return h;
+    }
+
+    async function gerarHtmlOsManutencao(maquina, manutencao) {
+        const fs = require('fs');
+        const path = require('path');
+        const { buildEmpresaTemplateData, renderTemplateString, resolveRelatorioTemplate } = require('../src/services/html-relatorio-renderer');
+        let cfg = {};
+        try {
+            const [rows] = await pool.query('SELECT * FROM empresa_config ORDER BY id LIMIT 1');
+            cfg = (rows && rows[0]) || {};
+        } catch (_) { /* segue com o cabeçalho padrão */ }
+        const dados = {
+            nome: cfg.razao_social || cfg.nome_fantasia || 'Empresa',
+            nomeFantasia: cfg.nome_fantasia || cfg.razao_social || 'Empresa',
+            cnpj: cfg.cnpj || '', inscricaoEstadual: cfg.inscricao_estadual || 'Isento',
+            endereco: cfg.endereco || '', numero: cfg.numero || '', bairro: cfg.bairro || '',
+            cidade: cfg.cidade || '', estado: cfg.estado || '', cep: cfg.cep || '',
+            telefone: cfg.telefone || '', email: cfg.email || '', site: cfg.site || ''
+        };
+        const projectRoot = path.join(__dirname, '..');
+        const empresa = buildEmpresaTemplateData(cfg, dados, projectRoot);
+        let tpl = fs.readFileSync(resolveRelatorioTemplate(projectRoot, '_template.html'), 'utf8');
+        const numero = manutencao.id ? `OS Nº ${manutencao.id}` : `OS — ${maquina.codigo || maquina.id}`;
+        tpl = tpl.replace(/__TITULO__/g, 'Ordem de Serviço')
+                 .replace(/__SUBTITULO__/g, 'Manutenção de máquina')
+                 .replace(/__REFERENCIA__/g, numero)
+                 .replace(/__FIELDS__/g, '')
+                 .replace(/__BODY__/g, corpoOsManutencao(maquina, manutencao));
+        return renderTemplateString(tpl, empresa);
+    }
+
+    // GET /maquinas/:id/os-pdf?manutencao_id= - Gera a Ordem de Serviço (PDF)
+    // de uma manutenção. Sem manutencao_id, usa a mais recente já registrada
+    // pra essa máquina; sem nenhuma no histórico ainda, monta a OS com os
+    // campos de manutenção do próprio cadastro da máquina, pra o botão
+    // funcionar mesmo pra quem ainda não tem nada em historico_manutencoes.
+    router.get('/maquinas/:id/os-pdf', authenticateToken, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const [maquinas] = await pool.query('SELECT * FROM maquinas_producao WHERE id = ?', [id]);
+            if (!maquinas.length) return res.status(404).json({ error: 'Máquina não encontrada' });
+            const maquina = maquinas[0];
+
+            let manutencao = null;
+            if (req.query.manutencao_id) {
+                const [rows] = await pool.query(
+                    'SELECT * FROM historico_manutencoes WHERE id = ? AND maquina_id = ?',
+                    [req.query.manutencao_id, id]
+                );
+                manutencao = rows[0] || null;
+            }
+            if (!manutencao) {
+                const [rows] = await pool.query(
+                    'SELECT * FROM historico_manutencoes WHERE maquina_id = ? ORDER BY data_manutencao DESC, id DESC LIMIT 1',
+                    [id]
+                );
+                manutencao = rows[0] || null;
+            }
+            if (!manutencao) {
+                manutencao = {
+                    data_manutencao: maquina.ultima_manutencao,
+                    tipo: 'preventiva',
+                    descricao: maquina.observacoes || '',
+                    pecas_trocadas: '',
+                    custo: 0,
+                    responsavel: '',
+                    tempo_parada_horas: 0,
+                    status: 'pendente'
+                };
+            }
+
+            const html = await gerarHtmlOsManutencao(maquina, manutencao);
+            const pdf = await htmlParaPdf(html);
+
+            const nomeMaquina = String(maquina.nome || maquina.codigo || 'Maquina')
+                .replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Maquina';
+            const nomeUtf8 = `Ordem de Serviço - ${nomeMaquina} - ERP.pdf`;
+            const nomeAscii = nomeUtf8.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7E]/g, '');
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${nomeAscii}"; filename*=UTF-8''${encodeURIComponent(nomeUtf8)}`);
+            res.setHeader('Content-Length', pdf.length);
+            return res.end(pdf);
+        } catch (error) {
+            console.error('[PCP/OS-MANUTENCAO] Erro ao gerar PDF:', error);
+            return res.status(error.status || 500).json({ error: 'Erro ao gerar PDF da Ordem de Serviço' });
         }
     });
 
@@ -6572,7 +8544,7 @@ module.exports = function createPCPRoutes(deps) {
                     SUM(CASE WHEN status = 'concluida' THEN 1 ELSE 0 END) as concluidas
                 FROM ordens_producao
                 WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-                GROUP BY DATE(created_at)
+                GROUP BY dia
                 ORDER BY data
             `);
 
@@ -6843,6 +8815,1058 @@ module.exports = function createPCPRoutes(deps) {
     });
 
     // Buscar itens de uma ordem de produção
+    // AUDIT-FIX: essa rota não existia (só GET) — "Incluir Item" em ordens-producao.html
+    // (salvarItemEstrutura()) sempre dava 404 e o item só era adicionado visualmente na
+    // tabela, nunca persistido em itens_ordem_producao. Sem itens persistidos, a baixa
+    // automática de matéria-prima na conclusão da OP (registrarBaixaEstoqueOP) nunca
+    // tinha o que processar.
+    router.post('/ordens-producao/:id/itens', async (req, res) => {
+        const { id } = req.params;
+        try {
+            const [[ordem]] = await pool.query('SELECT id FROM ordens_producao WHERE id = ?', [id]);
+            if (!ordem) return res.status(404).json({ success: false, message: 'Ordem de produção não encontrada' });
+
+            const body = req.body || {};
+            const codigo = String(body.codigo_material || '').trim();
+            if (!codigo) return res.status(400).json({ success: false, message: 'Informe o código do material' });
+
+            const qtd = parseFloat(body.quantidade_necessaria ?? body.quantidade) || 0;
+            if (qtd <= 0) return res.status(400).json({ success: false, message: 'Informe a quantidade' });
+
+            const descricao = body.descricao_material || body['descrição'] || body.descricao || codigo;
+            const unidade = body.unidade_medida || body.unidade || 'UN';
+            const custo = parseFloat(body.custo_unitario) || 0;
+
+            const [[mat]] = await pool.query('SELECT id FROM materiais WHERE codigo_material = ?', [codigo]);
+
+            const [result] = await pool.query(`
+                INSERT INTO itens_ordem_producao
+                (ordem_producao_id, material_id, codigo_material, descricao_material, quantidade_necessaria, unidade_medida, tipo_item, custo_unitario, local_estoque)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [id, mat ? mat.id : null, codigo, descricao, qtd, unidade, body.tipo_item || 'material', custo, body.local_estoque || null]);
+
+            res.status(201).json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error(`[API_PCP] Erro ao incluir item na ordem ${id}:`, error.message);
+            res.status(500).json({ success: false, message: 'Erro ao incluir item' });
+        }
+    });
+
+    // Resolve o pedido de Vendas que originou a OP. Mesma escada do GET /ordens-kanban:
+    // vínculo direto primeiro e, na falta dele, o número embutido no código da OP
+    // ("2026/02083" -> pedido 2083) — que é o único elo das OPs geradas em lote.
+    async function resolverPedidoDaOrdem(ordemId) {
+        const [opRows] = await pool.query(`
+            SELECT id, codigo, numero_orcamento, numero_pedido, num_pedido, pedido_referencia,
+                   COALESCE(pedido_vinculado_id, pedido_id) AS pedido_id_direto
+            FROM ordens_producao WHERE id = ?
+        `, [ordemId]);
+        if (!opRows.length) return { ordem: null, pedido: null };
+        const op = opRows[0];
+
+        if (op.pedido_id_direto) {
+            const [direto] = await pool.query(
+                'SELECT id, numero_pedido, cliente_nome, cliente, valor FROM pedidos WHERE id = ? AND deleted_at IS NULL',
+                [op.pedido_id_direto]
+            );
+            if (direto.length) return { ordem: op, pedido: direto[0] };
+        }
+
+        let numero = null;
+        for (const bruto of [op.numero_orcamento, op.numero_pedido, op.num_pedido, op.pedido_referencia]) {
+            const texto = String(bruto == null ? '' : bruto).trim();
+            if (/^\d+$/.test(texto)) { numero = Number(texto); break; }
+        }
+        if (numero === null) {
+            const codigo = String(op.codigo || '').trim();
+            const match = codigo.match(/\/(\d+)$/) || codigo.match(/(^|\s)(\d+)$/);
+            if (match) numero = Number(match[match.length - 1]);
+        }
+        if (numero === null || !Number.isFinite(numero)) return { ordem: op, pedido: null };
+
+        const [porNumero] = await pool.query(`
+            SELECT id, numero_pedido, cliente_nome, cliente, valor
+            FROM pedidos
+            WHERE numero_pedido = ?
+              AND deleted_at IS NULL
+              AND COALESCE(status, '') NOT IN ('excluido', 'excluído', 'cancelado', 'cancelada')
+            ORDER BY id DESC
+            LIMIT 1
+        `, [numero]);
+        return { ordem: op, pedido: porNumero.length ? porNumero[0] : null };
+    }
+
+    // O código do item de venda traz um sufixo que a estrutura não tem: o pedido
+    // vende "DUN10C" e a `estrutura_produto` cadastra "DUN10". Sem esta escada de
+    // candidatos nenhum produto do pedido encontra a própria estrutura.
+    function candidatosEstruturaProduto(codigo) {
+        const base = String(codigo == null ? '' : codigo).trim().toUpperCase();
+        if (!base) return [];
+        const lista = [base];
+        if (base.endsWith('C')) lista.push(base.slice(0, -1));
+        const semSufixo = base.replace(/[-/].*$/, ''); // TRN10-02 -> TRN10, QDN95/70 -> QDN95
+        if (semSufixo && semSufixo !== base) {
+            lista.push(semSufixo);
+            if (semSufixo.endsWith('C')) lista.push(semSufixo.slice(0, -1));
+        }
+        const ateBitola = base.match(/^([A-Z]+\d+(?:\.\d+)?)/);
+        if (ateBitola) lista.push(ateBitola[1]);
+        return [...new Set(lista.filter(Boolean))];
+    }
+
+    // Peso líquido por metro = soma dos componentes em KG da estrutura. Hoje
+    // `produtos.peso_liquido` está zerado nas 4 bases, então este é o único peso real
+    // disponível para o produto acabado.
+    async function pesoLiquidoPorMetroDaEstrutura(codigosEstrutura) {
+        const mapa = new Map();
+        if (!codigosEstrutura.length) return mapa;
+        const [linhas] = await pool.query(`
+            SELECT produto_codigo, SUM(COALESCE(quantidade_por_metro, 0)) AS kg_por_metro
+            FROM estrutura_produto
+            WHERE ativo = 1
+              AND UPPER(COALESCE(unidade, '')) = 'KG'
+              AND produto_codigo IN (?)
+            GROUP BY produto_codigo
+        `, [codigosEstrutura]);
+        for (const linha of linhas) {
+            mapa.set(String(linha.produto_codigo || '').trim().toUpperCase(), Number(linha.kg_por_metro) || 0);
+        }
+        return mapa;
+    }
+
+    // ==========================================================================
+    // CORES / VARIAÇÕES PELA ÁRVORE DE PRODUTO
+    //
+    // Na árvore (GET /arvore-produto) o "Cod. Cores" é
+    // `catalogo.cores || produtos.variacao` — e o pulo do gato é que o código
+    // VENDIDO não tem a variação preenchida: `DUN10C`, `TRI16C` e afins vêm com
+    // variacao/cores NULL, enquanto o código BASE (`DUN10`, `TRI16`) traz "PT/NU",
+    // "PT/CZ/AZ". Por isso ler `produtos.cores` pelo código do item do pedido não
+    // devolvia nada. Aqui resolvemos a derivação comercial (mesma regra do
+    // findCatalogProduct da árvore) antes de buscar a cor.
+    // ==========================================================================
+    let catalogoArvoreCache = null;
+    function catalogoDaArvoreProduto() {
+        if (catalogoArvoreCache) return catalogoArvoreCache;
+        const mapa = new Map();
+        try {
+            const dataPath = arvoreFonte.resolverArvore();
+            if (fs.existsSync(dataPath)) {
+                const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+                for (const produto of (Array.isArray(data.products) ? data.products : [])) {
+                    if (!produto || !produto.codigo) continue;
+                    mapa.set(String(produto.codigo).trim().toUpperCase(), produto);
+                }
+            }
+        } catch (e) {
+            console.warn('[PCP] Não consegui ler a árvore de produto:', e.message);
+        }
+        catalogoArvoreCache = mapa;
+        return mapa;
+    }
+
+    // Resolve cada código de venda para o código base da árvore e devolve
+    // { codigo_base, codigo_cores, variacao, variacoes_disponiveis, kg_por_metro }.
+    async function coresEVariacoesDaArvore(codigos) {
+        const resultado = new Map();
+        const limpos = [...new Set(
+            (codigos || []).map(c => String(c || '').trim().toUpperCase()).filter(Boolean)
+        )];
+        if (!limpos.length) return resultado;
+
+        const catalogo = catalogoDaArvoreProduto();
+        const baseDe = new Map();
+        for (const codigo of limpos) {
+            const candidatos = candidatosEstruturaProduto(codigo);
+            const base = candidatos.find(c => catalogo.has(c)) || candidatos[candidatos.length - 1] || codigo;
+            baseDe.set(codigo, base);
+        }
+
+        // O cadastro é a fonte viva: o JSON da árvore tem `cores` vazio hoje, e é
+        // `produtos.variacao` que carrega "PT/CZ/AZ".
+        const codigosConsulta = [...new Set([...limpos, ...baseDe.values()])];
+        const porCodigo = new Map();
+        const porBase = new Map();
+        try {
+            const [linhas] = await pool.query(`
+                SELECT UPPER(TRIM(codigo)) AS codigo,
+                       NULLIF(TRIM(COALESCE(variacao, '')), '') AS variacao,
+                       NULLIF(TRIM(COALESCE(cores, '')), '')    AS cores,
+                       NULLIF(TRIM(COALESCE(cor, '')), '')      AS cor
+                  FROM produtos
+                 WHERE UPPER(TRIM(codigo)) IN (?)
+            `, [codigosConsulta]);
+            for (const l of linhas) porCodigo.set(l.codigo, l);
+
+            // Todas as variações irmãs do mesmo código base, para a tela oferecer
+            // as opções em vez de exigir digitação livre.
+            const bases = [...new Set(baseDe.values())];
+            if (bases.length) {
+                const [irmaos] = await pool.query(`
+                    SELECT UPPER(TRIM(codigo)) AS codigo,
+                           NULLIF(TRIM(COALESCE(variacao, '')), '') AS variacao,
+                           NULLIF(TRIM(COALESCE(cores, '')), '')    AS cores
+                      FROM produtos
+                     WHERE UPPER(TRIM(codigo)) REGEXP ?
+                `, [`^(${bases.map(b => b.replace(/[^A-Z0-9.]/g, '')).join('|')})`]);
+                for (const irmao of irmaos) {
+                    const base = bases.find(b => irmao.codigo.startsWith(b));
+                    if (!base) continue;
+                    const valor = irmao.variacao || irmao.cores;
+                    if (!valor) continue;
+                    if (!porBase.has(base)) porBase.set(base, new Set());
+                    porBase.get(base).add(valor);
+                }
+            }
+        } catch (e) {
+            console.warn('[PCP] Falha ao buscar variações do cadastro:', e.message);
+        }
+
+        for (const codigo of limpos) {
+            const base = baseDe.get(codigo);
+            const doCatalogo = catalogo.get(base) || catalogo.get(codigo) || null;
+            const proprio = porCodigo.get(codigo) || {};
+            const doBase = porCodigo.get(base) || {};
+            const cores = (doCatalogo && String(doCatalogo.cores || '').trim())
+                || proprio.variacao || proprio.cores || proprio.cor
+                || doBase.variacao || doBase.cores || doBase.cor
+                || null;
+            const disponiveis = [...(porBase.get(base) || [])].sort();
+            if (cores && !disponiveis.includes(cores)) disponiveis.unshift(cores);
+            resultado.set(codigo, {
+                codigo_base: base,
+                codigo_cores: cores,
+                variacao: proprio.variacao || doBase.variacao || cores || null,
+                variacoes_disponiveis: disponiveis,
+                kg_por_metro: doCatalogo && Number(doCatalogo.kg_total) > 0 ? Number(doCatalogo.kg_total) : null
+            });
+        }
+        return resultado;
+    }
+
+    async function codigosEstruturaDisponiveis() {
+        const [linhas] = await pool.query('SELECT DISTINCT produto_codigo FROM estrutura_produto WHERE ativo = 1');
+        return new Set(linhas.map(l => String(l.produto_codigo || '').trim().toUpperCase()));
+    }
+
+    // Produtos da OP no layout da planilha de produção: código, descrição, cód.
+    // cores, embalagem, lances, quantidade, peso líquido/bruto, lote e valores.
+    // Não confundir com /itens, que devolve a estrutura/BOM (matéria-prima
+    // consumida), e não o que foi vendido.
+    //
+    // Duas origens: `ordens_producao_itens` — a tabela que tem codigo_cores/peso/lote
+    // e vira a fonte da verdade assim que alguém edita um produto pelo modal — e os
+    // itens do pedido de Vendas, usados enquanto a OP não tem linha própria.
+    // Status por produto da OP. `cancelado` é o único que tira o item da conta:
+    // não entra no total da ordem nem gera matéria-prima na estrutura.
+    const STATUS_ITEM_OP = ['a_produzir', 'produzindo', 'concluido', 'embalado', 'cancelado'];
+    // Só o que já foi produzido pode ser liberado para faturar.
+    const STATUS_ITEM_FATURAVEL = ['concluido', 'embalado'];
+
+    // Aceita as variações que chegam de tela e de base antiga (feminino, acento,
+    // "em produção") e devolve sempre o slug canônico — ou null se não reconhecer.
+    const EQUIVALENTES_STATUS_ITEM_OP = {
+        concluida: 'concluido',
+        'concluída': 'concluido',
+        produzido: 'concluido',
+        finalizado: 'concluido',
+        embalada: 'embalado',
+        cancelada: 'cancelado',
+        em_producao: 'produzindo',
+        'em_produção': 'produzindo',
+        producao: 'produzindo',
+        fila: 'a_produzir',
+        pendente: 'a_produzir'
+    };
+
+    function normalizarStatusItemOP(valor) {
+        const texto = String(valor == null ? '' : valor).trim().toLowerCase().replace(/[\s-]+/g, '_');
+        if (!texto) return null;
+        const candidato = EQUIVALENTES_STATUS_ITEM_OP[texto] || texto;
+        return STATUS_ITEM_OP.includes(candidato) ? candidato : null;
+    }
+
+    // Quanto de cada produto do pedido já saiu em NF-e. Mesma conta do
+    // GET /api/vendas/pedidos/:id/saldo-itens — divergir faria o PCP liberar uma
+    // quantidade que o motor de faturamento parcial recusaria depois.
+    async function faturadoPorProdutoDoPedido(pedidoId) {
+        const mapa = new Map();
+        if (!pedidoId) return mapa;
+        try {
+            const [linhas] = await pool.query(`
+                SELECT pfi.produto_id, COALESCE(SUM(pfi.quantidade), 0) AS quantidade
+                  FROM pedido_faturamento_itens pfi
+                  INNER JOIN pedido_faturamentos pf ON pf.id = pfi.pedido_faturamento_id
+                 WHERE pfi.pedido_id = ?
+                   AND pf.tipo = 'faturamento'
+                   AND COALESCE(pf.nfe_status, 'pendente') <> 'cancelada'
+                 GROUP BY pfi.produto_id
+            `, [pedidoId]);
+            for (const l of linhas) mapa.set(Number(l.produto_id), Number(l.quantidade) || 0);
+        } catch (_) { /* tabela criada sob demanda pelo serviço de faturamento */ }
+        return mapa;
+    }
+
+    async function produtosDaOrdem(ordemId) {
+        const { ordem, pedido } = await resolverPedidoDaOrdem(ordemId);
+        if (!ordem) return null;
+
+        let itens = [];
+        let origem = null;
+
+        try {
+            const [proprios] = await pool.query(`
+                SELECT id, item_numero, codigo_produto, descricao_produto, codigo_cores,
+                       embalagem, lances, quantidade, unidade_medida,
+                       peso_liquido, peso_bruto, lote, observacao, valor_unitario, valor_total,
+                       status, produto_id, pedido_item_id, quantidade_produzida,
+                       liberado_faturamento, quantidade_liberada, liberado_em, liberado_por
+                FROM ordens_producao_itens
+                WHERE ordem_producao_id = ?
+                ORDER BY item_numero ASC, id ASC
+            `, [ordemId]);
+            if (proprios.length) {
+                origem = 'ordem';
+                itens = proprios.map((item, indice) => ({
+                    id: item.id,
+                    item_numero: item.item_numero || indice + 1,
+                    produto_id: item.produto_id == null ? null : Number(item.produto_id),
+                    pedido_item_id: item.pedido_item_id == null ? null : Number(item.pedido_item_id),
+                    codigo: item.codigo_produto,
+                    descricao: item.descricao_produto,
+                    codigo_cores: item.codigo_cores,
+                    embalagem: item.embalagem,
+                    lances: item.lances,
+                    quantidade: Number(item.quantidade) || 0,
+                    unidade: item.unidade_medida || ordem.unidade || 'M',
+                    peso_liquido: item.peso_liquido == null ? null : Number(item.peso_liquido),
+                    peso_bruto: item.peso_bruto == null ? null : Number(item.peso_bruto),
+                    peso_calculado: false,
+                    lote: item.lote,
+                    observacao: item.observacao,
+                    status: normalizarStatusItemOP(item.status) || 'a_produzir',
+                    quantidade_produzida: Number(item.quantidade_produzida) || 0,
+                    liberado_faturamento: Number(item.liberado_faturamento) === 1,
+                    quantidade_liberada: item.quantidade_liberada == null ? null : Number(item.quantidade_liberada),
+                    liberado_em: item.liberado_em,
+                    liberado_por: item.liberado_por,
+                    valor_unitario: Number(item.valor_unitario) || 0,
+                    valor_total: Number(item.valor_total) || 0
+                }));
+            }
+        } catch (e) {
+            console.log('[API_PCP] ordens_producao_itens indisponível:', e.message);
+        }
+
+        if (!itens.length && pedido) {
+            origem = 'pedido';
+            const [itensPedido] = await pool.query(`
+                SELECT pi.id, pi.produto_id, pi.codigo, pi.descricao, pi.quantidade, pi.unidade,
+                       pi.embalagem, pi.lances, pi.preco_unitario, pi.desconto, pi.subtotal,
+                       NULLIF(TRIM(COALESCE(NULLIF(pr.cores, ''), NULLIF(pr.cor, ''), '')), '') AS codigo_cores,
+                       COALESCE(pr.peso_liquido, 0) AS peso_liquido_unitario,
+                       COALESCE(pr.peso_bruto, 0) AS peso_bruto_unitario
+                FROM pedido_itens pi
+                LEFT JOIN produtos pr ON pr.codigo = pi.codigo
+                WHERE pi.pedido_id = ?
+                ORDER BY pi.id ASC
+            `, [pedido.id]);
+
+            if (itensPedido.length) {
+                const disponiveis = await codigosEstruturaDisponiveis();
+                const estruturaPorItem = itensPedido.map(item =>
+                    candidatosEstruturaProduto(item.codigo).find(c => disponiveis.has(c)) || null
+                );
+                const pesos = await pesoLiquidoPorMetroDaEstrutura([...new Set(estruturaPorItem.filter(Boolean))]);
+
+                const itensBase = itensPedido.map((item, indice) => {
+                    const quantidade = Number(item.quantidade) || 0;
+                    const liquidoCadastro = Number(item.peso_liquido_unitario) || 0;
+                    const brutoCadastro = Number(item.peso_bruto_unitario) || 0;
+                    const kgPorMetro = pesos.get(estruturaPorItem[indice]) || 0;
+                    const pesoLiquido = liquidoCadastro > 0
+                        ? liquidoCadastro * quantidade
+                        : (kgPorMetro > 0 ? kgPorMetro * quantidade : null);
+                    return {
+                        id: null,
+                        item_numero: indice + 1,
+                        produto_id: item.produto_id == null ? null : Number(item.produto_id),
+                        pedido_item_id: Number(item.id),
+                        codigo: item.codigo,
+                        descricao: item.descricao,
+                        codigo_cores: item.codigo_cores,
+                        embalagem: item.embalagem,
+                        lances: item.lances,
+                        quantidade,
+                        unidade: item.unidade || 'M',
+                        peso_liquido: pesoLiquido,
+                        // Peso bruto depende da tara da embalagem, que não é cadastrada:
+                        // só sai quando o produto tem peso_bruto no cadastro.
+                        peso_bruto: brutoCadastro > 0 ? brutoCadastro * quantidade : null,
+                        peso_calculado: liquidoCadastro <= 0 && kgPorMetro > 0,
+                        // Não há lote por item de pedido; só as OPs com linha própria gravam.
+                        lote: null,
+                        observacao: null,
+                        // Enquanto a OP não tem linha própria todo item nasce "a produzir".
+                        status: 'a_produzir',
+                        quantidade_produzida: 0,
+                        liberado_faturamento: false,
+                        quantidade_liberada: null,
+                        liberado_em: null,
+                        liberado_por: null,
+                        valor_unitario: Number(item.preco_unitario) || 0,
+                        valor_total: Number(item.subtotal) || 0
+                    };
+                });
+
+                // O lance é a unidade de produção: "3x100" no item do pedido vira TRÊS
+                // linhas de 100 m na OP (a última leva o resto quando a metragem não
+                // fecha nos lances declarados). Quantidade, valor e peso são divididos,
+                // então a soma da OP continua igual à do pedido. Feito aqui — e não só
+                // na tela — para que a materialização em `ordens_producao_itens`, o
+                // `produtos_json` e o PDF da OP nasçam já desdobrados.
+                itens = desdobrarProdutosPorLances(itensBase, { campoValorUnitario: 'valor_unitario' })
+                    .map((item, indice) => Object.assign(item, { item_numero: indice + 1 }));
+            }
+        }
+
+        // Cor e variações sempre pela árvore de produto, para as duas origens: o
+        // cadastro do código vendido vem vazio e só o código base tem a variação.
+        // O que estiver gravado na própria OP (edição manual) manda.
+        const arvore = await coresEVariacoesDaArvore(itens.map(i => i.codigo));
+        for (const item of itens) {
+            const info = arvore.get(String(item.codigo || '').trim().toUpperCase()) || {};
+            item.codigo_base = info.codigo_base || null;
+            item.variacoes_disponiveis = info.variacoes_disponiveis || [];
+            if (!item.codigo_cores) {
+                item.codigo_cores = info.codigo_cores || null;
+                item.cores_da_arvore = Boolean(info.codigo_cores);
+            } else {
+                item.cores_da_arvore = false;
+            }
+            // Peso da árvore entra só onde a estrutura não soube responder.
+            if ((item.peso_liquido == null || item.peso_liquido === 0) && info.kg_por_metro) {
+                item.peso_liquido = info.kg_por_metro * (item.quantidade || 0);
+                item.peso_calculado = true;
+            }
+        }
+
+        // Saldo faturável por item: quantidade do item menos o que já saiu em NF-e
+        // daquele produto. É o teto que a liberação do PCP pode marcar.
+        const faturado = await faturadoPorProdutoDoPedido(pedido ? pedido.id : null);
+        const usadoPorProduto = new Map();
+        for (const item of itens) {
+            const produtoId = item.produto_id;
+            if (!produtoId) {
+                item.quantidade_faturada = 0;
+                item.saldo_faturavel = item.status === 'cancelado' ? 0 : item.quantidade;
+                item.sem_produto_id = true;
+                continue;
+            }
+            const jaUsado = usadoPorProduto.get(produtoId) || 0;
+            const restanteDoProduto = Math.max(0, (faturado.get(produtoId) || 0) - jaUsado);
+            const faturadaNesteItem = Math.min(item.quantidade, restanteDoProduto);
+            usadoPorProduto.set(produtoId, jaUsado + faturadaNesteItem);
+            item.quantidade_faturada = faturadaNesteItem;
+            item.saldo_faturavel = item.status === 'cancelado'
+                ? 0
+                : Math.max(0, item.quantidade - faturadaNesteItem);
+            item.sem_produto_id = false;
+        }
+
+        // Item cancelado sai da conta da ordem — é o que diferencia o status dos demais.
+        const contabilizaveis = itens.filter(item => item.status !== 'cancelado');
+        const totais = contabilizaveis.reduce((acc, item) => {
+            acc.quantidade += item.quantidade || 0;
+            acc.peso_liquido += item.peso_liquido || 0;
+            acc.peso_bruto += item.peso_bruto || 0;
+            acc.valor += item.valor_total || 0;
+            return acc;
+        }, { quantidade: 0, peso_liquido: 0, peso_bruto: 0, valor: 0 });
+        totais.itens_cancelados = itens.length - contabilizaveis.length;
+        totais.quantidade_liberada = itens.reduce(
+            (acc, item) => acc + (item.liberado_faturamento ? (item.quantidade_liberada || 0) : 0), 0);
+        totais.quantidade_produzida = contabilizaveis.reduce(
+            (acc, item) => acc + (item.quantidade_produzida || 0), 0);
+
+        return { ordem, pedido, origem, itens, totais };
+    }
+
+    function respostaProdutosDaOrdem(resultado) {
+        return {
+            success: true,
+            origem: resultado.origem,
+            editavel: true,
+            status_possiveis: STATUS_ITEM_OP,
+            status_faturavel: STATUS_ITEM_FATURAVEL,
+            pedido_id: resultado.pedido ? resultado.pedido.id : null,
+            numero_pedido: resultado.pedido ? resultado.pedido.numero_pedido : null,
+            cliente: resultado.pedido ? (resultado.pedido.cliente_nome || resultado.pedido.cliente || null) : null,
+            itens: resultado.itens,
+            totais: resultado.totais
+        };
+    }
+
+    router.get('/ordens-producao/:id/itens-pedido', async (req, res, next) => {
+        const { id } = req.params;
+        try {
+            const resultado = await produtosDaOrdem(id);
+            if (!resultado) {
+                return res.status(404).json({ success: false, message: 'Ordem de produção não encontrada' });
+            }
+            res.json(respostaProdutosDaOrdem(resultado));
+        } catch (error) {
+            console.error(`[API_PCP] Erro ao buscar produtos da ordem ${id}:`, error.message);
+            next(error);
+        }
+    });
+
+    // Materializa os produtos da OP em `ordens_producao_itens`. Enquanto a OP não tem
+    // linha própria a aba lê direto do pedido de Vendas; na primeira edição o conteúdo
+    // é congelado aqui, para que mexer na produção não altere o pedido do comercial.
+    async function materializarItensDaOrdem(conexao, ordemId, itens) {
+        const [existentes] = await conexao.query(
+            'SELECT COUNT(*) AS total FROM ordens_producao_itens WHERE ordem_producao_id = ?',
+            [ordemId]
+        );
+        if (existentes[0].total > 0) return false;
+
+        for (const item of itens) {
+            await conexao.query(`
+                INSERT INTO ordens_producao_itens
+                    (ordem_producao_id, item_numero, codigo_produto, descricao_produto,
+                     embalagem, codigo_cores, lances, quantidade, unidade_medida,
+                     valor_unitario, valor_total, peso_liquido, peso_bruto, lote, observacao,
+                     status, produto_id, pedido_item_id, quantidade_produzida,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            `, [
+                ordemId, item.item_numero, item.codigo || null, item.descricao || null,
+                item.embalagem || null, item.codigo_cores || null, item.lances || null,
+                item.quantidade || 0, item.unidade || 'M',
+                item.valor_unitario || 0, item.valor_total || 0,
+                item.peso_liquido == null ? null : item.peso_liquido,
+                item.peso_bruto == null ? null : item.peso_bruto,
+                item.lote || null, item.observacao || null,
+                item.status || 'a_produzir',
+                item.produto_id || null, item.pedido_item_id || null,
+                item.quantidade_produzida || 0
+            ]);
+        }
+        return true;
+    }
+
+    // Reflete os produtos da OP no cabeçalho de `ordens_producao`. Sem isto a edição
+    // ficaria presa na aba: a "Quantidade a produzir" do modal, o card do kanban e,
+    // principalmente, o PDF da OP (que lê `produtos_json`) continuariam no valor antigo.
+    async function sincronizarCabecalhoDaOrdem(conexao, ordemId) {
+        const [todas] = await conexao.query(`
+            SELECT item_numero, codigo_produto, descricao_produto, embalagem, codigo_cores,
+                   lances, quantidade, unidade_medida, valor_unitario, valor_total,
+                   peso_liquido, peso_bruto, lote, observacao, status, quantidade_produzida
+            FROM ordens_producao_itens
+            WHERE ordem_producao_id = ?
+            ORDER BY item_numero ASC, id ASC
+        `, [ordemId]);
+        if (!todas.length) return null;
+
+        // Item cancelado continua na lista (para o PCP ver o que foi cortado), mas não
+        // soma no cabeçalho nem entra no produtos_json que vira o PDF da OP.
+        const linhas = todas.filter(l => normalizarStatusItemOP(l.status) !== 'cancelado');
+        if (!linhas.length) return null;
+
+        const soma = campo => linhas.reduce((acc, l) => acc + (Number(l[campo]) || 0), 0);
+        const quantidade = soma('quantidade');
+        const valor = soma('valor_total');
+        const pesoLiquido = soma('peso_liquido');
+        const pesoBruto = soma('peso_bruto');
+        const produzida = soma('quantidade_produzida');
+        // Progresso do card do kanban e da barra da OP: produzido ÷ a produzir.
+        const progresso = quantidade > 0
+            ? Math.min(100, Math.round((produzida / quantidade) * 100))
+            : 0;
+
+        const distintos = campo => [...new Set(
+            linhas.map(l => String(l[campo] == null ? '' : l[campo]).trim()).filter(Boolean)
+        )];
+        const unidades = distintos('unidade_medida');
+        const embalagens = distintos('embalagem');
+        const cores = distintos('codigo_cores');
+
+        // Mesmo formato que o PDF da OP espera em produtos_json (ver GET /pdf-completo).
+        const produtosJson = linhas.map(l => ({
+            codigo: l.codigo_produto || '',
+            descricao: l.descricao_produto || '',
+            embalagem: l.embalagem || '',
+            lances: l.lances || '',
+            quantidade: Number(l.quantidade) || 0,
+            unidade: l.unidade_medida || 'M',
+            valor_unitario: Number(l.valor_unitario) || 0,
+            valor_total: Number(l.valor_total) || 0,
+            codigo_cores: l.codigo_cores || '',
+            peso_liquido: l.peso_liquido == null ? '' : Number(l.peso_liquido),
+            peso_bruto: l.peso_bruto == null ? '' : Number(l.peso_bruto),
+            lote: l.lote || '',
+            observacao: l.observacao || ''
+        }));
+
+        await conexao.query(`
+            UPDATE ordens_producao SET
+                quantidade = ?,
+                quantidade_produzida = ?,
+                progresso = ?,
+                unidade = COALESCE(?, unidade),
+                quantidade_produtos = ?,
+                valor_total = ?,
+                total_geral = ?,
+                peso_liquido = ?,
+                peso_bruto = ?,
+                metragem = ?,
+                tipo_embalagem_entrega = COALESCE(?, tipo_embalagem_entrega),
+                cores_pe = COALESCE(?, cores_pe),
+                produtos_json = ?,
+                updated_at = NOW()
+            WHERE id = ?
+        `, [
+            quantidade,
+            produzida,
+            progresso,
+            unidades.length === 1 ? unidades[0] : null,
+            linhas.length,
+            valor,
+            valor,
+            pesoLiquido || null,
+            pesoBruto || null,
+            quantidade,
+            embalagens.length === 1 ? embalagens[0] : null,
+            cores.length ? cores.join(', ') : null,
+            JSON.stringify(produtosJson),
+            ordemId
+        ]);
+
+        return { quantidade, valor, pesoLiquido, pesoBruto, produzida, progresso };
+    }
+
+    // PUT - Edita UM produto da OP (duplo clique na linha da aba "Produtos do Pedido").
+    // Grava em `ordens_producao_itens` e propaga para o cabeçalho da OP. O pedido de
+    // Vendas NÃO é alterado: quantidade e preço da OP podem divergir do comercial de
+    // propósito (sobra de produção, reprogramação), e reescrever `pedido_itens` daqui
+    // mexeria em faturamento e contas a receber sem ninguém pedir.
+    router.put('/ordens-producao/:id/itens-pedido/:itemNumero', async (req, res, next) => {
+        const { id, itemNumero } = req.params;
+        const numero = parseInt(itemNumero, 10);
+        if (!Number.isFinite(numero) || numero <= 0) {
+            return res.status(400).json({ success: false, message: 'Item inválido' });
+        }
+
+        const texto = valor => {
+            if (valor === undefined) return undefined;
+            const limpo = String(valor == null ? '' : valor).trim();
+            return limpo === '' ? null : limpo.slice(0, 190);
+        };
+        const numeroOuNulo = valor => {
+            if (valor === undefined) return undefined;
+            if (valor === null || String(valor).trim() === '') return null;
+            // Número já vem pronto do JSON. Só string passa pela normalização pt-BR, e
+            // só quando tem vírgula — senão "123.456" (JSON, cento e vinte e três e
+            // pouco) viraria 123456 ao ter o ponto removido como separador de milhar.
+            if (typeof valor === 'number') return Number.isFinite(valor) ? valor : null;
+            let texto = String(valor).trim();
+            if (texto.includes(',')) texto = texto.replace(/\./g, '').replace(',', '.');
+            const convertido = Number(texto);
+            return Number.isFinite(convertido) ? convertido : null;
+        };
+
+        const alteracoes = {
+            codigo_cores: texto(req.body.codigo_cores),
+            embalagem: texto(req.body.embalagem),
+            lances: texto(req.body.lances),
+            lote: texto(req.body.lote),
+            observacao: texto(req.body.observacao),
+            unidade_medida: texto(req.body.unidade),
+            quantidade: numeroOuNulo(req.body.quantidade),
+            peso_liquido: numeroOuNulo(req.body.peso_liquido),
+            peso_bruto: numeroOuNulo(req.body.peso_bruto),
+            valor_unitario: numeroOuNulo(req.body.valor_unitario),
+            quantidade_produzida: numeroOuNulo(req.body.quantidade_produzida)
+        };
+        // A coluna é NOT NULL DEFAULT 0 — campo apagado na tela vira zero, não NULL.
+        if (alteracoes.quantidade_produzida === null) alteracoes.quantidade_produzida = 0;
+        if (alteracoes.quantidade_produzida !== undefined && alteracoes.quantidade_produzida < 0) {
+            return res.status(400).json({ success: false, message: 'Quantidade produzida não pode ser negativa' });
+        }
+
+        if (req.body.status !== undefined) {
+            const status = normalizarStatusItemOP(req.body.status);
+            if (!status) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Status inválido. Use: ${STATUS_ITEM_OP.join(', ')}`
+                });
+            }
+            alteracoes.status = status;
+        }
+        if (alteracoes.quantidade != null && alteracoes.quantidade < 0) {
+            return res.status(400).json({ success: false, message: 'Quantidade não pode ser negativa' });
+        }
+        if (alteracoes.valor_unitario != null && alteracoes.valor_unitario < 0) {
+            return res.status(400).json({ success: false, message: 'Valor unitário não pode ser negativo' });
+        }
+
+        const conexao = await pool.getConnection();
+        try {
+            const resultado = await produtosDaOrdem(id);
+            if (!resultado) {
+                conexao.release();
+                return res.status(404).json({ success: false, message: 'Ordem de produção não encontrada' });
+            }
+            if (!resultado.itens.length) {
+                conexao.release();
+                return res.status(404).json({ success: false, message: 'Esta ordem não tem produtos para editar' });
+            }
+
+            await conexao.beginTransaction();
+            await materializarItensDaOrdem(conexao, id, resultado.itens);
+
+            const [alvo] = await conexao.query(
+                'SELECT * FROM ordens_producao_itens WHERE ordem_producao_id = ? AND item_numero = ? LIMIT 1',
+                [id, numero]
+            );
+            if (!alvo.length) {
+                await conexao.rollback();
+                conexao.release();
+                return res.status(404).json({ success: false, message: 'Produto não encontrado nesta ordem' });
+            }
+
+            const campos = [];
+            const valores = [];
+            for (const [coluna, valor] of Object.entries(alteracoes)) {
+                if (valor === undefined) continue;
+                campos.push(`${coluna} = ?`);
+                valores.push(valor);
+            }
+
+            // O total segue quantidade × valor unitário, salvo se vier explícito.
+            const quantidadeFinal = alteracoes.quantidade !== undefined && alteracoes.quantidade != null
+                ? alteracoes.quantidade
+                : Number(alvo[0].quantidade) || 0;
+            const unitarioFinal = alteracoes.valor_unitario !== undefined && alteracoes.valor_unitario != null
+                ? alteracoes.valor_unitario
+                : Number(alvo[0].valor_unitario) || 0;
+            const totalExplicito = numeroOuNulo(req.body.valor_total);
+            campos.push('valor_total = ?');
+            valores.push(totalExplicito != null ? totalExplicito : quantidadeFinal * unitarioFinal);
+            campos.push('updated_at = NOW()');
+
+            await conexao.query(
+                `UPDATE ordens_producao_itens SET ${campos.join(', ')} WHERE id = ?`,
+                [...valores, alvo[0].id]
+            );
+
+            await sincronizarCabecalhoDaOrdem(conexao, id);
+            await conexao.commit();
+            conexao.release();
+
+            const atualizado = await produtosDaOrdem(id);
+            res.json(respostaProdutosDaOrdem(atualizado));
+        } catch (error) {
+            try { await conexao.rollback(); } catch (_) {}
+            conexao.release();
+            console.error(`[API_PCP] Erro ao editar produto da ordem ${id}:`, error.message);
+            next(error);
+        }
+    });
+
+    // POST - Status em lote dos produtos marcados na aba (produzindo / concluído /
+    // embalado / cancelado). Materializa a OP igual à edição individual, porque o
+    // status é um dado da produção e não existe no pedido de Vendas.
+    router.post('/ordens-producao/:id/itens-pedido/status', async (req, res, next) => {
+        const { id } = req.params;
+        const status = normalizarStatusItemOP(req.body?.status);
+        if (!status) {
+            return res.status(400).json({
+                success: false,
+                message: `Status inválido. Use: ${STATUS_ITEM_OP.join(', ')}`
+            });
+        }
+        const numeros = Array.isArray(req.body?.itens)
+            ? [...new Set(req.body.itens.map(n => parseInt(n, 10)).filter(n => Number.isFinite(n) && n > 0))]
+            : [];
+        if (!numeros.length) {
+            return res.status(400).json({ success: false, message: 'Selecione ao menos um produto' });
+        }
+
+        const conexao = await pool.getConnection();
+        try {
+            const resultado = await produtosDaOrdem(id);
+            if (!resultado) {
+                conexao.release();
+                return res.status(404).json({ success: false, message: 'Ordem de produção não encontrada' });
+            }
+            if (!resultado.itens.length) {
+                conexao.release();
+                return res.status(404).json({ success: false, message: 'Esta ordem não tem produtos' });
+            }
+
+            await conexao.beginTransaction();
+            await materializarItensDaOrdem(conexao, id, resultado.itens);
+
+            // Cancelar um item já liberado deixaria uma liberação órfã pendurada no
+            // faturamento — a liberação cai junto.
+            const [info] = await conexao.query(
+                `UPDATE ordens_producao_itens
+                    SET status = ?,
+                        liberado_faturamento = CASE WHEN ? = 'cancelado' THEN 0 ELSE liberado_faturamento END,
+                        quantidade_liberada = CASE WHEN ? = 'cancelado' THEN NULL ELSE quantidade_liberada END,
+                        updated_at = NOW()
+                  WHERE ordem_producao_id = ? AND item_numero IN (?)`,
+                [status, status, status, id, numeros]
+            );
+
+            await sincronizarCabecalhoDaOrdem(conexao, id);
+            await conexao.commit();
+            conexao.release();
+
+            const atualizado = await produtosDaOrdem(id);
+            res.json({ ...respostaProdutosDaOrdem(atualizado), atualizados: info.affectedRows });
+        } catch (error) {
+            try { await conexao.rollback(); } catch (_) {}
+            conexao.release();
+            console.error(`[API_PCP] Erro ao mudar status de itens da ordem ${id}:`, error.message);
+            next(error);
+        }
+    });
+
+    // POST - Libera os produtos marcados para o faturamento parcial POR ITEM.
+    //
+    // O PCP NÃO emite nota: quem emite é
+    // `POST /api/vendas/pedidos/:id/faturamento-parcial` (modo `itens_faturar`, em
+    // services/faturamento-parcial.service.js). Esta rota faz a ponte — valida contra o
+    // mesmo saldo que aquele motor usa, marca a liberação na OP, escreve a quantidade em
+    // `pedido_itens.quantidade_parcial` (a coluna "Qtd. Parcial" que Vendas já exibe) e
+    // devolve o payload `itens_faturar` pronto. Assim a produção diz o que pode ser
+    // faturado sem disparar documento fiscal por conta própria.
+    router.post('/ordens-producao/:id/liberar-faturamento', async (req, res, next) => {
+        const { id } = req.params;
+        const selecionados = Array.isArray(req.body?.itens) ? req.body.itens : [];
+        if (!selecionados.length) {
+            return res.status(400).json({ success: false, message: 'Selecione ao menos um produto' });
+        }
+
+        const conexao = await pool.getConnection();
+        try {
+            const resultado = await produtosDaOrdem(id);
+            if (!resultado) {
+                conexao.release();
+                return res.status(404).json({ success: false, message: 'Ordem de produção não encontrada' });
+            }
+            if (!resultado.pedido) {
+                conexao.release();
+                return res.status(409).json({
+                    success: false,
+                    message: 'Esta ordem não está vinculada a um pedido de Vendas — não há o que faturar.'
+                });
+            }
+
+            const porNumero = new Map(resultado.itens.map(i => [Number(i.item_numero), i]));
+            const aLiberar = [];
+            for (const bruto of selecionados) {
+                const numero = parseInt(bruto?.item_numero, 10);
+                const item = porNumero.get(numero);
+                if (!item) {
+                    conexao.release();
+                    return res.status(400).json({ success: false, message: `Produto ${numero} não pertence a esta ordem` });
+                }
+                if (!STATUS_ITEM_FATURAVEL.includes(item.status)) {
+                    conexao.release();
+                    return res.status(409).json({
+                        success: false,
+                        message: `"${item.codigo || numero}" está como "${item.status}". Só produto concluído ou embalado pode ser liberado para faturar.`,
+                        item_numero: numero
+                    });
+                }
+                if (!item.produto_id) {
+                    conexao.release();
+                    return res.status(409).json({
+                        success: false,
+                        message: `"${item.codigo || numero}" não tem produto vinculado no pedido (produto_id vazio) — o faturamento por item não consegue identificá-lo.`,
+                        item_numero: numero
+                    });
+                }
+
+                const pedida = bruto?.quantidade === undefined || bruto?.quantidade === null || bruto?.quantidade === ''
+                    ? item.saldo_faturavel
+                    : Number(bruto.quantidade);
+                const quantidade = Math.round((Number(pedida) || 0) * 10000) / 10000;
+                if (!(quantidade > 0)) {
+                    conexao.release();
+                    return res.status(400).json({ success: false, message: `Quantidade inválida para "${item.codigo || numero}"` });
+                }
+                if (quantidade > item.saldo_faturavel + 0.0001) {
+                    conexao.release();
+                    return res.status(409).json({
+                        success: false,
+                        message: `"${item.codigo || numero}": saldo faturável é ${item.saldo_faturavel} ${item.unidade || ''}`.trim(),
+                        item_numero: numero,
+                        saldo: item.saldo_faturavel
+                    });
+                }
+                aLiberar.push({ item, quantidade });
+            }
+
+            const usuario = String(req.user?.nome || req.user?.email || req.user?.username || 'PCP').slice(0, 120);
+
+            await conexao.beginTransaction();
+            await materializarItensDaOrdem(conexao, id, resultado.itens);
+
+            for (const { item, quantidade } of aLiberar) {
+                await conexao.query(
+                    `UPDATE ordens_producao_itens
+                        SET liberado_faturamento = 1, quantidade_liberada = ?,
+                            liberado_em = NOW(), liberado_por = ?, updated_at = NOW()
+                      WHERE ordem_producao_id = ? AND item_numero = ?`,
+                    [quantidade, usuario, id, item.item_numero]
+                );
+                if (item.pedido_item_id) {
+                    await conexao.query(
+                        'UPDATE pedido_itens SET quantidade_parcial = ? WHERE id = ?',
+                        [quantidade, item.pedido_item_id]
+                    );
+                }
+            }
+
+            await conexao.commit();
+            conexao.release();
+
+            // Payload no formato exato que o motor de faturamento parcial espera.
+            const itensFaturar = aLiberar.map(({ item, quantidade }) => ({
+                produto_id: item.produto_id,
+                quantidade,
+                codigo: item.codigo,
+                descricao: item.descricao,
+                unidade: item.unidade
+            }));
+
+            const atualizado = await produtosDaOrdem(id);
+            res.json({
+                ...respostaProdutosDaOrdem(atualizado),
+                liberados: itensFaturar.length,
+                itens_faturar: itensFaturar,
+                faturamento_parcial_url: `/api/vendas/pedidos/${resultado.pedido.id}/faturamento-parcial`
+            });
+        } catch (error) {
+            try { await conexao.rollback(); } catch (_) {}
+            conexao.release();
+            console.error(`[API_PCP] Erro ao liberar itens para faturamento da ordem ${id}:`, error.message);
+            next(error);
+        }
+    });
+
+    // Monta a estrutura (BOM) somando TODOS os produtos do pedido de origem.
+    // Antes a rota /itens casava UM produto por heurística sobre `op.produto_nome` —
+    // que nas OPs geradas em lote é a concatenação de todos os itens — e acabava
+    // mostrando a estrutura do último código citado no texto (na OP 2026/02083, o
+    // "DUI10C" do fim do nome, sendo que o pedido vendeu DUN10C/DUN16C/TRN16C).
+    async function montarItensPelaEstruturaDoPedido(ordemId) {
+        // Vem de produtosDaOrdem() de propósito: quando alguém edita a quantidade de um
+        // produto pelo modal, a matéria-prima tem de acompanhar a quantidade da OP, não
+        // a do pedido original.
+        const resultado = await produtosDaOrdem(ordemId);
+        if (!resultado) return [];
+        // Produto cancelado não consome matéria-prima.
+        const itensPedido = resultado.itens.filter(item => item.status !== 'cancelado');
+        if (!itensPedido.length) return [];
+
+        const disponiveis = await codigosEstruturaDisponiveis();
+        const pares = itensPedido.map(item => ({
+            item,
+            produtoEstrutura: candidatosEstruturaProduto(item.codigo).find(c => disponiveis.has(c)) || null
+        }));
+
+        const codigosEstrutura = [...new Set(pares.map(p => p.produtoEstrutura).filter(Boolean))];
+        const porProduto = new Map();
+        if (codigosEstrutura.length) {
+            const [componentes] = await pool.query(`
+                SELECT produto_codigo, componente_codigo, componente_descricao,
+                       componente_tipo, quantidade_por_metro, unidade, local_estoque
+                FROM estrutura_produto
+                WHERE ativo = 1 AND produto_codigo IN (?)
+                ORDER BY produto_codigo, componente_tipo, id
+            `, [codigosEstrutura]);
+            for (const comp of componentes) {
+                const chave = String(comp.produto_codigo || '').trim().toUpperCase();
+                if (!porProduto.has(chave)) porProduto.set(chave, []);
+                porProduto.get(chave).push(comp);
+            }
+        }
+
+        const codigosComponente = [...new Set(
+            [...porProduto.values()].flat().map(c => c.componente_codigo).filter(Boolean)
+        )];
+        const estoqueMap = {};
+        if (codigosComponente.length) {
+            try {
+                const [saldos] = await pool.query(`
+                    SELECT codigo_material, COALESCE(SUM(quantidade_disponivel), 0) AS estoque
+                    FROM estoque_saldos
+                    WHERE codigo_material IN (?)
+                    GROUP BY codigo_material
+                `, [codigosComponente]);
+                for (const s of saldos) estoqueMap[s.codigo_material] = parseFloat(s.estoque) || 0;
+            } catch (e) { /* instância sem estoque_saldos */ }
+        }
+
+        const itens = [];
+        for (const { item, produtoEstrutura } of pares) {
+            const quantidadeItem = parseFloat(item.quantidade) || 0;
+            const comuns = {
+                id: 0,
+                ordem_producao_id: Number(ordemId),
+                material_id: null,
+                quantidade_utilizada: 0,
+                produto_codigo: item.codigo,
+                produto_descricao: item.descricao,
+                produto_quantidade: quantidadeItem,
+                produto_unidade: item.unidade || 'M'
+            };
+            const componentes = produtoEstrutura ? (porProduto.get(produtoEstrutura) || []) : [];
+
+            if (!componentes.length) {
+                // Produto sem estrutura cadastrada aparece assim mesmo — senão o item
+                // do pedido simplesmente sumiria da OP sem ninguém notar.
+                itens.push({
+                    ...comuns,
+                    codigo_material: item.codigo,
+                    descricao: item.descricao,
+                    quantidade: quantidadeItem,
+                    unidade: item.unidade || 'M',
+                    estoque_disponivel: 0,
+                    local_estoque: 'PRODUÇÃO',
+                    tipo_item: 'PRODUTO_ACABADO',
+                    principal: 1,
+                    sem_estrutura: true
+                });
+                continue;
+            }
+
+            for (const comp of componentes) {
+                itens.push({
+                    ...comuns,
+                    codigo_material: comp.componente_codigo,
+                    descricao: comp.componente_descricao,
+                    quantidade: quantidadeItem * (parseFloat(comp.quantidade_por_metro) || 0),
+                    unidade: comp.unidade,
+                    estoque_disponivel: estoqueMap[comp.componente_codigo] || 0,
+                    local_estoque: comp.local_estoque,
+                    tipo_item: String(comp.componente_tipo || 'MATERIAL').toUpperCase(),
+                    principal: 0,
+                    sem_estrutura: false
+                });
+            }
+        }
+        return itens;
+    }
+
     router.get('/ordens-producao/:id/itens', async (req, res) => {
         const { id } = req.params;
         console.log(`[API_PCP] Buscando itens da ordem de produção ${id}...`);
@@ -6926,6 +9950,22 @@ module.exports = function createPCPRoutes(deps) {
                 }
             } catch (e) {
                 console.log('[API_PCP] Tabela itens_ordem_producao não existe ou erro:', e.message);
+            }
+
+            // Antes da heurística por nome: se a OP veio de um pedido de Vendas, a
+            // estrutura sai de TODOS os produtos do pedido, cada um multiplicado pela
+            // própria quantidade. É o caminho certo — a heurística abaixo só sabe
+            // casar um produto e ignora o resto do orçamento.
+            if (itens.length === 0) {
+                try {
+                    itens = await montarItensPelaEstruturaDoPedido(id);
+                    if (itens.length) {
+                        console.log(`[API_PCP] Estrutura montada pelos ${new Set(itens.map(i => i.produto_codigo)).size} produto(s) do pedido da ordem ${id}`);
+                    }
+                } catch (e) {
+                    console.log('[API_PCP] Falha ao montar estrutura pelo pedido:', e.message);
+                    itens = [];
+                }
             }
 
             // Se não há itens salvos, tentar gerar baseado na estrutura do produto
@@ -7359,9 +10399,18 @@ module.exports = function createPCPRoutes(deps) {
                 updateFields.push('observacoes = ?');
                 params.push(dados.observacoes);
             }
-            if (dados.status) {
+            // Normaliza variações ("concluido"/"concluída") para o valor canônico usado
+            // pelo fluxo do Kanban (mapKanbanToStatus) e pela baixa de estoque do Bloco K.
+            let dbStatus = dados.status;
+            if (dbStatus && ['concluido', 'concluída', 'concluido(a)'].includes(String(dbStatus).toLowerCase())) {
+                dbStatus = 'concluida';
+            }
+            if (dbStatus) {
                 updateFields.push('status = ?');
-                params.push(dados.status);
+                params.push(dbStatus);
+                if (dbStatus === 'concluida') {
+                    updateFields.push('data_conclusao = NOW()');
+                }
             }
             if (dados.responsavel) {
                 updateFields.push('responsavel = ?');
@@ -7379,9 +10428,21 @@ module.exports = function createPCPRoutes(deps) {
                 updateFields.push('progresso = ?');
                 params.push(dados.progresso);
             }
+            if (dados.produzido !== undefined || dados.quantidade_produzida !== undefined) {
+                updateFields.push('quantidade_produzida = ?');
+                params.push(dados.produzido !== undefined ? dados.produzido : dados.quantidade_produzida);
+            }
 
             if (updateFields.length === 0) {
                 return res.status(400).json({ success: false, message: 'Nenhum campo para atualizar' });
+            }
+
+            // Se for concluir, verifica ANTES se já estava concluída — evita duplicar a baixa
+            // de estoque e o avanço do pedido caso a mesma conclusão seja enviada de novo.
+            let jaEstavaConcluida = false;
+            if (dbStatus === 'concluida') {
+                const [statusAtualRows] = await pool.query('SELECT status FROM ordens_producao WHERE id = ?', [id]);
+                jaEstavaConcluida = statusAtualRows.length > 0 && statusAtualRows[0].status === 'concluida';
             }
 
             updateFields.push('updated_at = NOW()');
@@ -7390,11 +10451,39 @@ module.exports = function createPCPRoutes(deps) {
             const sql = `UPDATE ordens_producao SET ${updateFields.join(', ')} WHERE id = ?`;
             const [result] = await pool.query(sql, params);
 
-            if (result.affectedRows > 0) {
-                res.json({ success: true, message: 'Ordem atualizada com sucesso' });
-            } else {
-                res.status(404).json({ success: false, message: 'Ordem não encontrada' });
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ success: false, message: 'Ordem não encontrada' });
             }
+
+            if (dbStatus === 'concluida' && !jaEstavaConcluida) {
+                // Mesmo comportamento do PUT /ordens-kanban/:id ao concluir: avança o pedido
+                // vinculado no pipeline e registra a baixa de matéria-prima (K235/K270).
+                const pipeConn = await pool.getConnection();
+                try {
+                    await pipeConn.beginTransaction();
+                    const [opData] = await pipeConn.query('SELECT COALESCE(pedido_vinculado_id, pedido_id) AS pedido_id FROM ordens_producao WHERE id = ?', [id]);
+                    if (opData.length > 0 && opData[0].pedido_id) {
+                        const pedidoId = opData[0].pedido_id;
+                        const [pedido] = await pipeConn.query('SELECT status FROM pedidos WHERE id = ? FOR UPDATE', [pedidoId]);
+                        if (pedido.length > 0 && pedido[0].status === 'pedido-aprovado') {
+                            await pipeConn.query('UPDATE pedidos SET status = "faturar", updated_at = NOW() WHERE id = ?', [pedidoId]);
+                            console.log(`[PIPELINE_AUTO] Pedido #${pedidoId} movido para "faturar" (OP #${id} concluída)`);
+                        }
+                    }
+                    await pipeConn.commit();
+                } catch (pipeErr) {
+                    await pipeConn.rollback();
+                    console.error(`[PIPELINE_AUTO] Erro ao atualizar pedido após conclusão OP #${id}:`, pipeErr.message);
+                } finally {
+                    pipeConn.release();
+                }
+
+                registrarBaixaEstoqueOP(pool, id, req.user?.id).catch(e =>
+                    console.error(`[BLOCO_K] Erro ao registrar baixa OP #${id}:`, e.message)
+                );
+            }
+
+            res.json({ success: true, message: 'Ordem atualizada com sucesso' });
         } catch (error) {
             console.error('[API_PCP] Erro ao atualizar ordem:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao atualizar ordem', error: 'Erro interno no servidor. Tente novamente.' });
@@ -7416,10 +10505,8 @@ module.exports = function createPCPRoutes(deps) {
 
             const ordemOriginal = ordens[0];
 
-            // Gerar novo código
-            const [maxCodigo] = await pool.query("SELECT MAX(CAST(REPLACE(REPLACE(codigo, 'OP-', ''), 'OP Nº ', '') AS UNSIGNED)) as max FROM ordens_producao");
-            const proximoNumero = (maxCodigo[0].max || 0) + 1;
-            const novoCodigo = `OP-${proximoNumero}`;
+            // Duplicações participam da mesma sequência oficial AAAA/NNNNN.
+            const novoCodigo = await getNextOpCode(pool, new Date().getFullYear(), { lock: false });
 
             // Inserir cópia
             const [result] = await pool.query(`
@@ -7491,22 +10578,140 @@ module.exports = function createPCPRoutes(deps) {
         }
     });
 
-    // Buscar anexos de uma ordem
+    // Anexos da OP. A tela já oferecia listar/enviar/excluir, mas o GET antigo
+    // consultava colunas que não existem (`tipo_arquivo` e `descricao`) e as duas
+    // mutações nunca tinham sido implementadas.
+    const anexosUploadRoot = uploadsRoot;
+    const caminhoSeguroDeAnexo = (caminho) => {
+        if (!caminho) return null;
+        const resolved = path.resolve(String(caminho));
+        return resolved.startsWith(`${anexosUploadRoot}${path.sep}`) ? resolved : null;
+    };
+    const apagarUploads = async (files) => {
+        await Promise.all((files || []).map(async (file) => {
+            const safePath = caminhoSeguroDeAnexo(file.path);
+            if (safePath) await fs.promises.unlink(safePath).catch(() => {});
+        }));
+    };
+
     router.get('/ordens-producao/:id/anexos', async (req, res) => {
-        const { id } = req.params;
-
         try {
+            const id = parseInt(req.params.id, 10);
+            if (!Number.isSafeInteger(id) || id <= 0) {
+                return res.status(400).json({ success: false, message: 'Ordem inválida' });
+            }
             const [anexos] = await pool.query(`
-                SELECT id, nome_arquivo, tipo_arquivo, tamanho, descricao, created_at
-                FROM anexos_ordem_producao
-                WHERE ordem_producao_id = ?
-                ORDER BY created_at DESC
+                SELECT id,
+                       nome_arquivo AS nome,
+                       nome_arquivo AS filename,
+                       tipo,
+                       tipo AS extensao,
+                       tamanho,
+                       created_at,
+                       CONCAT('/api/pcp/anexos/', id, '/download') AS url
+                  FROM anexos_ordem_producao
+                 WHERE ordem_producao_id = ?
+                 ORDER BY created_at DESC
             `, [id]);
-
-            res.json({ success: true, data: anexos || [] });
+            return res.json({ success: true, data: anexos || [] });
         } catch (error) {
             console.error('[API_PCP] Erro ao buscar anexos:', error.message);
-            res.status(500).json({ success: false, message: 'Erro ao buscar anexos', error: 'Erro interno no servidor. Tente novamente.' });
+            return res.status(500).json({ success: false, message: 'Erro ao buscar anexos' });
+        }
+    });
+
+    router.post('/ordens-producao/:id/anexos', upload.array('anexos', 10), async (req, res) => {
+        const files = req.files || [];
+        let connection;
+        try {
+            const id = parseInt(req.params.id, 10);
+            if (!Number.isSafeInteger(id) || id <= 0) {
+                await apagarUploads(files);
+                return res.status(400).json({ success: false, message: 'Ordem inválida' });
+            }
+            if (!files.length) {
+                return res.status(400).json({ success: false, message: 'Nenhum arquivo enviado' });
+            }
+
+            connection = await pool.getConnection();
+            const [[ordem]] = await connection.query('SELECT id FROM ordens_producao WHERE id = ? LIMIT 1', [id]);
+            if (!ordem) {
+                await apagarUploads(files);
+                return res.status(404).json({ success: false, message: 'Ordem não encontrada' });
+            }
+
+            await connection.beginTransaction();
+            const anexos = [];
+            for (const file of files) {
+                const nome = path.basename(String(file.originalname || 'arquivo')).slice(0, 255);
+                const [result] = await connection.query(
+                    `INSERT INTO anexos_ordem_producao
+                        (ordem_producao_id, nome_arquivo, caminho, tipo, tamanho, usuario_id)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [id, nome, path.resolve(file.path), file.mimetype, file.size, req.user?.id || null]
+                );
+                anexos.push({
+                    id: result.insertId,
+                    nome,
+                    filename: nome,
+                    tipo: file.mimetype,
+                    tamanho: file.size,
+                    url: `/api/pcp/anexos/${result.insertId}/download`
+                });
+            }
+            await connection.commit();
+            return res.status(201).json({ success: true, data: anexos });
+        } catch (error) {
+            if (connection) await connection.rollback().catch(() => {});
+            await apagarUploads(files);
+            console.error('[API_PCP] Erro ao enviar anexos:', error.message);
+            return res.status(500).json({ success: false, message: 'Erro ao enviar anexos' });
+        } finally {
+            if (connection) connection.release();
+        }
+    });
+
+    router.get('/anexos/:id/download', async (req, res) => {
+        try {
+            const id = parseInt(req.params.id, 10);
+            if (!Number.isSafeInteger(id) || id <= 0) {
+                return res.status(400).json({ success: false, message: 'Anexo inválido' });
+            }
+            const [[anexo]] = await pool.query(
+                'SELECT nome_arquivo, caminho FROM anexos_ordem_producao WHERE id = ? LIMIT 1',
+                [id]
+            );
+            if (!anexo) return res.status(404).json({ success: false, message: 'Anexo não encontrado' });
+            const safePath = caminhoSeguroDeAnexo(anexo.caminho);
+            if (!safePath || !fs.existsSync(safePath)) {
+                return res.status(404).json({ success: false, message: 'Arquivo do anexo não encontrado' });
+            }
+            return res.download(safePath, path.basename(anexo.nome_arquivo || 'anexo'));
+        } catch (error) {
+            console.error('[API_PCP] Erro ao baixar anexo:', error.message);
+            return res.status(500).json({ success: false, message: 'Erro ao baixar anexo' });
+        }
+    });
+
+    router.delete('/anexos/:id', async (req, res) => {
+        try {
+            const id = parseInt(req.params.id, 10);
+            if (!Number.isSafeInteger(id) || id <= 0) {
+                return res.status(400).json({ success: false, message: 'Anexo inválido' });
+            }
+            const [[anexo]] = await pool.query(
+                'SELECT caminho FROM anexos_ordem_producao WHERE id = ? LIMIT 1',
+                [id]
+            );
+            if (!anexo) return res.status(404).json({ success: false, message: 'Anexo não encontrado' });
+
+            await pool.query('DELETE FROM anexos_ordem_producao WHERE id = ?', [id]);
+            const safePath = caminhoSeguroDeAnexo(anexo.caminho);
+            if (safePath) await fs.promises.unlink(safePath).catch(() => {});
+            return res.json({ success: true, message: 'Anexo excluído' });
+        } catch (error) {
+            console.error('[API_PCP] Erro ao excluir anexo:', error.message);
+            return res.status(500).json({ success: false, message: 'Erro ao excluir anexo' });
         }
     });
 
@@ -7574,6 +10779,39 @@ module.exports = function createPCPRoutes(deps) {
     // =================== ETIQUETAS DE PRODUÇÃO ===================
 
     // Gerar etiqueta de Bobina usando template Excel
+    // Dados de UM produto da OP para a etiqueta (bobina / identificação de produto).
+    // Sem `item_numero` devolve null e as rotas seguem no comportamento antigo, que
+    // lia só o cabeçalho e adivinhava a cor varrendo o nome do produto.
+    async function dadosEtiquetaDoItem(ordemId, itemNumero) {
+        const numero = parseInt(itemNumero, 10);
+        if (!Number.isFinite(numero) || numero <= 0) return null;
+        try {
+            const resultado = await produtosDaOrdem(ordemId);
+            if (!resultado) return null;
+            const item = resultado.itens.find(i => Number(i.item_numero) === numero);
+            if (!item) return null;
+            // A etiqueta acompanha o que saiu da máquina; sem apontamento, o pedido.
+            const quantidade = item.quantidade_produzida > 0 ? item.quantidade_produzida : item.quantidade;
+            return {
+                item_numero: item.item_numero,
+                codigo: item.codigo,
+                descricao: item.descricao,
+                cores: item.codigo_cores,
+                lote: item.lote,
+                embalagem: item.embalagem,
+                lances: item.lances,
+                unidade: item.unidade,
+                quantidade,
+                peso_liquido: item.peso_liquido,
+                peso_bruto: item.peso_bruto,
+                observacao: item.observacao
+            };
+        } catch (e) {
+            console.warn('[ETIQUETA] Não consegui ler o item da OP:', e.message);
+            return null;
+        }
+    }
+
     router.get('/ordens-producao/:id/etiqueta-bobina', async (req, res) => {
         const { id } = req.params;
         const { formato = 'excel', cor1 = '', quantidade_etiquetas = '1' } = req.query;
@@ -7635,17 +10873,26 @@ module.exports = function createPCPRoutes(deps) {
                 }
             }
 
-            // Dados para preencher
+            // Dados para preencher. Com `item_numero`, tudo que a aba "Produtos do
+            // Pedido" mantém por item (lote, cores, pesos, produzido) manda sobre o
+            // cabeçalho da OP — é o dado que o chão de fábrica realmente apontou.
+            const itemEtiqueta = await dadosEtiquetaDoItem(id, req.query.item_numero);
             const dataAtual = new Date();
             const dataFormatada = dataAtual.toLocaleDateString('pt-BR').replace(/\//g, '.');
-            const lote = `EX75 ${dataFormatada}`; // Formato: EX75 03.02.2026
-            const quantidade = parseFloat(ordem.quantidade) || 0;
-            const unidade = ordem.unidade || 'METROS';
+            const lote = (itemEtiqueta && itemEtiqueta.lote) || `EX75 ${dataFormatada}`; // Formato: EX75 03.02.2026
+            const quantidade = (itemEtiqueta && itemEtiqueta.quantidade) || parseFloat(ordem.quantidade) || 0;
+            const unidade = (itemEtiqueta && itemEtiqueta.unidade) || ordem.unidade || 'METROS';
             const cliente = ordem.cliente || ordem.cliente_nome || 'Estoque';
             const numeroPedido = ordem.numero_pedido || '-';
-            const pesoBruto = parseFloat(ordem.peso_bruto) || 0;
-            const pesoLiquido = parseFloat(ordem.peso_liquido) || 0;
-            const dimensaoBobina = ordem.dimensao_bobina || '0,80x0,45';
+            const pesoBruto = (itemEtiqueta && itemEtiqueta.peso_bruto) || parseFloat(ordem.peso_bruto) || 0;
+            const pesoLiquido = (itemEtiqueta && itemEtiqueta.peso_liquido) || parseFloat(ordem.peso_liquido) || 0;
+            const dimensaoBobina = (itemEtiqueta && itemEtiqueta.embalagem === 'Bobina' && itemEtiqueta.lances)
+                ? itemEtiqueta.lances
+                : (ordem.dimensao_bobina || '0,80x0,45');
+            if (itemEtiqueta) {
+                if (itemEtiqueta.codigo) codigoCabo = itemEtiqueta.codigo;
+                if (!cor && itemEtiqueta.cores) cor = itemEtiqueta.cores;
+            }
 
             // ============== MAPEAMENTO CORRETO BASEADO NO TEMPLATE PREENCHIDO ==============
             // C2: "CABO: 70"
@@ -7839,17 +11086,24 @@ module.exports = function createPCPRoutes(deps) {
                     }
                 }
             }
+            // Com `item_numero`, lote/cor/quantidade/descrição saem do produto da OP
+            // (aba "Produtos do Pedido") em vez de serem adivinhados no cabeçalho.
+            const itemEtiqueta = await dadosEtiquetaDoItem(id, req.query.item_numero);
+            if (itemEtiqueta) {
+                if (itemEtiqueta.codigo) codigoCabo = itemEtiqueta.codigo;
+                if (!corProduto && itemEtiqueta.cores) corProduto = itemEtiqueta.cores;
+            }
             const corEtiqueta2 = cor2 || corProduto;
 
             // Dados para preencher
             const dataAtual = new Date();
             const dataFormatada = dataAtual.toLocaleDateString('pt-BR').replace(/\//g, '.');
-            const lote = `EX75 ${dataFormatada}`;
-            const quantidade = parseFloat(ordem.quantidade) || 0;
-            const unidade = ordem.unidade || 'METROS';
+            const lote = (itemEtiqueta && itemEtiqueta.lote) || `EX75 ${dataFormatada}`;
+            const quantidade = (itemEtiqueta && itemEtiqueta.quantidade) || parseFloat(ordem.quantidade) || 0;
+            const unidade = (itemEtiqueta && itemEtiqueta.unidade) || ordem.unidade || 'METROS';
             const cliente = ordem.cliente || ordem.cliente_nome || 'Estoque';
             const numeroPedido = ordem.numero_pedido || '-';
-            const observacoes = ordem.observacoes || '';
+            const observacoes = (itemEtiqueta && itemEtiqueta.observacao) || ordem.observacoes || '';
 
             // ============== MAPEAMENTO PARA TEMPLATE "Indentificação de Produto.xlsx" ==============
             // Template com 4 etiquetas em formato 2x2:
@@ -7925,9 +11179,10 @@ module.exports = function createPCPRoutes(deps) {
                 }
             }
 
-            // Se formato for PDF, converter Excel para PDF
+            // Se formato for PDF, converter Excel para PDF (layout replica o template Excel: logo + QR por etiqueta)
             if (formato === 'pdf') {
                 const PDFDocument = require('pdfkit');
+                const fsSync = require('fs');
                 const doc = new PDFDocument({
                     size: 'A5',
                     layout: 'landscape',
@@ -7938,47 +11193,56 @@ module.exports = function createPCPRoutes(deps) {
                 res.setHeader('Content-Disposition', `inline; filename=Etiqueta_Produto_${lote.replace(/\s/g, '_')}.pdf`);
                 doc.pipe(res);
 
-                // Função para desenhar uma etiqueta
-                const desenharEtiqueta = (x, y, num, cor) => {
+                const assetsDir = path.join(__dirname, '..', 'modules', 'PCP', 'Etiquetas', 'assets');
+                const logoPath = path.join(assetsDir, 'logo-circulo.png');
+                const qrPath = path.join(assetsDir, 'qrcode-etiqueta.png');
+                const temLogo = fsSync.existsSync(logoPath);
+                const temQr = fsSync.existsSync(qrPath);
+
+                // Função para desenhar uma etiqueta (espelha o template Excel: título+logo, campos, QR)
+                const desenharEtiqueta = (x, y, cor) => {
                     const w = 250, h = 170;
 
                     // Borda
                     doc.rect(x, y, w, h).stroke();
 
-                    // Título
+                    // Título + logo circular (topo direito)
                     doc.fontSize(10).font('Helvetica-Bold')
-                       .text('IDENTIFICAÇÃO DE PRODUTO', x + 10, y + 8, { width: w - 40 });
-                    doc.fontSize(12).text(num, x + w - 25, y + 5);
+                       .text('IDENTIFICAÇÃO DE PRODUTO', x + 8, y + 9, { width: w - 45 });
+                    if (temLogo) doc.image(logoPath, x + w - 32, y + 6, { width: 24, height: 24 });
 
                     // Linha
-                    doc.moveTo(x + 5, y + 25).lineTo(x + w - 5, y + 25).stroke();
+                    doc.moveTo(x + 5, y + 30).lineTo(x + w - 5, y + 30).stroke();
 
                     // LOTE e COR
-                    doc.fontSize(9).font('Helvetica-Bold').text('LOTE:', x + 10, y + 32);
-                    doc.font('Helvetica').text(lote, x + 45, y + 32);
-                    doc.font('Helvetica-Bold').text('COR', x + 160, y + 32);
-                    doc.font('Helvetica').fontSize(10).text(cor, x + 190, y + 32);
+                    doc.fontSize(8).font('Helvetica-Bold').text('LOTE:', x + 8, y + 38);
+                    doc.font('Helvetica').fontSize(9).text(lote, x + 35, y + 37, { width: 115 });
+                    doc.font('Helvetica-Bold').fontSize(8).text('COR', x + 160, y + 38);
+                    doc.font('Helvetica').fontSize(9).text(cor || '-', x + 186, y + 37);
 
-                    // CABO e PEDIDO
-                    doc.fontSize(9).font('Helvetica-Bold').text('CABO', x + 10, y + 55);
-                    doc.font('Helvetica').fontSize(14).text(codigoCabo, x + 50, y + 52);
-                    doc.fontSize(9).font('Helvetica-Bold').text('Nº PEDIDO', x + 130, y + 55);
-                    doc.font('Helvetica').fontSize(12).text(numeroPedido, x + 195, y + 52);
+                    // CABO e Nº PEDIDO
+                    doc.font('Helvetica-Bold').fontSize(8).text('CABO', x + 8, y + 58);
+                    doc.font('Helvetica').fontSize(13).text(codigoCabo, x + 45, y + 55);
+                    doc.font('Helvetica-Bold').fontSize(8).text('Nº PEDIDO', x + 130, y + 58);
+                    doc.font('Helvetica').fontSize(11).text(numeroPedido, x + 190, y + 56);
 
                     // QUANTIDADE
-                    doc.fontSize(9).font('Helvetica-Bold').text('QUANT:', x + 10, y + 80);
-                    doc.font('Helvetica').fontSize(16).text(quantidade, x + 55, y + 77);
-                    doc.fontSize(10).text(unidade, x + 150, y + 80);
+                    doc.font('Helvetica-Bold').fontSize(8).text('QUANT:', x + 8, y + 82);
+                    doc.font('Helvetica').fontSize(15).text(String(quantidade), x + 50, y + 78);
+                    doc.fontSize(9).text(unidade, x + 120, y + 83);
 
                     // CLIENTE
-                    doc.fontSize(9).font('Helvetica-Bold').text('CLIENTE', x + 10, y + 105);
-                    doc.font('Helvetica').fontSize(9).text(cliente.substring(0, 35), x + 10, y + 118, { width: w - 20 });
+                    doc.font('Helvetica-Bold').fontSize(8).text('CLIENTE', x + 8, y + 105);
+                    doc.font('Helvetica').fontSize(9).text(cliente.substring(0, 40), x + 8, y + 117, { width: w - 70 });
 
                     // OBS
-                    doc.fontSize(8).font('Helvetica-Bold').text('OBS:', x + 10, y + 140);
+                    doc.font('Helvetica-Bold').fontSize(8).text('OBS:', x + 8, y + 142);
                     if (observacoes) {
-                        doc.font('Helvetica').fontSize(7).text(observacoes.substring(0, 50), x + 35, y + 140, { width: w - 50 });
+                        doc.font('Helvetica').fontSize(7).text(observacoes.substring(0, 45), x + 30, y + 142, { width: w - 90 });
                     }
+
+                    // QR code (rodapé direito)
+                    if (temQr) doc.image(qrPath, x + w - 38, y + h - 38, { width: 32, height: 32 });
                 };
 
                 // Desenhar etiquetas conforme quantidade solicitada
@@ -7994,7 +11258,8 @@ module.exports = function createPCPRoutes(deps) {
                 for (let i = 0; i < Math.min(qtdEtiquetas, posicoes.length); i++) {
                     if (i === 4) doc.addPage(); // Nova página para 5ª e 6ª etiqueta
                     const pos = i < 4 ? posicoes[i] : { x: posicoes[i - 4].x, y: posicoes[i - 4].y };
-                    desenharEtiqueta(pos.x, pos.y, String(i + 1), corProduto);
+                    const corEtq = i % 2 === 0 ? corProduto : corEtiqueta2;
+                    desenharEtiqueta(pos.x, pos.y, corEtq);
                 }
 
                 doc.end();
@@ -8216,8 +11481,18 @@ module.exports = function createPCPRoutes(deps) {
             const page = Math.max(parseInt(req.query.page) || 1, 1);
             const offset = (page - 1) * limit;
             const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM ordens_multiplexado');
+            // A tabela nunca teve `numero_ordem`, `produto` nem `quantidade`: os nomes reais
+            // são numero_op, produtos (JSON) e metragem/qtd_bobinas. O SELECT antigo estourava
+            // "Unknown column 'numero_ordem'" e a rota devolvia 500 em qualquer chamada.
+            // Os aliases preservam os nomes que um consumidor antigo esperaria.
             const [rows] = await pool.query(`
-                SELECT id, numero_ordem, cliente, produto, quantidade, status, observacoes, created_at, updated_at
+                SELECT id,
+                       numero_op, numero_op AS numero_ordem,
+                       cliente,
+                       produtos, produtos AS produto,
+                       metragem, metragem AS quantidade,
+                       qtd_bobinas, peso_liquido, extrusora, secao, veias, semana,
+                       status, observacoes, created_at, updated_at
                 FROM ordens_multiplexado
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
@@ -8889,6 +12164,203 @@ module.exports = function createPCPRoutes(deps) {
         }
     });
 
+    router.get('/materias-primas/:id', async (req, res) => {
+        try {
+            const materialId = parseInt(req.params.id, 10);
+            if (!Number.isInteger(materialId) || materialId < 1) {
+                return res.status(400).json({ success: false, message: 'Material inválido.' });
+            }
+
+            let origem = 'materiais';
+            let material = null;
+            try {
+                const [rowsMaterial] = await pool.query(`
+                    SELECT
+                        m.id,
+                        m.codigo_material AS codigo,
+                        m.descricao,
+                        m.unidade_medida AS unidade,
+                        m.quantidade_estoque AS quantidade_atual,
+                        m.estoque_minimo,
+                        m.preco_unitario,
+                        m.fornecedor
+                    FROM materiais m
+                    WHERE m.id = ?
+                    LIMIT 1
+                `, [materialId]);
+                material = rowsMaterial[0] || null;
+            } catch (_) {}
+
+            if (!material) {
+                origem = 'produtos';
+                try {
+                    const [rowsProduto] = await pool.query(`
+                        SELECT
+                            p.id,
+                            p.codigo,
+                            COALESCE(NULLIF(TRIM(p.descricao), ''), NULLIF(TRIM(p.nome), ''), '') AS descricao,
+                            p.unidade_medida AS unidade,
+                            p.estoque_atual AS quantidade_atual,
+                            p.estoque_minimo,
+                            COALESCE(p.preco_venda, p.preco_custo, 0) AS preco_unitario,
+                            p.fornecedor
+                        FROM produtos p
+                        WHERE p.id = ?
+                        LIMIT 1
+                    `, [materialId]);
+                    material = rowsProduto[0] || null;
+                } catch (_) {}
+            }
+
+            if (!material) {
+                return res.status(404).json({ success: false, message: 'Material não encontrado.' });
+            }
+
+            res.json({ success: true, material, origem });
+        } catch (error) {
+            console.error('[API_MATERIAS_PRIMAS] Erro ao buscar material:', error.message);
+            res.status(500).json({ success: false, message: 'Erro ao buscar material', error: 'Erro interno no servidor. Tente novamente.' });
+        }
+    });
+
+    router.get('/materias-primas/:id/movimentacoes', async (req, res) => {
+        try {
+            const materialId = parseInt(req.params.id, 10);
+            if (!Number.isInteger(materialId) || materialId < 1) {
+                return res.status(400).json({ success: false, message: 'Material inválido.' });
+            }
+
+            let origem = 'materiais';
+            let material = null;
+            try {
+                const [rowsMaterial] = await pool.query(`
+                    SELECT id, codigo_material AS codigo, descricao
+                    FROM materiais
+                    WHERE id = ?
+                    LIMIT 1
+                `, [materialId]);
+                material = rowsMaterial[0] || null;
+            } catch (_) {}
+            if (!material) {
+                origem = 'produtos';
+                try {
+                    const [rowsProduto] = await pool.query(`
+                        SELECT id, codigo, COALESCE(NULLIF(TRIM(descricao), ''), NULLIF(TRIM(nome), ''), '') AS descricao
+                        FROM produtos
+                        WHERE id = ?
+                        LIMIT 1
+                    `, [materialId]);
+                    material = rowsProduto[0] || null;
+                } catch (_) {}
+            }
+            if (!material) {
+                return res.status(404).json({ success: false, message: 'Material não encontrado.' });
+            }
+
+            const limite = Math.min(parseInt(req.query.limit, 10) || 50, 500);
+            const movimentacoes = [];
+
+            try {
+                const [rows] = await pool.query(`
+                    SELECT
+                        COALESCE(me.created_at, me.data_movimentacao, NOW()) AS data_movimentacao,
+                        UPPER(COALESCE(me.tipo, 'AJUSTE')) AS tipo,
+                        me.quantidade,
+                        me.quantidade_anterior,
+                        me.quantidade_atual,
+                        CAST(me.material_id AS CHAR) AS referencia_id,
+                        CAST(m.codigo_material AS CHAR) AS codigo,
+                        CAST(COALESCE(m.descricao, m.codigo_material) AS CHAR) AS material_nome,
+                        CAST(me.documento AS CHAR) AS documento,
+                        CAST(COALESCE(me.observacoes, me.motivo, '') AS CHAR) AS motivo,
+                        CAST('PCP' AS CHAR) AS origem,
+                        me.usuario_id,
+                        u.nome AS usuario_nome
+                    FROM movimentacoes_estoque me
+                    LEFT JOIN materiais m ON m.id = me.material_id
+                    LEFT JOIN usuarios u ON u.id = me.usuario_id
+                    WHERE me.material_id = ?
+                    ORDER BY COALESCE(me.created_at, me.data_movimentacao) DESC
+                    LIMIT ?
+                `, [materialId, limite]);
+                movimentacoes.push(...rows);
+            } catch (errMovMaterial) {
+                console.warn('[API_MATERIAS_PRIMAS] movimentacoes_estoque indisponível:', errMovMaterial.message);
+            }
+
+            if (origem === 'produtos') {
+                try {
+                    const [rows] = await pool.query(`
+                        SELECT
+                            COALESCE(me.created_at, me.data_movimentacao, NOW()) AS data_movimentacao,
+                            UPPER(COALESCE(me.tipo, 'AJUSTE')) AS tipo,
+                            me.quantidade,
+                            me.quantidade_anterior,
+                            me.quantidade_atual,
+                            CAST(me.produto_id AS CHAR) AS referencia_id,
+                            CAST(p.codigo AS CHAR) AS codigo,
+                            CAST(COALESCE(p.nome, p.descricao, p.codigo) AS CHAR) AS material_nome,
+                            CAST(me.documento AS CHAR) AS documento,
+                            CAST(COALESCE(me.observacoes, me.motivo, '') AS CHAR) AS motivo,
+                            CAST('PCP' AS CHAR) AS origem,
+                            me.usuario_id,
+                            u.nome AS usuario_nome
+                        FROM movimentacoes_estoque me
+                        LEFT JOIN produtos p ON p.id = me.produto_id
+                        LEFT JOIN usuarios u ON u.id = me.usuario_id
+                        WHERE me.produto_id = ?
+                        ORDER BY COALESCE(me.created_at, me.data_movimentacao) DESC
+                        LIMIT ?
+                    `, [materialId, limite]);
+                    movimentacoes.push(...rows);
+                } catch (errMovProduto) {
+                    console.warn('[API_MATERIAS_PRIMAS] movimentacoes_estoque por produto indisponível:', errMovProduto.message);
+                }
+            }
+
+            try {
+                if (material.codigo) {
+                    const [rows] = await pool.query(`
+                        SELECT
+                            em.data_movimento AS data_movimentacao,
+                            UPPER(COALESCE(em.tipo_movimento, 'AJUSTE')) AS tipo,
+                            em.quantidade,
+                            em.quantidade_anterior,
+                            em.quantidade_atual,
+                            CAST(NULL AS CHAR) AS referencia_id,
+                            CAST(em.codigo_material AS CHAR) AS codigo,
+                            CAST(COALESCE(m.descricao, em.codigo_material) AS CHAR) AS material_nome,
+                            CAST(em.documento_numero AS CHAR) AS documento,
+                            CAST(COALESCE(em.observacao, '') AS CHAR) AS motivo,
+                            CAST(COALESCE(em.origem, 'Compras') AS CHAR) AS origem,
+                            em.usuario_id,
+                            u.nome AS usuario_nome
+                        FROM estoque_movimentacoes em
+                        LEFT JOIN materiais m ON m.codigo_material COLLATE utf8mb4_general_ci = em.codigo_material COLLATE utf8mb4_general_ci
+                        LEFT JOIN usuarios u ON u.id = em.usuario_id
+                        WHERE em.codigo_material COLLATE utf8mb4_general_ci = ?
+                        ORDER BY em.data_movimento DESC
+                        LIMIT ?
+                    `, [material.codigo, limite]);
+                    movimentacoes.push(...rows);
+                }
+            } catch (errMovEstoque) {
+                console.warn('[API_MATERIAS_PRIMAS] estoque_movimentacoes indisponível:', errMovEstoque.message);
+            }
+
+            movimentacoes.sort((a, b) => {
+                const da = new Date(a.data_movimentacao || 0).getTime();
+                const db = new Date(b.data_movimentacao || 0).getTime();
+                return db - da;
+            });
+
+            res.json({ success: true, material, movimentacoes: movimentacoes.slice(0, limite) });
+        } catch (error) {
+            console.error('[API_MATERIAS_PRIMAS] Erro ao buscar movimentações:', error.message);
+            res.status(500).json({ success: false, message: 'Erro ao buscar movimentações do material', error: 'Erro interno no servidor. Tente novamente.' });
+        }
+    });
+
     // =================== APONTAMENTOS DE PRODUÇÃO ===================
 
     // Cache para verificação de colunas extras (evita query a cada POST)
@@ -8962,21 +12434,36 @@ module.exports = function createPCPRoutes(deps) {
         try {
             const { status } = req.query;
 
-            let whereClause = "WHERE status NOT IN ('concluida', 'Concluída', 'cancelada')";
+            let whereClause = "WHERE op.status NOT IN ('concluida', 'Concluída', 'cancelada')";
             if (status === 'ativas') {
-                whereClause = "WHERE status IN ('ativa', 'Ativa')";
+                whereClause = "WHERE op.status IN ('ativa', 'Ativa')";
             } else if (status === 'em_producao') {
-                whereClause = "WHERE status IN ('em_producao', 'Em Produção')";
+                whereClause = "WHERE op.status IN ('em_producao', 'Em Produção')";
             } else if (status === 'pendentes') {
-                whereClause = "WHERE status IN ('pendente', 'Pendente', 'A Fazer')";
+                whereClause = "WHERE op.status IN ('pendente', 'Pendente', 'A Fazer')";
             }
 
             const [ordens] = await pool.query(`
                 SELECT
                     op.id, op.codigo, op.produto_nome, op.quantidade, op.unidade,
                     op.status, op.prioridade, op.data_inicio, op.data_prevista,
-                    op.responsavel, op.progresso
+                    op.responsavel, COALESCE(op.pedido_vinculado_id, op.pedido_id, p.id) AS pedido_id,
+                    COALESCE(op.numero_pedido, p.numero_pedido) AS numero_pedido,
+                    COALESCE(op.cliente, c.nome, p.cliente_nome) AS cliente,
+                    GREATEST(COALESCE(op.quantidade_produzida, 0),
+                        COALESCE((SELECT SUM(ap.quantidade_produzida)
+                                  FROM apontamentos_producao ap
+                                  WHERE ap.ordem_producao_id = op.id), 0)) AS quantidade_produzida,
+                    LEAST(100, ROUND(
+                        GREATEST(COALESCE(op.quantidade_produzida, 0),
+                            COALESCE((SELECT SUM(ap2.quantidade_produzida)
+                                      FROM apontamentos_producao ap2
+                                      WHERE ap2.ordem_producao_id = op.id), 0))
+                        / NULLIF(op.quantidade, 0) * 100, 2)) AS progresso
                 FROM ordens_producao op
+                LEFT JOIN pedidos p ON p.id = COALESCE(op.pedido_vinculado_id, op.pedido_id)
+                    OR (COALESCE(op.pedido_vinculado_id, op.pedido_id) IS NULL AND p.numero_pedido = op.numero_pedido)
+                LEFT JOIN clientes c ON c.id = p.cliente_id
                 ${whereClause}
                 ORDER BY
                     CASE op.prioridade
@@ -8992,6 +12479,108 @@ module.exports = function createPCPRoutes(deps) {
         } catch (error) {
             console.error('[API_APONTAMENTOS] Erro:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao listar OPs' });
+        }
+    });
+
+    // Andamento dos CABOS de uma OP (por item), conforme apontamentos.
+    // Cabos = itens do pedido vinculado (com lances). Produzido por cabo =
+    // SUM(apontamentos.quantidade_produzida) casado por produto_descricao.
+    router.get('/apontamentos/ordens/:id/cabos', async (req, res) => {
+        try {
+            const opId = Number(req.params.id);
+            if (!opId) return res.status(400).json({ success: false, message: 'OP inválida' });
+
+            const [[op]] = await pool.query(
+                `SELECT id, quantidade, unidade, produto_nome,
+                        COALESCE(pedido_vinculado_id, pedido_id) AS pedido_id, numero_pedido
+                 FROM ordens_producao WHERE id = ? LIMIT 1`, [opId]);
+            if (!op) return res.status(404).json({ success: false, message: 'OP não encontrada' });
+
+            // 1) Fonte estruturada: itens do pedido (com lances)
+            let pedId = op.pedido_id;
+            if (!pedId && op.numero_pedido) {
+                try {
+                    const [[p]] = await pool.query('SELECT id FROM pedidos WHERE numero_pedido = ? LIMIT 1', [op.numero_pedido]);
+                    if (p) pedId = p.id;
+                } catch (_) {}
+            }
+            let cabos = [];
+            if (pedId) {
+                const [itens] = await pool.query(
+                    'SELECT descricao, quantidade, lances FROM pedido_itens WHERE pedido_id = ? ORDER BY id', [pedId]);
+                cabos = itens.map(it => ({
+                    descricao: it.descricao || '',
+                    lances: it.lances || '',
+                    meta: Number(it.quantidade) || lancesParaMetros(it.lances)
+                }));
+            }
+            // 2) Fallback: parsear produto_nome (rateia a meta da OP)
+            let rateado = false;
+            if (cabos.length === 0 && op.produto_nome) {
+                const nomes = String(op.produto_nome).split(/\s*,\s*/).map(s => s.trim()).filter(Boolean);
+                const metaCada = nomes.length ? (Number(op.quantidade) || 0) / nomes.length : 0;
+                cabos = nomes.map(n => ({ descricao: n, lances: '', meta: metaCada }));
+                rateado = nomes.length > 0;
+            }
+
+            // 3) Produzido/refugo por cabo (match por descricao, case-insensitive)
+            const [aps] = await pool.query(
+                `SELECT produto_descricao,
+                        COALESCE(SUM(quantidade_produzida), 0) AS produzido,
+                        COALESCE(SUM(quantidade_refugo), 0)   AS refugo
+                 FROM apontamentos_producao
+                 WHERE ordem_producao_id = ? AND COALESCE(quantidade_produzida,0) > 0
+                 GROUP BY produto_descricao`, [opId]);
+            // Índice do que foi apontado: por cabo (base) e, dentro dele, por veia.
+            // Apontamento antigo (sem veia) entra como metro de CABO pronto.
+            const prodMap = new Map();
+            for (const a of aps) {
+                const { base, veia } = separarVeia(a.produto_descricao);
+                const chave = base.toLowerCase();
+                if (!prodMap.has(chave)) prodMap.set(chave, { semVeia: 0, refugo: 0, porVeia: new Map() });
+                const reg = prodMap.get(chave);
+                const produzido = Number(a.produzido) || 0;
+                reg.refugo += Number(a.refugo) || 0;
+                if (veia) {
+                    reg.porVeia.set(veia.toLowerCase(), (reg.porVeia.get(veia.toLowerCase()) || 0) + produzido);
+                } else {
+                    reg.semVeia += produzido;
+                }
+            }
+
+            const data = cabos.map(c => {
+                const hit = prodMap.get(String(c.descricao || '').trim().toLowerCase());
+                const nomesVeias = veiasDoCabo(c.descricao);
+                const refugo = hit ? Number(hit.refugo) : 0;
+
+                // Cada veia percorre a metragem inteira do cabo
+                const veias = nomesVeias.map(nome => {
+                    const feito = hit ? Number(hit.porVeia.get(nome.toLowerCase()) || 0) : 0;
+                    return {
+                        nome,
+                        meta: c.meta,
+                        produzido: feito,
+                        progresso: c.meta > 0 ? Math.min(100, Math.round((feito / c.meta) * 100)) : 0
+                    };
+                });
+
+                // Metro de veia vale 1/n de metro de cabo; apontamento sem veia vale 1
+                const somaVeias = veias.reduce((acc, v) => acc + v.produzido, 0);
+                const divisor = nomesVeias.length || 1;
+                const produzido = (hit ? hit.semVeia : 0) + (somaVeias / divisor);
+                const progresso = c.meta > 0 ? Math.min(100, Math.round((produzido / c.meta) * 100)) : 0;
+
+                return { descricao: c.descricao, lances: c.lances, meta: c.meta, produzido, refugo, progresso, veias };
+            });
+
+            res.json({
+                success: true,
+                data,
+                op: { id: op.id, quantidade: Number(op.quantidade) || 0, unidade: op.unidade || 'm', produto_nome: op.produto_nome, rateado }
+            });
+        } catch (error) {
+            console.error('[API_APONTAMENTOS/CABOS] Erro:', error.message);
+            res.status(500).json({ success: false, message: 'Erro ao carregar cabos da OP' });
         }
     });
 
@@ -9124,7 +12713,7 @@ module.exports = function createPCPRoutes(deps) {
             const selDuracao     = `${duracaoExpr} as duracao`;
             const selOpCodigo    = c.ordem_producao_id ? `op.codigo as op_codigo` : `NULL as op_codigo`;
             const selPedidoId    = c.pedido_id ? `ap.pedido_id` : `NULL as pedido_id`;
-            const selPedidoNum   = c.pedido_id ? `COALESCE(ped.numero, ap.pedido_id) as pedido_numero` : `NULL as pedido_numero`;
+            const selPedidoNum   = c.pedido_id ? `COALESCE(ped.numero_pedido, ped.id, ap.pedido_id) as pedido_numero` : `NULL as pedido_numero`;
             const selProdDesc    = c.produto_descricao ? `ap.produto_descricao` : `NULL as produto_descricao`;
             const selObs         = c.observacoes ? `ap.observacoes` : `NULL as observacoes`;
 
@@ -9204,12 +12793,121 @@ module.exports = function createPCPRoutes(deps) {
         }
     });
 
+    // Recalcula o andamento da OP a partir da SOMA dos apontamentos vinculados.
+    // Chamado apos cada apontamento com ordem_producao_id. Nao mexe no status
+    // (o fluxo de status e do kanban/carteira); atualiza quantidade_produzida
+    // e progresso (0-100, teto 100). Falha aqui NAO derruba o apontamento.
+    async function atualizarAndamentoOrdem(opId) {
+        if (!opId) return;
+        try {
+            const [[soma]] = await pool.query(
+                'SELECT COALESCE(SUM(quantidade_produzida),0) AS total FROM apontamentos_producao WHERE ordem_producao_id = ?',
+                [opId]
+            );
+            const [[op]] = await pool.query(
+                'SELECT quantidade FROM ordens_producao WHERE id = ?', [opId]
+            );
+            if (!op) return;
+            const produzido = Number(soma.total) || 0;
+            const meta = Number(op.quantidade) || 0;
+            const progresso = meta > 0 ? Math.min(100, Math.round((produzido / meta) * 100)) : 0;
+            await pool.query(
+                'UPDATE ordens_producao SET quantidade_produzida = ?, progresso = ?, updated_at = NOW() WHERE id = ?',
+                [produzido, progresso, opId]
+            );
+            console.log(`[PCP/ANDAMENTO] OP ${opId}: produzido=${produzido}/${meta} progresso=${progresso}%`);
+        } catch (e) {
+            console.error('[PCP/ANDAMENTO] Erro ao atualizar OP', opId, '-', e.message);
+        }
+    }
+
+    // Relatório de TEMPO DE MÁQUINA (rodando × parado) a partir dos apontamentos.
+    // Classifica por CÓDIGO tipo_atividade (nomes têm mojibake): 1/1A=rodando,
+    // ST/AM=setup, resto=parada. Tempo via buildApDuracaoExpr (robusto a schema).
+    router.get('/relatorios/tempo-maquina', async (req, res) => {
+        try {
+            const { inicio, fim } = req.query;
+            const c = await detectApontamentosColumns();
+            const dataExpr = buildApDataExpr(c);
+            const duracaoExpr = buildApDuracaoExpr(c);
+            const maqExpr = c.maquina ? 'ap.maquina' : 'NULL';
+            const tipoExpr = c.tipo_atividade ? 'ap.tipo_atividade' : "''";
+            const nomeExpr = c.nome_atividade ? 'ap.nome_atividade' : "''";
+
+            const where = ['1=1'];
+            const params = [];
+            if (inicio && dataExpr !== 'NULL') { where.push(`DATE(${dataExpr}) >= ?`); params.push(inicio); }
+            if (fim && dataExpr !== 'NULL')    { where.push(`DATE(${dataExpr}) <= ?`); params.push(fim); }
+
+            const [rows] = await pool.query(
+                `SELECT ${maqExpr} AS maquina, ${tipoExpr} AS tipo, ${nomeExpr} AS nome,
+                        COUNT(*) AS ocorrencias, COALESCE(SUM(${duracaoExpr}), 0) AS dur_seg
+                 FROM apontamentos_producao ap
+                 WHERE ${where.join(' AND ')}
+                 GROUP BY maquina, tipo, nome`, params);
+
+            const classe = (tipo) => {
+                const t = String(tipo || '').toUpperCase().trim();
+                if (t === '1' || t === '1A') return 'rodando';
+                if (t === 'ST' || t === 'AM') return 'setup';
+                return 'parada';
+            };
+            const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
+
+            const resumo = { total_seg: 0, rodando_seg: 0, parado_seg: 0, setup_seg: 0, n_apontamentos: 0, n_paradas: 0 };
+            const maqMap = new Map();
+            const motMap = new Map();
+            for (const r of rows) {
+                const seg = Number(r.dur_seg) || 0;
+                const oc = Number(r.ocorrencias) || 0;
+                const cl = classe(r.tipo);
+                resumo.total_seg += seg; resumo.n_apontamentos += oc;
+                if (cl === 'rodando') resumo.rodando_seg += seg;
+                else if (cl === 'setup') resumo.setup_seg += seg;
+                else { resumo.parado_seg += seg; resumo.n_paradas += oc; }
+
+                const mk = (r.maquina == null || String(r.maquina).trim() === '') ? 'Sem máquina informada' : String(r.maquina).trim();
+                if (!maqMap.has(mk)) maqMap.set(mk, { maquina: mk, rodando_seg: 0, parado_seg: 0, setup_seg: 0, total_seg: 0, n_paradas: 0 });
+                const m = maqMap.get(mk);
+                m.total_seg += seg;
+                if (cl === 'rodando') m.rodando_seg += seg;
+                else if (cl === 'setup') m.setup_seg += seg;
+                else { m.parado_seg += seg; m.n_paradas += oc; }
+
+                if (cl !== 'rodando') {
+                    const nomeLimpo = (String(r.nome || '').trim() || String(r.tipo || '').trim() || '—');
+                    const key = (String(r.tipo || '').toUpperCase().trim() || nomeLimpo);
+                    if (!motMap.has(key)) motMap.set(key, { tipo: r.tipo || '', motivo: nomeLimpo, classe: cl, tempo_seg: 0, ocorrencias: 0 });
+                    const mo = motMap.get(key);
+                    mo.tempo_seg += seg; mo.ocorrencias += oc;
+                }
+            }
+            resumo.disponibilidade_pct = pct(resumo.rodando_seg, resumo.total_seg);
+            resumo.n_maquinas = maqMap.size;
+
+            const por_maquina = [...maqMap.values()]
+                .map(m => ({ ...m, disponibilidade_pct: pct(m.rodando_seg, m.total_seg) }))
+                .sort((a, b) => b.total_seg - a.total_seg);
+            const paradoBase = resumo.parado_seg + resumo.setup_seg;
+            const por_motivo = [...motMap.values()]
+                .map(mo => ({ ...mo, pct: pct(mo.tempo_seg, paradoBase) }))
+                .sort((a, b) => b.tempo_seg - a.tempo_seg);
+
+            res.json({ success: true, periodo: { inicio: inicio || null, fim: fim || null }, resumo, por_maquina, por_motivo });
+        } catch (e) {
+            console.error('[PCP/RELATORIO/TEMPO-MAQUINA] Erro:', e.message);
+            res.status(500).json({ success: false, message: 'Erro ao gerar relatório de tempo de máquina' });
+        }
+    });
+
     // Salvar apontamento
     router.post('/apontamentos', async (req, res) => {
         try {
-            const { tipo_atividade, nome_atividade, hora_inicio, hora_fim, duracao_segundos, ordem_producao_id, pedido_numero, produto_descricao, observacoes, maquina, turno, quantidade_produzida, quantidade_refugo } = req.body;
+            const { tipo_atividade, nome_atividade, hora_inicio, hora_fim, duracao_segundos, ordem_producao_id, pedido_numero, produto_descricao, observacoes, maquina, turno, quantidade_produzida, quantidade_refugo, lances } = req.body;
             const usuario_id = req.user?.id;
             const operador = req.user?.nome || 'Desconhecido';
+            const qtdProdFinal = (Number(quantidade_produzida) > 0) ? Number(quantidade_produzida) : lancesParaMetros(lances);
+            const obsFinal = lances ? `${observacoes ? observacoes + ' · ' : ''}Lances: ${String(lances).trim()}` : (observacoes || null);
 
             // Validação básica
             if (!tipo_atividade || !nome_atividade) {
@@ -9254,11 +12952,11 @@ module.exports = function createPCPRoutes(deps) {
                     horaInicioFormatada,
                     horaFimFormatada,
                     duracao_segundos || 0,
-                    quantidade_produzida || 0,
+                    qtdProdFinal || 0,
                     quantidade_refugo || 0,
                     pedidoId,
                     produto_descricao || null,
-                    observacoes || null
+                    obsFinal
                 ]);
             } else {
                 [result] = await pool.query(`
@@ -9278,6 +12976,8 @@ module.exports = function createPCPRoutes(deps) {
             }
 
             console.log('[API_APONTAMENTOS] Apontamento salvo com sucesso, id:', result.insertId);
+            // propaga o apontamento para o andamento da OP (nao bloqueia a resposta em caso de erro)
+            await atualizarAndamentoOrdem(ordem_producao_id);
             res.json({ success: true, id: result.insertId });
         } catch (error) {
             console.error('[API_APONTAMENTOS] Erro ao salvar:', error.message, error.stack);
@@ -9339,6 +13039,120 @@ module.exports = function createPCPRoutes(deps) {
 
     router.get('/apontamentos/meus', _listarApontamentosUsuario);
 
+    // ============================================
+    // APONTAMENTO EM TEMPO REAL (quem está fazendo o quê AGORA)
+    //
+    // O apontamento só entra em apontamentos_producao quando FINALIZA. Para o
+    // supervisor acompanhar a fábrica ao vivo, a tela do operador manda um
+    // heartbeat para cá; a linha é apagada ao finalizar e some sozinha se o
+    // tablet parar de responder.
+    // ============================================
+    let _tabelaAtivosPronta = false;
+    async function ensureTabelaAtivos() {
+        if (_tabelaAtivosPronta) return;
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS apontamentos_ativos (
+                usuario_id INT NOT NULL PRIMARY KEY,
+                operador VARCHAR(150) NULL,
+                tipo_atividade VARCHAR(10) NULL,
+                nome_atividade VARCHAR(120) NULL,
+                ordem_producao_id INT NULL,
+                op_codigo VARCHAR(60) NULL,
+                pedido_numero VARCHAR(60) NULL,
+                produto_descricao VARCHAR(255) NULL,
+                veia VARCHAR(40) NULL,
+                maquina VARCHAR(120) NULL,
+                turno VARCHAR(20) NULL,
+                quantidade_parcial DECIMAL(12,2) NULL DEFAULT 0,
+                meta_veia DECIMAL(12,2) NULL DEFAULT 0,
+                lances VARCHAR(120) NULL,
+                pausado TINYINT(1) NOT NULL DEFAULT 0,
+                hora_inicio DATETIME NULL,
+                atualizado_em DATETIME NOT NULL,
+                INDEX idx_atualizado (atualizado_em)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        `);
+        _tabelaAtivosPronta = true;
+    }
+
+    // Heartbeat da tela do operador
+    router.post('/apontamentos/ativo', async (req, res) => {
+        try {
+            await ensureTabelaAtivos();
+            const usuario_id = req.user?.id;
+            if (!usuario_id) return res.status(401).json({ success: false, message: 'Sem usuário' });
+
+            const b = req.body || {};
+            const horaInicio = b.hora_inicio ? new Date(b.hora_inicio) : null;
+            const horaInicioSql = horaInicio && !isNaN(horaInicio.getTime())
+                ? horaInicio.toISOString().slice(0, 19).replace('T', ' ')
+                : null;
+
+            await pool.query(
+                `INSERT INTO apontamentos_ativos
+                 (usuario_id, operador, tipo_atividade, nome_atividade, ordem_producao_id, op_codigo,
+                  pedido_numero, produto_descricao, veia, maquina, turno, quantidade_parcial, meta_veia,
+                  lances, pausado, hora_inicio, atualizado_em)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                 ON DUPLICATE KEY UPDATE
+                    operador = VALUES(operador), tipo_atividade = VALUES(tipo_atividade),
+                    nome_atividade = VALUES(nome_atividade), ordem_producao_id = VALUES(ordem_producao_id),
+                    op_codigo = VALUES(op_codigo), pedido_numero = VALUES(pedido_numero),
+                    produto_descricao = VALUES(produto_descricao), veia = VALUES(veia),
+                    maquina = VALUES(maquina), turno = VALUES(turno),
+                    quantidade_parcial = VALUES(quantidade_parcial), meta_veia = VALUES(meta_veia),
+                    lances = VALUES(lances), pausado = VALUES(pausado),
+                    hora_inicio = VALUES(hora_inicio), atualizado_em = NOW()`,
+                [usuario_id, req.user?.nome || b.operador || 'Operador', b.tipo_atividade || null,
+                 b.nome_atividade || null, b.ordem_producao_id || null, b.op_codigo || null,
+                 b.pedido_numero || null, b.produto_descricao || null, b.veia || null,
+                 b.maquina || null, b.turno || null, Number(b.quantidade_parcial) || 0,
+                 Number(b.meta_veia) || 0, b.lances || null, b.pausado ? 1 : 0, horaInicioSql]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('[PCP/APONTAMENTOS/ATIVO] Erro:', error.message);
+            res.status(500).json({ success: false, message: 'Erro ao registrar atividade em andamento' });
+        }
+    });
+
+    // Operador finalizou (ou saiu): tira da tela ao vivo
+    router.delete('/apontamentos/ativo', async (req, res) => {
+        try {
+            await ensureTabelaAtivos();
+            const usuario_id = req.user?.id;
+            if (usuario_id) await pool.query('DELETE FROM apontamentos_ativos WHERE usuario_id = ?', [usuario_id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('[PCP/APONTAMENTOS/ATIVO] Erro ao remover:', error.message);
+            res.status(500).json({ success: false, message: 'Erro ao encerrar atividade em andamento' });
+        }
+    });
+
+    // Painel do supervisor: quem está fazendo o quê agora
+    router.get('/apontamentos/ativos', async (req, res) => {
+        try {
+            await ensureTabelaAtivos();
+            // Sem heartbeat há mais de 5 min o posto é considerado abandonado
+            const minutos = Math.min(120, Math.max(2, Number(req.query.janela_min) || 5));
+            const [linhas] = await pool.query(
+                `SELECT a.*, TIMESTAMPDIFF(SECOND, a.hora_inicio, NOW()) AS segundos_decorridos,
+                        TIMESTAMPDIFF(SECOND, a.atualizado_em, NOW()) AS segundos_sem_sinal,
+                        op.codigo AS op_codigo_atual, op.quantidade AS op_quantidade,
+                        op.produto_nome AS op_produto
+                 FROM apontamentos_ativos a
+                 LEFT JOIN ordens_producao op ON op.id = a.ordem_producao_id
+                 WHERE a.atualizado_em >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
+                 ORDER BY a.pausado ASC, a.hora_inicio ASC`,
+                [minutos]
+            );
+            res.json({ success: true, data: linhas, janela_min: minutos });
+        } catch (error) {
+            console.error('[PCP/APONTAMENTOS/ATIVOS] Erro:', error.message);
+            res.status(500).json({ success: false, message: 'Erro ao listar atividades em andamento' });
+        }
+    });
+
 
     // ==================== ROTAS DE RELATÓRIOS PCP (extraído → routes/pcp/relatorios.js) ====================
     require('./pcp/relatorios')(router, pool);
@@ -9350,7 +13164,7 @@ module.exports = function createPCPRoutes(deps) {
         try {
             const path = require('path');
             const fs = require('fs');
-            const dataPath = path.join(__dirname, '..', 'api', 'arvore-produto-data.json');
+            const dataPath = arvoreFonte.resolverArvore();
 
             if (!fs.existsSync(dataPath)) {
                 return res.status(404).json({ success: false, message: 'Dados da árvore de produto não encontrados.' });
@@ -9359,9 +13173,129 @@ module.exports = function createPCPRoutes(deps) {
             const rawData = fs.readFileSync(dataPath, 'utf-8');
             const data = JSON.parse(rawData);
 
-            // Apply filters if provided
+            // Custos & Precificação trabalha somente com produtos acabados que têm
+            // estrutura vigente. A lista e os consumos vêm de `estrutura_produto`,
+            // atualizada pela importação da base; o JSON mantém parâmetros e metadados
+            // comerciais que não existem na estrutura.
             const { categoria, search } = req.query;
-            let products = data.products;
+            const catalogProducts = Array.isArray(data.products) ? data.products : [];
+            const catalogEntries = catalogProducts
+                .filter(p => p && p.codigo)
+                .map(p => ({
+                    code: String(p.codigo).trim().toUpperCase(),
+                    product: p
+                }))
+                .sort((a, b) => b.code.length - a.code.length);
+            const catalogByCode = new Map(catalogEntries.map(entry => [entry.code, entry.product]));
+            const derivedVariantPattern = /^(?:-\d{2}|[A-Z]{1,2})$/;
+            const findCatalogProduct = (code) => {
+                const normalizedCode = String(code || '').trim().toUpperCase();
+                const exact = catalogByCode.get(normalizedCode);
+                if (exact) return { product: exact, source: 'composicao' };
+
+                // Derivações comerciais aparecem como "BASE-01", "BASEC",
+                // "BASEN", "BASEVM" etc. Elas preservam a construção física e
+                // herdam a composição-base. Sufixos que introduzem outra bitola
+                // (por exemplo "/35") só casam quando o código completo dessa
+                // bitola existe no catálogo; nunca herdamos pelo prefixo curto.
+                const inherited = catalogEntries.find(entry => {
+                    if (!normalizedCode.startsWith(entry.code)) return false;
+                    const suffix = normalizedCode.slice(entry.code.length);
+                    return derivedVariantPattern.test(suffix);
+                });
+                return inherited
+                    ? { product: inherited.product, source: 'composicao_variacao' }
+                    : { product: null, source: null };
+            };
+            const materialKeys = Object.keys((data.parametros && data.parametros.precos_kg) || {});
+            const emptyComposition = () => Object.fromEntries(materialKeys.map(k => [k, 0]));
+            const normalizeCode = value => String(value || '').trim().toUpperCase();
+            const materialKeyFromComponent = value => {
+                const code = normalizeCode(value).replace(/\s+/g, '');
+                if (code === 'AL') return 'AL';
+                if (code === 'ACO' || code === 'AÇO') return 'ACO';
+                if (code === 'PE') return 'PE';
+                if (code === 'XLPE') return 'XLPE';
+                if (code === 'XLPE/AT' || code === 'XLPE_AT') return 'XLPE_AT';
+                if (code === 'HEPR') return 'HEPR';
+                if (code === 'PVC') return 'PVC';
+                if (code === 'SEMI_COND' || code === 'SEMICOND' || code === 'SEMI-COND') return 'SEMI_COND';
+                if (code.startsWith('MB')) return 'MB_UV';
+                return null;
+            };
+
+            const [structureRows] = await pool.query(`
+                SELECT TRIM(produto_codigo) AS produto_codigo, produto_descricao,
+                       TRIM(componente_codigo) AS componente_codigo,
+                       quantidade_por_metro, unidade
+                FROM estrutura_produto
+                WHERE ativo = 1
+                ORDER BY produto_codigo, componente_codigo
+            `);
+            const compositionByCode = new Map();
+            const structureDescriptionByCode = new Map();
+            structureRows.forEach(row => {
+                const productCode = normalizeCode(row.produto_codigo);
+                if (!productCode) return;
+                if (row.produto_descricao && !structureDescriptionByCode.has(productCode)) {
+                    structureDescriptionByCode.set(productCode, String(row.produto_descricao).trim());
+                }
+                if (normalizeCode(row.unidade) !== 'KG') return;
+                const materialKey = materialKeyFromComponent(row.componente_codigo);
+                if (!materialKey || !materialKeys.includes(materialKey)) return;
+                if (!compositionByCode.has(productCode)) compositionByCode.set(productCode, emptyComposition());
+                const composition = compositionByCode.get(productCode);
+                composition[materialKey] += Number(row.quantidade_por_metro || 0);
+            });
+
+            const [dbProducts] = await pool.query(`
+                SELECT id, TRIM(codigo) AS codigo, nome, descricao, categoria, variacao,
+                       preco_venda, preco_custo, custo_unitario, custo_aquisicao,
+                       markup, margem, margem_lucro
+                FROM produtos p
+                WHERE p.status = 'ativo'
+                  AND EXISTS (
+                      SELECT 1
+                      FROM estrutura_produto ep
+                      WHERE ep.ativo = 1
+                        AND BINARY UPPER(TRIM(ep.produto_codigo)) = BINARY UPPER(TRIM(p.codigo))
+                  )
+                ORDER BY COALESCE(NULLIF(descricao, ''), NULLIF(nome, ''), codigo), codigo
+            `);
+            const allProducts = dbProducts.filter(p => p.codigo).map(p => {
+                const code = String(p.codigo).trim();
+                const normalizedCode = normalizeCode(code);
+                const catalogMatch = findCatalogProduct(code);
+                const catalog = catalogMatch.product;
+                const kg = compositionByCode.get(normalizedCode) || emptyComposition();
+                const hasComposition = Object.values(kg).some(v => Number(v) > 0);
+                const registeredCost = Math.max(
+                    Number(p.custo_unitario || 0),
+                    Number(p.preco_custo || 0),
+                    Number(p.custo_aquisicao || 0)
+                );
+                return {
+                    ...(catalog || {}),
+                    produto_id: p.id,
+                    codigo: code,
+                    descricao: p.descricao || p.nome || structureDescriptionByCode.get(normalizedCode)
+                        || (catalog && catalog.descricao) || code,
+                    nome: p.nome || '',
+                    categoria: (catalog && catalog.categoria) || p.categoria || 'Sem categoria',
+                    cores: (catalog && catalog.cores) || p.variacao || '',
+                    kg_m: kg,
+                    tem_composicao: hasComposition,
+                    composicao_origem: 'estrutura_produto',
+                    custo_base: registeredCost,
+                    tem_base_precificacao: hasComposition || registeredCost > 0,
+                    preco_venda_atual: Number(p.preco_venda || 0),
+                    markup_atual: Number(p.markup || 0),
+                    margem_atual: Number(p.margem || 0),
+                    margem_lucro_atual: Number(p.margem_lucro || 0)
+                };
+            });
+            const totalCadastrados = allProducts.length;
+            let products = allProducts;
 
             if (categoria && categoria !== 'todos') {
                 products = products.filter(p => p.categoria === categoria);
@@ -9379,8 +13313,14 @@ module.exports = function createPCPRoutes(deps) {
             res.json({
                 success: true,
                 parametros: data.parametros,
-                total: data.products.length,
-                categorias: [...new Set(data.products.map(p => p.categoria))].sort(),
+                total: totalCadastrados,
+                total_com_composicao: allProducts.filter(p => p.tem_composicao).length,
+                total_sem_composicao: allProducts.filter(p => !p.tem_composicao).length,
+                total_precificaveis: allProducts.filter(p => p.tem_base_precificacao).length,
+                total_sem_base: allProducts.filter(p => !p.tem_base_precificacao).length,
+                total_sem_preco: allProducts.filter(p => !(p.preco_venda_atual > 0)).length,
+                total_sem_cadastro: 0,
+                categorias: [...new Set(allProducts.map(p => p.categoria))].sort(),
                 products
             });
         } catch (err) {
@@ -9389,12 +13329,463 @@ module.exports = function createPCPRoutes(deps) {
         }
     });
 
+    // ------------------------------------------------------------------
+    // Resolve UM produto para a precificação, nesta ordem: catálogo da árvore
+    // -> composição de `estrutura_produto` (inclusive as variações do código)
+    // -> custo do cadastro. Extraído do GET /arvore-produto/preco/:codigo para
+    // que o repricing em lote do pedido use EXATAMENTE a mesma resolução —
+    // duas resoluções diferentes dariam preços diferentes para o mesmo item.
+    // Devolve null quando nem o cadastro tem o código (o chamador responde 404).
+    // ------------------------------------------------------------------
+    async function resolverProdutoPrecificavel(data, alvo) {
+        const catalogo = Array.isArray(data.products) ? data.products : [];
+        let produto = catalogo.find(p => String(p.codigo || '').trim().toUpperCase() === alvo);
+        const normalizeCodePreco = value => String(value || '').trim().toUpperCase();
+        const materialKeysPreco = Object.keys((data.parametros && data.parametros.precos_kg) || {});
+        const emptyCompositionPreco = () => Object.fromEntries(materialKeysPreco.map(k => [k, 0]));
+        const derivedVariantPatternPreco = /^(?:-\d{2}|[A-Z]{1,2})$/;
+        const materialKeyFromComponentPreco = value => {
+            const code = normalizeCodePreco(value).replace(/\s+/g, '');
+            if (code === 'AL') return 'AL';
+            if (code === 'ACO' || code === 'AÇO') return 'ACO';
+            if (code === 'PE') return 'PE';
+            if (code === 'XLPE') return 'XLPE';
+            if (code === 'XLPE/AT' || code === 'XLPE_AT') return 'XLPE_AT';
+            if (code === 'HEPR') return 'HEPR';
+            if (code === 'PVC') return 'PVC';
+            if (code === 'SEMI_COND' || code === 'SEMICOND' || code === 'SEMI-COND') return 'SEMI_COND';
+            if (code.startsWith('MB')) return 'MB_UV';
+            return null;
+        };
+        const carregarProdutoEstrutura = async (codigoAlvo) => {
+            const [rows] = await pool.query(`
+                SELECT TRIM(produto_codigo) AS produto_codigo, produto_descricao,
+                       TRIM(componente_codigo) AS componente_codigo,
+                       quantidade_por_metro, unidade
+                FROM estrutura_produto
+                WHERE ativo = 1
+                  AND (
+                    BINARY UPPER(TRIM(produto_codigo)) = BINARY ?
+                    OR ? LIKE CONCAT(UPPER(TRIM(produto_codigo)), '%')
+                  )
+                ORDER BY CHAR_LENGTH(TRIM(produto_codigo)) DESC, id
+            `, [codigoAlvo, codigoAlvo]);
+            const grupos = new Map();
+            rows.forEach(row => {
+                const codigoProduto = normalizeCodePreco(row.produto_codigo);
+                const sufixo = codigoAlvo.slice(codigoProduto.length);
+                if (codigoProduto !== codigoAlvo && !derivedVariantPatternPreco.test(sufixo)) return;
+                if (!grupos.has(codigoProduto)) grupos.set(codigoProduto, []);
+                grupos.get(codigoProduto).push(row);
+            });
+            const codigoBase = [...grupos.keys()].sort((a, b) => b.length - a.length)[0];
+            if (!codigoBase) return null;
+            const composicao = emptyCompositionPreco();
+            let descricao = '';
+            grupos.get(codigoBase).forEach(row => {
+                if (row.produto_descricao && !descricao) descricao = String(row.produto_descricao).trim();
+                if (normalizeCodePreco(row.unidade) !== 'KG') return;
+                const materialKey = materialKeyFromComponentPreco(row.componente_codigo);
+                if (!materialKey || !materialKeysPreco.includes(materialKey)) return;
+                composicao[materialKey] += Number(row.quantidade_por_metro || 0);
+            });
+            return {
+                codigo: codigoAlvo,
+                codigo_base_estrutura: codigoBase,
+                descricao: descricao || codigoAlvo,
+                kg_m: composicao,
+                composicao_origem: codigoBase === codigoAlvo ? 'estrutura_produto' : 'estrutura_produto_variacao'
+            };
+        };
+        const produtoEstrutura = await carregarProdutoEstrutura(alvo);
+        if (produtoEstrutura) {
+            produto = {
+                ...(produto || {}),
+                ...produtoEstrutura,
+                descricao: (produto && produto.descricao) || produtoEstrutura.descricao
+            };
+        }
+
+        // Sem composição na planilha, cai para o custo do cadastro: o preço
+        // ainda sai, mas marcado como vindo do cadastro e não da árvore.
+        if (!produto) {
+            const [linhas] = await pool.query(
+                `SELECT codigo, nome, descricao, preco_venda, preco_custo, custo_unitario, custo_aquisicao
+                   FROM produtos WHERE UPPER(TRIM(codigo)) = ? LIMIT 1`, [alvo]
+            );
+            if (!linhas.length) return null;
+            const linha = linhas[0];
+            produto = {
+                codigo: linha.codigo,
+                descricao: linha.descricao || linha.nome || linha.codigo,
+                kg_m: {},
+                custo_base: Math.max(Number(linha.custo_unitario || 0), Number(linha.preco_custo || 0), Number(linha.custo_aquisicao || 0))
+            };
+        }
+        return produto;
+    }
+
+    // ------------------------------------------------------------------
+    // GET /arvore-produto/preco/:codigo
+    // Precificação de UM item no contexto da cotação, para os módulos que
+    // precisam de preço na hora (Vendas/orçamento, PCP, Compras) em vez de
+    // esperar o "Aplicar em Orçamentos" repintar o catálogo inteiro.
+    //
+    // Query: uf, filial, tipo_cliente, frete, condicao_pagamento,
+    //        faturamento_tipo, is_representante, preco_referencia
+    // ------------------------------------------------------------------
+    router.get('/arvore-produto/preco/:codigo', async (req, res) => {
+        try {
+            const path = require('path');
+            const fs = require('fs');
+            const core = require(path.join(__dirname, '..', 'public', 'js', 'custos-precificacao-core.js'));
+            const dataPath = arvoreFonte.resolverArvore();
+            if (!fs.existsSync(dataPath)) {
+                return res.status(404).json({ success: false, message: 'Dados da árvore de produto não encontrados.' });
+            }
+            const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+            const alvo = String(req.params.codigo || '').trim().toUpperCase();
+            if (!alvo) return res.status(400).json({ success: false, message: 'Código não informado.' });
+
+            const produto = await resolverProdutoPrecificavel(data, alvo);
+            if (!produto) return res.status(404).json({ success: false, message: 'Produto não encontrado.' });
+
+            const q = req.query || {};
+            const opcoes = {
+                filial: q.filial || undefined,
+                uf: q.uf || undefined,
+                tipo_cliente: q.tipo_cliente || undefined,
+                frete: q.frete || undefined,
+                // Aceita a faixa (CIF_SUL) ou o modFrete da NF-e (0..9); o nucleo
+                // traduz o modFrete pela UF de destino. redespacho forca a faixa REDESPACHO_SP.
+                redespacho: q.redespacho === undefined ? undefined : q.redespacho,
+                condicao_pagamento: q.condicao_pagamento || undefined,
+                faturamento_tipo: q.faturamento_tipo || undefined,
+                is_representante: q.is_representante === undefined ? undefined : /^(1|true|sim)$/i.test(String(q.is_representante)),
+                preco_referencia: q.preco_referencia === undefined ? undefined : Number(q.preco_referencia)
+            };
+            Object.keys(opcoes).forEach(k => opcoes[k] === undefined && delete opcoes[k]);
+
+            const r = core.calcularProduto(produto, data.parametros, opcoes);
+            const gordura = core.analisarDesconto(produto, data.parametros, {
+                ...opcoes,
+                preco_base: r.preco
+            });
+
+            res.json({
+                success: true,
+                produto: {
+                    codigo: produto.codigo, descricao: produto.descricao,
+                    un: produto.un || 'm', familia: produto.familia || null,
+                    complexidade: produto.complexidade || null, ipi_pct: produto.ipi_pct || 0
+                },
+                contexto: {
+                    filial: r.contexto.filial, origem: r.contexto.origem, uf: r.contexto.uf,
+                    tipo_cliente: r.contexto.tipo_cliente, frete: r.contexto.frete,
+                    condicao_pagamento: r.contexto.condicao_pagamento,
+                    prazo_medio_dias: r.contexto.prazo_medio_dias,
+                    faturamento_tipo: r.contexto.faturamento_tipo, fator_nf: r.contexto.fator_nf
+                },
+                preco: {
+                    custo_material: r.custo_material,
+                    custo_fabril: r.custo_fabril,
+                    markup_pct: r.markup_pct_aplicado,
+                    markup_venda_pct: r.markup_venda_pct,
+                    despesas_formacao: r.despesas_formacao,
+                    bruto_sem_imposto: r.bruto_vendas_sem_imposto,
+                    preco_venda_com_imposto: r.preco_venda_com_imposto,
+                    fiscal_efetivo_pct: r.fiscal_efetivo_pct,
+                    sugerido: r.preco_sugerido,
+                    aplicado: r.preco,
+                    base_origem: r.base_origem,
+                    // R$/Kg = preço ÷ peso por metro, a MESMA conta da coluna R$/Kg da
+                    // Prévia de Preços (cpPrecoPorKg em public/js/custos-precificacao.js).
+                    // `preco_planilha_kg` não é gravado por nenhuma rotina do sistema,
+                    // então esta chave saía sempre null na ficha exportada.
+                    preco_kg: (() => {
+                        // Peso por metro, na MESMA precedência da listagem:
+                        //  1) kg_total do próprio item;
+                        //  2) kg_total da BASE, quando o código é variante derivada —
+                        //     UN10AZ não existe no JSON da árvore, é a variante "AZ" de
+                        //     UN10, e a listagem herda o consolidado da base
+                        //     (`...(catalog || {})`). Sem este degrau a ficha caía na
+                        //     soma de kg_m e divergia ~0,9% da coluna R$/Kg da tela;
+                        //  3) soma de kg_m, último recurso.
+                        const pesoDe = item => Number((item || {}).kg_total || 0);
+                        let peso = pesoDe(produto);
+                        if (!(peso > 0)) {
+                            const base = alvo.replace(/(?:-\d{2}|[A-Z]{1,2})$/, '');
+                            if (base && base !== alvo) {
+                                // `catalogo` e `normalizeCodePreco` são locais de
+                                // resolverProdutoPrecificavel() e NÃO existem aqui — usá-los
+                                // jogava `ReferenceError: catalogo is not defined`, que a rota
+                                // devolvia como 500 "Erro ao precificar item". Efeito na tela:
+                                // o modal "Novo Item de Pedido de Venda" não gravava nada.
+                                // `data` está no escopo e é a mesma fonte que a função usa.
+                                const produtosDaArvore = Array.isArray(data.products) ? data.products : [];
+                                peso = pesoDe(produtosDaArvore.find(
+                                    x => String(x.codigo || '').trim().toUpperCase() === base
+                                ));
+                            }
+                        }
+                        if (!(peso > 0)) {
+                            peso = Object.keys(produto.kg_m || {})
+                                .reduce((soma, m) => soma + (Number(produto.kg_m[m]) || 0), 0);
+                        }
+                        return (peso > 0 && Number(r.preco) > 0)
+                            ? Number((Number(r.preco) / peso).toFixed(4))
+                            : null;
+                    })(),
+                    piso: gordura.preco_minimo_comercial,
+                    ponto_equilibrio: gordura.preco_equilibrio,
+                    ipi: r.ipi, icms_st: r.icms_st,
+                    total_com_impostos_por_fora: r.preco_com_impostos_por_fora
+                },
+                margem: {
+                    fiscal_pct: r.fiscal_pct, fiscal_liquido: r.fiscal_liquido,
+                    despesas_pct: r.contexto.despesas_total_pct, despesas: r.sumDesp,
+                    ebitda: r.ebitda, ebitda_pct: r.ebitda_pct,
+                    excedente_pct: r.excedente_pct, margem_alvo_pct: r.margem_alvo_pct,
+                    crivo: r.crivo_rotulo, crivo_nivel: r.crivo_nivel
+                },
+                desconto: {
+                    limite_politica_pct: gordura.limite_politica_pct,
+                    disponivel_pct: gordura.desconto_disponivel_pct,
+                    disponivel_valor: gordura.desconto_disponivel_valor,
+                    regra_limitante: gordura.regra_limitante,
+                    margem_ja_negativa: gordura.margem_ja_negativa
+                },
+                custo_origem: r.custo_origem
+            });
+        } catch (err) {
+            console.error('[PCP] Erro ao precificar item:', err.message);
+            res.status(500).json({ success: false, message: 'Erro ao precificar item.' });
+        }
+    });
+
+    // ------------------------------------------------------------------
+    // POST /arvore-produto/repricar-pedido/:id
+    // Repreça TODOS os itens de um pedido/orçamento pelo contexto dele.
+    //
+    // Existe porque o tipo de frete é escolhido no CABEÇALHO do pedido, não no
+    // item: trocar FOB por CIF muda a faixa de frete de todos os itens de uma
+    // vez. Repetir isso item a item pelo front esbarraria na trava de piso — o
+    // preço de tabela novo pode ser MENOR que o `produtos.preco_venda` que serve
+    // de piso, e o PUT do item devolveria 403 PRECO_ABAIXO_DO_PISO.
+    //
+    // O preço é sempre recalculado AQUI, a partir do núcleo — nunca aceito do
+    // cliente. O contexto pode vir no corpo porque o vendedor repreça ANTES de
+    // salvar o cabeçalho; o que faltar cai no que está gravado no pedido. São os
+    // mesmos campos que o GET /arvore-produto/preco/:codigo já aceita.
+    // ------------------------------------------------------------------
+    router.post('/arvore-produto/repricar-pedido/:id', async (req, res) => {
+        let conn = null;
+        try {
+            const pedidoId = parseInt(req.params.id, 10);
+            if (!Number.isFinite(pedidoId) || pedidoId <= 0) {
+                return res.status(400).json({ success: false, message: 'Pedido inválido.' });
+            }
+            const path = require('path');
+            const fs = require('fs');
+            const core = require(path.join(__dirname, '..', 'public', 'js', 'custos-precificacao-core.js'));
+            const dataPath = arvoreFonte.resolverArvore();
+            if (!fs.existsSync(dataPath)) {
+                return res.status(404).json({ success: false, message: 'Dados da árvore de produto não encontrados.' });
+            }
+            const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+
+            conn = await pool.getConnection();
+            const [[pedido]] = await conn.query(
+                `SELECT p.id, p.status, p.tipo_venda, p.tipo_frete, p.condicao_pagamento,
+                        p.condicoes_pagamento, p.parcelas,
+                        p.is_representante, p.faturamento_tipo,
+                        COALESCE(NULLIF(p.estado_destino, ''), c.estado, 'SP') AS estado_destino
+                   FROM pedidos p LEFT JOIN clientes c ON c.id = p.cliente_id
+                  WHERE p.id = ? LIMIT 1`, [pedidoId]);
+            if (!pedido) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+
+            /* 🔴 TRAVA DE STATUS — faltava, e a rota irmã `aplicar-precos` sempre teve.
+             *
+             * Sem ela, trocar o Tipo do Frete (ou os toggles Representante / 50% NF) repreçava
+             * QUALQUER pedido: medido em 09/09/2026, 101 itens de 44 pedidos tiveram o preço
+             * negociado elevado ao preço do motor, entre eles um pedido em análise de crédito,
+             * um aguardando faturamento e um JÁ FATURADO (3571) — cujo preço deveria bater com
+             * a nota emitida. Fora do orçamento o preço combinado é fato, não sugestão. */
+            const statusPedido = String(pedido.status || '').trim().toLowerCase();
+            if (statusPedido !== 'orcamento') {
+                return res.json({
+                    success: true, atualizados: 0, ignorados: 0, preservados: 0, itens: [], contexto: null,
+                    bloqueadoPorStatus: true,
+                    message: 'Este pedido já saiu do orçamento — os preços negociados foram mantidos.'
+                });
+            }
+
+            const b = req.body || {};
+            const naoVazio = (...vs) => vs.find(v => v !== undefined && v !== null && String(v).trim() !== '');
+            const tipoVenda = String(naoVazio(b.tipo_cliente, pedido.tipo_venda, 'consumidor')).toLowerCase();
+            const opcoes = {
+                uf: String(naoVazio(b.uf, pedido.estado_destino, 'SP')).toUpperCase(),
+                tipo_cliente: (tipoVenda === 'consumidor' || tipoVenda === 'consumidor_final')
+                    ? 'consumidor_final' : 'revenda',
+                frete: naoVazio(b.frete, pedido.tipo_frete),
+                condicao_pagamento: naoVazio(b.condicao_pagamento, pedido.condicao_pagamento,
+                    pedido.condicoes_pagamento, pedido.parcelas),
+                // Booleano não pode passar por naoVazio(): `false` é valor legítimo e seria
+                // descartado como "vazio", fazendo o pedido voltar sozinho para representante.
+                is_representante: b.is_representante !== undefined
+                    ? (b.is_representante === true || b.is_representante === 1 || b.is_representante === '1')
+                    : Boolean(Number(pedido.is_representante) || 0),
+                faturamento_tipo: naoVazio(b.faturamento_tipo, pedido.faturamento_tipo, 'Total')
+            };
+            Object.keys(opcoes).forEach(k => opcoes[k] === undefined && delete opcoes[k]);
+
+            /* `preco_manual` diz quem escreveu o preço de cada item: a pessoa ou o motor.
+             *
+             * Comparar o preço gravado com o preço recalculado NÃO serve como régua — os
+             * parâmetros de custo (preço do kg do alumínio) mudam de um dia para o outro, então
+             * recalcular hoje jamais reproduz o preço de ontem. Medido em 09/09/2026: por esse
+             * critério 100% dos itens pareciam "digitados à mão" e o repreço virava letra morta.
+             *
+             * Base sem a migração devolve ER_BAD_FIELD_ERROR: o repreço volta a valer para todos
+             * os itens, que é exatamente o comportamento antigo. */
+            let temColunaPrecoManual = true;
+            let itens;
+            try {
+                [itens] = await conn.query(
+                    `SELECT id, codigo, quantidade, preco_unitario, desconto,
+                            COALESCE(preco_manual, 0) AS preco_manual
+                       FROM pedido_itens WHERE pedido_id = ? ORDER BY id`, [pedidoId]);
+            } catch (e) {
+                if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+                temColunaPrecoManual = false;
+                console.warn('[PCP] repricar: pedido_itens.preco_manual não existe nesta base.');
+                [itens] = await conn.query(
+                    `SELECT id, codigo, quantidade, preco_unitario, desconto, 0 AS preco_manual
+                       FROM pedido_itens WHERE pedido_id = ? ORDER BY id`, [pedidoId]);
+            }
+            if (!itens.length) {
+                return res.json({ success: true, atualizados: 0, ignorados: 0, preservados: 0, itens: [], contexto: null });
+            }
+
+            // Um mesmo código costuma repetir no pedido; resolver e precificar uma
+            // vez por código evita reler a estrutura para cada linha.
+            const porCodigo = new Map();
+            const alterados = [];
+            const preservados = [];
+            let atualizados = 0;
+            let ignorados = 0;
+            let contexto = null;
+
+            // Meio centavo: a mesma tolerância que a trava de piso usa para comparar preços.
+            const MESMO_PRECO = 0.005;
+
+            for (const item of itens) {
+                const codigo = String(item.codigo || '').trim().toUpperCase();
+                if (!codigo) { ignorados++; continue; }
+                const atual = Number(item.preco_unitario) || 0;
+
+                /* 🔴 PRESERVAR O PREÇO NEGOCIADO.
+                 *
+                 * Antes o UPDATE era incondicional e apagava tudo. No pedido 3603 (09/09/2026) a
+                 * vendedora montou 21 itens com preço negociado e autorizado por senha de
+                 * supervisor; um clique num toggle de cabeçalho devolveu os 21 ao preço do motor
+                 * (DUI10 2,02 → 4,8150; QDI50 20,60 → 38,1071) e alguém redigitou os 21 à mão.
+                 *
+                 * Preço que uma pessoa digitou é decisão comercial e não se mexe; o resto
+                 * acompanha o contexto. Sai antes de precificar: item preservado não precisa nem
+                 * ser calculado. */
+                if (Number(item.preco_manual) === 1) {
+                    preservados.push({ id: item.id, codigo, preco_unitario: atual });
+                    continue;
+                }
+
+                if (!porCodigo.has(codigo)) {
+                    let preco = null;
+                    try {
+                        const produto = await resolverProdutoPrecificavel(data, codigo);
+                        if (produto) {
+                            const r = core.calcularProduto(produto, data.parametros, opcoes);
+                            if (!contexto) contexto = r.contexto;
+                            const sugerido = Number(r.preco_sugerido || r.preco || 0);
+                            if (sugerido > 0) preco = Math.round(sugerido * 10000) / 10000;
+                        }
+                    } catch (e) {
+                        console.warn('[PCP] repricar: falha em', codigo, e.message);
+                    }
+                    porCodigo.set(codigo, preco);
+                }
+                const novo = porCodigo.get(codigo);
+                if (!(novo > 0)) { ignorados++; continue; }
+                if (Math.abs(atual - novo) <= MESMO_PRECO) continue;
+
+                const qtd = Number(item.quantidade) || 0;
+                const desc = Number(item.desconto) || 0;
+                const subtotal = Math.round(Math.max(0, qtd * novo - desc) * 100) / 100;
+                await conn.query(
+                    'UPDATE pedido_itens SET preco_unitario = ?, subtotal = ? WHERE id = ? AND pedido_id = ?',
+                    [novo, subtotal, item.id, pedidoId]);
+                atualizados++;
+                alterados.push({
+                    id: item.id, codigo,
+                    preco_anterior: atual,
+                    preco_unitario: novo, subtotal
+                });
+            }
+
+            /* Rastro. O repreço era MUDO: não escrevia nada em `pedido_historico`, então a linha
+             * do tempo do pedido 3603 tem um buraco entre 20:18 e 20:29 exatamente onde os 21
+             * preços foram reescritos — ninguém conseguia ver que tinha acontecido, nem quem fez. */
+            if (alterados.length) {
+                try {
+                    const resumo = alterados
+                        .map(a => `${a.codigo} ${a.preco_anterior} -> ${a.preco_unitario}`)
+                        .join('; ');
+                    await conn.query(
+                        `INSERT INTO pedido_historico
+                             (pedido_id, usuario_id, usuario_nome, acao, descricao, meta, created_at)
+                         VALUES (?, ?, ?, 'itens_reprecados', ?, ?, NOW())`,
+                        [
+                            pedidoId,
+                            req.user?.id || null,
+                            req.user?.nome || req.user?.email || 'PCP',
+                            `${alterados.length} item(ns) repreçado(s) pelo contexto`
+                                + (preservados.length ? `; ${preservados.length} preservado(s) por preço negociado` : '')
+                                + `: ${resumo}`.slice(0, 600),
+                            JSON.stringify({ contexto: opcoes, itens: alterados, preservados })
+                        ]);
+                } catch (e) {
+                    console.warn('[PCP] repricar: não consegui registrar o histórico:', e.message);
+                }
+            }
+
+            res.json({
+                success: true, atualizados, ignorados,
+                preservados: preservados.length, itens: alterados,
+                // Sem a coluna a base não distingue procedência e tudo volta a ser repreçável —
+                // vale aparecer na resposta para não diagnosticar isso às cegas depois.
+                procedenciaDisponivel: temColunaPrecoManual,
+                contexto: contexto ? {
+                    uf: contexto.uf, frete: contexto.frete,
+                    tipo_cliente: contexto.tipo_cliente,
+                    condicao_pagamento: contexto.condicao_pagamento,
+                    prazo_medio_dias: contexto.prazo_medio_dias,
+                    frete_pct: contexto.despesas.frete
+                } : null
+            });
+        } catch (err) {
+            console.error('[PCP] Erro ao repricar pedido:', err.message);
+            res.status(500).json({ success: false, message: 'Erro ao repreçar os itens do pedido.' });
+        } finally {
+            if (conn) conn.release();
+        }
+    });
+
     // Salvar parâmetros de custo (preços kg, markup, despesas)
     router.put('/arvore-produto/parametros', async (req, res) => {
         try {
             const path = require('path');
             const fs = require('fs');
-            const dataPath = path.join(__dirname, '..', 'api', 'arvore-produto-data.json');
+            const dataPath = arvoreFonte.resolverArvore();
 
             if (!fs.existsSync(dataPath)) {
                 return res.status(404).json({ success: false, message: 'Arquivo de dados não encontrado.' });
@@ -9403,9 +13794,15 @@ module.exports = function createPCPRoutes(deps) {
             const rawData = fs.readFileSync(dataPath, 'utf-8');
             const data = JSON.parse(rawData);
 
-            const { precos_kg, markup_pct, despesas } = req.body;
+            const { precos_kg, markup_pct, markup_venda_pct, despesas } = req.body;
             if (precos_kg) data.parametros.precos_kg = precos_kg;
             if (markup_pct !== undefined) data.parametros.markup_pct = parseFloat(markup_pct);
+            if (markup_venda_pct !== undefined) {
+                const markupVenda = parseFloat(markup_venda_pct);
+                if (Number.isFinite(markupVenda) && markupVenda >= 0 && markupVenda <= 1000) {
+                    data.parametros.markup_venda_pct = markupVenda;
+                }
+            }
             if (despesas) data.parametros.despesas = despesas;
             // Novos campos de precificação por estado
             if (req.body.icms_estados) data.parametros.icms_estados = req.body.icms_estados;
@@ -9417,8 +13814,39 @@ module.exports = function createPCPRoutes(deps) {
             if (req.body.is_representante !== undefined) data.parametros.is_representante = req.body.is_representante;
             if (req.body.frete_selecionado !== undefined) data.parametros.frete_selecionado = req.body.frete_selecionado;
 
-            fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf-8');
-            console.log('[PCP] Parâmetros de custo atualizados com sucesso');
+            // Modelo da Planilha de Vendas (rev. MARROM): filial emissora, taxas
+            // -base, crivo de aprovação e a tabela de prazos que rateia o
+            // financeiro. Numéricos são saneados; os mapas vêm do próprio modal.
+            const NUMERICOS = [
+                'custo_fixo_pct', 'financeiro_mensal_pct', 'credito_icms_pct', 'acerto_custo_pct',
+                'margem_alvo_pct', 'bobina_pct', 'perc_nf', 'prazo_medio_dias'
+            ];
+            for (const campo of NUMERICOS) {
+                if (req.body[campo] === undefined) continue;
+                const valor = parseFloat(req.body[campo]);
+                if (Number.isFinite(valor) && valor >= 0 && valor <= 100000) data.parametros[campo] = valor;
+            }
+            const TEXTOS = ['filial_selecionada', 'faturamento_tipo', 'condicao_pagamento', 'modo_preco_sugerido'];
+            for (const campo of TEXTOS) {
+                if (typeof req.body[campo] === 'string' && req.body[campo].length <= 120) {
+                    data.parametros[campo] = req.body[campo];
+                }
+            }
+            const MAPAS = ['insumos', 'densidades', 'perdas_pct', 'filiais', 'prazos_pagamento',
+                'complexidade', 'markup_por_complexidade', 'frete_rotulos', 'crivo'];
+            for (const campo of MAPAS) {
+                if (req.body[campo] && typeof req.body[campo] === 'object') data.parametros[campo] = req.body[campo];
+            }
+            if (req.body.usar_markup_planilha !== undefined) {
+                data.parametros.usar_markup_planilha = Boolean(req.body.usar_markup_planilha);
+            }
+            if (req.body.usar_preco_referencia !== undefined) {
+                data.parametros.usar_preco_referencia = Boolean(req.body.usar_preco_referencia);
+            }
+
+            // Grava FORA de api/ — ver utils/arvore-produto-fonte.js.
+            const destinoArvore = arvoreFonte.gravarArvore(data);
+            console.log('[PCP] Parâmetros de custo atualizados com sucesso em', destinoArvore);
 
             res.json({ success: true, message: 'Parâmetros salvos com sucesso.', parametros: data.parametros });
         } catch (err) {
@@ -9427,34 +13855,192 @@ module.exports = function createPCPRoutes(deps) {
         }
     });
 
-    // Aplicar preços calculados aos produtos no MySQL
+    // Aplicar preços ao catálogo e somente aos itens de pedidos em orçamento.
+    // Pedidos em análise de crédito ou qualquer etapa posterior preservam o preço
+    // negociado, inclusive quando o preço do cadastro do produto muda.
     router.post('/arvore-produto/aplicar-precos', async (req, res) => {
+        let connection = null;
         try {
             const { precos } = req.body;
             if (!Array.isArray(precos) || precos.length === 0) {
                 return res.status(400).json({ success: false, message: 'Nenhum preço informado.' });
             }
-            // Primeiro garantir que a coluna preco_venda tenha precisão suficiente para preços por metro
-            try {
-                await pool.query('ALTER TABLE produtos MODIFY COLUMN preco_venda DECIMAL(15,4) DEFAULT 0');
-            } catch (e) { /* coluna já pode estar com a precisão correta */ }
-
-            let atualizados = 0;
-            for (const item of precos) {
-                if (!item.codigo || item.preco_venda === undefined) continue;
-                const pv = parseFloat(item.preco_venda);
-                if (isNaN(pv) || pv < 0) continue;
-                const [result] = await pool.query(
-                    'UPDATE produtos SET preco_venda = ? WHERE codigo = ? OR TRIM(codigo) = ?',
-                    [pv, item.codigo, item.codigo.trim()]
-                );
-                atualizados += result.affectedRows;
+            if (precos.length > 5000) {
+                return res.status(400).json({ success: false, message: 'Limite de 5.000 produtos por aplicação.' });
             }
-            console.log(`[PCP] Preços aplicados: ${atualizados} produtos atualizados`);
-            res.json({ success: true, atualizados, total: precos.length });
+
+            const uniquePrices = new Map();
+            for (const item of precos) {
+                const codigo = String(item && item.codigo || '').trim();
+                const precoVenda = Number(item && item.preco_venda);
+                const precoCusto = Number(item && item.preco_custo);
+                const markup = Number(item && item.markup_pct);
+                const margem = Number(item && item.margem_bruta_pct);
+                const margemLucro = Number(item && item.margem_liquida_pct);
+                const precoMinimo = Number(item && item.preco_minimo);
+                const precoEquilibrio = Number(item && item.preco_equilibrio);
+                if (!codigo || codigo.length > 255 || !Number.isFinite(precoVenda) || precoVenda <= 0) continue;
+                if (!Number.isFinite(precoCusto) || precoCusto < 0) continue;
+                if (!Number.isFinite(markup) || markup < 0 || markup > 10000) continue;
+                if (!Number.isFinite(margem) || margem < -100 || margem > 100) continue;
+                if (!Number.isFinite(margemLucro) || margemLucro < -100 || margemLucro > 100) continue;
+                uniquePrices.set(codigo.toUpperCase(), {
+                    codigo, precoVenda, precoCusto, markup, margem, margemLucro,
+                    // Piso do crivo: só grava se for um número plausível e não
+                    // ultrapassar o próprio preço aplicado.
+                    precoMinimo: (Number.isFinite(precoMinimo) && precoMinimo > 0 && precoMinimo <= precoVenda * 10)
+                        ? precoMinimo : null,
+                    precoEquilibrio: (Number.isFinite(precoEquilibrio) && precoEquilibrio > 0 && precoEquilibrio <= precoVenda * 10)
+                        ? precoEquilibrio : null
+                });
+            }
+            if (uniquePrices.size === 0) {
+                return res.status(400).json({ success: false, message: 'Nenhum preço válido informado.' });
+            }
+
+            // `preco_minimo` é o piso do crivo. Nem toda base tem a coluna —
+            // quando não tem, o piso continua sendo o preço de venda (que é o
+            // que a trava de desconto de Vendas já lê).
+            let temColunaPisoPreco = false;
+            let temColunaEquilibrioPreco = false;
+            try {
+                const [colunasPreco] = await pool.query(`
+                    SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'produtos'
+                       AND COLUMN_NAME IN ('preco_minimo', 'preco_equilibrio')
+                `);
+                const nomesColunasPreco = new Set(colunasPreco.map(c => c.COLUMN_NAME));
+                temColunaPisoPreco = nomesColunasPreco.has('preco_minimo');
+                temColunaEquilibrioPreco = nomesColunasPreco.has('preco_equilibrio');
+            } catch (e) {
+                console.warn('[PCP] Não consegui checar produtos.preco_minimo:', e.message);
+            }
+
+            connection = await pool.getConnection();
+            await connection.beginTransaction();
+            let atualizados = 0;
+            let pisosGravados = 0;
+            let itensOrcamentoAtualizados = 0;
+            const pedidosOrcamento = new Set();
+            const pedidosProtegidos = new Set();
+            const itensProtegidos = new Set();
+
+            for (const item of uniquePrices.values()) {
+                const [[product]] = await connection.query(
+                    'SELECT id, codigo FROM produtos WHERE UPPER(TRIM(codigo)) = ? LIMIT 1 FOR UPDATE',
+                    [item.codigo.toUpperCase()]
+                );
+                if (!product) continue;
+
+                const [productResult] = await connection.query(`
+                    UPDATE produtos
+                       SET preco_venda = ?, preco = ?, preco_custo = ?, custo_unitario = ?,
+                           markup = ?, margem = ?, margem_lucro = ?, updated_at = NOW()
+                     WHERE id = ?
+                `, [
+                    item.precoVenda, item.precoVenda, item.precoCusto, item.precoCusto,
+                    item.markup, item.margem, item.margemLucro, product.id
+                ]);
+                atualizados += productResult.affectedRows;
+
+                if (temColunaPisoPreco && item.precoMinimo) {
+                    const [pisoResult] = await connection.query(
+                        'UPDATE produtos SET preco_minimo = ? WHERE id = ?',
+                        [item.precoMinimo, product.id]
+                    );
+                    pisosGravados += pisoResult.affectedRows;
+                }
+                if (temColunaEquilibrioPreco && item.precoEquilibrio) {
+                    await connection.query(
+                        'UPDATE produtos SET preco_equilibrio = ? WHERE id = ?',
+                        [item.precoEquilibrio, product.id]
+                    );
+                }
+
+                const itemMatchSql = '(pi.produto_id = ? OR UPPER(TRIM(pi.codigo)) = ?)';
+                const itemMatchParams = [product.id, item.codigo.toUpperCase()];
+                const [budgetItems] = await connection.query(`
+                    SELECT pi.id, p.id AS pedido_id
+                      FROM pedido_itens pi
+                      JOIN pedidos p ON p.id = pi.pedido_id
+                     WHERE LOWER(TRIM(p.status)) = 'orcamento'
+                       AND ${itemMatchSql}
+                `, itemMatchParams);
+                budgetItems.forEach(row => pedidosOrcamento.add(Number(row.pedido_id)));
+
+                const [lockedItems] = await connection.query(`
+                    SELECT pi.id, p.id AS pedido_id
+                      FROM pedido_itens pi
+                      JOIN pedidos p ON p.id = pi.pedido_id
+                     WHERE LOWER(TRIM(p.status)) <> 'orcamento'
+                       AND ${itemMatchSql}
+                `, itemMatchParams);
+                lockedItems.forEach(row => {
+                    itensProtegidos.add(Number(row.id));
+                    pedidosProtegidos.add(Number(row.pedido_id));
+                });
+
+                const [itemsResult] = await connection.query(`
+                    UPDATE pedido_itens pi
+                    JOIN pedidos p ON p.id = pi.pedido_id
+                       SET pi.preco_unitario = ?,
+                           pi.preco_custo = ?,
+                           pi.subtotal = GREATEST((pi.quantidade * ?) - COALESCE(pi.desconto, 0), 0)
+                     WHERE LOWER(TRIM(p.status)) = 'orcamento'
+                       AND ${itemMatchSql}
+                `, [item.precoVenda, item.precoCusto, item.precoVenda, ...itemMatchParams]);
+                itensOrcamentoAtualizados += itemsResult.affectedRows;
+            }
+
+            const budgetOrderIds = [...pedidosOrcamento];
+            if (budgetOrderIds.length > 0) {
+                await connection.query(`
+                    UPDATE pedidos p
+                    JOIN (
+                        SELECT pedido_id,
+                               COALESCE(SUM(subtotal), 0) AS total_subtotais,
+                               COALESCE(SUM(valor_ipi), 0) AS total_ipi,
+                               COALESCE(SUM(valor_icms_st), 0) AS total_icms_st
+                          FROM pedido_itens
+                         WHERE pedido_id IN (?)
+                         GROUP BY pedido_id
+                    ) totals ON totals.pedido_id = p.id
+                       SET p.valor = totals.total_subtotais + totals.total_ipi + totals.total_icms_st + COALESCE(p.frete, 0),
+                           p.updated_at = NOW()
+                     WHERE p.id IN (?)
+                       AND LOWER(TRIM(p.status)) = 'orcamento'
+                `, [budgetOrderIds, budgetOrderIds]);
+            }
+
+            await connection.commit();
+            try {
+                const cacheService = require('../services/cache');
+                if (cacheService && cacheService.cacheClear) {
+                    await cacheService.cacheClear('vendas_pedidos');
+                }
+            } catch (cacheError) {
+                console.warn('[PCP] Cache de pedidos não invalidado:', cacheError.message);
+            }
+
+            console.log(`[PCP] Preços aplicados: ${atualizados} produtos, ${itensOrcamentoAtualizados} itens em orçamento; `
+                + `${itensProtegidos.size} itens protegidos; ${pisosGravados} pisos gravados`);
+            res.json({
+                success: true,
+                atualizados,
+                pisos_gravados: pisosGravados,
+                piso_persistido: temColunaPisoPreco,
+                total: uniquePrices.size,
+                itens_orcamento_atualizados: itensOrcamentoAtualizados,
+                pedidos_orcamento_atualizados: pedidosOrcamento.size,
+                itens_protegidos: itensProtegidos.size,
+                pedidos_protegidos: pedidosProtegidos.size
+            });
         } catch (err) {
+            if (connection) await connection.rollback();
             console.error('[PCP] Erro ao aplicar preços:', err.message);
             res.status(500).json({ success: false, message: 'Erro ao aplicar preços.' });
+        } finally {
+            if (connection) connection.release();
         }
     });
 
@@ -9536,6 +14122,124 @@ module.exports = function createPCPRoutes(deps) {
         } catch (error) {
             console.error('[PCP/SEARCH] Erro:', error.message);
             res.status(500).json({ results: { ordens: [], materiais: [], produtos: [], pedidos: [] } });
+        }
+    });
+
+    // ============================================================================
+    // EXPORT EXCEL — Base de produtos (dados reais) em .xlsx, com 2 abas:
+    //   "Produtos"  → cadastro completo (código, descrição, fiscal, preços, estoque…)
+    //   "Estrutura" → composição/BOM de cada produto (tabela estrutura_produto)
+    // Usado pelo botão "Baixar base" da página PCP > Estrutura dos Produtos.
+    // ============================================================================
+    // Exige login: a planilha traz custo, margem e preços (dado sensível).
+    router.get('/produtos/export-excel', authenticateToken, async (req, res) => {
+        try {
+            const ExcelJS = require('exceljs');
+
+            const [produtos] = await pool.query(`
+                SELECT codigo, nome, descricao, categoria, familia, tipo_produto, unidade_medida,
+                       ncm, cest, gtin, sku, origem, marca, material, secao, tensao, norma,
+                       preco_custo, custo_unitario, preco_venda, margem_lucro,
+                       estoque_atual, estoque_minimo, estoque_maximo, localizacao,
+                       cst_icms, csosn_icms, aliquota_icms, mva_st, calcular_icms_st,
+                       cst_ipi, aliquota_ipi, calcular_ipi,
+                       cfop_saida_interna, cfop_saida_interestadual,
+                       fornecedor_principal, peso, comprimento, largura, altura,
+                       observacoes, ativo
+                  FROM produtos
+                 ORDER BY codigo`);
+
+            // Se a tabela de estrutura não existir na instância, exporta só os produtos.
+            const [estrutura] = await pool.query(`
+                SELECT produto_codigo, produto_descricao, componente_codigo, componente_descricao,
+                       componente_tipo, quantidade_por_metro, unidade, local_estoque, ativo
+                  FROM estrutura_produto
+                 ORDER BY produto_codigo, componente_codigo`).catch(() => [[]]);
+
+            const wb = new ExcelJS.Workbook();
+            wb.creator = 'Zyntra';
+            wb.created = new Date();
+
+            const estiloCabecalho = (ws) => {
+                const h = ws.getRow(1);
+                h.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                h.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E40AF' } };
+                h.alignment = { vertical: 'middle' };
+                h.height = 20;
+                ws.views = [{ state: 'frozen', ySplit: 1 }];
+                ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columnCount } };
+            };
+            // Largura automática (limitada) a partir do conteúdo.
+            const ajustarLarguras = (ws) => {
+                ws.columns.forEach(col => {
+                    let max = String(col.header || '').length;
+                    col.eachCell({ includeEmpty: false }, c => {
+                        const v = c.value == null ? '' : String(c.value);
+                        if (v.length > max) max = v.length;
+                    });
+                    col.width = Math.min(Math.max(max + 2, 10), 45);
+                });
+            };
+
+            // ---- Aba 1: Produtos ----
+            const wsP = wb.addWorksheet('Produtos');
+            wsP.columns = [
+                { header: 'Código', key: 'codigo' }, { header: 'Nome', key: 'nome' },
+                { header: 'Descrição', key: 'descricao' }, { header: 'Categoria', key: 'categoria' },
+                { header: 'Família', key: 'familia' }, { header: 'Tipo', key: 'tipo_produto' },
+                { header: 'Unidade', key: 'unidade_medida' },
+                { header: 'NCM', key: 'ncm' }, { header: 'CEST', key: 'cest' },
+                { header: 'GTIN', key: 'gtin' }, { header: 'SKU', key: 'sku' },
+                { header: 'Origem', key: 'origem' }, { header: 'Marca', key: 'marca' },
+                { header: 'Material', key: 'material' }, { header: 'Seção', key: 'secao' },
+                { header: 'Tensão', key: 'tensao' }, { header: 'Norma', key: 'norma' },
+                { header: 'Preço custo', key: 'preco_custo' }, { header: 'Custo unitário', key: 'custo_unitario' },
+                { header: 'Preço venda', key: 'preco_venda' }, { header: 'Margem (%)', key: 'margem_lucro' },
+                { header: 'Estoque atual', key: 'estoque_atual' }, { header: 'Estoque mín.', key: 'estoque_minimo' },
+                { header: 'Estoque máx.', key: 'estoque_maximo' }, { header: 'Localização', key: 'localizacao' },
+                { header: 'CST ICMS', key: 'cst_icms' }, { header: 'CSOSN', key: 'csosn_icms' },
+                { header: 'Alíq. ICMS (%)', key: 'aliquota_icms' }, { header: 'MVA ST (%)', key: 'mva_st' },
+                { header: 'Calcula ICMS-ST', key: 'calcular_icms_st' },
+                { header: 'CST IPI', key: 'cst_ipi' }, { header: 'Alíq. IPI (%)', key: 'aliquota_ipi' },
+                { header: 'Calcula IPI', key: 'calcular_ipi' },
+                { header: 'CFOP saída interna', key: 'cfop_saida_interna' },
+                { header: 'CFOP saída interest.', key: 'cfop_saida_interestadual' },
+                { header: 'Fornecedor', key: 'fornecedor_principal' },
+                { header: 'Peso', key: 'peso' }, { header: 'Comprimento', key: 'comprimento' },
+                { header: 'Largura', key: 'largura' }, { header: 'Altura', key: 'altura' },
+                { header: 'Observações', key: 'observacoes' }, { header: 'Ativo', key: 'ativo' }
+            ];
+            produtos.forEach(p => wsP.addRow(p));
+            estiloCabecalho(wsP);
+            ajustarLarguras(wsP);
+
+            // ---- Aba 2: Estrutura (composição / BOM) ----
+            const wsE = wb.addWorksheet('Estrutura');
+            wsE.columns = [
+                { header: 'Produto (código)', key: 'produto_codigo' },
+                { header: 'Produto (descrição)', key: 'produto_descricao' },
+                { header: 'Componente (código)', key: 'componente_codigo' },
+                { header: 'Componente (descrição)', key: 'componente_descricao' },
+                { header: 'Tipo', key: 'componente_tipo' },
+                { header: 'Qtd por metro', key: 'quantidade_por_metro' },
+                { header: 'Unidade', key: 'unidade' },
+                { header: 'Local de estoque', key: 'local_estoque' },
+                { header: 'Ativo', key: 'ativo' }
+            ];
+            estrutura.forEach(e => wsE.addRow(e));
+            estiloCabecalho(wsE);
+            ajustarLarguras(wsE);
+
+            const buffer = await wb.xlsx.writeBuffer();
+            const nome = `base-produtos-${new Date().toISOString().slice(0, 10)}.xlsx`;
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="${nome}"`);
+            res.setHeader('Content-Length', buffer.length);
+            console.log(`[PCP] Base de produtos exportada: ${produtos.length} produtos, ${estrutura.length} linhas de estrutura.`);
+            return res.end(Buffer.from(buffer));
+        } catch (error) {
+            console.error('[PCP] Erro ao exportar base de produtos:', error);
+            return res.status(500).json({ error: 'Erro ao gerar o Excel da base de produtos.' });
         }
     });
 
@@ -9739,13 +14443,22 @@ tr:nth-child(even){background:#f8fafc}
     // APONTAMENTOS CHÃO DE FÁBRICA — Endpoint específico para salvar registros do chão de fábrica
     router.post('/apontamentos/chao', async (req, res) => {
         try {
-            const { tipo_atividade, nome_atividade, hora_inicio, hora_fim, duracao_segundos, ordem_producao_id, pedido_numero, produto_descricao, observacoes, maquina, turno, quantidade_produzida, quantidade_refugo } = req.body;
+            const { tipo_atividade, nome_atividade, hora_inicio, hora_fim, duracao_segundos, ordem_producao_id, pedido_numero, produto_descricao, observacoes, maquina, turno, quantidade_produzida, quantidade_refugo, lances } = req.body;
             const usuario_id = req.user?.id;
             const operador = req.user?.nome || 'Operador';
 
             if (!tipo_atividade || !nome_atividade) {
                 return res.status(400).json({ success: false, message: 'tipo_atividade e nome_atividade são obrigatórios' });
             }
+
+            // Andamento por cabo: se vierem lances (qtd x metragem), converter em metros.
+            // A quantidade explícita, se enviada, tem precedência.
+            const qtdProdFinal = (Number(quantidade_produzida) > 0)
+                ? Number(quantidade_produzida)
+                : lancesParaMetros(lances);
+            const obsFinal = lances
+                ? `${observacoes ? observacoes + ' · ' : ''}Lances: ${String(lances).trim()}`
+                : (observacoes || null);
 
             const horaInicioFormatada = hora_inicio ? new Date(hora_inicio).toISOString().slice(0, 19).replace('T', ' ') : null;
             const horaFimFormatada = hora_fim ? new Date(hora_fim).toISOString().slice(0, 19).replace('T', ' ') : null;
@@ -9786,8 +14499,8 @@ tr:nth-child(even){background:#f8fafc}
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [usuario_id, operador, maquina || null, turno || null, ordem_producao_id || null, tipo_atividade, nome_atividade,
                      horaInicioFormatada, horaFimFormatada, duracao_segundos || 0,
-                     quantidade_produzida || 0, quantidade_refugo || 0,
-                     pedidoId, produto_descricao || null, observacoes || null]
+                     qtdProdFinal || 0, quantidade_refugo || 0,
+                     pedidoId, produto_descricao || null, obsFinal]
                 );
             } else {
                 [result] = await pool.query(
@@ -9800,7 +14513,39 @@ tr:nth-child(even){background:#f8fafc}
             }
 
             console.log('[PCP/APONTAMENTOS/CHAO] Registro salvo, id:', result.insertId);
-            res.json({ success: true, id: result.insertId });
+
+            // Gravou = não está mais em andamento (some do painel ao vivo)
+            try {
+                await pool.query('DELETE FROM apontamentos_ativos WHERE usuario_id = ?', [usuario_id]);
+            } catch (_) { /* tabela ainda não criada — sem problema */ }
+
+            let progresso = null;
+            if (ordem_producao_id && hasExtraColumns) {
+                try {
+                    const [soma] = await pool.query(
+                        `SELECT COALESCE(SUM(quantidade_produzida), 0) AS produzido
+                         FROM apontamentos_producao WHERE ordem_producao_id = ?`,
+                        [ordem_producao_id]
+                    );
+                    const produzidoApontado = Number(soma[0]?.produzido || 0);
+                    await pool.query(
+                        `UPDATE ordens_producao
+                         SET quantidade_produzida = GREATEST(COALESCE(quantidade_produzida, 0), ?),
+                             progresso = LEAST(100, ROUND(GREATEST(COALESCE(quantidade_produzida, 0), ?) / NULLIF(quantidade, 0) * 100, 2)),
+                             updated_at = NOW()
+                         WHERE id = ?`,
+                        [produzidoApontado, produzidoApontado, ordem_producao_id]
+                    );
+                    const [op] = await pool.query(
+                        `SELECT quantidade_produzida, progresso FROM ordens_producao WHERE id = ? LIMIT 1`,
+                        [ordem_producao_id]
+                    );
+                    progresso = op[0] || null;
+                } catch (updateError) {
+                    console.warn('[PCP/APONTAMENTOS/CHAO] Apontamento salvo, mas progresso da OP não foi recalculado:', updateError.message);
+                }
+            }
+            res.json({ success: true, id: result.insertId, progresso });
         } catch (error) {
             console.error('[PCP/APONTAMENTOS/CHAO] Erro:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao salvar apontamento' });
@@ -9863,7 +14608,7 @@ tr:nth-child(even){background:#f8fafc}
             const usuario_id = req.user?.id;
 
             const [existing] = await pool.query(
-                'SELECT id, usuario_id FROM apontamentos_producao WHERE id = ?', [id]
+                'SELECT id, usuario_id, ordem_producao_id FROM apontamentos_producao WHERE id = ?', [id]
             );
             if (!existing.length) {
                 return res.status(404).json({ success: false, message: 'Apontamento não encontrado' });
@@ -9873,6 +14618,8 @@ tr:nth-child(even){background:#f8fafc}
             }
 
             await pool.query('DELETE FROM apontamentos_producao WHERE id = ?', [id]);
+            // apontamento excluido pode ter contribuido p/ o andamento da OP — recalcular
+            await atualizarAndamentoOrdem(existing[0].ordem_producao_id);
             console.log('[PCP/APONTAMENTOS] Apontamento excluído:', id);
             res.json({ success: true, message: 'Apontamento excluído' });
         } catch (error) {
@@ -10063,7 +14810,7 @@ tr:nth-child(even){background:#f8fafc}
     // ==================== ROTAS DE RELATÓRIOS PCP ====================
 
     // 1. Cabos mais vendidos (ranking por quantidade e valor)
-    router.get('/relatórios/cabos-mais-vendidos', async (req, res) => {
+    router.get('/relatorios/cabos-mais-vendidos', async (req, res) => {
         try {
             const { data_inicio, data_fim, limit } = req.query;
             const maxResults = parseInt(limit) || 20;
@@ -10157,7 +14904,7 @@ tr:nth-child(even){background:#f8fafc}
     });
 
     // 2. Ranking de vendas (por vendedor, cliente, produto)
-    router.get('/relatórios/ranking-vendas', async (req, res) => {
+    router.get('/relatorios/ranking-vendas', async (req, res) => {
         try {
             const { data_inicio, data_fim, agrupar } = req.query;
             let whereClause = '';
@@ -10235,7 +14982,7 @@ tr:nth-child(even){background:#f8fafc}
     });
 
     // 3. Metros produzidos por dia
-    router.get('/relatórios/metros-produzidos', async (req, res) => {
+    router.get('/relatorios/metros-produzidos', async (req, res) => {
         try {
             const { data_inicio, data_fim } = req.query;
 
@@ -10360,7 +15107,7 @@ tr:nth-child(even){background:#f8fafc}
     });
 
     // 4. Faturamento mensal
-    router.get('/relatórios/faturamento-mensal', async (req, res) => {
+    router.get('/relatorios/faturamento-mensal', async (req, res) => {
         try {
             const { ano } = req.query;
             const anoFiltro = parseInt(ano) || new Date().getFullYear();
@@ -10497,20 +15244,314 @@ tr:nth-child(even){background:#f8fafc}
     });
 
 
-    // CARTEIRA DE PEDIDOS
-    router.get('/carteira', async (req, res, next) => {
+    // Indicadores do fluxo completo. Cada percentual traz a amostra utilizada,
+    // evitando transformar campo não alimentado em um falso zero operacional.
+    router.get('/indicadores-operacionais', async (req, res) => {
         try {
+            const [lead, otif, replan, capacidade] = await Promise.all([
+                pool.query(`SELECT COUNT(*) AS amostra,
+                           ROUND(AVG(TIMESTAMPDIFF(HOUR,created_at,data_entrega_efetiva))/24,1) AS dias
+                             FROM pedidos WHERE deleted_at IS NULL
+                              AND data_entrega_efetiva IS NOT NULL AND created_at IS NOT NULL`),
+                pool.query(`SELECT COUNT(*) AS entregues,
+                           SUM(CASE WHEN DATE(data_entrega_efetiva)<=DATE(COALESCE(data_prevista,data_previsao))
+                                     AND (COALESCE(percentual_faturado,100)>=100 OR COALESCE(valor_pendente,0)=0)
+                                    THEN 1 ELSE 0 END) AS no_otif
+                             FROM pedidos WHERE deleted_at IS NULL
+                              AND data_entrega_efetiva IS NOT NULL
+                              AND COALESCE(data_prevista,data_previsao) IS NOT NULL`),
+                pool.query(`SELECT COUNT(*) AS ordens,
+                           SUM(CASE WHEN COALESCE(revisao,0)>0 THEN 1 ELSE 0 END) AS replanejadas,
+                           SUM(COALESCE(revisao,0)) AS total_replanejamentos FROM ordens_producao`),
+                pool.query(`SELECT COUNT(DISTINCT COALESCE(ordem_producao_id,pedido_id)) AS ordens,
+                           ROUND(SUM(COALESCE(tempo_producao,0)),2) AS horas_produzidas,
+                           ROUND(SUM(COALESCE(tempo_producao,0)+COALESCE(tempo_setup,0)+COALESCE(tempo_parada,0)),2) AS horas_disponiveis
+                             FROM apontamentos_producao`)
+            ]);
+            const l=lead[0][0],o=otif[0][0],r=replan[0][0],c=capacidade[0][0];
+            res.json({
+                lead_time_pedido_dias:l.dias==null?null:Number(l.dias),
+                otif_pct:Number(o.entregues)?Number(o.no_otif||0)/Number(o.entregues)*100:null,
+                indice_replanejamento_pct:Number(r.ordens)?Number(r.replanejadas||0)/Number(r.ordens)*100:null,
+                replanejamentos:Number(r.total_replanejamentos||0),
+                ocupacao_capacidade_pct:Number(c.horas_disponiveis)?Number(c.horas_produzidas||0)/Number(c.horas_disponiveis)*100:null,
+                cobertura:{entregas_lead_time:Number(l.amostra||0),entregas_otif:Number(o.entregues||0),
+                    ordens_replanejamento:Number(r.ordens||0),ordens_apontadas:Number(c.ordens||0)}
+            });
+        } catch (err) {
+            console.error('[PCP/INDICADORES] Erro:', err.message);
+            res.status(500).json({ message:'Erro ao calcular indicadores operacionais.' });
+        }
+    });
+
+    // EVOLUÇÃO X RETRAÇÃO DA CARTEIRA — série diária em tempo real para o dashboard PCP
+    router.get('/carteira-evolucao', async (req, res) => {
+        try {
+            const dias = Math.min(Math.max(parseInt(req.query.dias, 10) || 30, 7), 90);
+            const [entradas] = await pool.query(`
+                SELECT base.dia, COUNT(*) AS quantidade, COALESCE(SUM(base.valor), 0) AS valor
+                FROM (
+                    SELECT DATE(created_at) AS dia, valor
+                    FROM pedidos
+                    WHERE deleted_at IS NULL AND created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+                ) AS base
+                GROUP BY base.dia
+            `, [dias - 1]);
+            const [saidas] = await pool.query(`
+                SELECT base.dia, COUNT(*) AS quantidade, COALESCE(SUM(base.valor), 0) AS valor
+                FROM (
+                    SELECT DATE(CASE WHEN LOWER(COALESCE(status, '')) IN ('faturado','recibo')
+                                     THEN COALESCE(faturado_em, data_faturamento, updated_at, created_at)
+                                     ELSE COALESCE(updated_at, created_at) END) AS dia,
+                           valor
+                    FROM pedidos
+                    WHERE deleted_at IS NULL
+                      AND LOWER(COALESCE(status, '')) IN ('faturado','cancelado','cancelada','recibo')
+                      AND (CASE WHEN LOWER(COALESCE(status, '')) IN ('faturado','recibo')
+                                THEN COALESCE(faturado_em, data_faturamento, updated_at, created_at)
+                                ELSE COALESCE(updated_at, created_at) END) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+                ) AS base
+                GROUP BY base.dia
+            `, [dias - 1]);
+            const porDia = new Map();
+            for (let i = dias - 1; i >= 0; i--) {
+                const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - i);
+                const key = d.toISOString().slice(0, 10);
+                porDia.set(key, { dia: key, evolucao: 0, retracao: 0, quantidade_evolucao: 0, quantidade_retracao: 0 });
+            }
+            entradas.forEach(r => { const x = porDia.get(String(r.dia).slice(0, 10)); if (x) { x.evolucao = Number(r.valor); x.quantidade_evolucao = Number(r.quantidade); } });
+            saidas.forEach(r => { const x = porDia.get(String(r.dia).slice(0, 10)); if (x) { x.retracao = Number(r.valor); x.quantidade_retracao = Number(r.quantidade); } });
+            const serie = [...porDia.values()];
+            res.json({ success: true, atualizado_em: new Date().toISOString(), dias, serie,
+                totais: serie.reduce((a, x) => ({ evolucao: a.evolucao + x.evolucao, retracao: a.retracao + x.retracao, saldo: a.saldo + x.evolucao - x.retracao }), { evolucao: 0, retracao: 0, saldo: 0 }) });
+        } catch (err) {
+            console.error('[PCP/CARTEIRA-EVOLUCAO] Erro:', err.message);
+            res.status(500).json({ success: false, message: 'Erro ao calcular evolução da carteira.' });
+        }
+    });
+
+    // CARTEIRA DE PEDIDOS
+    // ============================================================
+    // CARTEIRA POR SEMANA (PCP)
+    // ============================================================
+    // A semana é guardada como ano+semana ISO num inteiro só (202637 = semana 37
+    // de 2026), que é exatamente o que `YEARWEEK(data, 3)` devolve. Assim o filtro
+    // por semana da entrega e o filtro por semana planejada comparam a MESMA coisa,
+    // ordenam certo e atravessam a virada de ano sem gambiarra (a semana 1 de 2027
+    // é 202701, não 202653).
+    const RE_SEMANA = /^(\d{4})-?W(\d{1,2})$/i;
+
+    /** '2026-W37' | '2026W37' | 202637 -> 202637 ; inválido -> null */
+    function semanaParaAnoSemana(valor) {
+        if (valor === undefined || valor === null || valor === '') return null;
+        const texto = String(valor).trim();
+        const m = texto.match(RE_SEMANA);
+        if (m) {
+            const ano = Number(m[1]), semana = Number(m[2]);
+            if (semana < 1 || semana > 53) return null;
+            return ano * 100 + semana;
+        }
+        if (/^\d{6}$/.test(texto)) {
+            const semana = Number(texto.slice(4));
+            return semana >= 1 && semana <= 53 ? Number(texto) : null;
+        }
+        return null;
+    }
+
+    /** 202637 -> '2026-W37' */
+    function anoSemanaParaTexto(valor) {
+        const n = Number(valor);
+        if (!Number.isInteger(n) || n < 100001) return null;
+        return `${Math.floor(n / 100)}-W${String(n % 100).padStart(2, '0')}`;
+    }
+
+    let carteiraSemanaPronta = null;
+    function garantirTabelaCarteiraSemana() {
+        if (!carteiraSemanaPronta) {
+            carteiraSemanaPronta = pool.query(`
+                CREATE TABLE IF NOT EXISTS pcp_carteira_semana (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    pedido_id INT NOT NULL,
+                    ano_semana INT NOT NULL COMMENT 'ISO ano*100+semana, igual a YEARWEEK(data,3)',
+                    observacao VARCHAR(255) NULL,
+                    incluido_por INT NULL,
+                    incluido_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_carteira_semana_pedido (pedido_id),
+                    KEY idx_carteira_semana (ano_semana)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            `).catch((erro) => {
+                carteiraSemanaPronta = null;
+                throw erro;
+            });
+        }
+        return carteiraSemanaPronta;
+    }
+
+    /**
+     * Semanas disponíveis para o seletor da tela, nos dois eixos:
+     * o que vence por semana e o que já foi planejado por semana.
+     */
+    router.get('/carteira/semanas', async (req, res) => {
+        try {
+            await garantirTabelaCarteiraSemana();
+            const [entrega] = await pool.query(`
+                SELECT YEARWEEK(p.data_prevista, 3) AS ano_semana,
+                       MIN(DATE(p.data_prevista))   AS inicio,
+                       MAX(DATE(p.data_prevista))   AS fim,
+                       COUNT(*)                     AS pedidos,
+                       COALESCE(SUM(p.valor), 0)    AS valor
+                  FROM pedidos p
+                 WHERE p.deleted_at IS NULL
+                   AND p.data_prevista IS NOT NULL
+                   AND LOWER(COALESCE(p.status, '')) NOT IN ('cancelado', 'cancelada', 'excluido')
+                 GROUP BY YEARWEEK(p.data_prevista, 3)
+                 ORDER BY ano_semana DESC
+                 LIMIT 60
+            `);
+            const [planejadas] = await pool.query(`
+                SELECT cs.ano_semana, COUNT(*) AS pedidos, COALESCE(SUM(p.valor), 0) AS valor
+                  FROM pcp_carteira_semana cs
+                  JOIN pedidos p ON p.id = cs.pedido_id AND p.deleted_at IS NULL
+                 GROUP BY cs.ano_semana
+                 ORDER BY cs.ano_semana DESC
+                 LIMIT 60
+            `);
+            const mapear = (linhas) => linhas.map((l) => ({
+                semana: anoSemanaParaTexto(l.ano_semana),
+                ano_semana: Number(l.ano_semana),
+                inicio: l.inicio || null,
+                fim: l.fim || null,
+                pedidos: Number(l.pedidos) || 0,
+                valor: Number(l.valor) || 0
+            })).filter((l) => l.semana);
+
+            const [[atual]] = await pool.query('SELECT YEARWEEK(CURDATE(), 3) AS semana');
+            res.json({
+                success: true,
+                semana_atual: anoSemanaParaTexto(atual.semana),
+                entrega: mapear(entrega),
+                planejadas: mapear(planejadas)
+            });
+        } catch (err) {
+            console.error('[PCP/CARTEIRA/SEMANAS] Erro:', err.message);
+            res.status(500).json({ success: false, message: 'Erro ao listar as semanas da carteira.' });
+        }
+    });
+
+    /** Monta a carteira de uma semana: vincula os pedidos escolhidos à semana alvo. */
+    router.post('/carteira/semana', async (req, res) => {
+        try {
+            await garantirTabelaCarteiraSemana();
+            const anoSemana = semanaParaAnoSemana(req.body?.semana);
+            if (!anoSemana) {
+                return res.status(400).json({ success: false, message: 'Informe a semana no formato 2026-W37.' });
+            }
+            const ids = [...new Set((Array.isArray(req.body?.pedido_ids) ? req.body.pedido_ids : [])
+                .map((v) => parseInt(v, 10)).filter((v) => Number.isInteger(v) && v > 0))];
+            if (!ids.length) {
+                return res.status(400).json({ success: false, message: 'Selecione ao menos um pedido.' });
+            }
+
+            // Só entra pedido que existe e não está excluído: um id solto viraria linha
+            // órfã que aparece na contagem da semana e não abre em lugar nenhum.
+            const [validos] = await pool.query(
+                `SELECT id FROM pedidos WHERE deleted_at IS NULL AND id IN (${ids.map(() => '?').join(',')})`, ids
+            );
+            const idsValidos = validos.map((l) => l.id);
+            if (!idsValidos.length) {
+                return res.status(404).json({ success: false, message: 'Nenhum dos pedidos informados foi encontrado.' });
+            }
+
+            const observacao = String(req.body?.observacao || '').trim().slice(0, 255) || null;
+            const usuarioId = req.user?.id || null;
+            await pool.query(
+                `INSERT INTO pcp_carteira_semana (pedido_id, ano_semana, observacao, incluido_por)
+                 VALUES ${idsValidos.map(() => '(?, ?, ?, ?)').join(', ')}
+                 ON DUPLICATE KEY UPDATE ano_semana = VALUES(ano_semana),
+                                         observacao = VALUES(observacao),
+                                         incluido_por = VALUES(incluido_por)`,
+                idsValidos.flatMap((id) => [id, anoSemana, observacao, usuarioId])
+            );
+
+            const ignorados = ids.length - idsValidos.length;
+            res.json({
+                success: true,
+                semana: anoSemanaParaTexto(anoSemana),
+                vinculados: idsValidos.length,
+                ignorados,
+                message: `${idsValidos.length} pedido(s) na carteira da semana ${anoSemanaParaTexto(anoSemana)}.`
+                    + (ignorados ? ` ${ignorados} ignorado(s) por não existirem.` : '')
+            });
+        } catch (err) {
+            console.error('[PCP/CARTEIRA/SEMANA] Erro:', err.message);
+            res.status(500).json({ success: false, message: 'Erro ao montar a carteira da semana.' });
+        }
+    });
+
+    /** Tira pedidos da semana planejada (não mexe no pedido em si). */
+    router.delete('/carteira/semana', async (req, res) => {
+        try {
+            await garantirTabelaCarteiraSemana();
+            const ids = [...new Set((Array.isArray(req.body?.pedido_ids) ? req.body.pedido_ids : [])
+                .map((v) => parseInt(v, 10)).filter((v) => Number.isInteger(v) && v > 0))];
+            if (!ids.length) {
+                return res.status(400).json({ success: false, message: 'Selecione ao menos um pedido.' });
+            }
+            const [r] = await pool.query(
+                `DELETE FROM pcp_carteira_semana WHERE pedido_id IN (${ids.map(() => '?').join(',')})`, ids
+            );
+            res.json({ success: true, removidos: r.affectedRows || 0, message: `${r.affectedRows || 0} pedido(s) retirado(s) da semana.` });
+        } catch (err) {
+            console.error('[PCP/CARTEIRA/SEMANA] Erro ao remover:', err.message);
+            res.status(500).json({ success: false, message: 'Erro ao retirar pedidos da semana.' });
+        }
+    });
+
+    // Consulta compartilhada pela TELA (JSON) e pelo PDF. Uma função só de propósito:
+    // documento montado duas vezes diverge — foi o que aconteceu com a CC-e, onde a tela
+    // e o anexo do e-mail passaram a mostrar coisas diferentes.
+    async function consultarCarteira(req) {
+        {
+            await garantirTabelaCarteiraSemana();
             const { status, cliente, prioridade, data_inicio, data_fim } = req.query;
             const limit = Math.min(parseInt(req.query.limit) || 500, 1000);
 
+            // O recorte por empresa é OPCIONAL (`?empresa_id=`). Antes a carteira casava
+            // `pedidos.empresa_id` com o `usuarios.empresa_id` (default 1) e vinha VAZIA em
+            // labor-eletric, labor-energy e cobal: lá os pedidos nascem sem `empresa_id`
+            // (o POST /pedidos só preenche quando encontra a empresa pelo nome do cliente) e
+            // os admins são empresa_id = 1 — a tela mostrava zero com pedidos na base, sem erro.
+            // Cada instância já é uma empresa, com banco próprio, então não há mistura a evitar.
+            const empresaFiltro = Number(req.query.empresa_id) || null;
             const conditions = ['p.deleted_at IS NULL'];
             const params = [];
+            if (empresaFiltro) { conditions.push('p.empresa_id = ?'); params.push(empresaFiltro); }
 
             if (status)      { conditions.push('p.status = ?');                                   params.push(status); }
             if (cliente)     { conditions.push('(p.cliente_nome LIKE ? OR c.nome LIKE ?)');       params.push(`%${cliente}%`, `%${cliente}%`); }
             if (prioridade)  { conditions.push('p.prioridade = ?');                               params.push(prioridade); }
             if (data_inicio) { conditions.push('DATE(p.created_at) >= ?');                        params.push(data_inicio); }
             if (data_fim)    { conditions.push('DATE(p.created_at) <= ?');                        params.push(data_fim); }
+
+            // Recorte por SEMANA. Dois eixos diferentes, de propósito:
+            //   ?semana=            — semana da ENTREGA (data_prevista). É a carteira como ela
+            //                         está: o que vence naquela semana.
+            //   ?semana_planejada=  — semana que o PCP MONTOU (tabela pcp_carteira_semana). É a
+            //                         carteira como vai ser trabalhada, independente do prazo.
+            // Sem os dois separados não dá para montar a semana que vem sem antes mexer na
+            // data prometida ao cliente.
+            const semanaEntrega = semanaParaAnoSemana(req.query.semana);
+            if (req.query.semana && !semanaEntrega) {
+                throw Object.assign(new Error('Semana inválida. Use o formato 2026-W37.'), { status: 400 });
+            }
+            if (semanaEntrega) { conditions.push('YEARWEEK(p.data_prevista, 3) = ?'); params.push(semanaEntrega); }
+
+            const semanaPlan = semanaParaAnoSemana(req.query.semana_planejada);
+            if (req.query.semana_planejada && !semanaPlan) {
+                throw Object.assign(new Error('Semana planejada inválida. Use o formato 2026-W37.'), { status: 400 });
+            }
+            if (semanaPlan) { conditions.push('cs.ano_semana = ?'); params.push(semanaPlan); }
 
             const where = `WHERE ${conditions.join(' AND ')}`;
             params.push(limit);
@@ -10519,7 +15560,6 @@ tr:nth-child(even){background:#f8fafc}
                 SELECT
                     p.id,
                     p.numero_pedido,
-                    p.numero_orcamento,
                     COALESCE(c.nome, p.cliente_nome)   AS cliente,
                     p.descricao,
                     p.valor,
@@ -10527,23 +15567,49 @@ tr:nth-child(even){background:#f8fafc}
                     p.status,
                     p.prioridade,
                     p.prazo_entrega,
+                    p.data_prevista,
                     p.condicao_pagamento,
-                    p.nfe_numero,
+                    p.numero_nf AS nfe_numero,
                     p.nfe_chave,
                     p.created_at,
+                    op.id           AS op_id,
+                    op.codigo       AS op_codigo,
                     op.status       AS status_producao,
-                    op.quantidade,
-                    op.produto_nome,
-                    DATEDIFF(p.prazo_entrega, CURDATE()) AS dias_entrega
+                    op.progresso    AS progresso_producao,
+                    -- Pedidos que ainda não geraram OP continuam aparecendo na carteira.
+                    -- Nesses casos, usa os próprios itens do pedido em vez de exibir
+                    -- produto e quantidade vazios na tela.
+                    COALESCE(op.quantidade, itens_pedido.quantidade) AS quantidade,
+                    COALESCE(op.produto_nome, itens_pedido.produto_nome) AS produto_nome,
+                    -- prazo_entrega é INT (dias) e está sempre vazio; a data real de
+                    -- entrega mora em data_prevista, que é o que o editor do PCP grava.
+                    DATEDIFF(p.data_prevista, CURDATE()) AS dias_entrega,
+                    YEARWEEK(p.data_prevista, 3) AS semana_entrega,
+                    cs.ano_semana                AS semana_planejada,
+                    cs.observacao                AS semana_observacao
                 FROM pedidos p
                 LEFT JOIN clientes c ON p.cliente_id = c.id
+                LEFT JOIN pcp_carteira_semana cs ON cs.pedido_id = p.id
                 LEFT JOIN (
-                    SELECT numero_pedido, MAX(id) AS max_id
+                    -- BUG-PCP-CARTEIRA-002: ordens_producao nao tem coluna deleted_at
+                    -- (soft-delete so existe em pedidos) - referencia-la aqui derrubava a rota.
+                    SELECT
+                        COALESCE(pedido_vinculado_id, pedido_id) AS pedido_link_id,
+                        numero_pedido,
+                        MAX(id) AS max_id
                     FROM ordens_producao
-                    WHERE deleted_at IS NULL
-                    GROUP BY numero_pedido
-                ) op_latest ON op_latest.numero_pedido = p.numero_pedido
+                    GROUP BY COALESCE(pedido_vinculado_id, pedido_id), numero_pedido
+                ) op_latest ON op_latest.pedido_link_id = p.id
+                    OR (op_latest.pedido_link_id IS NULL AND op_latest.numero_pedido = p.numero_pedido)
                 LEFT JOIN ordens_producao op ON op.id = op_latest.max_id
+                LEFT JOIN (
+                    SELECT
+                        pedido_id,
+                        MAX(descricao) AS produto_nome,
+                        SUM(COALESCE(quantidade, 0)) AS quantidade
+                    FROM pedido_itens
+                    GROUP BY pedido_id
+                ) itens_pedido ON itens_pedido.pedido_id = p.id
                 ${where}
                 ORDER BY p.id DESC
                 LIMIT ?
@@ -10559,16 +15625,541 @@ tr:nth-child(even){background:#f8fafc}
             ).length;
             const aFaturar = rows.filter(r => r.status === 'faturar' && !r.nfe_numero).length;
 
-            res.json({
+            // A tela trabalha com '2026-W37'; o banco guarda 202637. Converte aqui para a
+            // página não ter que repetir a regra de virada de ano no JavaScript.
+            for (const linha of rows) {
+                linha.semana_entrega = anoSemanaParaTexto(linha.semana_entrega);
+                linha.semana_planejada = anoSemanaParaTexto(linha.semana_planejada);
+            }
+
+            return {
                 success: true,
                 pedidos: rows,
+                filtro: {
+                    semana: anoSemanaParaTexto(semanaEntrega),
+                    semana_planejada: anoSemanaParaTexto(semanaPlan)
+                },
                 kpis: { total: rows.length, emProducao, atrasados, aFaturar }
+            };
+        }
+    }
+
+
+    // ============================================================
+    // CARTEIRA EM PDF
+    // ============================================================
+    // Mesmos filtros da tela (semana, semana planejada, status, cliente) porque sai da
+    // MESMA consulta — o PDF é o retrato do que está na tela, não um relatório paralelo.
+    // Paisagem: são 9 colunas; em retrato a descrição fica ilegível.
+    // Montagem do HTML da carteira, extraída da rota de PDF para ser reaproveitada pelo
+    // envio por e-mail — o anexo do e-mail é o MESMO documento que o botão "Exportar PDF"
+    // gera, não um relatório paralelo que pode divergir com o tempo.
+    async function montarHtmlCarteira(req) {
+            const dados = await consultarCarteira(req);
+            const linhas = dados.pedidos || [];
+
+            let empresa = {};
+            try {
+                const cfg = await buscarConfiguracoesEmpresa(pool);
+                empresa = (typeof formatarDadosParaPDF === 'function' ? formatarDadosParaPDF(cfg) : cfg) || {};
+            } catch (_) { empresa = {}; }
+
+            const esc = (v) => String(v ?? '')
+                .replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const moeda = (v) => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const dataBr = (v) => {
+                if (!v) return '—';
+                const d = new Date(`${String(v).slice(0, 10)}T12:00:00`);
+                return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+            };
+            const semanaBr = (s) => {
+                const m = String(s || '').match(/^(\d{4})-W(\d{2})$/);
+                return m ? `S${Number(m[2])}/${m[1]}` : '—';
+            };
+            const corta = (v, n) => {
+                const t = String(v ?? '').trim();
+                return !t ? '—' : (t.length > n ? `${t.slice(0, n).trimEnd()}…` : t);
+            };
+
+            const valorTotal = linhas.reduce((s, l) => s + (Number(l.valor_total || l.valor) || 0), 0);
+            const filtros = [];
+            if (dados.filtro?.semana) filtros.push(`Semana de entrega: ${semanaBr(dados.filtro.semana)}`);
+            if (dados.filtro?.semana_planejada) filtros.push(`Carteira planejada: ${semanaBr(dados.filtro.semana_planejada)}`);
+            if (req.query.status) filtros.push(`Status: ${req.query.status}`);
+            if (req.query.cliente) filtros.push(`Cliente: ${req.query.cliente}`);
+            if (req.query.prioridade) filtros.push(`Prioridade: ${req.query.prioridade}`);
+            const resumoFiltros = filtros.length ? filtros.join(' · ') : 'Carteira completa (sem filtros)';
+
+            const emitidoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+            // `formatarDadosParaPDF` devolve {nome, nomeFantasia}; o objeto cru traz
+            // {razao_social, nome_fantasia}. Aceita os dois para não depender de qual veio.
+            const nomeEmpresa = empresa.nome || empresa.razao_social
+                || empresa.nomeFantasia || empresa.nome_fantasia || 'Carteira de Pedidos';
+
+            const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>Carteira de Pedidos</title><style>
+@page{size:A4 landscape;margin:10mm}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",Arial,sans-serif;color:#0f172a;font-size:9px}
+.cab{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1e3a8a;padding-bottom:6px;margin-bottom:8px}
+.cab h1{margin:0;font-size:15px;color:#1e3a8a}
+.cab .emp{font-size:10px;font-weight:600}
+.cab .meta{text-align:right;font-size:8px;color:#64748b;line-height:1.5}
+.filtros{background:#f1f5f9;border-left:3px solid #1e3a8a;padding:5px 8px;margin-bottom:8px;font-size:9px}
+.kpis{display:flex;gap:8px;margin-bottom:8px}
+.kpi{flex:1;border:1px solid #e2e8f0;border-radius:4px;padding:5px 8px}
+.kpi span{display:block;font-size:7px;text-transform:uppercase;letter-spacing:.4px;color:#64748b}
+.kpi strong{font-size:12px;color:#0f172a}
+table{width:100%;border-collapse:collapse}
+thead{display:table-header-group}
+th{background:#1e3a8a;color:#fff;font-size:8px;text-transform:uppercase;letter-spacing:.3px;padding:4px 5px;text-align:left}
+td{padding:3px 5px;border-bottom:1px solid #e2e8f0;font-size:8.5px;vertical-align:top}
+tr{break-inside:avoid}
+tbody tr:nth-child(even){background:#f8fafc}
+.num{text-align:right;white-space:nowrap}
+.atraso{color:#b91c1c;font-weight:600}
+.vazio{text-align:center;padding:28px;color:#94a3b8}
+tfoot td{border-top:2px solid #1e3a8a;font-weight:700;font-size:9px;padding-top:5px}
+.rodape{margin-top:10px;text-align:center;font-size:7px;color:#94a3b8}
+</style></head><body>
+<div class="cab">
+  <div><div class="emp">${esc(nomeEmpresa)}</div><h1>Carteira de Pedidos</h1></div>
+  <div class="meta">Emitido em ${esc(emitidoEm)}<br>${linhas.length} pedido(s)</div>
+</div>
+<div class="filtros"><strong>Filtro:</strong> ${esc(resumoFiltros)}</div>
+<div class="kpis">
+  <div class="kpi"><span>Pedidos</span><strong>${dados.kpis?.total ?? linhas.length}</strong></div>
+  <div class="kpi"><span>Valor total</span><strong>${moeda(valorTotal)}</strong></div>
+  <div class="kpi"><span>Em produção</span><strong>${dados.kpis?.emProducao ?? 0}</strong></div>
+  <div class="kpi"><span>Atrasados</span><strong>${dados.kpis?.atrasados ?? 0}</strong></div>
+  <div class="kpi"><span>A faturar</span><strong>${dados.kpis?.aFaturar ?? 0}</strong></div>
+</div>
+<table>
+ <thead><tr>
+  <th>Pedido</th><th>Cliente</th><th>Descrição</th><th class="num">Valor</th>
+  <th>Entrega</th><th>Semana</th><th>Status</th><th>Produção</th><th>Prioridade</th>
+ </tr></thead>
+ <tbody>${linhas.length ? linhas.map((l) => `<tr>
+  <td>${esc(l.numero_pedido)}</td>
+  <td>${esc(corta(l.cliente, 34))}</td>
+  <td>${esc(corta(l.descricao, 52))}</td>
+  <td class="num">${moeda(l.valor_total || l.valor)}</td>
+  <td class="${Number(l.dias_entrega) < 0 ? 'atraso' : ''}">${esc(dataBr(l.data_prevista))}</td>
+  <td>${esc(semanaBr(l.semana_planejada || l.semana_entrega))}</td>
+  <td>${esc(l.status || '—')}</td>
+  <td>${esc(l.status_producao || 'Sem OP')}</td>
+  <td>${esc(l.prioridade || '—')}</td>
+ </tr>`).join('') : '<tr><td colspan="9" class="vazio">Nenhum pedido para este filtro.</td></tr>'}</tbody>
+ ${linhas.length ? `<tfoot><tr><td colspan="3">Total (${linhas.length} pedidos)</td><td class="num">${moeda(valorTotal)}</td><td colspan="5"></td></tr></tfoot>` : ''}
+</table>
+<div class="rodape">Zyntra ERP · PCP · gerado automaticamente</div>
+</body></html>`;
+
+            const sufixo = dados.filtro?.semana_planejada || dados.filtro?.semana || new Date().toISOString().slice(0, 10);
+            return { html, dados, linhas, valorTotal, resumoFiltros, nomeEmpresa, sufixo, emitidoEm };
+    }
+
+    router.get('/carteira/pdf', async (req, res) => {
+        try {
+            const { html, sufixo } = await montarHtmlCarteira(req);
+
+            if (String(req.query.formato || '').toLowerCase() === 'html') {
+                res.setHeader('Content-Type', 'text/html; charset=utf-8');
+                return res.send(html);
+            }
+
+            const pdf = await htmlParaPdf(html, {
+                paisagem: true,
+                margens: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
+            });
+
+            const nomeArquivo = `carteira-pedidos-${sufixo}.pdf`;
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="${nomeArquivo}"`);
+            res.setHeader('Content-Length', pdf.length);
+            return res.end(pdf);
+        } catch (err) {
+            if (err.status === 400) return res.status(400).json({ success: false, message: err.message });
+            console.error('[PCP/CARTEIRA/PDF] Erro:', err.message);
+            return res.status(err.status || 500).json({
+                success: false,
+                message: err.status === 503
+                    ? `Gerador de PDF indisponível: ${err.message}`
+                    : 'Erro ao gerar o PDF da carteira.'
+            });
+        }
+    });
+
+    // ============================================================
+    // ENVIAR A CARTEIRA DA SEMANA POR E-MAIL
+    // ============================================================
+    // Mesmos filtros da tela → mesmo PDF do botão "Exportar PDF", anexado num e-mail.
+    // Usa o transporte central (utils/email.js, hoje apontando para o Resend via SMTP),
+    // igual ao aviso de Ordem de Produção que o próprio PCP já envia.
+    router.post('/carteira/enviar-email', async (req, res) => {
+        try {
+            const destinatarios = (Array.isArray(req.body?.para) ? req.body.para : String(req.body?.para || '').split(/[;,]/))
+                .map(e => String(e || '').trim())
+                .filter(Boolean);
+            if (!destinatarios.length) {
+                return res.status(400).json({ success: false, message: 'Informe ao menos um e-mail de destino.' });
+            }
+            const invalidos = destinatarios.filter(e => !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e));
+            if (invalidos.length) {
+                return res.status(400).json({ success: false, message: `E-mail inválido: ${invalidos.join(', ')}` });
+            }
+
+            const { enviarEmail, isConfigured } = require('../utils/email');
+            if (typeof isConfigured === 'function' && !isConfigured()) {
+                return res.status(503).json({
+                    success: false,
+                    message: 'Envio de e-mail não está configurado no servidor (SMTP/Resend). Configure antes de usar.'
+                });
+            }
+
+            // O filtro vem na query string, igual ao PDF — o corpo só traz destinatário/mensagem.
+            const { html, linhas, valorTotal, resumoFiltros, nomeEmpresa, sufixo, emitidoEm } = await montarHtmlCarteira(req);
+            const pdf = await htmlParaPdf(html, {
+                paisagem: true,
+                margens: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
+            });
+
+            const moeda = (v) => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const escHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const recado = String(req.body?.mensagem || '').trim();
+
+            const corpo = `
+<div style="font-family:Segoe UI,Arial,sans-serif;color:#0f172a;font-size:14px;line-height:1.5">
+  <h2 style="color:#1e3a8a;margin:0 0 4px">Carteira de Pedidos</h2>
+  <div style="color:#64748b;font-size:13px;margin-bottom:14px">${escHtml(nomeEmpresa)} · emitida em ${escHtml(emitidoEm)}</div>
+  ${recado ? `<p style="background:#f8fafc;border-left:3px solid #1e3a8a;padding:10px 12px;white-space:pre-wrap">${escHtml(recado)}</p>` : ''}
+  <p><strong>Filtro:</strong> ${escHtml(resumoFiltros)}</p>
+  <p><strong>${linhas.length}</strong> pedido(s) · valor total <strong>${moeda(valorTotal)}</strong></p>
+  <p style="color:#64748b;font-size:13px">O detalhamento completo está no PDF anexo.</p>
+</div>`;
+
+            const resultado = await enviarEmail({
+                rota: 'sistema',
+                para: destinatarios,
+                assunto: `Carteira de Pedidos — ${nomeEmpresa} (${linhas.length} pedidos)`,
+                html: corpo,
+                texto: `Carteira de Pedidos — ${nomeEmpresa}\nFiltro: ${resumoFiltros}\n${linhas.length} pedido(s) · total ${moeda(valorTotal)}\nDetalhamento no PDF anexo.`,
+                anexos: [{
+                    filename: `carteira-pedidos-${sufixo}.pdf`,
+                    content: pdf,
+                    contentType: 'application/pdf'
+                }]
+            });
+
+            if (resultado && resultado.success === false) {
+                return res.status(502).json({ success: false, message: resultado.motivo || resultado.message || 'Falha ao enviar o e-mail.' });
+            }
+
+            console.log(`[PCP/CARTEIRA-EMAIL] Carteira (${linhas.length} pedidos) enviada para ${destinatarios.join(', ')} por ${req.user?.email || req.user?.id || 'desconhecido'}`);
+            return res.json({
+                success: true,
+                message: `Carteira enviada para ${destinatarios.join(', ')}.`,
+                pedidos: linhas.length
             });
         } catch (err) {
+            if (err.status === 400) return res.status(400).json({ success: false, message: err.message });
+            console.error('[PCP/CARTEIRA-EMAIL] Erro:', err.message);
+            return res.status(err.status || 500).json({
+                success: false,
+                message: err.status === 503
+                    ? `Gerador de PDF indisponível: ${err.message}`
+                    : 'Não foi possível enviar a carteira por e-mail.'
+            });
+        }
+    });
+
+    router.get('/carteira', async (req, res) => {
+        try {
+            res.json(await consultarCarteira(req));
+        } catch (err) {
+            if (err.status) return res.status(err.status).json({ success: false, message: err.message });
             console.error('[PCP/CARTEIRA] Erro:', err.message);
             res.status(500).json({ success: false, message: 'Erro ao carregar carteira de pedidos.' });
         }
     });
+
+    // ============================================================
+    // DETALHE / EDIÇÃO DE PEDIDO NA CARTEIRA (PCP)
+    // Alimenta a tela de itens (duplo-clique) e o modal Editar Pedido.
+    // ============================================================
+
+    // Mesma regra de trava do módulo Vendas: pedido faturado/em análise não
+    // pode ter itens/valores alterados pelo PCP (evita divergência fiscal).
+    const PCP_STATUS_BLOQUEIA_EDICAO = ['faturado', 'recibo', 'entregue', 'cancelado', 'analise-credito', 'análise-crédito', 'analise', 'análise'];
+    const pedidoBloqueado = (status) => {
+        const s = String(status || '').toLowerCase().trim();
+        return PCP_STATUS_BLOQUEIA_EDICAO.includes(s) || /analise|análise/.test(s);
+    };
+
+    // Casa cada item do pedido à OP correspondente (por produto/código) para
+    // derivar STATUS OP, % de produção e o status do item exibidos na tela.
+    function montarItensComProducao(itens, ops) {
+        const key = v => String(v || '').trim().toUpperCase();
+        return itens.map(it => {
+            const op = ops.find(o =>
+                (it.produto_id && o.produto_id && Number(o.produto_id) === Number(it.produto_id)) ||
+                (key(o.codigo_produto) && key(o.codigo_produto) === key(it.codigo || it.produto_codigo))
+            );
+            const prog = op ? Math.max(0, Math.min(100, Number(op.progresso) || 0)) : 0;
+            const status_item = !op ? 'Aberto'
+                : (/conclu/i.test(op.status || '') ? 'Concluído' : (prog > 0 ? 'Em produção' : 'Aberto'));
+            return {
+                id: it.id, produto_id: it.produto_id,
+                codigo: it.codigo || it.produto_codigo || '',
+                descricao: it.descricao || '',
+                quantidade: Number(it.quantidade) || 0,
+                unidade: it.unidade || 'm',
+                preco_unitario: Number(it.preco_unitario) || 0,
+                subtotal: Number(it.subtotal) || 0,
+                status_op: op ? (op.status || 'Em OP') : 'Sem OP',
+                progresso: prog,
+                status_item
+            };
+        });
+    }
+
+    // GET /api/pcp/pedidos/:id/detalhe — pedido + itens com status de produção
+    router.get('/pedidos/:id(\\d+)/detalhe', async (req, res) => {
+        try {
+            const id = parseInt(req.params.id, 10);
+            const [[pedido]] = await pool.query(`
+                SELECT p.id, p.numero_pedido, p.cliente_id,
+                       COALESCE(c.nome, p.cliente_nome) AS cliente, p.cliente_nome,
+                       p.descricao, p.valor, p.valor AS valor_total, p.status, p.prioridade,
+                       p.data_prevista, p.prazo_entrega, p.condicao_pagamento
+                FROM pedidos p
+                LEFT JOIN clientes c ON p.cliente_id = c.id
+                WHERE p.id = ? AND p.deleted_at IS NULL
+            `, [id]);
+            if (!pedido) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+
+            const [itens] = await pool.query(`
+                SELECT pi.id, pi.produto_id, pi.codigo, pi.descricao, pi.quantidade, pi.unidade,
+                       pi.preco_unitario, pi.subtotal, pr.codigo AS produto_codigo
+                FROM pedido_itens pi
+                LEFT JOIN produtos pr ON pi.produto_id = pr.id
+                WHERE pi.pedido_id = ? ORDER BY pi.id
+            `, [id]);
+
+            const [ops] = await pool.query(`
+                SELECT id, codigo, codigo_produto, produto_id, produto_nome, status, progresso
+                FROM ordens_producao
+                WHERE COALESCE(pedido_vinculado_id, pedido_id) = ?
+                   OR (COALESCE(pedido_vinculado_id, pedido_id) IS NULL AND numero_pedido = ?)
+                ORDER BY id DESC
+            `, [id, String(pedido.numero_pedido || '')]);
+
+            res.json({
+                success: true,
+                pedido,
+                itens: montarItensComProducao(itens, ops),
+                editavel: !pedidoBloqueado(pedido.status)
+            });
+        } catch (err) {
+            console.error('[PCP/PEDIDO-DETALHE] Erro:', err.message);
+            res.status(500).json({ success: false, message: 'Erro ao carregar o pedido.' });
+        }
+    });
+
+    // PUT /api/pcp/pedidos/:id — edição pré-faturamento (cliente, prioridade,
+    // entrega e itens). Itens existentes são atualizados pelo id (preservando as
+    // colunas fiscais); novos são inseridos e os removidos, apagados. O valor do
+    // pedido é recalculado como a soma dos subtotais.
+    router.put('/pedidos/:id(\\d+)', async (req, res) => {
+        const conn = await pool.getConnection();
+        try {
+            const id = parseInt(req.params.id, 10);
+            const { cliente_id, cliente_nome, prioridade, data_prevista, itens } = req.body || {};
+
+            await conn.beginTransaction();
+            const [[ped]] = await conn.query(
+                'SELECT id, status FROM pedidos WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]
+            );
+            if (!ped) { await conn.rollback(); return res.status(404).json({ success: false, message: 'Pedido não encontrado.' }); }
+            if (pedidoBloqueado(ped.status)) {
+                await conn.rollback();
+                return res.status(409).json({ success: false, code: 'EDIT_LOCKED', message: `Pedido com status "${ped.status}" não pode ser editado pelo PCP.` });
+            }
+
+            // ---- Cabeçalho ----
+            const sets = [], vals = [];
+            if (cliente_id !== undefined) {
+                sets.push('cliente_id = ?'); vals.push(cliente_id ? parseInt(cliente_id, 10) : null);
+            }
+            if (cliente_nome !== undefined) { sets.push('cliente_nome = ?'); vals.push(cliente_nome ? String(cliente_nome).slice(0, 255) : null); }
+            if (prioridade !== undefined) { sets.push('prioridade = ?'); vals.push(String(prioridade || '').slice(0, 32) || null); }
+            if (data_prevista !== undefined) {
+                // Aceita 'YYYY-MM-DD' (input date) ou vazio para limpar.
+                const dp = /^\d{4}-\d{2}-\d{2}/.test(String(data_prevista || '')) ? String(data_prevista).slice(0, 10) : null;
+                sets.push('data_prevista = ?'); vals.push(dp);
+            }
+            if (sets.length) {
+                vals.push(id);
+                await conn.query(`UPDATE pedidos SET ${sets.join(', ')} WHERE id = ?`, vals);
+            }
+
+            // ---- Itens ----
+            if (Array.isArray(itens)) {
+                const limpos = itens.map(it => ({
+                    id: it.id ? parseInt(it.id, 10) : null,
+                    produto_id: it.produto_id ? parseInt(it.produto_id, 10) : null,
+                    codigo: String(it.codigo || '').slice(0, 255),
+                    descricao: String(it.descricao || '').slice(0, 1000),
+                    quantidade: Math.max(0, parseFloat(it.quantidade) || 0),
+                    unidade: String(it.unidade || 'm').slice(0, 20),
+                    preco_unitario: Math.max(0, parseFloat(it.preco_unitario) || 0)
+                })).filter(it => it.descricao || it.produto_id);
+
+                if (!limpos.length) {
+                    await conn.rollback();
+                    return res.status(400).json({ success: false, message: 'O pedido precisa ter ao menos um item.' });
+                }
+
+                // Traz também o preço atual: editando um item, o piso é o valor que já
+                // estava gravado; item novo compara com o cadastro do produto.
+                const [atuais] = await conn.query('SELECT id, preco_unitario, desconto FROM pedido_itens WHERE pedido_id = ?', [id]);
+                const idsAtuais = new Set(atuais.map(r => r.id));
+                const precoAtualPorItem = new Map(atuais.map(r => [r.id, parseFloat(r.preco_unitario) || 0]));
+                const descontoAtualPorItem = new Map(atuais.map(r => [r.id, parseFloat(r.desconto) || 0]));
+                const idsMantidos = new Set();
+
+                // Piso do preço: o PUT do PCP grava e ATUALIZA preco_unitario vindo do
+                // corpo — dava para baixar o preço de um item por aqui sem passar pela
+                // tela de Vendas. Valida tudo antes de gravar qualquer linha.
+                if (typeof global.__validarPisoPrecoItem === 'function') {
+                    for (const it of limpos) {
+                        const _erroPiso = await global.__validarPisoPrecoItem({
+                            produtoId: it.produto_id,
+                            codigo: it.codigo,
+                            preco: it.preco_unitario,
+                            quantidade: it.quantidade,
+                            desconto: (it.id && descontoAtualPorItem.has(it.id)) ? descontoAtualPorItem.get(it.id) : 0,
+                            precoAnterior: (it.id && precoAtualPorItem.has(it.id)) ? precoAtualPorItem.get(it.id) : null,
+                            token: it.autorizacao_desconto_token || it.autorizacao_preco_token
+                                || req.body?.autorizacao_desconto_token || req.body?.autorizacao_preco_token,
+                            // O token do piso é reutilizável dentro do mesmo pedido; o id é o que
+                            // impede a autorização de escorregar para outro documento.
+                            pedidoId: id
+                        });
+                        if (_erroPiso) {
+                            await conn.rollback();
+                            return res.status(_erroPiso.status).json({ success: false, message: _erroPiso.message, code: _erroPiso.code });
+                        }
+                    }
+                }
+
+                for (const it of limpos) {
+                    const subtotal = +(it.quantidade * it.preco_unitario).toFixed(2);
+                    if (it.id && idsAtuais.has(it.id)) {
+                        idsMantidos.add(it.id);
+                        await conn.query(
+                            `UPDATE pedido_itens SET produto_id = ?, codigo = ?, descricao = ?, quantidade = ?,
+                                    unidade = ?, preco_unitario = ?, subtotal = ? WHERE id = ? AND pedido_id = ?`,
+                            [it.produto_id, it.codigo, it.descricao, it.quantidade, it.unidade, it.preco_unitario, subtotal, it.id, id]
+                        );
+                    } else {
+                        await conn.query(
+                            `INSERT INTO pedido_itens (pedido_id, produto_id, codigo, descricao, quantidade, unidade, preco_unitario, subtotal)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [id, it.produto_id, it.codigo, it.descricao, it.quantidade, it.unidade, it.preco_unitario, subtotal]
+                        );
+                    }
+                }
+                // Remove os que o usuário tirou do pedido.
+                const remover = [...idsAtuais].filter(x => !idsMantidos.has(x));
+                if (remover.length) {
+                    await conn.query(`DELETE FROM pedido_itens WHERE pedido_id = ? AND id IN (${remover.map(() => '?').join(',')})`, [id, ...remover]);
+                }
+
+                const [[{ total }]] = await conn.query(
+                    'SELECT COALESCE(SUM(subtotal), 0) AS total FROM pedido_itens WHERE pedido_id = ?', [id]
+                );
+                await conn.query('UPDATE pedidos SET valor = ? WHERE id = ?', [total, id]);
+            }
+
+            await conn.commit();
+
+            // Devolve o pedido já atualizado (reusa a mesma montagem do detalhe).
+            const [[pedido]] = await pool.query(`
+                SELECT p.id, p.numero_pedido, p.cliente_id, COALESCE(c.nome, p.cliente_nome) AS cliente,
+                       p.cliente_nome, p.descricao, p.valor, p.status, p.prioridade, p.data_prevista, p.condicao_pagamento
+                FROM pedidos p LEFT JOIN clientes c ON p.cliente_id = c.id WHERE p.id = ?`, [id]);
+            const [itensAtualizados] = await pool.query(`
+                SELECT pi.id, pi.produto_id, pi.codigo, pi.descricao, pi.quantidade, pi.unidade,
+                       pi.preco_unitario, pi.subtotal, pr.codigo AS produto_codigo
+                FROM pedido_itens pi LEFT JOIN produtos pr ON pi.produto_id = pr.id
+                WHERE pi.pedido_id = ? ORDER BY pi.id`, [id]);
+            const [ops] = await pool.query(`
+                SELECT id, codigo, codigo_produto, produto_id, produto_nome, status, progresso
+                FROM ordens_producao
+                WHERE COALESCE(pedido_vinculado_id, pedido_id) = ?
+                   OR (COALESCE(pedido_vinculado_id, pedido_id) IS NULL AND numero_pedido = ?)
+                ORDER BY id DESC
+            `, [id, String(pedido?.numero_pedido || '')]);
+            res.json({ success: true, message: 'Pedido atualizado.', pedido, itens: montarItensComProducao(itensAtualizados, ops), editavel: !pedidoBloqueado(pedido?.status) });
+        } catch (err) {
+            try { await conn.rollback(); } catch (_) {}
+            console.error('[PCP/PEDIDO-UPDATE] Erro:', err.message);
+            res.status(500).json({ success: false, message: 'Erro ao salvar o pedido. Nenhuma alteração foi mantida.' });
+        } finally {
+            conn.release();
+        }
+    });
+
+    // ============================================================
+    // Relatório do PCP no template neutro (Templates - Sistema/.../html-relatorios/_template.html)
+    // O cliente monta a tabela (a partir dos endpoints reais) e envia em `body`; aqui embrulhamos
+    // no template com o cabeçalho REAL da empresa (empresa_config) e devolvemos o HTML pronto para
+    // o usuário imprimir como PDF. Reusa o mesmo renderer do Vendas (html-relatorio-renderer).
+    // ============================================================
+    router.post('/relatorio-render', authenticateToken, async (req, res) => {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const { buildEmpresaTemplateData, renderTemplateString, resolveRelatorioTemplate } = require('../src/services/html-relatorio-renderer');
+            const { titulo, subtitulo, referencia, fields, body } = req.body || {};
+            if (!body || typeof body !== 'string') return res.status(400).json({ error: 'Corpo do relatório vazio.' });
+
+            let cfg = {};
+            try { const [rows] = await pool.query('SELECT * FROM empresa_config ORDER BY id LIMIT 1'); cfg = (rows && rows[0]) || {}; } catch (_) { /* segue sem cabeçalho */ }
+            const dados = {
+                nome: cfg.razao_social || cfg.nome_fantasia || 'Empresa',
+                nomeFantasia: cfg.nome_fantasia || cfg.razao_social || 'Empresa',
+                cnpj: cfg.cnpj || '', inscricaoEstadual: cfg.inscricao_estadual || 'Isento',
+                endereco: cfg.endereco || '', numero: cfg.numero || '', bairro: cfg.bairro || '',
+                cidade: cfg.cidade || '', estado: cfg.estado || '', cep: cfg.cep || '',
+                telefone: cfg.telefone || '', email: cfg.email || '', site: cfg.site || ''
+            };
+            const projectRoot = path.join(__dirname, '..');
+            const emp = buildEmpresaTemplateData(cfg, dados, projectRoot);
+            let tpl = fs.readFileSync(resolveRelatorioTemplate(projectRoot, '_template.html'), 'utf8');
+            tpl = tpl.replace(/__TITULO__/g, String(titulo || 'Relatório'))
+                     .replace(/__SUBTITULO__/g, String(subtitulo || ''))
+                     .replace(/__REFERENCIA__/g, String(referencia || ''))
+                     .replace(/__FIELDS__/g, String(fields || ''));
+            tpl = renderTemplateString(tpl, emp);   // preenche {{empresa_*}} e {{gerado_em}}
+            tpl = tpl.replace(/__BODY__/g, body);   // corpo (tabela) inserido cru por último
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.send(tpl);
+        } catch (err) {
+            console.error('[PCP/RELATORIO] erro:', err.message);
+            res.status(500).send('<h1>Erro ao gerar o relatório</h1><p>' + String(err.message || '').replace(/</g, '&lt;') + '</p>');
+        }
+    });
+
+    // Disponibilidade / OEE por máquina (sessões de operação, paradas, turnos e indicadores).
+    // Vai no MESMO router para herdar authenticateToken + área pcp|compras + writeGuard,
+    // e para não exigir patch em routes/index.js, que diverge entre as 3 instâncias.
+    try {
+        require('./pcp-oee')(router, pool);
+    } catch (eOee) {
+        console.error('[ROUTES] pcp-oee mount err:', eOee.message);
+    }
 
     return router;
 };

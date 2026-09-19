@@ -6,6 +6,8 @@ require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2/promise');
 
+const { resolverFuncionarioIdDoUsuario, podeVerDeOutros } = require('./rh-vinculo-funcionario');
+
 // Middleware de autenticação (fallback)
 let defaultAuthMiddleware = null;
 try {
@@ -36,12 +38,23 @@ module.exports = function createRHExtrasRoutes(deps) {
     const router = express.Router();
 
     // Helper: restrict ponto mutation routes to admin or RH managers
+    // Reconhece gestor de RH. O JWT de acesso NÃO carrega `areas` (só id/nome/email/role/
+    // setor — ver src/routes/auth.js ~L1027), então depender só de `areas.includes('rh')`
+    // falhava para o usuário rh@ (role='rh', areas ausente) e o tratava como funcionário
+    // comum. Passamos a reconhecer pelo ROLE e pelo SETOR também.
+    const ehGestorRH = (u) => {
+        const role = String(u?.role || '').toLowerCase().trim();
+        const setor = String(u?.setor || '').toLowerCase();
+        const areas = u?.areas || [];
+        const areasArr = Array.isArray(areas) ? areas.map(a => String(a).toLowerCase())
+            : String(areas).toLowerCase().split(/[,\s\[\]"']+/).filter(Boolean);
+        return role === 'admin' || role === 'administrador'
+            || role === 'rh' || role === 'gestor_rh' || role === 'rh_admin' || role === 'gerente_rh'
+            || areasArr.includes('rh')
+            || setor.includes('rh') || setor.includes('recursos humanos');
+    };
     const requireAdminOrRH = (req, res, next) => {
-        const role = req.user?.role;
-        const isAdmin = role === 'admin' || role === 'Admin' || role === 'administrador' || role === 'Administrador';
-        const areas = req.user?.areas || [];
-        const isRH = isAdmin || areas.includes('rh') || areas.includes('RH');
-        if (!isRH) return res.status(403).json({ success: false, message: 'Acesso restrito a gestores de RH' });
+        if (!ehGestorRH(req.user)) return res.status(403).json({ success: false, message: 'Acesso restrito a gestores de RH' });
         next();
     };
 
@@ -400,12 +413,24 @@ router.delete('/calendario/:id', authenticateToken, async (req, res) => {
 router.get('/ponto/marcacoes', authenticateToken, async (req, res) => {
     try {
         const { data_inicio, data_fim, status } = req.query;
-        const role = req.user?.role;
-        const isAdmin = role === 'admin' || role === 'Admin' || role === 'administrador' || role === 'Administrador';
-        const areas = req.user?.areas || [];
-        const isRH = isAdmin || areas.includes('rh') || areas.includes('RH');
-        // Non-admin/RH users can only see their own records
-        const funcionario_id = isRH ? req.query.funcionario_id : req.user.id;
+        // RH/admin veem todas as marcações; funcionário comum só as próprias.
+        // ehGestorRH reconhece role='rh' mesmo sem `areas` no JWT (ver comentário na def).
+        const isRH = ehGestorRH(req.user);
+        let funcionario_id = isRH ? req.query.funcionario_id : null;
+        if (!isRH) {
+            // `usuarios.id` e `funcionarios.id` são espaços de ID distintos (mesmo bug já
+            // corrigido em /espelho-ponto) — resolver o vínculo real em vez de usar req.user.id.
+            funcionario_id = await resolverFuncionarioIdDoUsuario(pool, req.user);
+            if (!funcionario_id) {
+                // Sem vínculo, não filtrar por `m.funcionario_id` mostraria a tabela toda.
+                return res.json({
+                    success: true, marcacoes: [], total: 0, vinculado: false,
+                    janela_padrao: false,
+                    periodo: { inicio: data_inicio || null, fim: data_fim || null },
+                    truncado: false
+                });
+            }
+        }
 
         let sql = `
             SELECT m.*, 
@@ -428,21 +453,48 @@ router.get('/ponto/marcacoes', authenticateToken, async (req, res) => {
             params.push(funcionario_id);
         }
 
-        if (data_inicio) {
-            sql += ' AND m.data >= ?';
-            params.push(data_inicio);
+        // Sem janela de datas a rota devolvia a tabela INTEIRA: 24.689 marcações = 10,5 MB
+        // num único JSON, e crescendo ~100 linhas/dia. As telas sempre mandam data_inicio
+        // e data_fim; a janela padrão só protege quem chamar a rota crua.
+        const JANELA_PADRAO_DIAS = 31;
+        let inicioEfetivo = data_inicio, fimEfetivo = data_fim, janelaPadrao = false;
+        if (!data_inicio && !data_fim) {
+            const hoje = new Date();
+            const desde = new Date(hoje.getTime() - JANELA_PADRAO_DIAS * 86400000);
+            inicioEfetivo = desde.toISOString().slice(0, 10);
+            fimEfetivo = hoje.toISOString().slice(0, 10);
+            janelaPadrao = true;
         }
 
-        if (data_fim) {
+        if (inicioEfetivo) {
+            sql += ' AND m.data >= ?';
+            params.push(inicioEfetivo);
+        }
+
+        if (fimEfetivo) {
             sql += ' AND m.data <= ?';
-            params.push(data_fim);
+            params.push(fimEfetivo);
         }
 
         sql += ' ORDER BY m.data DESC, m.hora DESC';
 
-        const [marcacoes] = await pool.query(sql, params);
+        // Teto duro: um período muito largo (ou a base crescendo) não pode derrubar a tela.
+        const TETO = 10000;
+        sql += ' LIMIT ' + (TETO + 1);
 
-        res.json({ success: true, marcacoes });
+        const [linhas] = await pool.query(sql, params);
+        const truncado = linhas.length > TETO;
+        const marcacoes = truncado ? linhas.slice(0, TETO) : linhas;
+
+        res.json({
+            success: true, marcacoes,
+            total: marcacoes.length,
+            janela_padrao: janelaPadrao,
+            periodo: { inicio: inicioEfetivo || null, fim: fimEfetivo || null },
+            truncado,
+            ...(truncado ? { aviso: `Foram retornadas as ${TETO} marcações mais recentes do período. Refine as datas para ver o restante.` } : {}),
+            ...(janelaPadrao ? { aviso_periodo: `Sem data_inicio/data_fim, a consulta usou os últimos ${JANELA_PADRAO_DIAS} dias.` } : {})
+        });
 
     } catch (error) {
         console.error('Erro ao buscar marcações:', error);
@@ -546,37 +598,54 @@ router.put('/ponto/marcacoes/:id', authenticateToken, requireAdminOrRH, async (r
 
         console.log('[PONTO-EDIT] Marcação #' + id + ' editada por user #' + editado_por + ': ' + changes.length + ' campos alterados');
 
-        // ==================== HOOK: Sync para RHiD via Browser ====================
-        // Enfileirar atualização automática no RHiD (invisível ao usuário)
-        if (changes.length > 0 && changes.find(c => c.campo === 'hora')) {
+        // ==================== HOOK RHiD (edit→RHiD, ATIVO 23/07/2026) ====================
+        // Quando a HORA muda e o push está habilitado NESTA instância
+        // (controlid_config.rhid_push_enabled=1), enfileira a edição em rhid_sync_queue.
+        // Um worker on-demand (cron → services/rhid-queue-worker.js) sobe o browser só
+        // quando há fila, aplica a edição no portal RHiD com DOIS commits (modal "Editar
+        // marcação"+Motivo→Salvar, depois o Salvar da GRADE — este 2º save é o que faz
+        // persistir) e encerra. A edição LOCAL já foi gravada acima; o RHiD é reflexo
+        // assíncrono e NÃO bloqueia a resposta. Se falhar, a edição local permanece.
+        // Só habilitado onde há Playwright/Chromium (hoje: aluforce). Labor => flag 0.
+        const horaChange = changes.find(c => c.campo === 'hora');
+        if (horaChange && old.funcionario_id) {
             try {
-                const rhidSync = require('../services/rhid-browser-sync');
-                const status = rhidSync.getStatus();
-                if (status.browserActive) {
-                    // Buscar nome do funcionário para o RHiD
+                const [cfgRows] = await pool.query(
+                    "SELECT rhid_push_enabled FROM controlid_config WHERE ativo = 1 ORDER BY id LIMIT 1"
+                );
+                const pushOn = cfgRows.length && Number(cfgRows[0].rhid_push_enabled) === 1;
+                if (pushOn) {
                     const [funcData] = await pool.query(
                         'SELECT nome_completo, pis_pasep FROM funcionarios WHERE id = ?',
                         [old.funcionario_id]
                     );
-                    if (funcData.length > 0) {
-                        const horaChange = changes.find(c => c.campo === 'hora');
-                        const dataEdit = data || (old.data ? new Date(old.data).toISOString().split('T')[0] : null);
-                        rhidSync.queueMarcacaoEdit(
-                            funcData[0].nome_completo,
-                            funcData[0].pis_pasep,
-                            dataEdit,
-                            horaChange.anterior,
-                            horaChange.novo
+                    const nome = funcData.length ? funcData[0].nome_completo : null;
+                    const pis = funcData.length ? funcData[0].pis_pasep : null;
+                    // Localiza a batida no RHiD pela data ONDE ela está hoje (old.data).
+                    const dataEd = old.data ? new Date(old.data).toISOString().split('T')[0] : null;
+                    const tipoEd = tipo || old.tipo;
+                    if (nome && dataEd) {
+                        const taskData = JSON.stringify({
+                            employeeName: nome, employeePis: pis, date: dataEd,
+                            oldTime: horaChange.anterior, newTime: horaChange.novo,
+                            motivo: motivo || ('Ajuste de ponto via Zyntra: ' + horaChange.anterior + ' para ' + horaChange.novo),
+                            tipo: tipoEd
+                        });
+                        const taskId = 'edit_' + id + '_' + Date.now();
+                        await pool.query(
+                            `INSERT INTO rhid_sync_queue (task_id, task_type, task_data, status, retries, created_at)
+                             VALUES (?, 'marcacao_edit', ?, 'pending', 0, NOW())`,
+                            [taskId, taskData]
                         );
-                        console.log('[PONTO-EDIT→RHiD] Sync enfileirado para marcação #' + id);
+                        console.log('[PONTO-EDIT→RHiD] Enfileirado ' + taskId + ': ' + nome + ' ' + dataEd + ' ' + horaChange.anterior + '→' + horaChange.novo);
                     }
                 }
             } catch (syncErr) {
-                // Nunca bloquear a resposta por erro no sync
-                console.error('[PONTO-EDIT→RHiD] Erro ao enfileirar sync:', syncErr.message);
+                // Edição local já persistida; falha aqui não desfaz nada, só não reflete no RHiD.
+                console.error('[PONTO-EDIT→RHiD] Falha ao enfileirar (edição local mantida):', syncErr.message);
             }
         }
-        // ===========================================================================
+        // ===============================================================================
 
         res.json({
             success: true,
@@ -596,9 +665,27 @@ router.put('/ponto/marcacoes/:id', authenticateToken, requireAdminOrRH, async (r
  * POST /api/rh/ponto/marcacoes
  * Adicionar marcação manual
  */
-router.post('/ponto/marcacoes', authenticateToken, requireAdminOrRH, async (req, res) => {
+// Autoatendimento: qualquer funcionário logado pode bater o próprio ponto.
+// Só RH/admin pode registrar em nome de outro funcionário (correção manual via gestão de ponto).
+router.post('/ponto/marcacoes', authenticateToken, async (req, res) => {
     try {
-        const { funcionario_id, pis, data, hora, tipo, observacao } = req.body;
+        const { pis, data, hora, tipo, observacao } = req.body;
+        const role = req.user?.role;
+        const isAdmin = role === 'admin' || role === 'Admin' || role === 'administrador' || role === 'Administrador';
+        const areas = req.user?.areas || [];
+        const isRH = isAdmin || areas.includes('rh') || areas.includes('RH');
+        // `usuarios.id` e `funcionarios.id` são espaços de ID distintos — resolver o vínculo
+        // real (mesmo padrão de /espelho-ponto) em vez de usar req.user.id diretamente.
+        let funcionario_id = isRH ? req.body.funcionario_id : null;
+        if (!funcionario_id) {
+            funcionario_id = await resolverFuncionarioIdDoUsuario(pool, req.user);
+        }
+        if (!funcionario_id) {
+            return res.status(409).json({
+                success: false, vinculado: false,
+                message: 'Seu usuário não está vinculado a um cadastro de funcionário. Fale com o RH.'
+            });
+        }
 
         // Buscar PIS do funcionário se não fornecido
         let pisNumber = pis;
@@ -906,30 +993,34 @@ router.get('/espelho-ponto', authenticateToken, async (req, res) => {
     try {
         const { data_inicio, data_fim, funcionario_id: reqFuncId } = req.query;
 
-        // Determinar funcionario_id: buscar pelo email do usuário logado
         let funcionarioId = null;
-        
-        // Se admin e pediu funcionário específico, usar esse
-        if (reqFuncId && (req.user.role === 'admin' || req.user.is_admin === 1)) {
-            funcionarioId = parseInt(reqFuncId);
-        }
-        
-        // Caso contrário, buscar o funcionário vinculado ao usuário logado
-        if (!funcionarioId) {
-            const [funcRows] = await pool.query(
-                'SELECT id FROM funcionarios WHERE email = ? LIMIT 1',
-                [req.user.email]
-            );
-            if (funcRows.length > 0) {
-                funcionarioId = funcRows[0].id;
-            } else {
-                // Tentar pelo user id direto
-                funcionarioId = req.user.id;
-            }
+
+        // Admin/RH pode abrir o espelho de outra pessoa.
+        if (reqFuncId && podeVerDeOutros(req.user)) {
+            funcionarioId = parseInt(reqFuncId, 10) || null;
         }
 
         if (!funcionarioId) {
-            return res.status(400).json({ success: false, message: 'Funcionário não encontrado para este usuário' });
+            // Resolução centralizada. A versão anterior buscava só por
+            // `funcionarios.email = usuarios.email` e, se não achasse, assumia
+            // `funcionarioId = req.user.id` — como os dois espaços de ID são
+            // distintos, isso mostrava o ponto de OUTRO funcionário sempre que os
+            // números coincidissem. Sem vínculo, agora não se mostra ponto nenhum.
+            funcionarioId = await resolverFuncionarioIdDoUsuario(pool, req.user);
+        }
+
+        if (!funcionarioId) {
+            // 200 com `vinculado:false`: a tela distingue "sem vínculo" de "sem
+            // marcação no período", em vez de mostrar um erro genérico.
+            return res.json({
+                success: true,
+                vinculado: false,
+                funcionario: '',
+                periodo: { inicio: data_inicio || null, fim: data_fim || null },
+                resumo: { dias_trabalhados: 0, horas_trabalhadas: '0h', total_minutos: 0, atrasos: 0, faltas: 0 },
+                registros: [],
+                message: 'Seu login ainda não está vinculado a uma ficha de funcionário.'
+            });
         }
 
         // Definir período padrão: mês atual
@@ -1122,6 +1213,7 @@ router.get('/espelho-ponto', authenticateToken, async (req, res) => {
 
         res.json({
             success: true,
+            vinculado: true,
             funcionario: nomeFunc,
             periodo: { inicio, fim },
             resumo: {
@@ -1139,6 +1231,339 @@ router.get('/espelho-ponto', authenticateToken, async (req, res) => {
         res.status(500).json({ success: false, message: 'Erro interno no servidor. Tente novamente.' });
     }
 });
+
+    // ================================================================
+    // PENSÃO ALIMENTÍCIA — /api/rh/funcionarios/:id/pensao
+    // ================================================================
+    //
+    // As tabelas `rh_pensao_alimenticia` e `rh_pensao_documentos` existem desde
+    // sql/rh_fase4_folha_pagamento.sql e a tela
+    // (modules/RH/public/pages/funcionarios.html) já chamava estes endpoints —
+    // mas a camada de API nunca foi escrita. Cadastrar, editar, remover e anexar
+    // documento tomavam 404 em silêncio (o catch da tela mostra "Erro de Conexão").
+    //
+    // Autorização: só admin/RH mexe em pensão de terceiros. Sem isso qualquer
+    // funcionário autenticado leria os dados bancários do dependente de outro
+    // (o mesmo IDOR já visto em /api/usuarios e /api/auditoria).
+    const pensaoUpload = (() => {
+        const multer = require('multer');
+        const fsMod = require('fs');
+        const pathMod = require('path');
+        const baseDir = process.platform !== 'win32'
+            ? '/var/www/uploads/RH/pensao'
+            : pathMod.join(__dirname, '..', 'public', 'uploads', 'RH', 'pensao');
+        const storage = multer.diskStorage({
+            destination: (req, file, cb) => {
+                if (!fsMod.existsSync(baseDir)) fsMod.mkdirSync(baseDir, { recursive: true });
+                cb(null, baseDir);
+            },
+            filename: (req, file, cb) => {
+                const ext = pathMod.extname(file.originalname).toLowerCase() || '.pdf';
+                cb(null, `pensao-${req.params.pensaoId}-${Date.now()}-${Math.floor(Math.random() * 1e9)}${ext}`);
+            }
+        });
+        // Mesma lista de MIMEs seguros do rh-routes.
+        const SAFE = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf',
+            'text/csv', 'text/plain', 'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/xml', 'text/xml']);
+        return multer({
+            storage,
+            limits: { fileSize: 10 * 1024 * 1024 },
+            fileFilter: (req, file, cb) => SAFE.has(file.mimetype)
+                ? cb(null, true)
+                : cb(new multer.MulterError('LIMIT_UNEXPECTED_FILE', file.fieldname))
+        });
+    })();
+
+    // Gate: admin/RH mexe em qualquer funcionário; os demais só no próprio registro.
+    async function autorizarFuncionario(req, res, next) {
+        const alvo = parseInt(req.params.id, 10);
+        if (!Number.isInteger(alvo) || alvo <= 0) {
+            return res.status(400).json({ success: false, message: 'ID de funcionário inválido' });
+        }
+        if (podeVerDeOutros(req.user)) { req.funcionarioAlvo = alvo; return next(); }
+        try {
+            const proprio = await resolverFuncionarioIdDoUsuario(pool, req.user);
+            if (proprio && proprio === alvo) { req.funcionarioAlvo = alvo; return next(); }
+        } catch (err) {
+            console.error('[RH-PENSAO] Falha ao resolver vínculo do usuário:', err.message);
+        }
+        return res.status(403).json({ success: false, message: 'Sem permissão para acessar dados deste funcionário' });
+    }
+
+    // Escrita é só de admin/RH — o próprio funcionário lê, mas não edita a própria pensão.
+    function apenasRH(req, res, next) {
+        if (podeVerDeOutros(req.user)) return next();
+        return res.status(403).json({ success: false, message: 'Apenas RH ou administrador pode alterar pensão alimentícia' });
+    }
+
+    // Lista as pensões do funcionário, cada uma com os documentos anexados.
+    router.get('/funcionarios/:id/pensao', authenticateToken, autorizarFuncionario, async (req, res) => {
+        try {
+            const [pensoes] = await pool.query(
+                `SELECT id, funcionario_id, valor, nome_recebedor, cpf_recebedor,
+                        banco_recebedor, agencia_recebedor, conta_recebedor,
+                        observacoes, ativo, created_at
+                   FROM rh_pensao_alimenticia
+                  WHERE funcionario_id = ?
+                  ORDER BY ativo DESC, id DESC`,
+                [req.funcionarioAlvo]
+            );
+
+            if (pensoes.length) {
+                const [docs] = await pool.query(
+                    `SELECT id, pensao_id, nome_arquivo, tipo, created_at
+                       FROM rh_pensao_documentos
+                      WHERE pensao_id IN (?)
+                      ORDER BY id`,
+                    [pensoes.map(p => p.id)]
+                );
+                // `caminho_arquivo` NÃO vai para a tela: é caminho de disco do
+                // servidor e a grade só precisa do nome para o chip do anexo.
+                const porPensao = new Map();
+                for (const d of docs) {
+                    if (!porPensao.has(d.pensao_id)) porPensao.set(d.pensao_id, []);
+                    porPensao.get(d.pensao_id).push(d);
+                }
+                pensoes.forEach(p => { p.documentos = porPensao.get(p.id) || []; });
+            }
+
+            res.json(pensoes);
+        } catch (error) {
+            console.error('[RH-PENSAO] Erro ao listar:', error);
+            res.status(500).json({ success: false, message: 'Erro ao carregar pensões alimentícias' });
+        }
+    });
+
+    const camposPensao = (corpo) => ({
+        valor: parseFloat(corpo.valor) || 0,
+        nome_recebedor: String(corpo.nome_recebedor || '').trim().slice(0, 255) || null,
+        // Só dígitos: a tela manda com máscara e a busca por CPF depois não acha.
+        cpf_recebedor: String(corpo.cpf_recebedor || '').replace(/\D/g, '').slice(0, 14) || null,
+        banco_recebedor: String(corpo.banco_recebedor || '').trim().slice(0, 255) || null,
+        agencia_recebedor: String(corpo.agencia_recebedor || '').trim().slice(0, 50) || null,
+        conta_recebedor: String(corpo.conta_recebedor || '').trim().slice(0, 50) || null,
+        observacoes: String(corpo.observacoes || '').trim() || null
+    });
+
+    router.post('/funcionarios/:id/pensao', authenticateToken, autorizarFuncionario, apenasRH, async (req, res) => {
+        try {
+            const c = camposPensao(req.body || {});
+            if (!c.nome_recebedor) {
+                return res.status(400).json({ success: false, message: 'Nome do recebedor é obrigatório' });
+            }
+            if (!(c.valor > 0)) {
+                return res.status(400).json({ success: false, message: 'Valor da pensão deve ser maior que zero' });
+            }
+            const [r] = await pool.query(
+                `INSERT INTO rh_pensao_alimenticia
+                    (funcionario_id, valor, nome_recebedor, cpf_recebedor, banco_recebedor,
+                     agencia_recebedor, conta_recebedor, observacoes, ativo)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+                [req.funcionarioAlvo, c.valor, c.nome_recebedor, c.cpf_recebedor,
+                    c.banco_recebedor, c.agencia_recebedor, c.conta_recebedor, c.observacoes]
+            );
+            res.status(201).json({ success: true, id: r.insertId, message: 'Pensão cadastrada' });
+        } catch (error) {
+            console.error('[RH-PENSAO] Erro ao cadastrar:', error);
+            res.status(500).json({ success: false, message: 'Erro ao cadastrar pensão alimentícia' });
+        }
+    });
+
+    router.put('/funcionarios/:id/pensao/:pensaoId', authenticateToken, autorizarFuncionario, apenasRH, async (req, res) => {
+        try {
+            const pensaoId = parseInt(req.params.pensaoId, 10);
+            if (!Number.isInteger(pensaoId) || pensaoId <= 0) {
+                return res.status(400).json({ success: false, message: 'ID de pensão inválido' });
+            }
+            const c = camposPensao(req.body || {});
+            // `funcionario_id` no WHERE: impede editar a pensão de outro funcionário
+            // passando um id de pensão alheio numa URL de funcionário autorizado.
+            const [r] = await pool.query(
+                `UPDATE rh_pensao_alimenticia
+                    SET valor = ?, nome_recebedor = ?, cpf_recebedor = ?, banco_recebedor = ?,
+                        agencia_recebedor = ?, conta_recebedor = ?, observacoes = ?
+                  WHERE id = ? AND funcionario_id = ?`,
+                [c.valor, c.nome_recebedor, c.cpf_recebedor, c.banco_recebedor,
+                    c.agencia_recebedor, c.conta_recebedor, c.observacoes, pensaoId, req.funcionarioAlvo]
+            );
+            if (r.affectedRows === 0) {
+                return res.status(404).json({ success: false, message: 'Pensão não encontrada para este funcionário' });
+            }
+            res.json({ success: true, message: 'Pensão atualizada' });
+        } catch (error) {
+            console.error('[RH-PENSAO] Erro ao atualizar:', error);
+            res.status(500).json({ success: false, message: 'Erro ao atualizar pensão alimentícia' });
+        }
+    });
+
+    // Remoção é LÓGICA (ativo = 0): a pensão já pode ter entrado em folha fechada,
+    // e apagar a linha deixaria o desconto sem lastro. A tela já renderiza
+    // `ativo = 0` esmaecido.
+    router.delete('/funcionarios/:id/pensao/:pensaoId', authenticateToken, autorizarFuncionario, apenasRH, async (req, res) => {
+        try {
+            const pensaoId = parseInt(req.params.pensaoId, 10);
+            const [r] = await pool.query(
+                'UPDATE rh_pensao_alimenticia SET ativo = 0 WHERE id = ? AND funcionario_id = ?',
+                [pensaoId, req.funcionarioAlvo]
+            );
+            if (r.affectedRows === 0) {
+                return res.status(404).json({ success: false, message: 'Pensão não encontrada para este funcionário' });
+            }
+            res.json({ success: true, message: 'Pensão desativada' });
+        } catch (error) {
+            console.error('[RH-PENSAO] Erro ao remover:', error);
+            res.status(500).json({ success: false, message: 'Erro ao remover pensão alimentícia' });
+        }
+    });
+
+    router.post('/funcionarios/:id/pensao/:pensaoId/documento', authenticateToken, autorizarFuncionario, apenasRH,
+        pensaoUpload.single('documento'), async (req, res) => {
+            try {
+                const pensaoId = parseInt(req.params.pensaoId, 10);
+                if (!req.file) {
+                    return res.status(400).json({ success: false, message: 'Nenhum arquivo enviado' });
+                }
+                // Confere que a pensão é MESMO deste funcionário antes de vincular.
+                const [[pensao]] = await pool.query(
+                    'SELECT id FROM rh_pensao_alimenticia WHERE id = ? AND funcionario_id = ?',
+                    [pensaoId, req.funcionarioAlvo]
+                );
+                if (!pensao) {
+                    return res.status(404).json({ success: false, message: 'Pensão não encontrada para este funcionário' });
+                }
+                const [r] = await pool.query(
+                    `INSERT INTO rh_pensao_documentos (pensao_id, nome_arquivo, caminho_arquivo, tipo)
+                     VALUES (?, ?, ?, ?)`,
+                    [pensaoId, req.file.originalname.slice(0, 255), req.file.path.slice(0, 500),
+                        (req.file.mimetype || '').slice(0, 50)]
+                );
+                res.status(201).json({ success: true, id: r.insertId, nome_arquivo: req.file.originalname });
+            } catch (error) {
+                console.error('[RH-PENSAO] Erro ao anexar documento:', error);
+                res.status(500).json({ success: false, message: 'Erro ao anexar documento' });
+            }
+        });
+
+    router.delete('/funcionarios/:id/pensao/:pensaoId/documento/:docId', authenticateToken, autorizarFuncionario, apenasRH,
+        async (req, res) => {
+            try {
+                const pensaoId = parseInt(req.params.pensaoId, 10);
+                const docId = parseInt(req.params.docId, 10);
+                // O JOIN garante que o documento pertence a uma pensão deste funcionário.
+                const [[doc]] = await pool.query(
+                    `SELECT d.id, d.caminho_arquivo
+                       FROM rh_pensao_documentos d
+                       JOIN rh_pensao_alimenticia p ON p.id = d.pensao_id
+                      WHERE d.id = ? AND d.pensao_id = ? AND p.funcionario_id = ?`,
+                    [docId, pensaoId, req.funcionarioAlvo]
+                );
+                if (!doc) {
+                    return res.status(404).json({ success: false, message: 'Documento não encontrado' });
+                }
+                await pool.query('DELETE FROM rh_pensao_documentos WHERE id = ?', [docId]);
+                // O arquivo em disco sai depois do registro: se o unlink falhar,
+                // sobra um órfão em disco em vez de uma linha apontando para o nada.
+                try {
+                    const fsMod = require('fs');
+                    if (doc.caminho_arquivo && fsMod.existsSync(doc.caminho_arquivo)) {
+                        fsMod.unlinkSync(doc.caminho_arquivo);
+                    }
+                } catch (fsErr) {
+                    console.warn('[RH-PENSAO] Arquivo não removido do disco:', fsErr.message);
+                }
+                res.json({ success: true, message: 'Documento removido' });
+            } catch (error) {
+                console.error('[RH-PENSAO] Erro ao remover documento:', error);
+                res.status(500).json({ success: false, message: 'Erro ao remover documento' });
+            }
+        });
+
+    // ================================================================
+    // PROGRESSO DE TREINAMENTO — /api/rh/treinamentos/:id/progresso
+    // ================================================================
+    //
+    // O player em Empresas/js/treinamentos.js manda o progresso a cada 5s
+    // (debounce) enquanto o vídeo roda. A tabela `rh_treinamentos_progresso`
+    // existe com exatamente estas colunas; só faltava a rota, então todo o
+    // progresso assistido era descartado (o `.catch(() => {})` do player
+    // escondia o 404).
+    router.post('/treinamentos/:id/progresso', authenticateToken, async (req, res) => {
+        try {
+            const treinamentoId = parseInt(req.params.id, 10);
+            if (!Number.isInteger(treinamentoId) || treinamentoId <= 0) {
+                return res.status(400).json({ success: false, message: 'ID de treinamento inválido' });
+            }
+
+            const corpo = req.body || {};
+            // Limita a 0..100: o player calcula por currentTime/duration e um
+            // vídeo com metadados ruins devolve NaN ou >100.
+            const progresso = Math.max(0, Math.min(100, Math.round(parseFloat(corpo.progresso) || 0)));
+            const ultimaPosicao = Math.max(0, Math.round(parseFloat(corpo.ultima_posicao) || 0));
+            const concluido = corpo.concluido === true || corpo.concluido === 1 || corpo.concluido === '1' ? 1 : 0;
+
+            const userId = req.user && req.user.id ? req.user.id : null;
+            if (!userId) return res.status(401).json({ success: false, message: 'Sessão inválida' });
+
+            // O funcionário pode não ter vínculo resolvido (login por e-mail sem
+            // cadastro em `funcionarios`); nesse caso grava só por user_id.
+            let funcionarioId = null;
+            try { funcionarioId = await resolverFuncionarioIdDoUsuario(pool, req.user); } catch (_) { /* sem vínculo */ }
+
+            // Sem UNIQUE garantido na tabela, o upsert é feito à mão: procura a
+            // linha do par (treinamento, usuário) e atualiza; senão insere.
+            const [[existente]] = await pool.query(
+                'SELECT id, progresso FROM rh_treinamentos_progresso WHERE treinamento_id = ? AND user_id = ? LIMIT 1',
+                [treinamentoId, userId]
+            );
+
+            if (existente) {
+                // O progresso nunca RETROCEDE: reabrir a aula e assistir o começo
+                // de novo não pode desfazer o que já foi concluído. A posição do
+                // vídeo, essa sim, é sempre a última.
+                await pool.query(
+                    `UPDATE rh_treinamentos_progresso
+                        SET progresso = GREATEST(COALESCE(progresso, 0), ?),
+                            concluido = GREATEST(COALESCE(concluido, 0), ?),
+                            ultima_posicao = ?,
+                            funcionario_id = COALESCE(?, funcionario_id)
+                      WHERE id = ?`,
+                    [progresso, concluido, ultimaPosicao, funcionarioId, existente.id]
+                );
+            } else {
+                await pool.query(
+                    `INSERT INTO rh_treinamentos_progresso
+                        (treinamento_id, funcionario_id, user_id, progresso, concluido, ultima_posicao)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [treinamentoId, funcionarioId, userId, progresso, concluido, ultimaPosicao]
+                );
+            }
+
+            res.json({ success: true, progresso, concluido: !!concluido, ultima_posicao: ultimaPosicao });
+        } catch (error) {
+            console.error('[RH-TREINAMENTO] Erro ao gravar progresso:', error);
+            res.status(500).json({ success: false, message: 'Erro ao gravar progresso' });
+        }
+    });
+
+    // Leitura do progresso — o player chama isto para retomar de onde parou.
+    router.get('/treinamentos/:id/progresso', authenticateToken, async (req, res) => {
+        try {
+            const treinamentoId = parseInt(req.params.id, 10);
+            const userId = req.user && req.user.id ? req.user.id : null;
+            if (!userId) return res.status(401).json({ success: false, message: 'Sessão inválida' });
+            const [[linha]] = await pool.query(
+                `SELECT progresso, concluido, ultima_posicao, updated_at
+                   FROM rh_treinamentos_progresso
+                  WHERE treinamento_id = ? AND user_id = ? LIMIT 1`,
+                [treinamentoId, userId]
+            );
+            res.json(linha || { progresso: 0, concluido: 0, ultima_posicao: 0 });
+        } catch (error) {
+            console.error('[RH-TREINAMENTO] Erro ao ler progresso:', error);
+            res.status(500).json({ success: false, message: 'Erro ao ler progresso' });
+        }
+    });
 
     return router;
 };
