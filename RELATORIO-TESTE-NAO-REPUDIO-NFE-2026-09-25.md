@@ -2,7 +2,7 @@
 
 **Data:** 2026-09-25
 **Branch:** `feature/nao-repudio-nfe`
-**Commit:** `9055fde9` (push em `origin/feature/nao-repudio-nfe`, PR ainda não aberto)
+**Commit:** `473af737` (push em `origin/feature/nao-repudio-nfe`, PR ainda não aberto)
 **Executado por:** sessão do Claude Code, autorizada por Gustavo passo a passo (reconciliação, atualização do staging, criação/remoção do usuário de teste)
 
 ---
@@ -47,7 +47,7 @@ Ou seja: a maior parte das correções de segurança já estava em produção (e
 52 arquivos existem só na VPS (a maioria resíduo/backup, ex. `*_backup.html`) e ~40 arquivos de outros módulos (PCP, RH, Financeiro‑UI, Compras) também divergiam na varredura, mas não têm relação com NF‑e nem segurança — ficaram **fora do escopo** desta reconciliação.
 
 ### 1.4 Commit e push
-- 25 arquivos, commit `9055fde9` na branch `feature/nao-repudio-nfe`, push feito para `origin` (GitHub).
+- 25 arquivos, commit `473af737` na branch `feature/nao-repudio-nfe`, push feito para `origin` (GitHub).
 - `routes/vendas-routes.js`, `modules/Faturamento/api/faturamento.js`, `modules/Faturamento/public/index.html`, `faturamento-pedidos.js`, `terms.js`, `faturamento-relatorios-routes.js`, `crm.html` e `mdfe.html` nunca tinham sido versionados neste repositório (drift acumulado) — passaram a ser rastreados por este commit.
 
 ---
