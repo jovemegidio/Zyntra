@@ -131,3 +131,47 @@ Feito **depois** da validação em staging.
 3. **Reconciliar os ~40 arquivos** de outros módulos (PCP, RH, Financeiro‑UI, Compras, `_shared`) que divergiram na varredura mas ficaram fora do escopo desta sessão.
 4. **Labor Energy / Labor Eletric**: não têm certificado A1 (não emitem NF-e de verdade) e rodam uma base de código mais antiga, sem `nfe-obrigatoriedade.service.js`. Não foram tocadas. Se quiser levar as correções de segurança (não as fiscais) para lá, é um passo à parte.
 5. Se quiser repetir o teste com login HTTP completo (não só a chamada direta ao serviço), é necessário um e-mail de um domínio já permitido pelo login (`@aluforce.ind.br`, `@aluforce.com` etc.) — o domínio `@adminteste.com` não está na lista e ampliá-la é uma decisão de segurança que cabe a você, não a mim.
+
+---
+
+## 6. Imutabilidade do log em PRODUÇÃO (adendo, mesmo dia)
+
+Pedido: o log tem que ser imutável, "quase como uma blockchain". Verificação prévia em produção:
+
+- Banco local (MySQL 8.0.46). Usuário da aplicação: `ALL` nos schemas, **sem `SUPER`**; `log_bin=1` e `log_bin_trust_function_creators=0` → o MySQL **não deixa a aplicação criar trigger**.
+- A tabela `nfe_confirmacoes_emissao` **não existia** em produção (nenhuma nota tinha passado pelo gate) — deu para nascer imutável desde a linha zero.
+- **Lacuna que eu tinha subestimado:** a cadeia era SHA‑256 simples. Quem tem acesso de escrita ao MySQL edita uma linha e **recalcula a cadeia inteira** — nada acusaria. E apagar só as **últimas** linhas também não é detectável por cadeia (o que sobra continua válido).
+
+### Camadas implementadas (`services/nfe-confirmacao-audit.service.js`)
+
+| # | Camada | Protege contra | Estado em PRD |
+|---|---|---|---|
+| 1 | Cadeia de hash por empresa | editar/apagar linha do meio | ✅ |
+| 2 | **HMAC‑SHA256** com chave só no servidor (`NFE_AUDIT_HMAC_KEY`, 64 hex, no `.env` `600`) | recalcular a cadeia após editar | ✅ chave gerada no servidor, nunca exibida |
+| 3 | **Âncora fora do banco** (`logs/audit-anchor/nfe-audit-anchor-<empresa>.log`, MAC por linha, `chattr +a`) | cortar o fim do log / `TRUNCATE` / restaurar backup antigo | ✅ apagar, truncar e renomear dão *Operation not permitted* até para o root |
+| 4 | Rebaixamento de algoritmo proibido | reescrever linhas com SHA‑256 (o único que o atacante sabe calcular) | ✅ |
+| 5 | Vigilância a cada 15 min (alerta `[NFE-AUDIT][ALERTA-CRITICO]` + notificação) | adulteração passar despercebida | ✅ |
+| 6 | Triggers `BEFORE UPDATE/DELETE` no MySQL | impedir a alteração pela via normal | ⏳ **pendente — exige root do MySQL** (ver abaixo) |
+
+Detecta também: `CHAVE_DIFERENTE` (chave trocada, distinto de adulteração), `ANCORA_ADULTERADA`, `LINHA_ALTERADA_APOS_ANCORA`, `CHAVE_INDISPONIVEL`.
+
+### Testes
+- 16 testes unitários do log (incl. ataques: recalcular cadeia com SHA‑256, rebaixar algoritmo, cortar o fim, `TRUNCATE`, âncora forjada, trocar a chave) + 40 dos demais serviços: **56/56**.
+- **MySQL real** (banco do staging, empresa fictícia, limpo depois): gravar 4 linhas → íntegro; `UPDATE` direto → `HASH_NAO_CONFERE`; `DELETE` das últimas linhas → `LINHA_APAGADA_OU_TRUNCADA`; 0 linhas restantes.
+- Produção: tabela criada com `hash_alg`/`hash_kid`, cadeia íntegra (0 linhas), âncora reconhecida, `appendFileSync` do Node funciona em arquivo `+a` e `writeFileSync` (truncar) é bloqueado (`EPERM`). Reinício único do PM2, health 200.
+
+### ⏳ Pendência que só o dono do banco resolve — triggers (camada 6)
+Tentei o root do MySQL pelo socket: **exige senha** (não tenho a credencial e não fui procurá-la em arquivos do servidor). Rodar **uma vez**, como root do MySQL:
+
+```bash
+mysql -u root -p aluforce_vendas < /var/www/aluforce/database/migrations/nfe_confirmacoes_emissao_imutavel.sql
+```
+(Repetir para o schema de cada instância que use a tabela.) O script é idempotente. Depois disso `UPDATE`/`DELETE` passam a falhar com SQLSTATE 45000 para qualquer usuário, e a vigilância para de avisar "triggers ausentes". Limites: `TRUNCATE`/`DROP TABLE` não disparam trigger (cobertos por cadeia + âncora); quem tem privilégio de TRIGGER pode dar `DROP TRIGGER` (a vigilância alerta).
+
+### Cuidados operacionais
+- **Guarde `NFE_AUDIT_HMAC_KEY` num cofre de segredos.** Perdê-la ou trocá-la impede verificar as linhas já gravadas (a verificação acusa `CHAVE_DIFERENTE`, não adulteração). Há cópia do `.env` em `/root/backups-audit-imutavel-*/` (modo 700).
+- Para remover o atributo de uma âncora (raro, ex.: migração): `chattr -a <arquivo>` — ação deliberada de root.
+- A âncora local protege contra quem só tem o banco/aplicação. Contra comprometimento total do servidor (root), o passo seguinte é enviar o hash de cabeça da cadeia para fora da máquina (e‑mail/webhook/serviço de terceiros).
+
+### Descoberta: envio automático Drive → VPS
+Ao conferir o hash, produção **já continha** meus arquivos salvos no Drive minutos antes (mtime na VPS = instante do salvamento), sem eu ter enviado nada. Há um mecanismo automático (provavelmente o `deploy-vps.ps1` agendado, que envia `.js/.html/.css/.json` modificados nas últimas 2 h; existe `.claude/scheduled_tasks.lock`). Consequências: (a) qualquer arquivo salvo no Drive pode chegar à produção **sem passar por staging** — inclusive estado intermediário; (b) `.sql` não é enviado por esse mecanismo (o script de triggers precisa de cópia manual); (c) o envio não reinicia o PM2 sozinho aqui — o código novo só passa a valer no próximo restart. Vale decidir conscientemente se esse envio automático deve continuar ligado.
