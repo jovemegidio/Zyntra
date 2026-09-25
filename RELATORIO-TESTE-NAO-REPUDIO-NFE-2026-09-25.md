@@ -164,7 +164,7 @@ Detecta também: `CHAVE_DIFERENTE` (chave trocada, distinto de adulteração), `
 Tentei o root do MySQL pelo socket: **exige senha** (não tenho a credencial e não fui procurá-la em arquivos do servidor). Rodar **uma vez**, como root do MySQL:
 
 ```bash
-mysql -u root -p aluforce_vendas < /var/www/aluforce/database/migrations/nfe_confirmacoes_emissao_imutavel.sql
+cd /var/www/aluforce && node database/migrations/20260925_nfe_confirmacoes_emissao_imutavel.js | mysql -u root -p aluforce_vendas
 ```
 (Repetir para o schema de cada instância que use a tabela.) O script é idempotente. Depois disso `UPDATE`/`DELETE` passam a falhar com SQLSTATE 45000 para qualquer usuário, e a vigilância para de avisar "triggers ausentes". Limites: `TRUNCATE`/`DROP TABLE` não disparam trigger (cobertos por cadeia + âncora); quem tem privilégio de TRIGGER pode dar `DROP TRIGGER` (a vigilância alerta).
 

@@ -25,7 +25,7 @@
  *     divergência vira alerta crítico no log do processo.
  *  6. TRIGGERS de banco (BEFORE UPDATE/DELETE) impedem a alteração pela via normal.
  *     Exigem privilégio que o usuário da aplicação pode não ter (binlog ligado) — o
- *     script database/migrations/nfe_confirmacoes_emissao_imutavel.sql cria pelo root.
+ *     script database/migrations/20260925_nfe_confirmacoes_emissao_imutavel.js gera o SQL para o root.
  */
 
 const crypto = require('node:crypto');
@@ -105,7 +105,7 @@ function ensure(pool) {
             for (const op of ['UPDATE', 'DELETE']) {
                 await pool.query(`CREATE TRIGGER trg_nfe_conf_no_${op.toLowerCase()} BEFORE ${op} ON ${TABELA}
                     FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Log de emissão de NF-e é somente de inserção'`)
-                    .catch(e => { if (e.code !== 'ER_TRG_ALREADY_EXISTS') console.warn('[NFE-AUDIT] trigger não criada pela aplicação (rode o SQL de imutabilidade como root):', e.message); });
+                    .catch(e => { if (e.code !== 'ER_TRG_ALREADY_EXISTS') console.warn('[NFE-AUDIT] trigger não criada pela aplicação (rode database/migrations/20260925_nfe_confirmacoes_emissao_imutavel.js como root):', e.message); });
             }
         })().catch(error => { inicializacoes.delete(pool); throw error; });
         inicializacoes.set(pool, promise);
