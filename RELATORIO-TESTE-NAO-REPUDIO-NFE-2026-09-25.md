@@ -175,3 +175,26 @@ cd /var/www/aluforce && node database/migrations/20260925_nfe_confirmacoes_emiss
 
 ### Descoberta: envio automático Drive → VPS
 Ao conferir o hash, produção **já continha** meus arquivos salvos no Drive minutos antes (mtime na VPS = instante do salvamento), sem eu ter enviado nada. Há um mecanismo automático (provavelmente o `deploy-vps.ps1` agendado, que envia `.js/.html/.css/.json` modificados nas últimas 2 h; existe `.claude/scheduled_tasks.lock`). Consequências: (a) qualquer arquivo salvo no Drive pode chegar à produção **sem passar por staging** — inclusive estado intermediário; (b) `.sql` não é enviado por esse mecanismo (o script de triggers precisa de cópia manual); (c) o envio não reinicia o PM2 sozinho aqui — o código novo só passa a valer no próximo restart. Vale decidir conscientemente se esse envio automático deve continuar ligado.
+
+---
+
+## 7. O que mais foi feito sem precisar do root do MySQL (mesmo dia)
+
+Pré-checagem dos triggers: em **produção** só o serviço do log e a migration citam a tabela; **nenhum código faz UPDATE/DELETE/TRUNCATE nela** — os triggers não derrubam nenhuma funcionalidade, e o `ALTER TABLE ADD COLUMN` do serviço não é afetado por trigger de linha.
+
+| Item | O que entrega | Estado em PRD |
+|---|---|---|
+| **Espelho com conteúdo completo** (`logs/audit-anchor/nfe-audit-espelho-<empresa>.log`, `chattr +a`, MAC por linha) | A âncora prova a fraude mas só guarda hashes; o espelho **reconstitui** as linhas apagadas/alteradas (`recuperarDoEspelho`, `GET /api/faturamento/confirmacoes/espelho`, admin). Cópia adulterada é descartada pelo MAC | ✅ arquivos das empresas 1–3 criados com `+a` |
+| **Testemunha externa** (`services/nfe-audit-testemunha.service.js`) | Envia o **hash de cabeça** da cadeia por e-mail (`utils/email`, rota `fiscal`) e/ou webhook a cada N h (padrão 24) e imediatamente numa falha (máx. 1/h). Cobre quem tem **root no servidor** | ⏳ **código pronto, desligado** — falta destinatário. Ligar no `.env`: `NFE_AUDIT_TESTEMUNHA_EMAIL=a@x.com,b@x.com` e/ou `NFE_AUDIT_TESTEMUNHA_WEBHOOK=https://…` (+ `NFE_AUDIT_TESTEMUNHA_HORAS`) e reiniciar |
+| **Guarda de regressão** (`tests/unit/nfe-audit-guarda-escrita.test.js`) | Falha se algum código futuro fizer UPDATE/DELETE/TRUNCATE/DROP/REPLACE/`ON DUPLICATE KEY`/ALTER destrutivo na tabela (com controles positivo e negativo). Rodado na árvore real de produção: passa | ✅ |
+| **Integridade visível** | Vigilância agora inicia **no boot** (antes só na 1ª emissão após cada restart). `GET /confirmacoes/status` (admin, cache 60 s) alimenta uma **faixa na tela do Faturamento**: vermelha = inconsistência (com nº de linhas recuperáveis do espelho); âmbar dispensável = triggers ausentes ou chave não dedicada. Não-admin não vê nada | ✅ |
+| **Qual chave está em uso** | `verificarCadeia`/`status` informam `chave: {origem: dedicada\|jwt\|nenhuma, kid}` sem revelar a chave. Em PRD: `dedicada`, kid `aff6e946035e` | ✅ |
+
+Novas causas detectadas: `ESPELHO_ADULTERADO`, `LINHA_DIFERE_DO_ESPELHO`.
+
+Testes: **91/91** no projeto (log 16 + espelho/testemunha/vigilância 10 + ganchos 4 + guarda 3 + rollback/obrigatoriedade/fiscais). Produção reiniciada uma vez (health 200, 3 rotas exigindo login, verificação com espelho e chave dedicada, vigilância rodando sem erro, nenhum erro novo nos logs).
+
+### Ainda pendente (só o dono do banco / você)
+1. Rodar a migration de triggers como root do MySQL (seção 6) — a faixa âmbar some sozinha depois.
+2. Informar destinatário/URL para ligar a testemunha externa.
+3. Guardar `NFE_AUDIT_HMAC_KEY` em cofre.

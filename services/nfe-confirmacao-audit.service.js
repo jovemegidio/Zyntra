@@ -23,6 +23,13 @@
  *     pode voltar para SHA-256 simples (o atacante só sabe calcular esse).
  *  5. VIGILÂNCIA: a cadeia e as âncoras são reverificadas periodicamente; qualquer
  *     divergência vira alerta crítico no log do processo.
+ *  5b. ESPELHO com o CONTEÚDO COMPLETO (também append-only, com MAC por linha): a âncora
+ *     prova que houve fraude, mas só guarda hashes; o espelho permite RECONSTITUIR as
+ *     linhas apagadas ou alteradas (recuperarDoEspelho), e o MAC prova que a cópia é
+ *     autêntica.
+ *  5c. TESTEMUNHA EXTERNA (services/nfe-audit-testemunha.service.js): o hash de cabeça da
+ *     cadeia é enviado periodicamente para fora da máquina (e-mail/webhook), o que cobre
+ *     quem tem root no servidor. Desligada até haver destinatário configurado.
  *  6. TRIGGERS de banco (BEFORE UPDATE/DELETE) impedem a alteração pela via normal.
  *     Exigem privilégio que o usuário da aplicação pode não ter (binlog ligado) — o
  *     script database/migrations/20260925_nfe_confirmacoes_emissao_imutavel.js gera o SQL para o root.
@@ -207,6 +214,90 @@ function verificarAncoras(rows, empresaId, chave) {
     return { arquivo, existe, ancoras: ancoras.length, linhasInvalidas: invalidas, semAncora, problemas };
 }
 
+// ── Espelho com o conteúdo completo ───────────────────────────────────────────
+function arquivoEspelho(empresaId) {
+    const dir = process.env.NFE_AUDIT_ANCHOR_DIR || path.join(__dirname, '..', 'logs', 'audit-anchor');
+    return path.join(dir, `nfe-audit-espelho-${Number(empresaId) || 1}.log`);
+}
+
+// O MAC cobre id + conteúdo canônico + hashes + algoritmo: trocar qualquer campo invalida a linha.
+const macEspelho = (chave, id, r) => hmac(chave, JSON.stringify([id, conteudoCanonico(r), r.hash_registro, r.hash_anterior, r.hash_alg]));
+
+function anexarEspelho(registro, id) {
+    try {
+        const chave = registro.hash_alg === ALG_HMAC ? chaveHmac() : null;
+        const linha = { e: registro.empresa_id, id, r: registro };
+        if (chave) linha.m = macEspelho(chave, id, registro);
+        const arquivo = arquivoEspelho(registro.empresa_id);
+        fs.mkdirSync(path.dirname(arquivo), { recursive: true });
+        fs.appendFileSync(arquivo, JSON.stringify(linha) + '\n', { flag: 'a' });
+        return true;
+    } catch (e) {
+        console.error('[NFE-AUDIT][ALERTA] não foi possível gravar o espelho do log:', e.message);
+        return false;
+    }
+}
+
+/** Lê o espelho e separa as linhas autênticas (MAC confere) das adulteradas/ilegíveis. */
+function lerEspelho(empresaId, chave) {
+    const arquivo = arquivoEspelho(empresaId);
+    if (!fs.existsSync(arquivo)) return { arquivo, existe: false, linhas: [], adulteradas: 0, ilegiveis: 0 };
+    const linhas = [];
+    let adulteradas = 0;
+    let ilegiveis = 0;
+    for (const texto of fs.readFileSync(arquivo, 'utf8').split('\n')) {
+        if (!texto.trim()) continue;
+        let l;
+        try { l = JSON.parse(texto); } catch (_) { ilegiveis++; continue; }
+        if (!l || l.id == null || !l.r) { ilegiveis++; continue; }
+        if (l.r.hash_alg === ALG_HMAC) {
+            if (!chave || l.m !== macEspelho(chave, l.id, l.r)) { adulteradas++; continue; }
+        }
+        linhas.push({ id: Number(l.id), ...l.r });
+    }
+    return { arquivo, existe: true, linhas, adulteradas, ilegiveis };
+}
+
+const normalizarLinha = row => ({ ...row, valor_total: row.valor_total == null ? null : Number(row.valor_total).toFixed(2) });
+const assinaturaLinha = row => conteudoCanonico(normalizarLinha(row)) + '|' + row.hash_registro;
+
+function verificarEspelho(rows, empresaId, chave) {
+    const esp = lerEspelho(empresaId, chave);
+    const porId = new Map(rows.map(r => [Number(r.id), r]));
+    const ausentesNoBanco = [];
+    const diferentes = [];
+    for (const l of esp.linhas) {
+        const noBanco = porId.get(l.id);
+        if (!noBanco) ausentesNoBanco.push(l.id);
+        else if (assinaturaLinha(noBanco) !== assinaturaLinha(l)) diferentes.push(l.id);
+    }
+    const noEspelho = new Set(esp.linhas.map(l => l.id));
+    return {
+        arquivo: esp.arquivo, existe: esp.existe, linhas: esp.linhas.length,
+        adulteradas: esp.adulteradas, ilegiveis: esp.ilegiveis,
+        ausentesNoBanco, diferentes, semEspelho: rows.filter(r => !noEspelho.has(Number(r.id))).length,
+        recuperaveis: ausentesNoBanco.length + diferentes.length
+    };
+}
+
+/**
+ * Reconstitui, a partir do espelho, as linhas do log (autênticas pelo MAC), em ordem.
+ * Serve para recuperar a evidência quando o banco foi apagado ou adulterado.
+ */
+function recuperarDoEspelho(empresaId = 1) {
+    const esp = lerEspelho(empresaId, chaveHmac());
+    return { arquivo: esp.arquivo, existe: esp.existe, adulteradas: esp.adulteradas, ilegiveis: esp.ilegiveis,
+        linhas: esp.linhas.sort((a, b) => a.id - b.id) };
+}
+
+/** Qual chave está em uso (sem revelá-la): dedicada, derivada do JWT_SECRET ou nenhuma. */
+function chaveInfo() {
+    const dedicada = process.env.NFE_AUDIT_HMAC_KEY;
+    const chave = chaveHmac();
+    if (!chave) return { origem: 'nenhuma', kid: null };
+    return { origem: dedicada && dedicada.length >= 16 ? 'dedicada' : 'jwt', kid: kidDe(chave) };
+}
+
 function identidade(req) {
     const u = req?.user || {};
     const ip = String(req?.headers?.['x-forwarded-for'] || req?.ip || req?.socket?.remoteAddress || '').split(',')[0].trim();
@@ -290,6 +381,7 @@ async function registrar(pool, evt) {
             colunas.map(c => registro[c]));
         // Ainda dentro da trava: a ordem no arquivo de âncora é a mesma da cadeia.
         anexarAncora(registro, r.insertId);
+        anexarEspelho(registro, r.insertId);
         return { id: r.insertId, hash: registro.hash_registro, registradoEm: registro.registrado_em_utc };
     } finally {
         if (travou) await conn.query('SELECT RELEASE_LOCK(?)', [trava]).catch(() => {});
@@ -347,22 +439,32 @@ async function verificarCadeia(pool, empresaId = 1, opcoes = {}) {
     }
 
     const ancora = verificarAncoras(rows, emp, chave);
+    const espelho = verificarEspelho(rows, emp, chave);
+    const infoChave = chaveInfo();
     let protecaoBanco = null;
     if (opcoes.verificarBanco !== false) protecaoBanco = await verificarTriggers(pool).catch(() => null);
 
-    if (falhaCadeia) return resultado({ primeiroInvalidoId: falhaCadeia.id, motivo: falhaCadeia.motivo, ancora, protecaoBanco });
+    const base = { ancora, espelho, chave: infoChave, protecaoBanco };
+    if (falhaCadeia) return resultado({ primeiroInvalidoId: falhaCadeia.id, motivo: falhaCadeia.motivo, ...base });
     if (ancora.problemas.length) {
-        return resultado({ primeiroInvalidoId: ancora.problemas[0].id, motivo: ancora.problemas[0].motivo, ancora, protecaoBanco });
+        return resultado({ primeiroInvalidoId: ancora.problemas[0].id, motivo: ancora.problemas[0].motivo, ...base });
     }
-    return resultado({ integra: true, ancora, protecaoBanco });
+    // Espelho: cópia adulterada, linha do banco diferente da cópia autêntica, ou linha que sumiu.
+    if (espelho.adulteradas) return resultado({ motivo: 'ESPELHO_ADULTERADO', ...base });
+    if (espelho.diferentes.length) return resultado({ primeiroInvalidoId: espelho.diferentes[0], motivo: 'LINHA_DIFERE_DO_ESPELHO', ...base });
+    if (espelho.ausentesNoBanco.length) return resultado({ primeiroInvalidoId: espelho.ausentesNoBanco[0], motivo: 'LINHA_APAGADA_OU_TRUNCADA', ...base });
+    return resultado({ integra: true, ...base });
 }
 
 // ── Vigilância ────────────────────────────────────────────────────────────────
 async function vigiarUmaVez(pool) {
+    await ensure(pool);
     const [empresas] = await pool.query(`SELECT DISTINCT empresa_id FROM ${TABELA}`);
+    let houveFalha = false;
     for (const { empresa_id: emp } of empresas) {
         const r = await verificarCadeia(pool, emp);
         if (!r.integra) {
+            houveFalha = true;
             const msg = `LOG DE EMISSÃO DE NF-e ADULTERADO OU INCONSISTENTE (empresa ${emp}): ${r.motivo} na linha ${r.primeiroInvalidoId}.`;
             console.error(`[NFE-AUDIT][ALERTA-CRITICO] ${msg}`);
             try {
@@ -373,6 +475,9 @@ async function vigiarUmaVez(pool) {
             console.warn(`[NFE-AUDIT][ALERTA] empresa ${emp}: triggers anti-UPDATE/DELETE ausentes no banco (só detecção, sem prevenção).`);
         }
     }
+    // Testemunha externa (e-mail/webhook): melhor esforço, nunca derruba a vigilância.
+    try { await require('./nfe-audit-testemunha.service').publicar(pool, { falha: houveFalha }); }
+    catch (e) { console.error('[NFE-AUDIT] testemunha externa falhou:', e.message); }
 }
 
 /** Reverifica periodicamente. Não segura o processo vivo (unref) e nunca lança. */
@@ -387,5 +492,6 @@ function iniciarVigilancia(pool, { intervaloMs = 15 * 60 * 1000 } = {}) {
 
 module.exports = {
     EVENTOS, ensure, registrar, listarPorNfe, verificarCadeia, verificarTriggers, iniciarVigilancia, vigiarUmaVez,
-    identidade, identidadeConfirmada, sha256, conteudoCanonico, arquivoAncora, ALG_HMAC, ALG_SIMPLES
+    identidade, identidadeConfirmada, sha256, conteudoCanonico, arquivoAncora, arquivoEspelho, recuperarDoEspelho,
+    chaveInfo, ALG_HMAC, ALG_SIMPLES, TABELA
 };

@@ -2558,6 +2558,53 @@ function formatarMoeda(valor) {
             carregarNFes();
         }
 
+        // Faixa de alerta do log fiscal de NF-e (só administradores recebem resposta; os demais
+        // levam 403 e a faixa simplesmente não aparece). Vermelha = inconsistência no log de
+        // não repúdio; âmbar = proteção ainda incompleta (triggers do banco / chave dedicada).
+        async function verificarIntegridadeLogFiscal() {
+            try {
+                const r = await fetch('/api/faturamento/confirmacoes/status', { credentials: 'include' });
+                if (!r.ok) return;
+                const s = await r.json();
+                if (!s || !s.success) return;
+                let msg = '';
+                let cor = '';
+                if (s.integra === false) {
+                    cor = '#b91c1c';
+                    msg = '⚠ Log fiscal de NF-e com INCONSISTÊNCIA (' + (s.motivo || 'motivo não informado') + (s.primeiroInvalidoId ? ', linha ' + s.primeiroInvalidoId : '')
+                        + '). Não apague nem altere nada no banco e acione o responsável técnico agora.'
+                        + (s.espelho && s.espelho.recuperaveis ? ' ' + s.espelho.recuperaveis + ' linha(s) podem ser recuperadas do espelho.' : '');
+                } else {
+                    const pend = [];
+                    if (s.protecaoBanco && !s.protecaoBanco.completo) pend.push('triggers anti-UPDATE/DELETE ainda não criados no banco (rode a migration como root do MySQL)');
+                    if (s.chave && s.chave.origem !== 'dedicada') pend.push('chave HMAC do log não é a dedicada (NFE_AUDIT_HMAC_KEY)');
+                    if (!pend.length) return;
+                    try { if (sessionStorage.getItem('logFiscalAvisoFechado') === '1') return; } catch (_) { /* sem sessionStorage */ }
+                    cor = '#b45309';
+                    msg = 'Log fiscal de NF-e — proteção incompleta: ' + pend.join('; ') + '.';
+                }
+                const faixa = document.createElement('div');
+                faixa.setAttribute('role', 'alert');
+                faixa.style.cssText = 'background:' + cor + ';color:#fff;padding:8px 16px;font-size:13px;display:flex;gap:12px;align-items:center;justify-content:space-between';
+                const texto = document.createElement('span');
+                texto.textContent = msg;
+                faixa.appendChild(texto);
+                if (s.integra !== false) {
+                    const fechar = document.createElement('button');
+                    fechar.type = 'button';
+                    fechar.textContent = '×';
+                    fechar.setAttribute('aria-label', 'Dispensar aviso');
+                    fechar.style.cssText = 'background:transparent;border:0;color:#fff;font-size:18px;cursor:pointer';
+                    fechar.onclick = function () { try { sessionStorage.setItem('logFiscalAvisoFechado', '1'); } catch (_) { /* ok */ } faixa.remove(); };
+                    faixa.appendChild(fechar);
+                }
+                const cab = document.querySelector('.main-area > .header');
+                if (cab) cab.insertAdjacentElement('afterend', faixa);
+            } catch (_) { /* a faixa é informativa: nunca atrapalha a tela */ }
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', verificarIntegridadeLogFiscal);
+        else verificarIntegridadeLogFiscal();
+
         async function carregarEstatisticas() {
             try {
                 const r = await fetch('/api/faturamento/estatisticas', { credentials: 'include' });

@@ -60,6 +60,12 @@ module.exports = (pool, authenticateToken) => {
     // Deixa o emitter de NF-e saber quem disparou a ação (log de não repúdio do envio).
     router.use(require('../../../services/request-context').middleware);
 
+    // Vigilância do log fiscal de NF-e: reverifica cadeia, âncoras e espelho a cada 15 min desde
+    // o BOOT (antes só começava na primeira emissão depois de cada restart) e alerta se algo
+    // divergir. Nunca lança; NFE_AUDIT_VIGILANCIA=off desliga.
+    try { require('../../../services/nfe-confirmacao-audit.service').iniciarVigilancia(pool); }
+    catch (e) { console.error('[FATURAMENTO] vigilância do log fiscal não iniciou:', e.message); }
+
     // `pedidos.parcelas` guarda ora um JSON ({"parcela":[...]}), ora um texto simples
     // ("30", "30/60", "À vista"), conforme a origem do pedido. Quem consome (a ficha do
     // pedido) não deve adivinhar o formato: JSON vira objeto, texto continua texto.
@@ -3886,18 +3892,58 @@ module.exports = (pool, authenticateToken) => {
         }
     });
 
-    // Recalcula a cadeia de hashes do log (detecta linha apagada ou alterada). Só administrador.
+    // Integridade do log de não repúdio — só administrador.
+    const ehAdminFiscal = (req) => ['admin', 'administrador', 'superadmin']
+        .includes(String(req.user?.role || req.user?.cargo || '').toLowerCase());
+    const negarNaoAdmin = (res) => res.status(403).json({ success: false, errorCode: 'RBAC_DENIED', message: 'Apenas administradores podem consultar a integridade do log.' });
+
+    // Recalcula a cadeia de hashes, as âncoras e o espelho (detecta linha apagada ou alterada).
     router.get('/confirmacoes/verificar-cadeia', authenticateToken, async (req, res) => {
         try {
-            const perfil = String(req.user?.role || req.user?.cargo || '').toLowerCase();
-            if (!['admin', 'administrador', 'superadmin'].includes(perfil)) {
-                return res.status(403).json({ success: false, errorCode: 'RBAC_DENIED', message: 'Apenas administradores podem verificar a integridade do log.' });
-            }
+            if (!ehAdminFiscal(req)) return negarNaoAdmin(res);
             const r = await require('../../../services/nfe-confirmacao-audit.service')
                 .verificarCadeia(pool, req.user?.empresa_id || 1);
             res.json({ success: true, ...r });
         } catch (error) {
             console.error('[FATURAMENTO] Erro ao verificar cadeia do log de emissão:', error);
+            res.status(500).json({ success: false, message: mensagemSegura(error) });
+        }
+    });
+
+    // Resumo enxuto para a faixa de alerta da tela (cache de 60 s: a verificação relê a tabela).
+    const statusLogFiscalCache = new Map();
+    router.get('/confirmacoes/status', authenticateToken, async (req, res) => {
+        try {
+            if (!ehAdminFiscal(req)) return negarNaoAdmin(res);
+            const empresa = Number(req.user?.empresa_id) || 1;
+            const em_cache = statusLogFiscalCache.get(empresa);
+            if (em_cache && Date.now() - em_cache.ts < 60000) return res.json({ success: true, ...em_cache.dados });
+            const r = await require('../../../services/nfe-confirmacao-audit.service').verificarCadeia(pool, empresa);
+            const dados = {
+                integra: r.integra, motivo: r.motivo, primeiroInvalidoId: r.primeiroInvalidoId, registros: r.registros,
+                chave: r.chave, protecaoBanco: r.protecaoBanco,
+                ancora: r.ancora && { existe: r.ancora.existe, ancoras: r.ancora.ancoras, problemas: r.ancora.problemas.length },
+                espelho: r.espelho && { existe: r.espelho.existe, linhas: r.espelho.linhas, recuperaveis: r.espelho.recuperaveis },
+                testemunhaExterna: require('../../../services/nfe-audit-testemunha.service').config().ativa
+            };
+            statusLogFiscalCache.set(empresa, { ts: Date.now(), dados });
+            res.json({ success: true, ...dados });
+        } catch (error) {
+            console.error('[FATURAMENTO] Erro ao obter status do log de emissão:', error);
+            res.status(500).json({ success: false, message: mensagemSegura(error) });
+        }
+    });
+
+    // Reconstitui as linhas do log a partir do ESPELHO (autênticas pelo MAC) — para recuperar
+    // a evidência se o banco foi apagado ou adulterado.
+    router.get('/confirmacoes/espelho', authenticateToken, async (req, res) => {
+        try {
+            if (!ehAdminFiscal(req)) return negarNaoAdmin(res);
+            const rec = require('../../../services/nfe-confirmacao-audit.service')
+                .recuperarDoEspelho(Number(req.user?.empresa_id) || 1);
+            res.json({ success: true, total: rec.linhas.length, adulteradas: rec.adulteradas, ilegiveis: rec.ilegiveis, data: rec.linhas });
+        } catch (error) {
+            console.error('[FATURAMENTO] Erro ao ler o espelho do log de emissão:', error);
             res.status(500).json({ success: false, message: mensagemSegura(error) });
         }
     });
