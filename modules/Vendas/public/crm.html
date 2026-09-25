@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Zyntra: CRM</title>
+    <script src="/js/auth-unified.js?v=20260722csrf" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="/js/csp-fix.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260911sino">
+    <link rel="stylesheet" href="/css/kpi-details.css?v=20260826">
+    <script src="/js/kpi-details.js?v=20260826"></script>
+    <style>
+        /* Classes com prefixo próprio: `.modal` significa coisas opostas no
+           design-system.css e no global-header-sidebar.css — colidir aí já colou
+           modal no canto da tela antes. Aqui nada se chama .modal/.card. */
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',sans-serif;background:#eef1f5;color:#334155}
+        .main-area{flex:1;display:flex;flex-direction:column;min-height:100vh}
+        .content-area{flex:1;padding:22px}
+        .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px}
+        h1{font-size:20px;color:#0f172a;display:flex;align-items:center;gap:10px}
+        h1 i{color:#8b5cf6}
+        .btn{border:none;border-radius:9px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-family:inherit}
+        .btn-rox{background:#8b5cf6;color:#fff}.btn-rox:hover{background:#7c3aed}
+        .btn-ghost{background:#fff;color:#475569;border:1px solid #e2e8f0}.btn-ghost:hover{background:#f8fafc}
+        .btn-sm{padding:6px 12px;font-size:12px}
+        .btn:disabled{opacity:.55;cursor:not-allowed}
+
+        /* Abas por hash */
+        .tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid #e2e8f0;margin-bottom:18px}
+        .tab{background:none;border:none;padding:11px 16px;font-size:13.5px;font-weight:600;color:#64748b;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;display:inline-flex;align-items:center;gap:7px;font-family:inherit}
+        .tab:hover{color:#8b5cf6}
+        .tab.on{color:#8b5cf6;border-bottom-color:#8b5cf6}
+        .pane{display:none}.pane.on{display:block}
+
+        .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px}
+        .kpi{background:#fff;border:1px solid #e2e8f0;border-radius:13px;padding:16px 18px}
+        .kpi .v{font-size:22px;font-weight:800;color:#0f172a;white-space:nowrap}
+        .kpi .l{font-size:12px;color:#64748b;font-weight:500;margin-top:3px}
+        .kpi .h{font-size:11px;color:#94a3b8;margin-top:2px}
+        .kpi.alerta .v{color:#dc2626}
+        .kpi.bom .v{color:#059669}
+
+        .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+        @media(max-width:1000px){.grid2{grid-template-columns:1fr}}
+        .panel{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:auto}
+        .panel-h{padding:13px 16px;border-bottom:1px solid #eef2f6;font-weight:700;font-size:14px;color:#0f172a;display:flex;align-items:center;justify-content:space-between;gap:10px}
+        .panel-h i{color:#8b5cf6;margin-right:7px}
+        table{width:100%;border-collapse:collapse;font-size:13px}
+        th,td{padding:10px 14px;text-align:left;border-bottom:1px solid #eef2f6;white-space:nowrap}
+        thead th{background:#f8fafc;color:#475569;font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px}
+        tbody tr:hover{background:#faf5ff}
+        td.num,th.num{text-align:right}
+        /* Sem nowrap a coluna numérica quebra e a tabela fica torta (mesmo defeito
+           já corrigido nos relatórios do RH). */
+        td.num{white-space:nowrap;font-variant-numeric:tabular-nums}
+        .empty{padding:36px;text-align:center;color:#94a3b8;font-size:13px}
+
+        .bdg{font-size:10.5px;padding:2px 9px;border-radius:999px;font-weight:700;text-transform:uppercase;letter-spacing:.2px;display:inline-block}
+        .bdg-cinza{background:#f1f5f9;color:#475569}
+        .bdg-azul{background:#dbeafe;color:#1d4ed8}
+        .bdg-verde{background:#dcfce7;color:#15803d}
+        .bdg-amarelo{background:#fef3c7;color:#b45309}
+        .bdg-vermelho{background:#fee2e2;color:#b91c1c}
+        .bdg-roxo{background:#ede9fe;color:#6d28d9}
+
+        /* Kanban do funil */
+        .board{display:grid;gap:14px;align-items:start;overflow-x:auto;padding-bottom:6px}
+        .col{background:#f1f5f9;border-radius:13px;padding:11px;min-width:230px}
+        .col.over{outline:2px dashed #8b5cf6;outline-offset:-4px}
+        .col-h{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:12px;color:#334155;padding:3px 5px 8px;text-transform:uppercase;letter-spacing:.3px}
+        .col-h .ct{background:#fff;border-radius:20px;padding:2px 9px;font-size:11.5px;color:#64748b}
+        .col-tot{font-size:11px;color:#64748b;font-weight:600;padding:0 5px 8px}
+        .op{background:#fff;border-radius:10px;padding:12px;margin-bottom:9px;box-shadow:0 1px 2px rgba(0,0,0,.06);cursor:grab;border-left:3px solid #8b5cf6}
+        .op:active{cursor:grabbing}
+        .op .t{font-weight:700;font-size:13.5px;color:#0f172a;margin-bottom:3px;white-space:normal}
+        .op .cli{font-size:11.5px;color:#64748b;margin-bottom:7px;white-space:normal}
+        .op .meta{display:flex;justify-content:space-between;align-items:center;gap:6px}
+        .op .val{font-weight:800;color:#059669;font-size:13px}
+        .op .acts{display:flex;gap:5px;margin-top:9px}
+        .op .acts button{flex:1;font-size:11px;padding:5px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;font-weight:600;font-family:inherit}
+        .op .acts .win{color:#059669;border-color:#a7f3d0}
+        .op .acts .lose{color:#dc2626;border-color:#fecaca}
+
+        /* Diálogos — `.ov`/`.dlg` para não colidir com `.modal` dos CSS globais.
+           Sem role="dialog": o frontendPolish do auth-unified inertiza tudo que
+           tem esse role quando fechado e não desfaz ao reabrir. */
+        .ov{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;z-index:9999;align-items:center;justify-content:center;padding:16px}
+        .ov.on{display:flex}
+        .dlg{background:#fff;border-radius:14px;width:min(640px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+        .dlg-top{background:#8b5cf6;color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+        .dlg-top h2{font-size:16px;font-weight:700}
+        .dlg-top .x{background:none;border:none;color:#fff;cursor:pointer;font-size:16px}
+        .dlg-body{padding:18px 20px;overflow:auto}
+        .dlg-foot{padding:13px 20px;border-top:1px solid #eef2f6;display:flex;gap:9px;justify-content:flex-end;background:#f8fafc}
+        .fld{margin-bottom:13px}
+        .fld label{display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:5px}
+        .fld input,.fld select,.fld textarea{width:100%;padding:9px 11px;border:1px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:13.5px;background:#fff;color:#0f172a}
+        .fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:#8b5cf6}
+        .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+        .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+        @media(max-width:620px){.row2,.row3{grid-template-columns:1fr}}
+        .hint{font-size:12.5px;color:#64748b;margin-bottom:12px;line-height:1.55}
+        .filtros{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+        .filtros input,.filtros select{padding:8px 11px;border:1px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:13px;background:#fff}
+        .filtros input[type=search]{min-width:250px}
+        .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+
+        /* Catálogo de relatórios — o mapa do módulo em forma de cartão */
+        .rels{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+        .relg{background:#fff;border:1px solid #e2e8f0;border-radius:13px;padding:15px 17px}
+        .relg h3{font-size:13px;color:#8b5cf6;font-weight:700;margin-bottom:9px;text-transform:uppercase;letter-spacing:.3px}
+        .relg a{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;font-size:13px;color:#475569;text-decoration:none;cursor:pointer}
+        .relg a:hover{color:#8b5cf6}
+        .relg .fav{background:none;border:none;cursor:pointer;color:#cbd5e1;font-size:12px;padding:2px 4px}
+        .relg .fav.on{color:#f59e0b}
+        /* O relatório vem pronto do servidor no template neutro A4 — o iframe só
+           precisa de altura suficiente para não criar uma segunda barra de rolagem. */
+        #rel-frame{width:100%;height:calc(100vh - 210px);min-height:520px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+        .toast-wrap{position:fixed;top:18px;right:18px;z-index:10001;display:flex;flex-direction:column;gap:9px}
+        .toast{background:#fff;border-left:4px solid #8b5cf6;border-radius:9px;padding:12px 16px;box-shadow:0 6px 20px rgba(15,23,42,.15);font-size:13px;min-width:250px;max-width:380px}
+        .toast.ok{border-left-color:#22c55e}.toast.err{border-left-color:#ef4444}
+        .lst{list-style:none}
+        .lst li{padding:10px 16px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:11px;font-size:13px}
+        .lst li:last-child{border-bottom:none}
+        .lst .chk{width:17px;height:17px;cursor:pointer;flex:none;accent-color:#8b5cf6}
+        .lst .txt{flex:1;min-width:0}
+        .lst .txt b{display:block;color:#0f172a;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .lst .txt small{color:#94a3b8;font-size:11.5px}
+        .lst .feita b{text-decoration:line-through;color:#94a3b8}
+    </style>
+</head>
+<body>
+<div style="display:flex;min-height:100vh">
+    <aside class="sidebar" id="mobile-sidebar"></aside>
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    <main class="main-area" data-page-name="CRM">
+        <header class="header"></header>
+        <div class="content-area">
+            <div class="head">
+                <h1><i class="fas fa-handshake-angle"></i> CRM</h1>
+                <div style="display:flex;gap:9px;flex-wrap:wrap">
+                    <button class="btn btn-ghost" id="b-atualizar"><i class="fas fa-rotate"></i> Atualizar</button>
+                    <button class="btn btn-rox" id="b-nova-op"><i class="fas fa-plus"></i> Nova Oportunidade</button>
+                </div>
+            </div>
+
+            <div class="tabs" id="tabs"></div>
+
+            <!-- ================= RESUMO ================= -->
+            <section class="pane" id="p-resumo">
+                <div class="kpis" id="resumo-kpis"></div>
+                <div class="grid2">
+                    <div class="panel">
+                        <div class="panel-h"><span><i class="fas fa-list-check"></i>Tarefas das suas Oportunidades</span>
+                            <button class="btn btn-ghost btn-sm" data-goto="tarefas">Ver todas</button></div>
+                        <ul class="lst" id="resumo-tarefas"><li class="empty">Carregando…</li></ul>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-h"><span><i class="fas fa-fire"></i>Oportunidades em destaque</span>
+                            <button class="btn btn-ghost btn-sm" data-goto="oportunidades">Ver funil</button></div>
+                        <div style="overflow:auto"><table>
+                            <thead><tr><th>Oportunidade</th><th>Conta</th><th>Fase</th><th class="num">Valor</th><th>Temp.</th></tr></thead>
+                            <tbody id="resumo-quentes"><tr><td colspan="5" class="empty">Carregando…</td></tr></tbody>
+                        </table></div>
+                    </div>
+                </div>
+
+                <!-- Prospecção alimentando o CRM: o lead traz empresa E pessoa, então
+                     Converter cria conta + contato + oportunidade de uma vez. -->
+                <div class="panel" style="margin-top:16px">
+                    <div class="panel-h">
+                        <span><i class="fas fa-crosshairs"></i>Leads da Prospecção prontos para virar oportunidade</span>
+                        <a class="btn btn-ghost btn-sm" href="/Vendas/prospeccao.html" id="lnk-prospeccao"><i class="fas fa-arrow-up-right-from-square"></i> Abrir Prospecção</a>
+                    </div>
+                    <div style="overflow:auto"><table>
+                        <thead><tr><th>Empresa</th><th>CNPJ</th><th>Contato</th><th>Cidade/UF</th><th>Segmento</th><th class="num">Score</th><th>Etapa</th><th></th></tr></thead>
+                        <tbody id="resumo-leads"><tr><td colspan="8" class="empty">Carregando…</td></tr></tbody>
+                    </table></div>
+                </div>
+            </section>
+
+            <!-- ================= OPORTUNIDADES ================= -->
+            <section class="pane" id="p-oportunidades">
+                <div class="kpis" id="funil-kpis"></div>
+                <div class="filtros">
+                    <input type="search" id="op-q" placeholder="Buscar por título ou conta…">
+                    <select id="op-temp"><option value="">Toda temperatura</option><option value="quente">Quente</option><option value="morno">Morno</option><option value="frio">Frio</option></select>
+                    <select id="op-status"><option value="aberto">Somente ativas</option><option value="">Todas</option><option value="ganho">Ganhas</option><option value="perdido">Perdidas</option></select>
+                    <button class="btn btn-ghost btn-sm" id="b-importar-op"><i class="fas fa-file-import"></i> Importar Planilha</button>
+                    <button class="btn btn-ghost btn-sm" data-goto="fases"><i class="fas fa-bolt"></i> Fases das Oportunidades</button>
+                </div>
+                <div class="board" id="board"></div>
+            </section>
+
+            <!-- ================= CONTAS ================= -->
+            <section class="pane" id="p-contas">
+                <div class="filtros">
+                    <input type="search" id="ct-q" placeholder="Buscar conta por nome ou CNPJ…">
+                    <button class="btn btn-rox btn-sm" id="b-nova-conta"><i class="fas fa-plus"></i> Incluir</button>
+                    <button class="btn btn-ghost btn-sm" id="b-importar-conta"><i class="fas fa-file-import"></i> Importar Planilha</button>
+                </div>
+                <p class="hint">A <strong>conta</strong> do CRM é o cadastro de cliente do ERP — não existe cadastro paralelo.
+                    A <strong>reserva</strong> trava a exclusividade de um vendedor sobre a conta por um prazo.</p>
+                <div class="panel"><table>
+                    <thead><tr><th>Conta</th><th>CNPJ/CPF</th><th>Cidade</th><th>UF</th><th class="num">Contatos</th><th class="num">Oport.</th><th>Reserva</th><th></th></tr></thead>
+                    <tbody id="contas-tb"><tr><td colspan="8" class="empty">Carregando…</td></tr></tbody>
+                </table></div>
+            </section>
+
+            <!-- ================= CONTATOS ================= -->
+            <section class="pane" id="p-contatos">
+                <div class="filtros">
+                    <input type="search" id="cn-q" placeholder="Buscar contato por nome, e-mail ou conta…">
+                    <button class="btn btn-rox btn-sm" id="b-novo-contato"><i class="fas fa-plus"></i> Incluir</button>
+                    <button class="btn btn-ghost btn-sm" id="b-importar-contato"><i class="fas fa-file-import"></i> Importar Planilha</button>
+                </div>
+                <div class="panel"><table>
+                    <thead><tr><th>Contato</th><th>Cargo</th><th>Conta</th><th>E-mail</th><th>Telefone</th><th>Cidade</th><th>UF</th><th></th></tr></thead>
+                    <tbody id="contatos-tb"><tr><td colspan="8" class="empty">Carregando…</td></tr></tbody>
+                </table></div>
+            </section>
+
+            <!-- ================= TAREFAS ================= -->
+            <section class="pane" id="p-tarefas">
+                <div class="kpis" id="tarefas-kpis"></div>
+                <div class="filtros">
+                    <select id="tf-filtro">
+                        <option value="pendentes">Pendentes</option>
+                        <option value="minhas">Somente minhas</option>
+                        <option value="vencidas">Atrasadas</option>
+                        <option value="hoje">Para hoje</option>
+                        <option value="todas">Todas</option>
+                    </select>
+                    <button class="btn btn-rox btn-sm" id="b-nova-tarefa"><i class="fas fa-plus"></i> Nova Tarefa</button>
+                </div>
+                <div class="panel"><table>
+                    <thead><tr><th style="width:36px"></th><th>Tarefa</th><th>Tipo</th><th>Oportunidade</th><th>Responsável</th><th>Prevista</th><th>Situação</th><th></th></tr></thead>
+                    <tbody id="tarefas-tb"><tr><td colspan="8" class="empty">Carregando…</td></tr></tbody>
+                </table></div>
+            </section>
+
+            <!-- ================= RELATÓRIOS ================= -->
+            <section class="pane" id="p-relatorios">
+                <div id="rel-catalogo">
+                    <div class="panel" style="margin-bottom:16px" id="meus-rel-box">
+                        <div class="panel-h"><span><i class="fas fa-star"></i>Meus Relatórios</span></div>
+                        <div id="meus-rel" style="padding:14px 17px;font-size:13px;color:#64748b">
+                            Você pode escolher quais relatórios devem aparecer aqui — clique na estrela ao lado de qualquer relatório abaixo.
+                        </div>
+                    </div>
+                    <div class="rels" id="rels"></div>
+                </div>
+                <div id="rel-view" style="display:none"></div>
+            </section>
+
+            <!-- ================= FASES ================= -->
+            <section class="pane" id="p-fases">
+                <p class="hint">As fases definem as colunas do funil e a probabilidade padrão aplicada ao mover a oportunidade.
+                    As seis fases nativas não podem ser removidas — uma oportunidade parada numa fase apagada sumiria do funil.</p>
+                <div class="filtros"><button class="btn btn-rox btn-sm" id="b-nova-fase"><i class="fas fa-plus"></i> Nova Fase</button></div>
+                <div class="panel" style="max-width:820px"><table>
+                    <thead><tr><th>Ordem</th><th>Fase</th><th>Chave</th><th class="num">Probabilidade</th><th>Tipo</th><th class="num">Oport.</th><th></th></tr></thead>
+                    <tbody id="fases-tb"><tr><td colspan="7" class="empty">Carregando…</td></tr></tbody>
+                </table></div>
+            </section>
+        </div>
+    </main>
+</div>
+
+<!-- ===== Diálogo: Oportunidade ===== -->
+<div class="ov" id="ov-op"><div class="dlg">
+    <div class="dlg-top"><h2 id="op-titulo-dlg">Nova Oportunidade</h2><button class="x" data-close="ov-op"><i class="fas fa-times"></i></button></div>
+    <div class="dlg-body">
+        <input type="hidden" id="f-op-id">
+        <div class="fld"><label>Título *</label><input id="f-op-titulo" placeholder="Ex.: Fornecimento de perfis — Cliente X"></div>
+        <div class="row2">
+            <div class="fld"><label>Conta (cliente)</label><input id="f-op-cliente" list="dl-contas" placeholder="Nome da empresa"><input type="hidden" id="f-op-cliente-id"></div>
+            <div class="fld"><label>Valor estimado (R$)</label><input id="f-op-valor" type="number" step="0.01" value="0"></div>
+        </div>
+        <div class="row3">
+            <div class="fld"><label>Fase</label><select id="f-op-etapa"></select></div>
+            <div class="fld"><label>Temperatura</label><select id="f-op-temp"><option value="frio">Frio</option><option value="morno" selected>Morno</option><option value="quente">Quente</option></select></div>
+            <div class="fld"><label>Probabilidade (%)</label><input id="f-op-prob" type="number" min="0" max="100"></div>
+        </div>
+        <div class="row3">
+            <div class="fld"><label>Vendedor</label><input id="f-op-vendedor"></div>
+            <div class="fld"><label>Origem</label><input id="f-op-origem" list="dl-origens" placeholder="Ex.: indicação, site"></div>
+            <div class="fld"><label>Previsão de fechamento</label><input id="f-op-data" type="date"></div>
+        </div>
+        <div class="fld"><label>Observações</label><textarea id="f-op-obs" rows="3"></textarea></div>
+    </div>
+    <div class="dlg-foot">
+        <button class="btn btn-ghost" id="b-op-excluir" style="margin-right:auto;color:#dc2626">Excluir</button>
+        <button class="btn btn-ghost" data-close="ov-op">Cancelar</button>
+        <button class="btn btn-rox" id="b-op-salvar">Salvar</button>
+    </div>
+</div></div>
+
+<!-- ===== Diálogo: Detalhe da oportunidade (histórico) ===== -->
+<div class="ov" id="ov-hist"><div class="dlg">
+    <div class="dlg-top"><h2>Histórico da Oportunidade</h2><button class="x" data-close="ov-hist"><i class="fas fa-times"></i></button></div>
+    <div class="dlg-body" id="hist-body"></div>
+    <div class="dlg-foot">
+        <input id="f-nota" placeholder="Registrar uma nota…" style="flex:1;padding:9px 11px;border:1px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:13.5px">
+        <button class="btn btn-rox" id="b-nota-add">Registrar</button>
+    </div>
+</div></div>
+
+<!-- ===== Diálogo: Contato ===== -->
+<div class="ov" id="ov-contato"><div class="dlg">
+    <div class="dlg-top"><h2 id="contato-titulo-dlg">Novo Contato</h2><button class="x" data-close="ov-contato"><i class="fas fa-times"></i></button></div>
+    <div class="dlg-body">
+        <input type="hidden" id="f-cn-id">
+        <div class="row2">
+            <div class="fld"><label>Nome *</label><input id="f-cn-nome"></div>
+            <div class="fld"><label>Cargo</label><input id="f-cn-cargo" placeholder="Ex.: Diretor Comercial"></div>
+        </div>
+        <div class="fld"><label>Conta (cliente)</label><input id="f-cn-conta" list="dl-contas" placeholder="Empresa do contato"><input type="hidden" id="f-cn-cliente-id"></div>
+        <div class="row3">
+            <div class="fld"><label>E-mail</label><input id="f-cn-email" type="email"></div>
+            <div class="fld"><label>Telefone</label><input id="f-cn-telefone"></div>
+            <div class="fld"><label>Celular</label><input id="f-cn-celular"></div>
+        </div>
+        <div class="row3">
+            <div class="fld"><label>Cidade</label><input id="f-cn-cidade"></div>
+            <div class="fld"><label>UF</label><input id="f-cn-uf" maxlength="2" style="text-transform:uppercase"></div>
+            <div class="fld"><label>Origem</label><input id="f-cn-origem" list="dl-origens"></div>
+        </div>
+        <div class="fld"><label>Observações</label><textarea id="f-cn-obs" rows="2"></textarea></div>
+    </div>
+    <div class="dlg-foot">
+        <button class="btn btn-ghost" data-close="ov-contato">Cancelar</button>
+        <button class="btn btn-rox" id="b-cn-salvar">Salvar</button>
+    </div>
+</div></div>
+
+<!-- ===== Diálogo: Tarefa ===== -->
+<div class="ov" id="ov-tarefa"><div class="dlg">
+    <div class="dlg-top"><h2 id="tarefa-titulo-dlg">Nova Tarefa</h2><button class="x" data-close="ov-tarefa"><i class="fas fa-times"></i></button></div>
+    <div class="dlg-body">
+        <input type="hidden" id="f-tf-id">
+        <div class="fld"><label>Título *</label><input id="f-tf-titulo" placeholder="Ex.: Ligar para acompanhar a proposta"></div>
+        <div class="row3">
+            <div class="fld"><label>Tipo</label><select id="f-tf-tipo">
+                <option value="ligacao">Ligação</option><option value="email">E-mail</option><option value="reuniao">Reunião</option>
+                <option value="visita">Visita</option><option value="proposta">Proposta</option><option value="tarefa" selected>Tarefa</option></select></div>
+            <div class="fld"><label>Prioridade</label><select id="f-tf-prio"><option value="baixa">Baixa</option><option value="media" selected>Média</option><option value="alta">Alta</option></select></div>
+            <div class="fld"><label>Prevista para</label><input id="f-tf-data" type="datetime-local"></div>
+        </div>
+        <div class="row2">
+            <div class="fld"><label>Oportunidade</label><select id="f-tf-op"><option value="">— nenhuma —</option></select></div>
+            <div class="fld"><label>Responsável</label><input id="f-tf-resp"></div>
+        </div>
+        <div class="fld"><label>Descrição</label><textarea id="f-tf-desc" rows="3"></textarea></div>
+    </div>
+    <div class="dlg-foot">
+        <button class="btn btn-ghost" data-close="ov-tarefa">Cancelar</button>
+        <button class="btn btn-rox" id="b-tf-salvar">Salvar</button>
+    </div>
+</div></div>
+
+<!-- ===== Diálogo: Fase ===== -->
+<div class="ov" id="ov-fase"><div class="dlg" style="width:min(440px,96vw)">
+    <div class="dlg-top"><h2 id="fase-titulo-dlg">Nova Fase</h2><button class="x" data-close="ov-fase"><i class="fas fa-times"></i></button></div>
+    <div class="dlg-body">
+        <input type="hidden" id="f-fa-id">
+        <div class="fld"><label>Nome *</label><input id="f-fa-nome" placeholder="Ex.: Aguardando aprovação"></div>
+        <div class="row2">
+            <div class="fld"><label>Ordem</label><input id="f-fa-ordem" type="number" min="1"></div>
+            <div class="fld"><label>Probabilidade (%)</label><input id="f-fa-prob" type="number" min="0" max="100" value="0"></div>
+        </div>
+        <div class="fld"><label>Cor</label><input id="f-fa-cor" type="color" value="#8b5cf6" style="height:42px;padding:4px"></div>
+    </div>
+    <div class="dlg-foot">
+        <button class="btn btn-ghost" data-close="ov-fase">Cancelar</button>
+        <button class="btn btn-rox" id="b-fa-salvar">Salvar</button>
+    </div>
+</div></div>
+
+<!-- ===== Diálogo: Importar planilha ===== -->
+<div class="ov" id="ov-import"><div class="dlg">
+    <div class="dlg-top"><h2 id="import-titulo-dlg">Importar Planilha</h2><button class="x" data-close="ov-import"><i class="fas fa-times"></i></button></div>
+    <div class="dlg-body">
+        <p class="hint" id="import-hint"></p>
+        <div class="fld"><label>Cole aqui as linhas copiadas do Excel (uma por linha)</label>
+            <textarea id="f-imp-texto" rows="10" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px"></textarea></div>
+        <div id="import-result"></div>
+    </div>
+    <div class="dlg-foot">
+        <button class="btn btn-ghost" data-close="ov-import">Fechar</button>
+        <button class="btn btn-rox" id="b-imp-run">Importar</button>
+    </div>
+</div></div>
+
+<!-- ===== Diálogo: Reserva de conta ===== -->
+<div class="ov" id="ov-reserva"><div class="dlg" style="width:min(420px,96vw)">
+    <div class="dlg-top"><h2>Reservar Conta</h2><button class="x" data-close="ov-reserva"><i class="fas fa-times"></i></button></div>
+    <div class="dlg-body">
+        <input type="hidden" id="f-rs-id">
+        <p class="hint">Enquanto vigente, a reserva sinaliza que a conta já está sendo trabalhada por este vendedor.</p>
+        <div class="fld"><label>Conta</label><input id="f-rs-conta" disabled></div>
+        <div class="row2">
+            <div class="fld"><label>Vendedor</label><input id="f-rs-vendedor"></div>
+            <div class="fld"><label>Válida até</label><input id="f-rs-ate" type="date"></div>
+        </div>
+    </div>
+    <div class="dlg-foot">
+        <button class="btn btn-ghost" id="b-rs-liberar" style="margin-right:auto;color:#dc2626">Liberar</button>
+        <button class="btn btn-ghost" data-close="ov-reserva">Cancelar</button>
+        <button class="btn btn-rox" id="b-rs-salvar">Reservar</button>
+    </div>
+</div></div>
+
+<datalist id="dl-contas"></datalist>
+<datalist id="dl-origens"><option value="indicacao"><option value="site"><option value="feira"><option value="prospeccao ativa"><option value="cliente antigo"></datalist>
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="/js/global-sidebar-submenu.js?v=20260909-relfiltros" defer></script>
+<script>
+(function(){
+'use strict';
+// `withBase` — nas instâncias Labor a app vive sob /labor-energy e /labor-eletric.
+// Chamar /api/... absoluto ali cai na aluforce.
+function withBase(p){var m=(location.pathname||'').match(/^\/labor-(energy|eletric)(?=\/|$)/i);return (m?m[0]:'')+p;}
+function tok(){var k=['token','authToken','jwt','access_token'];for(var i=0;i<k.length;i++){var v=localStorage.getItem(k[i]);if(v)return v;}return null;}
+function csrf(){var m=document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);return m?decodeURIComponent(m[1]):null;}
+function H(){
+    var h={'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'};
+    var t=tok(); if(t)h['Authorization']='Bearer '+t;
+    var c=csrf(); if(c)h['X-CSRF-Token']=c;
+    return h;
+}
+function el(id){return document.getElementById(id);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
+function brl(n){return 'R$ '+Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function nInt(n){return Number(n||0).toLocaleString('pt-BR');}
+function dtBR(d){if(!d)return '—';var x=new Date(d);return isNaN(x)?'—':x.toLocaleDateString('pt-BR');}
+function dtHoraBR(d){if(!d)return '—';var x=new Date(d);return isNaN(x)?'—':x.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}
+
+function toast(msg,tipo){
+    // `alert()` estampa "zyntraerp.com.br diz" no topo do diálogo do navegador.
+    var d=document.createElement('div');
+    d.className='toast'+(tipo?' '+tipo:'');
+    d.innerHTML=esc(msg);
+    el('toasts').appendChild(d);
+    setTimeout(function(){d.remove();},4200);
+}
+
+async function api(url,opts){
+    opts=opts||{};
+    opts.credentials='include';
+    opts.headers=Object.assign(H(),opts.headers||{});
+    var r=await fetch(withBase(url),opts);
+    if(r.status===401){location.href=withBase('/login.html?expired=1');return null;}
+    var j=null;
+    try{j=await r.json();}catch(e){j=null;}
+    if(!r.ok){throw new Error((j&&j.message)||('HTTP '+r.status));}
+    return j;
+}
+
+// ---------------------------------------------------------------
+// Abas por hash — mesma convenção de Logística e Qualidade, e o
+// submenu global usa esses mesmos hashes como deep-link.
+// ---------------------------------------------------------------
+var ABAS=[
+    {id:'resumo',       nome:'Resumo',                  icone:'fa-gauge-high'},
+    {id:'oportunidades',nome:'Painel de Oportunidades', icone:'fa-filter'},
+    {id:'contas',       nome:'Contas',                  icone:'fa-building'},
+    {id:'contatos',     nome:'Contatos',                icone:'fa-address-book'},
+    {id:'tarefas',      nome:'Painel de Tarefas',       icone:'fa-list-check'},
+    {id:'relatorios',   nome:'Relatórios',              icone:'fa-chart-bar'},
+    {id:'fases',        nome:'Fases das Oportunidades', icone:'fa-bolt'}
+];
+var abaAtual=null;
+
+function montarTabs(){
+    el('tabs').innerHTML=ABAS.map(function(a){
+        return '<button class="tab" data-aba="'+a.id+'"><i class="fas '+a.icone+'"></i>'+esc(a.nome)+'</button>';
+    }).join('');
+    el('tabs').addEventListener('click',function(e){
+        var b=e.target.closest('.tab'); if(!b)return;
+        location.hash='#'+b.dataset.aba;
+    });
+}
+
+function irPara(id){ location.hash='#'+id; }
+
+function aplicarHash(){
+    // O menu global manda ações no próprio hash (#contatos?novo=1) porque cada
+    // cartão do mega-menu aponta para a MESMA página, mudando só a aba e a ação.
+    var bruto=(location.hash||'').replace('#','');
+    var h=bruto.split('?')[0];
+    var acao=new URLSearchParams(bruto.split('?')[1]||'');
+    if(!ABAS.some(function(a){return a.id===h;})) h='resumo';
+    abaAtual=h;
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){t.classList.toggle('on',t.dataset.aba===h);});
+    Array.prototype.forEach.call(document.querySelectorAll('.pane'),function(p){p.classList.toggle('on',p.id==='p-'+h);});
+    carregarAba(h);
+
+    if(acao.get('novo')==='1'){
+        if(h==='oportunidades')abrirOp(null);
+        if(h==='contatos')     abrirContato(null);
+        if(h==='tarefas')      abrirTarefa(null);
+        if(h==='fases')        el('b-nova-fase').click();
+    }
+    if(acao.get('importar')==='1'){
+        if(h==='oportunidades')abrirImport('oportunidades');
+        if(h==='contatos')     abrirImport('contatos');
+    }
+}
+
+var carregado={};
+function carregarAba(h,forcar){
+    if(carregado[h]&&!forcar)return;
+    carregado[h]=true;
+    if(h==='resumo')      carregarResumo();
+    if(h==='oportunidades')carregarFunil();
+    if(h==='contas')      carregarContas();
+    if(h==='contatos')    carregarContatos();
+    if(h==='tarefas')     carregarTarefas();
+    if(h==='relatorios')  carregarCatalogoRelatorios();
+    if(h==='fases')       carregarFases();
+}
+
+// ---------------------------------------------------------------
+// Estado compartilhado
+// ---------------------------------------------------------------
+var ETAPAS=[], OPORTUNIDADES=[], CONTAS=[], FAVORITOS=[], CATALOGO=[];
+
+async function carregarEtapas(){
+    if(ETAPAS.length)return ETAPAS;
+    var j=await api('/api/crm/etapas').catch(function(){return null;});
+    ETAPAS=(j&&j.data)||[];
+    var sel=el('f-op-etapa');
+    sel.innerHTML=ETAPAS.filter(function(e){return e.tipo==='aberto';})
+        .map(function(e){return '<option value="'+esc(e.chave)+'">'+esc(e.nome)+'</option>';}).join('');
+    return ETAPAS;
+}
+
+async function carregarListaContas(){
+    if(CONTAS.length)return CONTAS;
+    var j=await api('/api/crm/contas?limit=1000').catch(function(){return null;});
+    CONTAS=(j&&j.data)||[];
+    el('dl-contas').innerHTML=CONTAS.map(function(c){return '<option value="'+esc(c.nome)+'">';}).join('');
+    return CONTAS;
+}
+function contaIdPorNome(nome){
+    var c=CONTAS.find(function(x){return (x.nome||'').toLowerCase()===String(nome||'').toLowerCase();});
+    return c?c.id:null;
+}
+
+// ---------------------------------------------------------------
+// RESUMO
+// ---------------------------------------------------------------
+async function carregarResumo(){
+    // As fases vêm antes: sem elas `badgeEtapa` cai no fallback e estampa a CHAVE
+    // ('prospeccao') em vez do nome ('Prospecção') — e o CSS ainda deixa maiúscula.
+    await carregarEtapas();
+    var j=await api('/api/crm/resumo').catch(function(e){toast('Resumo: '+e.message,'err');return null;});
+    if(!j)return;
+    var k=j.kpis||{};
+    el('resumo-kpis').innerHTML=[
+        {v:brl(k.pipeline),l:'Pipeline aberto',h:nInt(k.abertas)+' oportunidade(s)'},
+        {v:brl(k.ponderado),l:'Valor ponderado',h:'valor × probabilidade'},
+        {v:brl(k.ganho_mes),l:'Ganho no mês',c:'bom'},
+        {v:(k.taxa_conversao||0)+'%',l:'Taxa de conversão'},
+        {v:nInt(k.contas),l:'Contas'},
+        {v:nInt(k.contatos),l:'Contatos'},
+        {v:nInt(k.leads_abertos),l:'Leads em aberto',h:'na Prospecção'},
+        {v:nInt(k.tarefas_vencidas),l:'Tarefas atrasadas',c:k.tarefas_vencidas?'alerta':''}
+    ].map(function(x){
+        return '<div class="kpi '+(x.c||'')+'"><div class="v">'+x.v+'</div><div class="l">'+x.l+'</div>'+(x.h?'<div class="h">'+x.h+'</div>':'')+'</div>';
+    }).join('');
+    if(window.ZyntraKpiDetails){
+        ZyntraKpiDetails.bindCards(el('resumo-kpis'),[
+            {title:'Pipeline aberto',value:brl(k.pipeline),icon:'fa-filter',description:'Soma do valor estimado das oportunidades que continuam abertas no funil.',facts:[{label:'Oportunidades abertas',value:nInt(k.abertas)},{label:'Período',value:'Posição atual'}],action:{label:'Abrir funil',handler:function(){irPara('oportunidades');}}},
+            {title:'Valor ponderado',value:brl(k.ponderado),icon:'fa-scale-balanced',description:'Estimativa do pipeline considerando o valor de cada oportunidade multiplicado pela probabilidade da fase atual.',facts:[{label:'Cálculo',value:'Valor × probabilidade'},{label:'Oportunidades abertas',value:nInt(k.abertas)}],action:{label:'Abrir funil',handler:function(){irPara('oportunidades');}}},
+            {title:'Ganho no mês',value:brl(k.ganho_mes),icon:'fa-trophy',description:'Valor das oportunidades marcadas como ganhas dentro do mês corrente.',facts:[{label:'Competência',value:'Mês atual'},{label:'Situação',value:'Ganhas'}],action:{label:'Ver oportunidades',handler:function(){irPara('oportunidades');el('op-status').value='ganho';carregarFunil();}}},
+            {title:'Taxa de conversão',value:(k.taxa_conversao||0)+'%',icon:'fa-percent',description:'Percentual de oportunidades ganhas sobre as oportunidades já encerradas como ganhas ou perdidas.',facts:[{label:'Base',value:'Ganhas + perdidas'},{label:'Atualização',value:'Tempo real'}],action:{label:'Abrir funil',handler:function(){irPara('oportunidades');}}},
+            {title:'Contas',value:nInt(k.contas),icon:'fa-building',description:'Quantidade de empresas ou clientes disponíveis como contas no CRM.',facts:[{label:'Origem',value:'Cadastro de clientes'},{label:'Escopo',value:'Instância atual'}],action:{label:'Abrir contas',handler:function(){irPara('contas');}}},
+            {title:'Contatos',value:nInt(k.contatos),icon:'fa-address-book',description:'Pessoas de contato vinculadas às contas do CRM.',facts:[{label:'Vínculo',value:'Contas do CRM'},{label:'Escopo',value:'Instância atual'}],action:{label:'Abrir contatos',handler:function(){irPara('contatos');}}},
+            {title:'Leads em aberto',value:nInt(k.leads_abertos),icon:'fa-crosshairs',description:'Leads que ainda estão em tratamento na Prospecção e podem avançar para uma oportunidade.',facts:[{label:'Origem',value:'Prospecção e Leads'},{label:'Situação',value:'Não convertidos'}],action:{label:'Abrir prospecção',handler:function(){location.href=withBase('/Vendas/prospeccao.html');}}},
+            {title:'Tarefas atrasadas',value:nInt(k.tarefas_vencidas),icon:'fa-clock',description:'Tarefas pendentes cuja data prevista já passou.',facts:[{label:'Situação',value:'Pendentes'},{label:'Prazo',value:'Vencido'}],action:{label:'Ver atrasadas',handler:function(){irPara('tarefas');el('tf-filtro').value='vencidas';carregarTarefas();}}}
+        ]);
+    }
+
+    var tar=j.tarefas||[];
+    el('resumo-tarefas').innerHTML=tar.length?tar.map(function(t){
+        var atrasada=t.data_prevista&&new Date(t.data_prevista)<new Date();
+        return '<li><input type="checkbox" class="chk" data-concluir="'+t.id+'">'+
+            '<div class="txt"><b>'+esc(t.titulo)+'</b><small>'+
+            (t.oportunidade_titulo?esc(t.oportunidade_titulo)+' · ':'')+
+            (t.data_prevista?(atrasada?'<span style="color:#dc2626;font-weight:600">'+dtHoraBR(t.data_prevista)+'</span>':dtHoraBR(t.data_prevista)):'sem prazo')+
+            '</small></div></li>';
+    }).join(''):'<li class="empty">Nenhuma tarefa pendente para os próximos 7 dias.</li>';
+
+    var q=j.quentes||[];
+    el('resumo-quentes').innerHTML=q.length?q.map(function(o){
+        return '<tr style="cursor:pointer" data-abrir-op="'+o.id+'"><td>'+esc(o.titulo)+'</td><td>'+esc(o.cliente_nome||'—')+'</td>'+
+            '<td>'+badgeEtapa(o.etapa)+'</td><td class="num">'+brl(o.valor_estimado)+'</td><td>'+badgeTemp(o.temperatura)+'</td></tr>';
+    }).join(''):'<tr><td colspan="5" class="empty">Nenhuma oportunidade aberta. Comece incluindo uma.</td></tr>';
+
+    renderLeads(j.leads||[]);
+}
+
+var ROTULO_LEAD={novo:'Novo',contato:'Em contato',qualificado:'Qualificado',negociacao:'Negociação',convertido:'Convertido',perdido:'Perdido'};
+function renderLeads(leads){
+    el('resumo-leads').innerHTML=leads.length?leads.map(function(l){
+        var jaTemConta=l.cliente_id?' <i class="fas fa-link" title="Conta já existe no cadastro" style="color:#22c55e"></i>':'';
+        return '<tr><td>'+esc(l.nome_fantasia||l.razao_social||'—')+jaTemConta+'</td>'+
+            '<td>'+esc(l.cnpj||'—')+'</td>'+
+            '<td>'+esc(l.contato||'—')+(l.cargo?' <small style="color:#94a3b8">'+esc(l.cargo)+'</small>':'')+'</td>'+
+            '<td>'+esc([l.cidade,l.uf].filter(Boolean).join('/')||'—')+'</td>'+
+            '<td>'+esc(l.segmento||'—')+'</td>'+
+            '<td class="num">'+nInt(l.score_prospeccao)+'</td>'+
+            '<td><span class="bdg bdg-azul">'+esc(ROTULO_LEAD[l.status]||l.status||'novo')+'</span></td>'+
+            '<td style="text-align:right"><button class="btn btn-rox btn-sm" data-converter-lead="'+l.id+'">'+
+            '<i class="fas fa-arrow-right-arrow-left"></i> Converter</button></td></tr>';
+    }).join(''):'<tr><td colspan="8" class="empty">Nenhum lead qualificado no momento. Capture e qualifique na tela de <strong>Prospecção &amp; Leads</strong>.</td></tr>';
+}
+
+// Converter cria conta + contato + oportunidade numa chamada só. A conta é casada por
+// CNPJ sem máscara, então lead de cliente que já existe NÃO duplica cadastro.
+async function converterLead(id,btn){
+    if(!confirm('Converter este lead?\n\nSerá criada a conta (se ainda não existir), o contato e uma oportunidade no funil.'))return;
+    var antes=btn.innerHTML; btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Convertendo…';
+    try{
+        var j=await api('/api/crm/leads/'+id+'/converter',{method:'POST',body:JSON.stringify({criar_oportunidade:true})});
+        toast(j.message||'Lead convertido.','ok');
+        carregado={}; carregarResumo();
+        if(j.oportunidade_id){
+            setTimeout(function(){ if(confirm('Abrir a oportunidade criada agora?')) irPara('oportunidades'); },250);
+        }
+    }catch(e){
+        toast('Não foi possível converter: '+e.message,'err');
+        btn.disabled=false; btn.innerHTML=antes;
+    }
+}
+
+function badgeEtapa(e){
+    var f=ETAPAS.find(function(x){return x.chave===e;});
+    var nome=f?f.nome:(e||'—');
+    return '<span class="bdg bdg-roxo">'+esc(nome)+'</span>';
+}
+function badgeTemp(t){
+    var m={quente:'bdg-vermelho',morno:'bdg-amarelo',frio:'bdg-azul'};
+    return '<span class="bdg '+(m[t]||'bdg-cinza')+'">'+esc(t||'—')+'</span>';
+}
+
+// ---------------------------------------------------------------
+// OPORTUNIDADES — funil
+// ---------------------------------------------------------------
+async function carregarFunil(){
+    await carregarEtapas();
+    var status=el('op-status').value;
+    var qs=[]; if(status)qs.push('status='+encodeURIComponent(status));
+    if(el('op-temp').value)qs.push('temperatura='+encodeURIComponent(el('op-temp').value));
+    if(el('op-q').value.trim())qs.push('q='+encodeURIComponent(el('op-q').value.trim()));
+
+    var res=await Promise.all([
+        api('/api/crm/funil').catch(function(){return null;}),
+        api('/api/crm/oportunidades'+(qs.length?'?'+qs.join('&'):'')).catch(function(){return null;})
+    ]);
+    var funil=res[0], lista=res[1];
+    if(!funil||!lista){toast('Não foi possível carregar o funil.','err');return;}
+    OPORTUNIDADES=lista.data||[];
+
+    var t=funil.totais||{};
+    el('funil-kpis').innerHTML=[
+        {v:brl(t.pipeline),l:'Pipeline aberto',h:nInt(t.abertas)+' aberta(s)'},
+        {v:brl(t.ponderado),l:'Ponderado'},
+        {v:brl(t.ganho),l:'Ganho acumulado',c:'bom',h:nInt(t.ganhas)+' ganha(s)'},
+        {v:brl(t.perdido),l:'Perdido acumulado',c:'alerta',h:nInt(t.perdidas)+' perdida(s)'},
+        {v:(t.taxa_conversao||0)+'%',l:'Taxa de conversão'}
+    ].map(function(x){
+        return '<div class="kpi '+(x.c||'')+'"><div class="v">'+x.v+'</div><div class="l">'+x.l+'</div>'+(x.h?'<div class="h">'+x.h+'</div>':'')+'</div>';
+    }).join('');
+
+    if(window.ZyntraKpiDetails){
+        ZyntraKpiDetails.bindCards(el('funil-kpis'),[
+            {title:'Pipeline aberto',value:brl(t.pipeline),icon:'fa-filter',description:'Valor total das oportunidades que permanecem abertas, independentemente da fase.',facts:[{label:'Oportunidades abertas',value:nInt(t.abertas)},{label:'Filtro do painel',value:el('op-status').selectedOptions[0].text}],action:{label:'Mostrar ativas',handler:function(){el('op-status').value='aberto';carregarFunil();}}},
+            {title:'Valor ponderado',value:brl(t.ponderado),icon:'fa-scale-balanced',description:'Projeção do pipeline após aplicar a probabilidade cadastrada em cada fase.',facts:[{label:'Cálculo',value:'Valor × probabilidade'},{label:'Base',value:nInt(t.abertas)+' aberta(s)'}],action:{label:'Mostrar ativas',handler:function(){el('op-status').value='aberto';carregarFunil();}}},
+            {title:'Ganho acumulado',value:brl(t.ganho),icon:'fa-trophy',description:'Soma das oportunidades encerradas com resultado ganho.',facts:[{label:'Oportunidades ganhas',value:nInt(t.ganhas)},{label:'Situação',value:'Ganho'}],action:{label:'Mostrar ganhas',handler:function(){el('op-status').value='ganho';carregarFunil();}}},
+            {title:'Perdido acumulado',value:brl(t.perdido),icon:'fa-circle-xmark',description:'Soma das oportunidades encerradas com resultado perdido.',facts:[{label:'Oportunidades perdidas',value:nInt(t.perdidas)},{label:'Situação',value:'Perdido'}],action:{label:'Mostrar perdidas',handler:function(){el('op-status').value='perdido';carregarFunil();}}},
+            {title:'Taxa de conversão',value:(t.taxa_conversao||0)+'%',icon:'fa-percent',description:'Percentual de oportunidades ganhas em relação ao total de oportunidades encerradas.',facts:[{label:'Ganhas',value:nInt(t.ganhas)},{label:'Perdidas',value:nInt(t.perdidas)}],action:{label:'Mostrar todas',handler:function(){el('op-status').value='';carregarFunil();}}}
+        ]);
+    }
+
+    var cols=(funil.funil||[]).filter(Boolean);
+    if(!cols.length)cols=ETAPAS.filter(function(e){return e.tipo==='aberto';}).map(function(e){return {etapa:e.chave,nome:e.nome,cor:e.cor,qtd:0,valor:0};});
+    var board=el('board');
+    board.style.gridTemplateColumns='repeat('+cols.length+',minmax(230px,1fr))';
+    board.innerHTML=cols.map(function(c){
+        var cards=OPORTUNIDADES.filter(function(o){return o.etapa===c.etapa;});
+        return '<div class="col" data-etapa="'+esc(c.etapa)+'">'+
+            '<div class="col-h"><span style="color:'+esc(c.cor||'#8b5cf6')+'">'+esc(c.nome||c.etapa)+'</span><span class="ct">'+cards.length+'</span></div>'+
+            '<div class="col-tot">'+brl(c.valor)+'</div>'+
+            (cards.map(cardOp).join('')||'<div class="empty" style="padding:22px;font-size:12px">Sem oportunidades</div>')+
+        '</div>';
+    }).join('');
+}
+
+function cardOp(o){
+    return '<div class="op" draggable="true" data-op="'+o.id+'" style="border-left-color:'+(o.temperatura==='quente'?'#ef4444':o.temperatura==='frio'?'#60a5fa':'#f59e0b')+'">'+
+        '<div class="t">'+esc(o.titulo)+'</div>'+
+        '<div class="cli">'+esc(o.cliente_nome||'—')+(o.vendedor_nome?' · '+esc(o.vendedor_nome):'')+'</div>'+
+        '<div class="meta"><span class="val">'+brl(o.valor_estimado)+'</span>'+badgeTemp(o.temperatura)+'</div>'+
+        '<div class="acts">'+
+            '<button data-editar="'+o.id+'">Editar</button>'+
+            '<button data-hist="'+o.id+'">Histórico</button>'+
+            '<button class="win" data-ganhar="'+o.id+'">Ganhar</button>'+
+            '<button class="lose" data-perder="'+o.id+'">Perder</button>'+
+        '</div></div>';
+}
+
+var arrastando=null;
+document.addEventListener('dragstart',function(e){
+    var c=e.target.closest&&e.target.closest('.op'); if(!c)return;
+    arrastando=c.dataset.op; e.dataTransfer.effectAllowed='move';
+});
+document.addEventListener('dragover',function(e){
+    var col=e.target.closest&&e.target.closest('.col'); if(!col)return;
+    e.preventDefault(); col.classList.add('over');
+});
+document.addEventListener('dragleave',function(e){
+    var col=e.target.closest&&e.target.closest('.col'); if(col)col.classList.remove('over');
+});
+document.addEventListener('drop',async function(e){
+    var col=e.target.closest&&e.target.closest('.col'); if(!col||!arrastando)return;
+    e.preventDefault(); col.classList.remove('over');
+    var id=arrastando; arrastando=null;
+    await moverOp(id,col.dataset.etapa);
+});
+
+async function moverOp(id,etapa,motivo){
+    try{
+        await api('/api/crm/oportunidades/'+id+'/mover',{method:'PATCH',body:JSON.stringify({etapa:etapa,motivo_perda:motivo||null})});
+        toast('Oportunidade movida.','ok');
+        carregarFunil(); carregado.resumo=false;
+    }catch(err){toast('Não foi possível mover: '+err.message,'err');}
+}
+
+// ---------------------------------------------------------------
+// CONTAS
+// ---------------------------------------------------------------
+async function carregarContas(){
+    var q=el('ct-q').value.trim();
+    var j=await api('/api/crm/contas'+(q?'?q='+encodeURIComponent(q):'')).catch(function(e){toast('Contas: '+e.message,'err');return null;});
+    if(!j)return;
+    CONTAS=j.data||[];
+    el('dl-contas').innerHTML=CONTAS.map(function(c){return '<option value="'+esc(c.nome)+'">';}).join('');
+    el('contas-tb').innerHTML=CONTAS.length?CONTAS.map(function(c){
+        var res='—';
+        if(c.reserva_valida_ate){
+            var venc=new Date(c.reserva_valida_ate)<new Date();
+            res='<span class="bdg '+(venc?'bdg-vermelho':'bdg-verde')+'">'+esc(c.reservado_por||'reservada')+' · '+dtBR(c.reserva_valida_ate)+'</span>';
+        }
+        return '<tr><td>'+esc(c.nome)+'</td><td>'+esc(c.cnpj_cpf||'—')+'</td><td>'+esc(c.cidade||'—')+'</td><td>'+esc(c.uf||'—')+'</td>'+
+            '<td class="num">'+nInt(c.contatos)+'</td><td class="num">'+nInt(c.oportunidades_abertas)+'</td><td>'+res+'</td>'+
+            '<td><button class="btn btn-ghost btn-sm" data-reservar="'+c.id+'"><i class="fas fa-lock"></i> Reserva</button></td></tr>';
+    }).join(''):'<tr><td colspan="8" class="empty">Nenhuma conta encontrada.</td></tr>';
+}
+
+// ---------------------------------------------------------------
+// CONTATOS
+// ---------------------------------------------------------------
+async function carregarContatos(){
+    var q=el('cn-q').value.trim();
+    var j=await api('/api/crm/contatos'+(q?'?q='+encodeURIComponent(q):'')).catch(function(e){toast('Contatos: '+e.message,'err');return null;});
+    if(!j)return;
+    var rows=j.data||[];
+    el('contatos-tb').innerHTML=rows.length?rows.map(function(c){
+        return '<tr><td>'+esc(c.nome)+'</td><td>'+esc(c.cargo||'—')+'</td><td>'+esc(c.conta||'—')+'</td>'+
+            '<td>'+(c.email?'<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':'—')+'</td>'+
+            '<td>'+esc(c.telefone||c.celular||'—')+'</td><td>'+esc(c.cidade||'—')+'</td><td>'+esc(c.uf||'—')+'</td>'+
+            '<td style="text-align:right"><button class="btn btn-ghost btn-sm" data-editar-cn="'+c.id+'"><i class="fas fa-pen"></i></button> '+
+            '<button class="btn btn-ghost btn-sm" data-excluir-cn="'+c.id+'" style="color:#dc2626"><i class="fas fa-trash"></i></button></td></tr>';
+    }).join(''):'<tr><td colspan="8" class="empty">Nenhum contato cadastrado. Use <strong>Incluir</strong> ou <strong>Importar Planilha</strong>.</td></tr>';
+}
+
+// ---------------------------------------------------------------
+// TAREFAS
+// ---------------------------------------------------------------
+async function carregarTarefas(){
+    var f=el('tf-filtro').value, qs=[];
+    if(f==='pendentes')qs.push('concluida=0');
+    if(f==='minhas')   qs.push('minhas=1','concluida=0');
+    if(f==='vencidas') qs.push('vencidas=1');
+    if(f==='hoje')     qs.push('hoje=1');
+    var j=await api('/api/crm/tarefas'+(qs.length?'?'+qs.join('&'):'')).catch(function(e){toast('Tarefas: '+e.message,'err');return null;});
+    if(!j)return;
+    var rows=j.data||[];
+    var agora=new Date();
+    var atrasadas=rows.filter(function(t){return !t.concluida&&t.data_prevista&&new Date(t.data_prevista)<agora;}).length;
+    el('tarefas-kpis').innerHTML=[
+        {v:nInt(rows.length),l:'Tarefas listadas'},
+        {v:nInt(rows.filter(function(t){return !t.concluida;}).length),l:'Pendentes'},
+        {v:nInt(atrasadas),l:'Atrasadas',c:atrasadas?'alerta':''},
+        {v:nInt(rows.filter(function(t){return t.concluida;}).length),l:'Concluídas',c:'bom'}
+    ].map(function(x){return '<div class="kpi '+(x.c||'')+'"><div class="v">'+x.v+'</div><div class="l">'+x.l+'</div></div>';}).join('');
+
+    if(window.ZyntraKpiDetails){
+        var linhasTarefa=function(lista){return lista.map(function(tarefa){
+            var vencida=!tarefa.concluida&&tarefa.data_prevista&&new Date(tarefa.data_prevista)<agora;
+            return [tarefa.titulo||'—',tarefa.tipo||'—',tarefa.oportunidade_titulo||'—',tarefa.responsavel_nome||'—',tarefa.data_prevista?dtHoraBR(tarefa.data_prevista):'—',tarefa.concluida?'Concluída':vencida?'Atrasada':'Pendente'];
+        });};
+        var pendentes=rows.filter(function(tarefa){return !tarefa.concluida;});
+        var vencidas=rows.filter(function(tarefa){return !tarefa.concluida&&tarefa.data_prevista&&new Date(tarefa.data_prevista)<agora;});
+        var concluidas=rows.filter(function(tarefa){return !!tarefa.concluida;});
+        var cabecalhos=['Tarefa','Tipo','Oportunidade','Responsável','Prevista','Situação'];
+        var filtroAtual=el('tf-filtro').selectedOptions[0].text;
+        ZyntraKpiDetails.bindCards(el('tarefas-kpis'),[
+            {title:'Tarefas listadas',value:nInt(rows.length),icon:'fa-list-check',description:'Todas as tarefas retornadas pelo filtro atualmente selecionado.',facts:[{label:'Filtro atual',value:filtroAtual},{label:'Registros',value:nInt(rows.length)}],sectionTitle:'Tarefas deste filtro',headers:cabecalhos,rows:linhasTarefa(rows),emptyText:'Nenhuma tarefa neste filtro.'},
+            {title:'Tarefas pendentes',value:nInt(pendentes.length),icon:'fa-hourglass-half',description:'Tarefas que ainda não foram concluídas dentro do conjunto listado.',facts:[{label:'Filtro atual',value:filtroAtual},{label:'Situação',value:'Pendente'}],sectionTitle:'Pendentes',headers:cabecalhos,rows:linhasTarefa(pendentes),emptyText:'Nenhuma tarefa pendente neste filtro.'},
+            {title:'Tarefas atrasadas',value:nInt(vencidas.length),icon:'fa-clock',description:'Tarefas pendentes cuja data prevista é anterior ao momento atual.',facts:[{label:'Filtro atual',value:filtroAtual},{label:'Prazo',value:'Vencido'}],sectionTitle:'Atrasadas',headers:cabecalhos,rows:linhasTarefa(vencidas),emptyText:'Nenhuma tarefa atrasada neste filtro.'},
+            {title:'Tarefas concluídas',value:nInt(concluidas.length),icon:'fa-circle-check',description:'Tarefas já finalizadas dentro do conjunto listado.',facts:[{label:'Filtro atual',value:filtroAtual},{label:'Situação',value:'Concluída'}],sectionTitle:'Concluídas',headers:cabecalhos,rows:linhasTarefa(concluidas),emptyText:'Nenhuma tarefa concluída neste filtro.'}
+        ]);
+    }
+
+    el('tarefas-tb').innerHTML=rows.length?rows.map(function(t){
+        var atrasada=!t.concluida&&t.data_prevista&&new Date(t.data_prevista)<agora;
+        var sit=t.concluida?'<span class="bdg bdg-verde">Concluída</span>'
+            :atrasada?'<span class="bdg bdg-vermelho">Atrasada</span>'
+            :'<span class="bdg bdg-amarelo">Pendente</span>';
+        return '<tr'+(t.concluida?' style="opacity:.6"':'')+'>'+
+            '<td><input type="checkbox" class="chk" data-concluir="'+t.id+'"'+(t.concluida?' checked':'')+'></td>'+
+            '<td>'+esc(t.titulo)+'</td><td><span class="bdg bdg-cinza">'+esc(t.tipo)+'</span></td>'+
+            '<td>'+esc(t.oportunidade_titulo||'—')+'</td><td>'+esc(t.responsavel_nome||'—')+'</td>'+
+            '<td>'+(t.data_prevista?dtHoraBR(t.data_prevista):'—')+'</td><td>'+sit+'</td>'+
+            '<td style="text-align:right"><button class="btn btn-ghost btn-sm" data-editar-tf="'+t.id+'"><i class="fas fa-pen"></i></button> '+
+            '<button class="btn btn-ghost btn-sm" data-excluir-tf="'+t.id+'" style="color:#dc2626"><i class="fas fa-trash"></i></button></td></tr>';
+    }).join(''):'<tr><td colspan="8" class="empty">Nenhuma tarefa neste filtro.</td></tr>';
+}
+
+// ---------------------------------------------------------------
+// RELATÓRIOS
+// ---------------------------------------------------------------
+async function carregarCatalogoRelatorios(){
+    var res=await Promise.all([
+        api('/api/crm/relatorios').catch(function(){return null;}),
+        api('/api/crm/meus-relatorios').catch(function(){return null;})
+    ]);
+    CATALOGO=(res[0]&&res[0].data)||[];
+    FAVORITOS=(res[1]&&res[1].data)||[];
+    var grupos={};
+    CATALOGO.forEach(function(r){(grupos[r.grupo]=grupos[r.grupo]||[]).push(r);});
+    el('rels').innerHTML=Object.keys(grupos).map(function(g){
+        return '<div class="relg"><h3>'+esc(g)+'</h3>'+grupos[g].map(function(r){
+            var fav=FAVORITOS.indexOf(r.chave)>=0;
+            return '<a data-rel="'+esc(r.chave)+'"><span>'+esc(r.nome)+'</span>'+
+                '<button class="fav'+(fav?' on':'')+'" data-fav="'+esc(r.chave)+'" title="Fixar em Meus Relatórios"><i class="fa'+(fav?'s':'r')+' fa-star"></i></button></a>';
+        }).join('')+'</div>';
+    }).join('');
+    renderMeusRelatorios();
+    // Deep-link do mega-menu: cada opção abre o relatório correspondente, em vez
+    // de abandonar o usuário no catálogo genérico.
+    var bruto=(location.hash||'').replace('#','');
+    var params=new URLSearchParams(bruto.split('?')[1]||'');
+    var alvo=params.get('rel');
+    if(alvo&&CATALOGO.some(function(x){return x.chave===alvo;}))abrirRelatorio(alvo);
+}
+
+function renderMeusRelatorios(){
+    var box=el('meus-rel');
+    if(!FAVORITOS.length){
+        box.innerHTML='Você pode escolher quais relatórios devem aparecer aqui — clique na estrela ao lado de qualquer relatório abaixo.';
+        return;
+    }
+    box.innerHTML=FAVORITOS.map(function(ch){
+        var r=CATALOGO.find(function(x){return x.chave===ch;});
+        return '<a data-rel="'+esc(ch)+'" style="display:inline-flex;align-items:center;gap:7px;margin:0 14px 8px 0;color:#8b5cf6;cursor:pointer;font-weight:600">'+
+            '<i class="fas fa-star" style="color:#f59e0b"></i>'+esc(r?r.nome:ch)+'</a>';
+    }).join('');
+}
+
+// O relatório é renderizado pelo SERVIDOR no template neutro do sistema
+// (Templates - Sistema/Templates Modulos/html-relatorios/_template.html), o mesmo que
+// PCP e Contador usam, com o cabeçalho real da empresa. A tela só embute o HTML pronto
+// num iframe: nada de um segundo layout de relatório mantido aqui.
+var relAtual=null;
+function dataIsoLocal(d){
+    var x=new Date(d.getTime()-d.getTimezoneOffset()*60000);
+    return x.toISOString().slice(0,10);
+}
+function camposFiltroRelatorio(r){
+    var filtros=(r&&r.filtros)||[];
+    var html='';
+    if(filtros.indexOf('periodo')>=0){
+        html+='<label class="sr-only" for="rel-de">Data inicial</label><input type="date" id="rel-de" title="Data inicial">'+
+              '<span aria-hidden="true">até</span><label class="sr-only" for="rel-ate">Data final</label><input type="date" id="rel-ate" title="Data final">';
+    }
+    if(filtros.indexOf('situacao')>=0){
+        html+='<label class="sr-only" for="rel-situacao">Situação</label><select id="rel-situacao" title="Situação"><option value="">Todas as situações</option><option value="pendente">Pendentes</option><option value="atrasada">Atrasadas</option><option value="concluida">Concluídas</option></select>';
+    }
+    return html;
+}
+function urlRelatorio(formato){
+    var qs=[];
+    if(formato)qs.push('formato='+encodeURIComponent(formato));
+    var de=el('rel-de'),ate=el('rel-ate'),sit=el('rel-situacao');
+    if(de&&de.value)qs.push('de='+encodeURIComponent(de.value));
+    if(ate&&ate.value)qs.push('ate='+encodeURIComponent(ate.value));
+    if(sit&&sit.value)qs.push('situacao='+encodeURIComponent(sit.value));
+    return withBase('/api/crm/relatorios/'+encodeURIComponent(relAtual)+(qs.length?'?'+qs.join('&'):''));
+}
+function aplicarFiltrosRelatorio(){
+    var de=el('rel-de'),ate=el('rel-ate');
+    if(de&&ate&&de.value&&ate.value&&de.value>ate.value){
+        de.setCustomValidity('A data inicial deve ser anterior à data final.');de.reportValidity();de.focus();return;
+    }
+    if(de)de.setCustomValidity('');
+    var frame=el('rel-frame');if(frame)frame.src=urlRelatorio('html');
+}
+function abrirRelatorio(chave){
+    relAtual=chave;
+    var r=CATALOGO.find(function(x){return x.chave===chave;});
+    el('rel-catalogo').style.display='none';
+    var view=el('rel-view');
+    view.style.display='block';
+    view.innerHTML=
+        '<div class="filtros">'+
+            '<button class="btn btn-ghost btn-sm" id="b-rel-voltar"><i class="fas fa-arrow-left"></i> Voltar aos relatórios</button>'+
+            '<strong style="font-size:14px;color:#0f172a">'+esc(r?r.nome:chave)+'</strong>'+
+            camposFiltroRelatorio(r)+
+            (((r&&r.filtros)||[]).length?'<button class="btn btn-rox btn-sm" id="b-rel-filtrar"><i class="fas fa-filter"></i> Aplicar filtros</button>':'')+
+            '<span style="flex:1"></span>'+
+            '<button class="btn btn-ghost btn-sm" id="b-rel-nova-aba"><i class="fas fa-up-right-from-square"></i> Abrir em nova aba</button>'+
+            '<button class="btn btn-rox btn-sm" id="b-rel-imprimir"><i class="fas fa-print"></i> Imprimir</button>'+
+        '</div>'+
+        '<iframe id="rel-frame" title="Relatório" src="'+esc(urlRelatorio('html'))+'"></iframe>';
+}
+
+function imprimirRelatorio(){
+    // Imprime o CONTEÚDO do iframe, não a tela: o template já traz o @page A4 e o
+    // @media print certos. Mandar window.print() na página imprimiria menu e abas junto.
+    var f=el('rel-frame');
+    if(!f){window.print();return;}
+    try{ f.contentWindow.focus(); f.contentWindow.print(); }
+    catch(e){ window.open(f.src,'_blank'); }
+}
+
+// ---------------------------------------------------------------
+// FASES
+// ---------------------------------------------------------------
+async function carregarFases(){
+    ETAPAS=[];
+    await carregarEtapas();
+    var jl=await api('/api/crm/oportunidades').catch(function(){return null;});
+    var contagem={};
+    ((jl&&jl.data)||[]).forEach(function(o){contagem[o.etapa]=(contagem[o.etapa]||0)+1;});
+
+    el('fases-tb').innerHTML=ETAPAS.map(function(e){
+        var nativa=!!e.nativa;
+        return '<tr><td>'+e.ordem+'</td>'+
+            '<td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+esc(e.cor||'#8b5cf6')+';margin-right:8px"></span>'+esc(e.nome)+'</td>'+
+            '<td><code style="font-size:12px;color:#64748b">'+esc(e.chave)+'</code></td>'+
+            '<td class="num">'+(e.probabilidade||0)+'%</td>'+
+            '<td><span class="bdg '+(e.tipo==='ganho'?'bdg-verde':e.tipo==='perdido'?'bdg-vermelho':'bdg-azul')+'">'+esc(e.tipo)+'</span></td>'+
+            '<td class="num">'+nInt(contagem[e.chave]||0)+'</td>'+
+            '<td style="text-align:right">'+(nativa
+                ?'<span style="font-size:11.5px;color:#94a3b8">nativa</span>'
+                :'<button class="btn btn-ghost btn-sm" data-excluir-fa="'+e.id+'" style="color:#dc2626"><i class="fas fa-trash"></i></button>')+
+            '</td></tr>';
+    }).join('')||'<tr><td colspan="7" class="empty">Nenhuma fase configurada.</td></tr>';
+}
+
+// ---------------------------------------------------------------
+// Diálogos
+// ---------------------------------------------------------------
+function abrir(id){el(id).classList.add('on');}
+function fechar(id){el(id).classList.remove('on');}
+
+async function abrirOp(id){
+    await carregarEtapas(); await carregarListaContas();
+    el('f-op-id').value=id||'';
+    el('op-titulo-dlg').textContent=id?'Editar Oportunidade':'Nova Oportunidade';
+    el('b-op-excluir').style.display=id?'inline-flex':'none';
+    if(id){
+        var j=await api('/api/crm/oportunidades/'+id).catch(function(e){toast(e.message,'err');return null;});
+        if(!j)return;
+        var o=j.data;
+        el('f-op-titulo').value=o.titulo||''; el('f-op-cliente').value=o.cliente_nome||'';
+        el('f-op-cliente-id').value=o.cliente_id||''; el('f-op-valor').value=o.valor_estimado||0;
+        el('f-op-etapa').value=o.etapa; el('f-op-temp').value=o.temperatura||'morno';
+        el('f-op-prob').value=o.probabilidade||0; el('f-op-vendedor').value=o.vendedor_nome||'';
+        el('f-op-origem').value=o.origem||''; el('f-op-data').value=(o.data_prevista||'').slice(0,10);
+        el('f-op-obs').value=o.observacoes||'';
+    }else{
+        ['f-op-titulo','f-op-cliente','f-op-cliente-id','f-op-vendedor','f-op-origem','f-op-data','f-op-obs'].forEach(function(i){el(i).value='';});
+        el('f-op-valor').value=0; el('f-op-temp').value='morno';
+        var pri=ETAPAS.filter(function(e){return e.tipo==='aberto';})[0];
+        if(pri){el('f-op-etapa').value=pri.chave; el('f-op-prob').value=pri.probabilidade;}
+    }
+    abrir('ov-op');
+}
+
+el('f-op-etapa').addEventListener('change',function(){
+    var e=ETAPAS.find(function(x){return x.chave===el('f-op-etapa').value;});
+    if(e)el('f-op-prob').value=e.probabilidade;
+});
+
+async function salvarOp(){
+    var id=el('f-op-id').value;
+    var nomeConta=el('f-op-cliente').value.trim();
+    var body={
+        titulo:el('f-op-titulo').value.trim(),
+        cliente_nome:nomeConta||null,
+        cliente_id:contaIdPorNome(nomeConta),
+        valor_estimado:parseFloat(el('f-op-valor').value)||0,
+        temperatura:el('f-op-temp').value,
+        probabilidade:parseInt(el('f-op-prob').value,10)||0,
+        vendedor_nome:el('f-op-vendedor').value.trim()||null,
+        origem:el('f-op-origem').value.trim()||null,
+        data_prevista:el('f-op-data').value||null,
+        observacoes:el('f-op-obs').value.trim()||null
+    };
+    if(!body.titulo){toast('Informe o título da oportunidade.','err');return;}
+    if(!id)body.etapa=el('f-op-etapa').value;
+    try{
+        if(id) await api('/api/crm/oportunidades/'+id,{method:'PUT',body:JSON.stringify(body)});
+        else   await api('/api/crm/oportunidades',{method:'POST',body:JSON.stringify(body)});
+        // A fase só muda por PATCH /mover — é ele que recalcula status e grava o histórico.
+        if(id&&el('f-op-etapa').value){
+            var atual=OPORTUNIDADES.find(function(o){return String(o.id)===String(id);});
+            if(atual&&atual.etapa!==el('f-op-etapa').value){
+                await api('/api/crm/oportunidades/'+id+'/mover',{method:'PATCH',body:JSON.stringify({etapa:el('f-op-etapa').value})});
+            }
+        }
+        fechar('ov-op'); toast('Oportunidade salva.','ok');
+        carregado.resumo=false; carregarFunil();
+    }catch(e){toast('Erro ao salvar: '+e.message,'err');}
+}
+
+async function abrirHistorico(id){
+    var j=await api('/api/crm/oportunidades/'+id).catch(function(e){toast(e.message,'err');return null;});
+    if(!j)return;
+    el('b-nota-add').dataset.op=id;
+    var o=j.data, hist=j.historico||[], tar=j.tarefas||[];
+    el('hist-body').innerHTML=
+        '<div style="margin-bottom:14px"><div style="font-weight:700;font-size:15px;color:#0f172a">'+esc(o.titulo)+'</div>'+
+        '<div style="font-size:12.5px;color:#64748b;margin-top:3px">'+esc(o.cliente_nome||'sem conta')+' · '+brl(o.valor_estimado)+' · '+badgeEtapa(o.etapa)+'</div></div>'+
+        (tar.length?'<div class="panel" style="margin-bottom:14px"><div class="panel-h"><span><i class="fas fa-list-check"></i>Tarefas</span></div><ul class="lst">'+
+            tar.map(function(t){return '<li class="'+(t.concluida?'feita':'')+'"><div class="txt"><b>'+esc(t.titulo)+'</b><small>'+(t.data_prevista?dtHoraBR(t.data_prevista):'sem prazo')+'</small></div></li>';}).join('')+
+        '</ul></div>':'')+
+        '<div class="panel"><div class="panel-h"><span><i class="fas fa-clock-rotate-left"></i>Histórico</span></div><ul class="lst">'+
+        (hist.length?hist.map(function(h){
+            return '<li><div class="txt"><b>'+esc(h.descricao||h.tipo)+'</b><small>'+dtHoraBR(h.created_at)+' · '+esc(h.usuario||'sistema')+'</small></div></li>';
+        }).join(''):'<li class="empty">Sem eventos ainda.</li>')+'</ul></div>';
+    abrir('ov-hist');
+}
+
+async function abrirContato(id){
+    await carregarListaContas();
+    el('f-cn-id').value=id||'';
+    el('contato-titulo-dlg').textContent=id?'Editar Contato':'Novo Contato';
+    var campos=['f-cn-nome','f-cn-cargo','f-cn-conta','f-cn-cliente-id','f-cn-email','f-cn-telefone','f-cn-celular','f-cn-cidade','f-cn-uf','f-cn-origem','f-cn-obs'];
+    campos.forEach(function(i){el(i).value='';});
+    if(id){
+        var j=await api('/api/crm/contatos/'+id).catch(function(e){toast(e.message,'err');return null;});
+        if(!j)return;
+        var c=j.data;
+        el('f-cn-nome').value=c.nome||''; el('f-cn-cargo').value=c.cargo||'';
+        el('f-cn-conta').value=c.conta||''; el('f-cn-cliente-id').value=c.cliente_id||'';
+        el('f-cn-email').value=c.email||''; el('f-cn-telefone').value=c.telefone||'';
+        el('f-cn-celular').value=c.celular||''; el('f-cn-cidade').value=c.cidade||'';
+        el('f-cn-uf').value=c.uf||''; el('f-cn-origem').value=c.origem||'';
+        el('f-cn-obs').value=c.observacoes||'';
+    }
+    abrir('ov-contato');
+}
+
+async function salvarContato(){
+    var id=el('f-cn-id').value;
+    var conta=el('f-cn-conta').value.trim();
+    var body={
+        nome:el('f-cn-nome').value.trim(), cargo:el('f-cn-cargo').value.trim()||null,
+        conta_nome:conta||null, cliente_id:contaIdPorNome(conta),
+        email:el('f-cn-email').value.trim()||null, telefone:el('f-cn-telefone').value.trim()||null,
+        celular:el('f-cn-celular').value.trim()||null, cidade:el('f-cn-cidade').value.trim()||null,
+        uf:el('f-cn-uf').value.trim().toUpperCase()||null, origem:el('f-cn-origem').value.trim()||null,
+        observacoes:el('f-cn-obs').value.trim()||null
+    };
+    if(!body.nome){toast('Informe o nome do contato.','err');return;}
+    try{
+        if(id) await api('/api/crm/contatos/'+id,{method:'PUT',body:JSON.stringify(body)});
+        else   await api('/api/crm/contatos',{method:'POST',body:JSON.stringify(body)});
+        fechar('ov-contato'); toast('Contato salvo.','ok');
+        carregado.resumo=false; carregarContatos();
+    }catch(e){toast('Erro ao salvar: '+e.message,'err');}
+}
+
+async function abrirTarefa(id){
+    // Preenche o select de oportunidades com as abertas.
+    var j=await api('/api/crm/oportunidades?status=aberto').catch(function(){return null;});
+    var ops=(j&&j.data)||[];
+    el('f-tf-op').innerHTML='<option value="">— nenhuma —</option>'+ops.map(function(o){
+        return '<option value="'+o.id+'">'+esc(o.titulo)+(o.cliente_nome?' — '+esc(o.cliente_nome):'')+'</option>';
+    }).join('');
+    el('f-tf-id').value=id||'';
+    el('tarefa-titulo-dlg').textContent=id?'Editar Tarefa':'Nova Tarefa';
+    ['f-tf-titulo','f-tf-data','f-tf-desc','f-tf-resp'].forEach(function(i){el(i).value='';});
+    el('f-tf-tipo').value='tarefa'; el('f-tf-prio').value='media'; el('f-tf-op').value='';
+    if(id){
+        var t=(await api('/api/crm/tarefas').catch(function(){return null;}));
+        var tar=((t&&t.data)||[]).find(function(x){return String(x.id)===String(id);});
+        if(tar){
+            el('f-tf-titulo').value=tar.titulo||''; el('f-tf-tipo').value=tar.tipo||'tarefa';
+            el('f-tf-prio').value=tar.prioridade||'media'; el('f-tf-op').value=tar.oportunidade_id||'';
+            el('f-tf-resp').value=tar.responsavel_nome||''; el('f-tf-desc').value=tar.descricao||'';
+            if(tar.data_prevista){
+                var d=new Date(tar.data_prevista);
+                if(!isNaN(d))el('f-tf-data').value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+            }
+        }
+    }
+    abrir('ov-tarefa');
+}
+
+async function salvarTarefa(){
+    var id=el('f-tf-id').value;
+    var body={
+        titulo:el('f-tf-titulo').value.trim(), tipo:el('f-tf-tipo').value,
+        prioridade:el('f-tf-prio').value, oportunidade_id:el('f-tf-op').value||null,
+        responsavel_nome:el('f-tf-resp').value.trim()||undefined,
+        data_prevista:el('f-tf-data').value?el('f-tf-data').value.replace('T',' ')+':00':null,
+        descricao:el('f-tf-desc').value.trim()||null
+    };
+    if(!body.titulo){toast('Informe o título da tarefa.','err');return;}
+    try{
+        if(id) await api('/api/crm/tarefas/'+id,{method:'PUT',body:JSON.stringify(body)});
+        else   await api('/api/crm/tarefas',{method:'POST',body:JSON.stringify(body)});
+        fechar('ov-tarefa'); toast('Tarefa salva.','ok');
+        carregado.resumo=false; carregarTarefas();
+    }catch(e){toast('Erro ao salvar: '+e.message,'err');}
+}
+
+var importAlvo=null;
+function abrirImport(alvo){
+    importAlvo=alvo;
+    el('f-imp-texto').value=''; el('import-result').innerHTML='';
+    if(alvo==='oportunidades'){
+        el('import-titulo-dlg').textContent='Importar Oportunidades';
+        el('import-hint').innerHTML='Colunas na ordem: <strong>título; conta; valor; fase; temperatura; vendedor; origem; previsão (DD/MM/AAAA)</strong>.<br>Se a primeira linha tiver os nomes das colunas, ela é usada como cabeçalho e descartada.';
+    }else if(alvo==='contatos'){
+        el('import-titulo-dlg').textContent='Importar Contatos';
+        el('import-hint').innerHTML='Colunas na ordem: <strong>nome; cargo; e-mail; telefone; celular; conta; cidade; UF; origem</strong>.<br>Contato cuja conta já exista no cadastro de clientes é vinculado automaticamente.';
+    }else{
+        el('import-titulo-dlg').textContent='Importar Contas';
+        el('import-hint').innerHTML='As <strong>contas</strong> do CRM são os clientes do ERP — a importação de clientes é a do próprio cadastro, para não criar cadastro paralelo.';
+    }
+    abrir('ov-import');
+}
+
+async function rodarImport(){
+    if(importAlvo==='contas'){
+        location.href=withBase('/importar.html?entidade=clientes');
+        return;
+    }
+    var texto=el('f-imp-texto').value.trim();
+    if(!texto){toast('Cole as linhas da planilha antes de importar.','err');return;}
+    var btn=el('b-imp-run'); btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Importando…';
+    try{
+        var j=await api('/api/crm/'+importAlvo+'/importar',{method:'POST',body:JSON.stringify({texto:texto})});
+        el('import-result').innerHTML='<div class="panel" style="padding:13px 16px;font-size:13px">'+
+            '<strong style="color:#059669">'+j.importados+'</strong> de '+j.total+' linha(s) importada(s).'+
+            ((j.erros&&j.erros.length)?'<div style="margin-top:8px;color:#b91c1c;font-size:12.5px">'+j.erros.slice(0,10).map(esc).join('<br>')+'</div>':'')+
+            '</div>';
+        toast(j.importados+' registro(s) importado(s).','ok');
+        carregado.resumo=false;
+        if(importAlvo==='contatos')carregarContatos(); else carregarFunil();
+    }catch(e){toast('Falha na importação: '+e.message,'err');}
+    finally{btn.disabled=false;btn.innerHTML='Importar';}
+}
+
+function abrirReserva(id){
+    var c=CONTAS.find(function(x){return String(x.id)===String(id);});
+    if(!c)return;
+    el('f-rs-id').value=id; el('f-rs-conta').value=c.nome||'';
+    el('f-rs-vendedor').value=c.reservado_por||'';
+    el('f-rs-ate').value=c.reserva_valida_ate?String(c.reserva_valida_ate).slice(0,10):'';
+    el('b-rs-liberar').style.display=c.reserva_valida_ate?'inline-flex':'none';
+    abrir('ov-reserva');
+}
+
+// ---------------------------------------------------------------
+// Eventos (delegação — as tabelas são reconstruídas a cada carga)
+// ---------------------------------------------------------------
+document.addEventListener('click',async function(e){
+    var t=e.target;
+    var fecharBtn=t.closest('[data-close]');
+    if(fecharBtn){fechar(fecharBtn.dataset.close);return;}
+    var goto=t.closest('[data-goto]');
+    if(goto){irPara(goto.dataset.goto);return;}
+
+    var ed=t.closest('[data-editar]');       if(ed){abrirOp(ed.dataset.editar);return;}
+    var hi=t.closest('[data-hist]');         if(hi){abrirHistorico(hi.dataset.hist);return;}
+    var ab=t.closest('[data-abrir-op]');     if(ab){irPara('oportunidades');setTimeout(function(){abrirOp(ab.dataset.abrirOp);},80);return;}
+    var gw=t.closest('[data-ganhar]');       if(gw){await moverOp(gw.dataset.ganhar,'ganho');return;}
+    var pl=t.closest('[data-perder]');
+    if(pl){
+        var motivo=prompt('Motivo da perda:');
+        if(motivo===null)return;
+        await moverOp(pl.dataset.perder,'perdido',motivo);
+        return;
+    }
+    var rv=t.closest('[data-reservar]');     if(rv){abrirReserva(rv.dataset.reservar);return;}
+    var ec=t.closest('[data-editar-cn]');    if(ec){abrirContato(ec.dataset.editarCn);return;}
+    var xc=t.closest('[data-excluir-cn]');
+    if(xc){
+        if(!confirm('Remover este contato da lista ativa?'))return;
+        try{await api('/api/crm/contatos/'+xc.dataset.excluirCn,{method:'DELETE'});toast('Contato removido.','ok');carregarContatos();}
+        catch(err){toast(err.message,'err');}
+        return;
+    }
+    var et=t.closest('[data-editar-tf]');    if(et){abrirTarefa(et.dataset.editarTf);return;}
+    var xt=t.closest('[data-excluir-tf]');
+    if(xt){
+        if(!confirm('Excluir esta tarefa?'))return;
+        try{await api('/api/crm/tarefas/'+xt.dataset.excluirTf,{method:'DELETE'});toast('Tarefa excluída.','ok');carregarTarefas();carregado.resumo=false;}
+        catch(err){toast(err.message,'err');}
+        return;
+    }
+    var xf=t.closest('[data-excluir-fa]');
+    if(xf){
+        var fase=ETAPAS.find(function(x){return String(x.id)===String(xf.dataset.excluirFa);});
+        if(!fase)return;
+        if(!confirm('Remover a fase "'+fase.nome+'"?'))return;
+        try{
+            await api('/api/crm/etapas/'+fase.id,{method:'DELETE'});
+            toast('Fase removida.','ok'); carregado.fases=false; carregarFases();
+        }catch(err){toast(err.message,'err');}
+        return;
+    }
+
+    var fav=t.closest('[data-fav]');
+    if(fav){
+        e.preventDefault(); e.stopPropagation();
+        var ch=fav.dataset.fav, jaTem=FAVORITOS.indexOf(ch)>=0;
+        try{
+            if(jaTem){await api('/api/crm/meus-relatorios/'+encodeURIComponent(ch),{method:'DELETE'});FAVORITOS=FAVORITOS.filter(function(x){return x!==ch;});}
+            else{await api('/api/crm/meus-relatorios',{method:'POST',body:JSON.stringify({relatorio:ch})});FAVORITOS.push(ch);}
+            fav.classList.toggle('on',!jaTem);
+            fav.innerHTML='<i class="fa'+(!jaTem?'s':'r')+' fa-star"></i>';
+            renderMeusRelatorios();
+        }catch(err){toast(err.message,'err');}
+        return;
+    }
+    var rel=t.closest('[data-rel]');         if(rel){abrirRelatorio(rel.dataset.rel);return;}
+    if(t.closest('#b-rel-voltar')){el('rel-view').style.display='none';el('rel-view').innerHTML='';el('rel-catalogo').style.display='block';relAtual=null;return;}
+    if(t.closest('#b-rel-imprimir')){imprimirRelatorio();return;}
+    if(t.closest('#b-rel-filtrar')){aplicarFiltrosRelatorio();return;}
+    if(t.closest('#b-rel-nova-aba')){
+        // `window.open` é sequestrado pelo report-viewer.js para abrir em overlay —
+        // por isso a URL vai direto, sem passar por ele.
+        if(relAtual)window.open(urlRelatorio('html'),'_blank');
+        return;
+    }
+
+    var cv=t.closest('[data-converter-lead]');
+    if(cv){ converterLead(cv.dataset.converterLead, cv); return; }
+});
+
+document.addEventListener('change',async function(e){
+    var chk=e.target.closest&&e.target.closest('[data-concluir]');
+    if(chk){
+        try{
+            await api('/api/crm/tarefas/'+chk.dataset.concluir+'/concluir',{method:'PATCH',body:JSON.stringify({concluida:chk.checked?1:0})});
+            toast(chk.checked?'Tarefa concluída.':'Tarefa reaberta.','ok');
+            carregado.resumo=false;
+            if(abaAtual==='tarefas')carregarTarefas(); else carregarResumo();
+        }catch(err){toast(err.message,'err');chk.checked=!chk.checked;}
+    }
+});
+
+// Fecha o diálogo ao clicar fora do cartão.
+Array.prototype.forEach.call(document.querySelectorAll('.ov'),function(o){
+    o.addEventListener('click',function(e){if(e.target===o)o.classList.remove('on');});
+});
+
+// Botões fixos
+el('b-atualizar').onclick=function(){carregado={};carregarAba(abaAtual,true);toast('Atualizado.','ok');};
+el('b-nova-op').onclick=function(){abrirOp(null);};
+el('b-op-salvar').onclick=salvarOp;
+el('b-op-excluir').onclick=async function(){
+    var id=el('f-op-id').value; if(!id)return;
+    if(!confirm('Excluir esta oportunidade e todo o histórico dela?'))return;
+    try{await api('/api/crm/oportunidades/'+id,{method:'DELETE'});fechar('ov-op');toast('Oportunidade excluída.','ok');carregado.resumo=false;carregarFunil();}
+    catch(e){toast(e.message,'err');}
+};
+el('b-nota-add').onclick=async function(){
+    var id=this.dataset.op, txt=el('f-nota').value.trim();
+    if(!txt){toast('Escreva a nota antes de registrar.','err');return;}
+    try{await api('/api/crm/oportunidades/'+id+'/nota',{method:'POST',body:JSON.stringify({descricao:txt})});el('f-nota').value='';abrirHistorico(id);toast('Nota registrada.','ok');}
+    catch(e){toast(e.message,'err');}
+};
+el('b-novo-contato').onclick=function(){abrirContato(null);};
+el('b-cn-salvar').onclick=salvarContato;
+el('b-nova-tarefa').onclick=function(){abrirTarefa(null);};
+el('b-tf-salvar').onclick=salvarTarefa;
+el('b-nova-conta').onclick=function(){location.href=withBase('/Vendas/clientes.html#novo');};
+el('b-importar-conta').onclick=function(){abrirImport('contas');};
+el('b-importar-contato').onclick=function(){abrirImport('contatos');};
+el('b-importar-op').onclick=function(){abrirImport('oportunidades');};
+el('b-imp-run').onclick=rodarImport;
+el('b-nova-fase').onclick=function(){
+    el('f-fa-id').value=''; el('f-fa-nome').value=''; el('f-fa-ordem').value='';
+    el('f-fa-prob').value=0; el('f-fa-cor').value='#8b5cf6';
+    el('fase-titulo-dlg').textContent='Nova Fase'; abrir('ov-fase');
+};
+el('b-fa-salvar').onclick=async function(){
+    var body={nome:el('f-fa-nome').value.trim(),probabilidade:parseInt(el('f-fa-prob').value,10)||0,cor:el('f-fa-cor').value};
+    if(el('f-fa-ordem').value)body.ordem=parseInt(el('f-fa-ordem').value,10);
+    if(!body.nome){toast('Informe o nome da fase.','err');return;}
+    try{await api('/api/crm/etapas',{method:'POST',body:JSON.stringify(body)});fechar('ov-fase');toast('Fase criada.','ok');carregado.fases=false;carregarFases();}
+    catch(e){toast(e.message,'err');}
+};
+el('b-rs-salvar').onclick=async function(){
+    var id=el('f-rs-id').value;
+    try{
+        await api('/api/crm/contas/'+id+'/reserva',{method:'POST',body:JSON.stringify({
+            vendedor_nome:el('f-rs-vendedor').value.trim()||null,
+            valido_ate:el('f-rs-ate').value||null,
+            dias:30
+        })});
+        fechar('ov-reserva'); toast('Conta reservada.','ok'); carregarContas();
+    }catch(e){toast(e.message,'err');}
+};
+el('b-rs-liberar').onclick=async function(){
+    var id=el('f-rs-id').value;
+    try{await api('/api/crm/contas/'+id+'/reserva',{method:'DELETE'});fechar('ov-reserva');toast('Reserva liberada.','ok');carregarContas();}
+    catch(e){toast(e.message,'err');}
+};
+
+// Filtros — debounce simples para não disparar a cada tecla.
+function debounce(fn,ms){var h;return function(){clearTimeout(h);h=setTimeout(fn,ms||350);};}
+el('op-q').addEventListener('input',debounce(carregarFunil));
+el('op-temp').addEventListener('change',carregarFunil);
+el('op-status').addEventListener('change',carregarFunil);
+el('ct-q').addEventListener('input',debounce(carregarContas));
+el('cn-q').addEventListener('input',debounce(carregarContatos));
+el('tf-filtro').addEventListener('change',carregarTarefas);
+
+// Link estático precisa do prefixo nas instâncias Labor, senão sai da app.
+var lnk=el('lnk-prospeccao'); if(lnk)lnk.setAttribute('href',withBase('/Vendas/prospeccao.html'));
+
+window.addEventListener('hashchange',aplicarHash);
+montarTabs();
+aplicarHash();
+})();
+</script>
+<style media="print">
+    /* Sem @media print o Ctrl+P do relatório imprimia a tela inteira, sidebar junto. */
+    .sidebar,.header,.tabs,.head button,.filtros,.toast-wrap{display:none!important}
+    body{background:#fff}
+    .content-area{padding:0}
+    .panel{border:none}
+</style>
+</body>
+</html>

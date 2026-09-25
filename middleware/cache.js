@@ -22,11 +22,14 @@ const CACHE_CONFIG = {
  * @returns {Function} Express middleware
  */
 function cacheMiddleware(ttl = CACHE_CONFIG.default) {
+    const _ttl = (typeof ttl === 'number' && ttl > 0) ? ttl : CACHE_CONFIG.default;
     return (req, res, next) => {
         // Só cachear GET
         if (req.method !== 'GET') return next();
 
-        const key = `__cache__${req.originalUrl || req.url}`;
+        // Chave por usuário: dados filtrados por vendedor não podem vazar entre usuários
+        const _uid = (req.user && (req.user.id || req.user.userId)) || 'anon';
+        const key = `__cache__u${_uid}__${req.originalUrl || req.url}`;
         const cached = cacheGet(key);
         if (cached) {
             return res.json(cached);
@@ -35,7 +38,7 @@ function cacheMiddleware(ttl = CACHE_CONFIG.default) {
         // Override res.json para capturar e cachear a resposta
         const originalJson = res.json.bind(res);
         res.json = (data) => {
-            cacheSet(key, data, ttl);
+            cacheSet(key, data, _ttl);
             return originalJson(data);
         };
         next();

@@ -4,21 +4,269 @@
  * @module routes/vendas-routes
  */
 const express = require('express');
+const transportadoraFiscal = require('../services/transportadora-fiscal.service');
+const { emitirMudancaEtapa } = require('../services/realtime-pedidos.service');
 const multer = require('multer');
 const path = require('path');
 const { auditTrail } = require('../middleware/audit-trail');
 const { tenantScope } = require('../middleware/rls-tenant');
+const { canonizarIdentidade } = require('../middleware/identidade-canonica');
 const { validate: joiValidate, schemas: joiSchemas } = require('../middleware/schema-validation');
+const {
+    podeEditarNomeVendedorOrcamento,
+    sanitizarNomeVendedorOrcamento
+} = require('../utils/orcamento-vendedor');
+const { getNextOpCode } = require('../utils/op-numbering');
+const { isSupervisorCarteiraVendas } = require('../utils/vendas-pedidos-visibilidade');
+const { createVendasAccessProfile, blockVendasReadOnly } = require('../utils/vendas-readonly-access');
+const TRIBUTACAO_CLIENTE = require('../modules/Faturamento/config/tributacao.config');
+const {
+    calcularDifalFcpVenda, vendaEhConsumidorFinal, calcularMvaEfetiva, classificarDestinoIcms
+} = require('../utils/vendas-fiscal');
+const RegraIcmsUf = require('../modules/Faturamento/services/icms-regra-uf.service');
+const {
+    onlyDigits: onlyFiscalDigits,
+    validCnpj: validFiscalCnpj,
+    consultarCnpj: consultarCnpjFiscal,
+    buildClientUpdate: buildFiscalClientUpdate,
+    completarCadastroFiscalCliente,
+    listarPendenciasFiscais,
+    formatStateRegistration,
+    stateRegistrationIndicator
+} = require('../services/fiscal-client.service');
+const {
+    localizarConflitoCliente,
+    montarTransferenciaCliente,
+    registrarClienteGlobal
+} = require('../utils/cliente-proprietario');
 
 module.exports = function createVendasRoutes(deps) {
-    const { pool, authenticateToken, authorizeArea, authorizeAdmin, authorizeAdminOrComercial, writeAuditLog, cacheMiddleware, CACHE_CONFIG, checkOwnership, writeGuard } = deps;
+    const { pool, authenticateToken, authorizeArea, authorizeAdmin, authorizeAdminOrComercial, writeAuditLog, cacheMiddleware, CACHE_CONFIG, checkOwnership, writeGuard, vendasAccessProfile } = deps;
     const router = express.Router();
+    const activeVendasAccessProfile = vendasAccessProfile || createVendasAccessProfile(pool);
+    const activeWriteGuard = writeGuard || ((req, res, next) => {
+        if (!blockVendasReadOnly(req, res)) next();
+    });
 
     // Repository pattern (ARCH-008)
     const createRepositories = require('../repositories');
     const repos = createRepositories(pool);
     const ReformaTributariaService = require('../services/reforma-tributaria.service');
     const tableColumnsCache = new Map();
+
+    async function atribuirNumeroComercialPedido(connection, pedidoId) {
+        let numero = pedidoId;
+        if (String(process.env.BRAND || '').toLowerCase() === 'agencia-japa') {
+            // O ID interno desta instância veio da base original (3660+). A numeração
+            // comercial da agência é independente e começa em 1.
+            const [sequence] = await connection.query(
+                'INSERT INTO agencia_japa_pedido_numeracao (pedido_id) VALUES (?)', [pedidoId]
+            );
+            numero = sequence.insertId;
+        }
+        await connection.query('UPDATE pedidos SET numero_pedido = ? WHERE id = ?', [numero, pedidoId]);
+        return numero;
+    }
+
+    function parseFiscalJson(value) {
+        if (!value) return null;
+        if (typeof value === 'object') return value;
+        try { return JSON.parse(value); } catch (_) { return null; }
+    }
+
+    async function registrarConsultaFiscalCliente(clienteId, consulta, usuarioId) {
+        try {
+            await pool.query(
+                `INSERT INTO cliente_fiscal_consultas
+                    (cliente_id, cnpj, fonte, sucesso, consultado_em, dados_json, avisos_json, usuario_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    clienteId,
+                    consulta.cnpj,
+                    consulta.fonte || null,
+                    consulta.success ? 1 : 0,
+                    new Date(consulta.consultado_em || Date.now()),
+                    consulta.dados ? JSON.stringify(consulta.dados) : null,
+                    consulta.warnings?.length ? JSON.stringify(consulta.warnings) : null,
+                    usuarioId || null
+                ]
+            );
+        } catch (error) {
+            // Bases que ainda não passaram pela migração continuam podendo
+            // consultar; o endpoint principal retorna a falha de schema para
+            // o operador, mas não esconde o resultado da fonte externa.
+            if (!['ER_NO_SUCH_TABLE', 'ER_BAD_FIELD_ERROR'].includes(error.code)) {
+                console.warn('[Vendas] Falha ao registrar consulta fiscal:', error.message);
+            }
+        }
+    }
+
+    async function atualizarCadastroFiscalCliente(clienteId, consulta, cliente, usuarioId) {
+        const update = buildFiscalClientUpdate(consulta, cliente);
+        const campos = Object.keys(update);
+        if (!campos.length) return { update, changed: false };
+        const sets = campos.map(campo => `\`${campo}\` = ?`);
+        const valores = campos.map(campo => update[campo]);
+        sets.push('data_atualizacao = NOW()');
+        await pool.query(`UPDATE clientes SET ${sets.join(', ')} WHERE id = ?`, [...valores, clienteId]);
+        await registrarConsultaFiscalCliente(clienteId, consulta, usuarioId);
+        return { update, changed: true };
+    }
+
+    // GO-LIVE 2026-08: chave geral da baixa automática de estoque no faturamento.
+    // O saldo de estoque está parado desde 10/03/2026; movimentar em cima dele
+    // propaga erro a cada pedido faturado. Enquanto o inventário não for refeito,
+    // ESTOQUE_BAIXA_AUTOMATICA=0 no .env mantém a baixa desligada. A baixa manual
+    // (POST /pedidos/:id/baixar-estoque) continua disponível e não é afetada.
+    const BAIXA_ESTOQUE_AUTOMATICA = String(process.env.ESTOQUE_BAIXA_AUTOMATICA ?? '1') !== '0';
+    // Saldo ainda não faturado é compromisso operacional, não recebível financeiro.
+    // Mantido como constante explícita para impedir o fluxo legado em todas as instâncias.
+    const PERMITIR_SALDO_NAO_FATURADO_NO_CR = false;
+
+    function normalizarLancesPedidoItem(valor) {
+        const normalizado = String(valor || '').trim().replace(/[;+]+/g, ',').replace(/\s+/g, '').replace(/[X×]/g, 'x').replace(/,+/g, ',').replace(/^,|,$/g, '');
+        if (!normalizado) {
+            return { valido: true, valor: '', totalMetros: 0, totalLances: 0 };
+        }
+        if (!/^\d+x\d+(,\d+x\d+)*$/.test(normalizado)) {
+            return { valido: false, valor: normalizado, totalMetros: 0, totalLances: 0 };
+        }
+        const partes = normalizado.split(',').map(parte => {
+            const [qtd, metragem] = parte.split('x').map(n => parseInt(n, 10));
+            return { qtd, metragem };
+        });
+        if (partes.some(parte => !(parte.qtd > 0) || !(parte.metragem > 0))) {
+            return { valido: false, valor: normalizado, totalMetros: 0, totalLances: 0 };
+        }
+        return {
+            valido: true,
+            valor: normalizado,
+            totalMetros: partes.reduce((soma, parte) => soma + parte.qtd * parte.metragem, 0),
+            totalLances: partes.reduce((soma, parte) => soma + parte.qtd, 0)
+        };
+    }
+
+    // AUDIT-FIX: metas_vendas só suportava metas de faturamento (coluna "tipo" sempre
+    // 'mensal', sem diferenciar categoria de KPI). O dashboard admin fingia metas fixas de
+    // Novos Clientes/Ticket Médio/Conversão (20 / R$2.500 / 40%) porque não havia onde
+    // guardar metas reais dessas categorias. Migração aditiva — linhas existentes (todas de
+    // faturamento) recebem o default automaticamente, nenhum endpoint atual quebra.
+    const METAS_CATEGORIAS_VALIDAS = ['faturamento', 'clientes', 'ticket_medio', 'conversao'];
+
+    // Status real de entrega dos e-mails do pedido (ver o cabeçalho de utils/email-entrega.js).
+    const { conciliarEntregasDoPedido } = require('../utils/email-entrega');
+
+    // ------------------------------------------------------------------
+    // O QUE CONTA COMO VENDA (definição única do módulo)
+    // ------------------------------------------------------------------
+    // Vocabulário real de pedidos.status nas 3 bases (13/08/2026): 'aguardando-faturamento',
+    // 'pedido-aprovado', 'aprovado', 'cancelado', 'excluido', 'orcamento'. 'faturado' e
+    // 'recibo' NÃO existem em nenhuma delas — todo filtro por inclusão desses dois devolve
+    // zero linhas sem erro, que é o que zerava o ranking e o progresso das metas.
+    //
+    // Lista de EXCLUSÃO em vez de inclusão: status novo entra como venda em vez de sumir
+    // calado. Mesma regra de /api/vendas-relatorios, para os dois lados baterem.
+    const PEDIDO_STATUS_NAO_VENDA = [
+        'orcamento', 'orçamento', 'analise', 'análise', 'analise-credito', 'análise-crédito',
+        'cancelado', 'cancelada', 'excluido', 'excluído', 'denegado', 'denegada', 'rascunho', 'recusado'
+    ];
+    const listaSqlStatus = arr => arr.map(s => `'${s.replace(/'/g, "''")}'`).join(',');
+    // `alias` vazio permite usar dentro de subquery sem alias de tabela.
+    const sqlFiltroVenda = (alias = '') => {
+        const pref = alias ? `${alias}.` : '';
+        return `LOWER(TRIM(COALESCE(${pref}status,''))) NOT IN (${listaSqlStatus(PEDIDO_STATUS_NAO_VENDA)})`
+            + ` AND ${pref}deleted_at IS NULL`;
+    };
+    // data_faturamento e data_aprovacao são NULL em 100% das linhas hoje; o COALESCE mantém
+    // o mês certo quando o fluxo passar a preenchê-las, sem virar filtro vazio agora.
+    const sqlMesVenda = (alias = '') => {
+        const pref = alias ? `${alias}.` : '';
+        return `DATE_FORMAT(COALESCE(${pref}data_faturamento, ${pref}data_aprovacao, ${pref}created_at), '%Y-%m')`;
+    };
+
+    // Quem é vendedor. Mesma regra de GET /vendedores (que alimenta o card "Vendedores
+    // Ativos" e o seletor de metas) para os cards, o ranking e a lista não divergirem —
+    // antes o ranking usava um recorte próprio e podia listar gente que o card não contava.
+    const sqlVendedorAtivo = (columns, alias = 'u') => {
+        const ativo = [];
+        if (columns.has('ativo')) ativo.push(`(${alias}.ativo = 1 OR ${alias}.ativo IS NULL)`);
+        if (columns.has('status')) ativo.push(`(${alias}.status IS NULL OR LOWER(${alias}.status) NOT IN ('inativo','bloqueado','desativado','excluido'))`);
+        if (columns.has('deleted_at')) ativo.push(`${alias}.deleted_at IS NULL`);
+        // O vínculo com o RH não pode depender só do e-mail: nas Labor a tabela
+        // `funcionarios` veio da aluforce com o domínio @aluforce.ind.br enquanto
+        // `usuarios` usa @labor.com.br — NENHUMA linha casava e a trava de "demitido"
+        // não filtrava nada. Casa por CPF, por e-mail ou pelo nome completo; o nome só
+        // vale quando é único em `funcionarios`, senão um homônimo tiraria do ranking
+        // alguém que está trabalhando.
+        const soDigitos = (c) => `REPLACE(REPLACE(REPLACE(COALESCE(${c},''),'.',''),'-',''),'/','')`;
+        const casaFuncionario = [
+            `(COALESCE(f.email,'') <> '' AND f.email = ${alias}.email)`,
+            `(LOWER(TRIM(f.nome_completo)) = LOWER(TRIM(${alias}.nome))
+               AND (SELECT COUNT(*) FROM funcionarios g
+                     WHERE LOWER(TRIM(g.nome_completo)) = LOWER(TRIM(f.nome_completo))) = 1)`
+        ];
+        if (columns.has('cpf')) {
+            casaFuncionario.unshift(
+                `(LENGTH(${soDigitos('f.cpf')}) = 11 AND ${soDigitos('f.cpf')} = ${soDigitos(alias + '.cpf')})`);
+        }
+        // 19/09/2026: era `NOT EXISTS ... QUALQUER funcionario batendo E demitido` — um
+        // funcionário desligado e RECONTRATADO depois (novo cadastro em `funcionarios`,
+        // e-mail antigo do primeiro vínculo reaproveitado por outra pessoa no mesmo cargo,
+        // ex. "vendas4@") ficava travado para sempre pelo registro velho, mesmo com o
+        // registro atual ativo. Agora só olha o registro batido MAIS RECENTE (maior id);
+        // sem nenhum match, libera (NULL IS NOT FALSE = verdadeiro no MySQL).
+        ativo.push(`(
+            SELECT CASE WHEN LOWER(f.status) = 'demitido' OR f.ativo = 0 OR f.data_demissao IS NOT NULL THEN 0 ELSE 1 END
+            FROM funcionarios f
+            WHERE (${casaFuncionario.join(' OR ')})
+            ORDER BY f.id DESC
+            LIMIT 1
+        ) IS NOT FALSE`);
+
+        const vendedor = [];
+        if (columns.has('role')) vendedor.push(`LOWER(COALESCE(${alias}.role,'')) IN ('comercial','vendedor','sales')`);
+        if (columns.has('departamento')) vendedor.push(`LOWER(COALESCE(${alias}.departamento,'')) LIKE '%comercial%' OR LOWER(COALESCE(${alias}.departamento,'')) LIKE '%vendas%'`);
+        if (columns.has('cargo')) vendedor.push(`LOWER(COALESCE(${alias}.cargo,'')) LIKE '%vendedor%' OR LOWER(COALESCE(${alias}.cargo,'')) LIKE '%consultor%' OR LOWER(COALESCE(${alias}.cargo,'')) LIKE '%comercial%'`);
+        if (columns.has('setor')) vendedor.push(`LOWER(COALESCE(${alias}.setor,'')) LIKE '%comercial%' OR LOWER(COALESCE(${alias}.setor,'')) LIKE '%vendas%'`);
+        if (columns.has('perfil')) vendedor.push(`LOWER(COALESCE(${alias}.perfil,'')) LIKE '%vendedor%' OR LOWER(COALESCE(${alias}.perfil,'')) LIKE '%comercial%'`);
+        // 19/09/2026: era um hack fixo pelo nome "melissa navarro" (o motivo original já nem
+        // se aplica mais — o role dela em `usuarios` já é 'comercial'). Generalizei para
+        // qualquer vínculo ATIVO em `vendedores.usuario_id` — ver abaixo por que isso vira um
+        // atalho e não só mais um critério dentro do OR de heurísticas.
+        const vinculoVendedorAtivo = `EXISTS (SELECT 1 FROM vendedores v
+                                WHERE v.usuario_id = ${alias}.id
+                                  AND LOWER(COALESCE(v.situacao,'ativo')) NOT IN ('inativo','bloqueado','desativado','excluido'))`;
+
+        // `vendedores` é curada manualmente (tela Vendedores, ver AUDITORIA-ITEM-15) — quando
+        // alguém está marcado ativo lá, isso é intencional e deve valer sozinho, sem passar
+        // pelo gate de `funcionarios`. Andreia Trovão é o caso real: `funcionarios` marca
+        // "Demitido" (não é mais funcionária CLT) mas ela segue como vendedora ativa cadastrada
+        // (agora sócia/diretoria, role='admin' em `usuarios`) — o gate de RH abaixo dela sempre
+        // barrava, mesmo com o vínculo explícito dizendo o contrário. Por isso o vínculo ativo
+        // em `vendedores` vira uma alternativa a TUDO (gate de ativo/RH + heurística), não mais
+        // um critério preso atrás do mesmo gate que o está excluindo.
+        return `((${ativo.join(' AND ')} AND (${vendedor.map(c => `(${c})`).join(' OR ')})) OR ${vinculoVendedorAtivo})`;
+    };
+
+    // metas_vendas acumula regravações: a base da aluforce tem 13 linhas idênticas para o
+    // mesmo (vendedor 3, 2026-03, faturamento). Somar tudo multiplicaria a meta por 13 —
+    // vale a ÚLTIMA meta cadastrada de cada (vendedor, período, categoria).
+    const SQL_METAS_DEDUP = `
+        SELECT m.* FROM metas_vendas m
+        INNER JOIN (
+            SELECT MAX(id) AS id FROM metas_vendas
+             WHERE (ativo = 1 OR ativo IS NULL)
+             GROUP BY COALESCE(vendedor_id, 0), periodo, categoria
+        ) ult ON ult.id = m.id`;
+
+    const mesAnterior = (periodo) => {
+        const [ano, mes] = String(periodo).split('-').map(Number);
+        const d = new Date(Date.UTC(ano, mes - 2, 1));
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+    };
+    pool.query(`ALTER TABLE metas_vendas ADD COLUMN categoria VARCHAR(30) NOT NULL DEFAULT 'faturamento' AFTER tipo`)
+        .then(() => console.log('[VENDAS] Coluna metas_vendas.categoria criada.'))
+        .catch(() => { /* coluna já existe ou tabela ainda não existe — ok */ });
 
     async function getTableColumns(tableName) {
         if (!/^[a-zA-Z0-9_]+$/.test(tableName)) {
@@ -38,6 +286,48 @@ module.exports = function createVendasRoutes(deps) {
     // Validação de documento (CNPJ 14 díg. OU CPF 11 díg. com dígitos verificadores).
     // Mesma regra usada no cadastro de fornecedor (Compras).
     function onlyDigits(s) { return String(s || '').replace(/\D/g, ''); }
+    function parseMoney(value) {
+        if (value === null || value === undefined || value === '') return 0;
+        if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+        let normalized = String(value).trim().replace(/[^\d,.-]/g, '');
+        if (normalized.includes(',')) normalized = normalized.replace(/\./g, '').replace(',', '.');
+        const parsed = Number.parseFloat(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+    // Valores de transporte não podem aceitar conversão parcial (ex.: "12abc" virar 12).
+    // Aceita ponto ou vírgula como separador decimal e devolve null para campo vazio.
+    const CAMPOS_NUMERICOS_TRANSPORTE = {
+        transportadora_id: 0,
+        frete: 2,
+        qtd_volumes: 0,
+        peso_liquido: 3,
+        peso_bruto: 3,
+        valor_seguro: 2,
+        outras_despesas: 2
+    };
+    function normalizarNumeroTransporte(valor, casasDecimais) {
+        if (valor === null || valor === undefined || valor === '' || valor === 'null' || valor === 'undefined') return null;
+        if (typeof valor === 'number') return Number.isFinite(valor) && valor >= 0 ? valor : null;
+        const texto = String(valor).trim();
+        const padrao = casasDecimais === 0
+            ? /^\d+$/
+            : new RegExp(`^\\d+(?:[,.]\\d{1,${casasDecimais}})?$`);
+        if (!padrao.test(texto)) return null;
+        const numero = Number(texto.replace(',', '.'));
+        return Number.isFinite(numero) && numero >= 0 ? numero : null;
+    }
+    function validarCamposTransporte(payload) {
+        for (const [campo, casasDecimais] of Object.entries(CAMPOS_NUMERICOS_TRANSPORTE)) {
+            if (payload[campo] === undefined || payload[campo] === null || payload[campo] === '') continue;
+            if (normalizarNumeroTransporte(payload[campo], casasDecimais) === null) {
+                return `O campo "${campo.replace(/_/g, ' ')}" deve conter somente números${casasDecimais ? `, com até ${casasDecimais} casa(s) decimal(is)` : ''}.`;
+            }
+        }
+        if (payload.rntrc !== undefined && payload.rntrc !== null && payload.rntrc !== '' && !/^\d{1,9}$/.test(String(payload.rntrc))) {
+            return 'O campo "RNTRC" deve conter somente números, com até 9 dígitos.';
+        }
+        return null;
+    }
     function isValidCPF(cpf) {
         cpf = onlyDigits(cpf);
         if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
@@ -77,6 +367,11 @@ module.exports = function createVendasRoutes(deps) {
                 ROLES_VENDAS.includes(role)) {
                 return true;
             }
+            // A conta funcional de Compras também lança pedidos de venda, sempre
+            // vinculando-os a um vendedor ativo (validado no POST /pedidos).
+            if (isComprasUser(reqUser)) return true;
+            // PCP também lança pedidos (liberado em 25/09/2026), sempre para um vendedor ativo.
+            if (isPcpUser(reqUser)) return true;
             // Fora dos papéis de vendas: só passa com permissão granular explícita = true
             const cols = await getTableColumns('usuarios');
             if (!cols.has('permissoes_vendas')) return false;
@@ -93,6 +388,856 @@ module.exports = function createVendasRoutes(deps) {
         } catch (e) {
             console.warn('[VENDAS/PERM] podeCadastrarVendas erro — negando por segurança:', e.message);
             return false;
+        }
+    }
+
+    // ============================================================
+    // ALÇADA DE DESCONTO (server-side) — substitui as senhas hardcoded do cliente.
+    // Usa as FAIXAS de alcadas_aprovacao (tipo='desconto'): cada faixa tem um perfil_aprovador mínimo.
+    // Ex.: até 5% = vendedor (livre); 5-15% = gerente; acima = admin. A decisão é do servidor; quem
+    // autoriza precisa estar logado com papel suficiente. O cliente não guarda mais senha nem flag.
+    // ============================================================
+    // hierarquia de papéis (maior = mais poder). admin autoriza qualquer faixa.
+    const _NIVEL_PERFIL = { vendedor: 1, comercial: 1, gerente: 2, supervisor: 2, diretoria: 3, admin: 4, super_admin: 4 };
+    const LIMITE_DESCONTO_LIVRE_PCT = 26.40;
+    function _nivelDoUsuario(user) {
+        if (!user) return 0;
+        if (user.is_admin === 1 || user.is_admin === true || user.is_admin === '1') return 4;
+        const nivel = _NIVEL_PERFIL[String(user.role || '').toLowerCase().trim()] || 0;
+        // Compras (Guilherme Dantas) aprova desconto como os DEMAIS supervisores — qualquer %
+        // acima de 26,40%. No banco ele é role='user' (é reconhecido como Compras pelo login),
+        // mas tem alçada plena de aprovador; por isso recebe o mesmo nível dos admins aqui.
+        if (isComprasUser(user)) return Math.max(nivel, _NIVEL_PERFIL.admin);
+        return nivel;
+    }
+
+    // Retorna o perfil_aprovador exigido para um % de desconto, lendo as faixas do banco.
+    // Se não houver faixa configurada, cai no fallback (até 26,40% livre).
+    async function _perfilExigidoParaDesconto(pct) {
+        try {
+            const [faixas] = await pool.query(
+                "SELECT valor_minimo, valor_maximo, perfil_aprovador FROM alcadas_aprovacao " +
+                "WHERE tipo = 'desconto' AND ativo = 1 ORDER BY valor_minimo ASC");
+            if (faixas.length) {
+                for (const f of faixas) {
+                    const min = parseFloat(f.valor_minimo) || 0;
+                    const max = (f.valor_maximo == null || f.valor_maximo === '') ? Infinity : parseFloat(f.valor_maximo);
+                    if (pct >= min && pct <= max) return String(f.perfil_aprovador || '').toLowerCase().trim();
+                }
+                // acima de todas as faixas explícitas → exige o maior perfil configurado
+                const ultima = faixas[faixas.length - 1];
+                return String(ultima.perfil_aprovador || 'admin').toLowerCase().trim();
+            }
+        } catch (e) {
+            console.warn('[VENDAS/DESCONTO] _perfilExigidoParaDesconto erro:', e.message);
+        }
+        // fallback sem faixas: até 26,40% livre, acima exige gerente
+        return pct <= LIMITE_DESCONTO_LIVRE_PCT ? 'vendedor' : 'gerente';
+    }
+
+    // O usuário logado tem alçada para aprovar este % de desconto?
+    async function podeAprovarDesconto(user, pct) {
+        const perfilExigido = await _perfilExigidoParaDesconto(pct);
+        const nivelExigido = _NIVEL_PERFIL[perfilExigido] || 1;
+        return { pode: _nivelDoUsuario(user) >= nivelExigido, perfilExigido, nivelExigido };
+    }
+
+    // A faixa "livre" (não exige autorização de terceiro) é a de menor perfil (nível 1 = vendedor).
+    async function _descontoEhLivre(pct) {
+        const perfil = await _perfilExigidoParaDesconto(pct);
+        return (_NIVEL_PERFIL[perfil] || 1) <= 1;
+    }
+
+    // Tokens de autorização de desconto: uso único, 10 min, em memória do processo.
+    // Autorizações de margem são deliberadamente vinculadas ao cabo, ao pedido e ao
+    // menor preço líquido mostrado ao supervisor. Uma senha nunca transforma o pedido
+    // inteiro em "preço livre" nem pode ser reaproveitada em outro item.
+    const _descontoTokens = new Map();
+    const _TTL_TOKEN_DESCONTO = 10 * 60 * 1000;
+    // `extra` permite sobrescrever o rótulo de quem autorizou (senha compartilhada) e anexar
+    // quem APLICOU o desconto (o usuário logado), que é o outro lado da história.
+    function _novoTokenDesconto(user, pct, extra = {}) {
+        const token = require('crypto').randomBytes(24).toString('hex');
+        _descontoTokens.set(token, {
+            autorizadoPorId: user.id,
+            autorizadoPorNome: user.nome || user.name || user.email || ('#' + user.id),
+            descontoMax: parseFloat(pct),
+            exp: Date.now() + _TTL_TOKEN_DESCONTO,
+            ...extra
+        });
+        return token;
+    }
+    function _chaveEscopoProduto(produtoId, codigo) {
+        if (Number.isFinite(Number(produtoId)) && Number(produtoId) > 0) return `id:${parseInt(produtoId, 10)}`;
+        const codigoNormalizado = String(codigo || '').trim().toUpperCase();
+        return codigoNormalizado ? `codigo:${codigoNormalizado}` : '';
+    }
+    function _consumirTokenDesconto(token, pct, pedidoId, escopoItem = null) {
+        const t = _descontoTokens.get(token);
+        if (!t) return { ok: false, motivo: 'token inválido' };
+        if (Date.now() > t.exp) { _descontoTokens.delete(token); return { ok: false, motivo: 'token expirado' }; }
+        if (parseFloat(pct) > t.descontoMax + 0.001) {
+            return { ok: false, motivo: 'desconto acima do autorizado' };
+        }
+        const alvo = (pedidoId === undefined || pedidoId === null || pedidoId === '') ? null : String(pedidoId);
+        if (t.pedidoId && alvo && t.pedidoId !== alvo) {
+            return { ok: false, motivo: 'autorização é de outro pedido' };
+        }
+        if (escopoItem && t.tipoAutorizacao !== 'margem_item') {
+            return { ok: false, motivo: 'autorização não pertence a este item' };
+        }
+        if (t.tipoAutorizacao === 'margem_item') {
+            if (!escopoItem) return { ok: false, motivo: 'autorização exclusiva de item' };
+            const chaveProduto = _chaveEscopoProduto(escopoItem.produtoId, escopoItem.codigo);
+            if (!chaveProduto || chaveProduto !== t.chaveProduto) {
+                return { ok: false, motivo: 'autorização é de outro cabo' };
+            }
+            const precoLiquido = Number(escopoItem.precoLiquido);
+            if (!Number.isFinite(precoLiquido) || precoLiquido < Number(t.precoLiquidoMin) - 0.005) {
+                return { ok: false, motivo: 'preço menor que o autorizado' };
+            }
+        }
+        _descontoTokens.delete(token);
+        return { ok: true, info: t };
+    }
+    setInterval(() => { const now = Date.now(); for (const [k, v] of _descontoTokens) if (now > v.exp) _descontoTokens.delete(k); }, 5 * 60 * 1000).unref?.();
+
+    async function _auditarAutorizacaoDesconto(user, pct, req) {
+        try {
+            const cols = await getTableColumns('audit_log');
+            if (!cols || !cols.size) return;
+            const campos = [], vals = [];
+            const put = (c, v) => { if (cols.has(c)) { campos.push(c); vals.push(v); } };
+            put('usuario_id', user.id);
+            put('acao', 'AUTORIZAR_DESCONTO');
+            put('entidade', 'pedido_venda');
+            const item = req.body?.exigir_senha || req.body?.tipo_autorizacao === 'margem_item'
+                ? {
+                    produto_id: req.body?.produto_id || null,
+                    codigo: req.body?.codigo || null,
+                    pedido_id: req.body?.pedido_id || null,
+                    preco_liquido: Number(req.body?.preco_liquido)
+                }
+                : null;
+            put('detalhes', JSON.stringify({ desconto_pct: pct, autorizado_por: user.email || user.id, item }));
+            put('descricao', item
+                ? `Autorizou exceção de margem de ${pct}% para o cabo ${item.codigo || item.produto_id || '-'}`
+                : `Autorizou desconto de ${pct}%`);
+            put('ip', (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().slice(0, 45));
+            put('criado_em', new Date());
+            if (!campos.length) return;
+            await pool.query(`INSERT INTO audit_log (${campos.join(',')}) VALUES (${campos.map(() => '?').join(',')})`, vals);
+        } catch (e) {
+            console.warn('[VENDAS/DESCONTO] auditoria falhou (não bloqueia):', e.message);
+        }
+    }
+
+    // GET /api/vendas/limite-desconto — o front consulta o limite LIVRE (sem autorização) e as faixas.
+    // Expõe ao cliente o mesmo limite livre utilizado pela validação server-side.
+    router.get('/limite-desconto', authenticateToken, async (req, res) => {
+        try {
+            const [faixas] = await pool.query(
+                "SELECT valor_minimo, valor_maximo, perfil_aprovador FROM alcadas_aprovacao " +
+                "WHERE tipo = 'desconto' AND ativo = 1 ORDER BY valor_minimo ASC");
+            // limite livre = teto da faixa cujo perfil é o de menor nível (vendedor)
+            let limiteLivre = LIMITE_DESCONTO_LIVRE_PCT; // fallback se não houver faixas
+            if (faixas.length) {
+                const livre = faixas.find(f => (_NIVEL_PERFIL[String(f.perfil_aprovador || '').toLowerCase().trim()] || 1) <= 1);
+                limiteLivre = livre && livre.valor_maximo != null ? parseFloat(livre.valor_maximo) : 0;
+            }
+            return res.json({
+                success: true,
+                limiteLivre,
+                faixas: faixas.map(f => ({
+                    de: parseFloat(f.valor_minimo) || 0,
+                    ate: f.valor_maximo == null ? null : parseFloat(f.valor_maximo),
+                    aprovador: String(f.perfil_aprovador || '').toLowerCase().trim()
+                }))
+            });
+        } catch (e) {
+            console.error('[VENDAS/DESCONTO] limite-desconto erro:', e.message);
+            return res.json({ success: true, limiteLivre: LIMITE_DESCONTO_LIVRE_PCT, faixas: [] }); // fail-safe: não trava a tela
+        }
+    });
+
+    // Senha ÚNICA de supervisor (compartilhada). O valor em texto puro NUNCA fica no código
+    // nem no repositório: o .env de cada instância guarda apenas o hash bcrypt em
+    // SENHA_SUPERVISOR_DESCONTO_HASH. Quem acerta autoriza QUALQUER faixa — mas NÃO dá para
+    // saber QUEM digitou, então é só o fallback: o caminho bom é identificar o supervisor.
+    async function _senhaSupervisorConfere(senha) {
+        const hash = process.env.SENHA_SUPERVISOR_DESCONTO_HASH;
+        if (!hash || !senha) return false;
+        try {
+            return await require('bcryptjs').compare(String(senha), hash);
+        } catch (e) {
+            console.error('[VENDAS/DESCONTO] falha ao conferir senha de supervisor:', e.message);
+            return false;
+        }
+    }
+
+    // DONO da senha compartilhada: a senha é do Guilherme (compras@), então toda aprovação
+    // feita com ela é registrada como "aprovado por Guilherme", não pelo vendedor logado na
+    // tela. O dono vem de SENHA_SUPERVISOR_DESCONTO_DONO no .env (e-mail ou login) — trocar
+    // o dono é só editar o .env, sem mexer no código.
+    async function _donoSenhaSupervisor() {
+        const ident = String(process.env.SENHA_SUPERVISOR_DESCONTO_DONO || '').trim().toLowerCase();
+        if (!ident) return null;
+        try {
+            const [rows] = await pool.query(
+                `SELECT id, nome, email, login, role, is_admin FROM usuarios
+                  WHERE LOWER(email) = ? OR LOWER(login) = ? LIMIT 1`,
+                [ident, ident]
+            );
+            return rows[0] || null;
+        } catch (e) {
+            console.warn('[VENDAS/DESCONTO] não resolveu dono da senha:', e.message);
+            return null;
+        }
+    }
+
+    // IDENTIFICA o supervisor a partir da senha, sem pedir login.
+    //
+    // O modal pede só a senha, mas o registro precisa dizer QUEM autorizou (não adianta
+    // gravar o vendedor logado: quem tem a senha é a Andreia/o Guilherme). Então a senha é
+    // testada contra a senha de LOGIN de cada usuário com alçada para a faixa — o supervisor
+    // usa a própria senha, e o servidor descobre quem é pelo hash que bateu.
+    //
+    // Só entram usuários ATIVOS com nível suficiente (poucos: admins/gerentes), então o custo
+    // do bcrypt é limitado. Protegido pelo mesmo freio de força bruta do endpoint.
+    async function _identificarSupervisorPorSenha(senha, pct) {
+        const pwd = String(senha || '');
+        if (!pwd) return null;
+
+        const { perfilExigido } = await podeAprovarDesconto({ role: '' }, pct);
+        const nivelExigido = _NIVEL_PERFIL[perfilExigido] || 1;
+
+        // Candidatos: admins/gerentes/diretoria + o usuário de COMPRAS (aprovador do comercial,
+        // que no banco é role='user' mas tem alçada — e é quem tem a senha, junto da gerência).
+        const [rows] = await pool.query(
+            `SELECT id, nome, email, login, role, is_admin, senha_hash, password_hash
+               FROM usuarios
+              WHERE (ativo = 1 OR ativo IS NULL)
+                AND (status IS NULL OR LOWER(status) <> 'inativo')
+                AND (
+                      is_admin = 1
+                   OR LOWER(COALESCE(role,'')) IN ('admin','super_admin','gerente','supervisor','diretoria','aprovador','compras')
+                   OR LOWER(COALESCE(login,'')) = 'compras'
+                   OR LOWER(COALESCE(email,'')) LIKE 'compras@%'
+                )
+              LIMIT 50`
+        );
+
+        // 🔴 A conferência de ALÇADA vem DEPOIS do bcrypt, não antes.
+        //
+        // Antes era `if (_nivelDoUsuario(u) < nivelExigido) continue;` ANTES de comparar a
+        // senha. Efeito: um gerente digitando a PRÓPRIA senha correta, numa faixa que exige
+        // admin, era pulado no loop; a senha então não batia com ninguém, caía na senha
+        // compartilhada, também não batia — e a tela respondia **"Senha de supervisor
+        // incorreta"**, que é mentira, e ainda contava como tentativa de força bruta. A
+        // pessoa tentava de novo achando que errou de digitação, e em poucas tentativas
+        // levava o bloqueio de "muitas tentativas". Era essa a origem do bloqueio relatado.
+        //
+        // Agora o retorno distingue os dois casos, e quem chama decide: senha de ninguém é
+        // força bruta; senha de alguém sem alçada é problema de PERMISSÃO e não pode contar
+        // para o bloqueio nem ser chamada de "incorreta".
+        //
+        // Comparar sem o filtro custa pouco: são 6 a 13 candidatos nas 4 bases (medido em
+        // 08/09/2026) e quase todos já eram `admin`, ou seja, o filtro quase não reduzia
+        // nada. O `return` no primeiro acerto mantém o caminho feliz curto.
+        const bcrypt = require('bcryptjs');
+        for (const u of rows) {
+            const hash = u.senha_hash || u.password_hash;
+            if (!hash) continue;
+            try {
+                if (await bcrypt.compare(pwd, hash)) {
+                    return { usuario: u, temAlcada: _nivelDoUsuario(u) >= nivelExigido };
+                }
+            } catch (_) { /* hash corrompido — segue para o próximo */ }
+        }
+        return null;   // a senha não é de ninguém
+    }
+
+    // Confere a credencial nominal do supervisor (login OU e-mail + senha) direto no banco.
+    // Mantido como caminho alternativo: dá rastreabilidade de QUEM aprovou, o que a senha
+    // única não dá. A senha NUNCA é comparada no cliente — só aqui, com bcrypt.
+    // Retorna o usuário aprovador ou null.
+    async function _autenticarSupervisor(identificador, senha) {
+        const id = String(identificador || '').trim().toLowerCase();
+        const pwd = String(senha || '');
+        if (!id || !pwd) return null;
+
+        const [rows] = await pool.query(
+            `SELECT id, nome, email, login, role, is_admin, senha_hash, password_hash, senha, ativo, status
+             FROM usuarios
+             WHERE LOWER(email) = ? OR LOWER(login) = ?
+             LIMIT 1`,
+            [id, id]
+        );
+        const u = rows[0];
+        if (!u) return null;
+        if (u.ativo === 0 || String(u.status || '').toLowerCase() === 'inativo') return null;
+
+        const bcrypt = require('bcryptjs');
+        const hash = u.senha_hash || u.password_hash;
+        let ok = false;
+        if (hash) {
+            try { ok = await bcrypt.compare(pwd, hash); } catch (_) { ok = false; }
+        } else if (u.senha) {
+            // Mesma tolerância do login: base legada em texto plano, comparação timing-safe.
+            try {
+                const crypto = require('crypto');
+                const a = Buffer.from(String(u.senha), 'utf8');
+                const b = Buffer.from(pwd, 'utf8');
+                ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+            } catch (_) { ok = false; }
+        }
+        return ok ? u : null;
+    }
+
+    // Freio de força bruta da senha de supervisor: a tela do vendedor fica aberta e
+    // qualquer um poderia ficar tentando senha de gerente. O freio continua existindo —
+    // é senha compartilhada que libera desconto, ou seja, dinheiro.
+    //
+    // 🔴 A chave era o **IP**, e isso é errado nos dois sentidos:
+    //   · O escritório inteiro sai por um IP só (NAT). Cinco erros de UM vendedor
+    //     bloqueavam TODO MUNDO por 10 minutos — foi o que o usuário reportou. Com
+    //     vários vendedores no mesmo modal, o limite estourava sem ninguém atacando
+    //     nada; e o IP do proxy/Cloudflare pode agrupar ainda mais gente.
+    //   · Um atacante real troca de IP e zera o contador, então o IP também não protegia.
+    // A chave passa a ser o USUÁRIO logado (a rota é autenticada), com o IP só como
+    // reserva para o caso improvável de não haver sessão. Isolar por pessoa é ao mesmo
+    // tempo mais permissivo para quem erra a senha e mais restritivo para quem tenta
+    // adivinhá-la.
+    //
+    // Tetos por env para dar ajuste sem deploy (o .env é lido só no boot, então mudar
+    // exige `pm2 restart` — mas não exige mexer em código).
+    const _MAX_FALHAS_DESCONTO = Math.max(1, parseInt(process.env.DESCONTO_MAX_TENTATIVAS, 10) || 8);
+    const _BLOQUEIO_DESCONTO_MS = Math.max(30, parseInt(process.env.DESCONTO_BLOQUEIO_SEGUNDOS, 10) || 300) * 1000;
+
+    const _tentativasDesconto = new Map();
+
+    // Identidade do tentante. `user:<id>` sempre que houver sessão — o IP compartilhado
+    // do escritório não pode mais responder pelos erros dos colegas.
+    function _chaveTentativa(req) {
+        if (req?.user?.id) return 'user:' + req.user.id;
+        const ip = (req?.headers?.['x-forwarded-for'] || req?.socket?.remoteAddress || '')
+            .toString().split(',')[0].trim();
+        return 'ip:' + (ip || 'desconhecido');
+    }
+
+    function _registrarFalhaDesconto(chave) {
+        const agora = Date.now();
+        const reg = _tentativasDesconto.get(chave) || { n: 0, ate: agora + _BLOQUEIO_DESCONTO_MS };
+        if (agora > reg.ate) { reg.n = 0; reg.ate = agora + _BLOQUEIO_DESCONTO_MS; }
+        reg.n += 1;
+        // A janela só começa a contar no PRIMEIRO erro da sequência. Antes, cada erro
+        // renovava o prazo em alguns caminhos e o bloqueio podia se estender sozinho.
+        _tentativasDesconto.set(chave, reg);
+        return reg;
+    }
+
+    // Devolve `null` quando liberado, ou os segundos que faltam quando bloqueado —
+    // assim a mensagem diz o tempo REAL em vez de repetir "10 minutos" fixo.
+    function _bloqueadoPorTentativas(chave) {
+        const reg = _tentativasDesconto.get(chave);
+        if (!reg) return null;
+        if (Date.now() > reg.ate) { _tentativasDesconto.delete(chave); return null; }
+        if (reg.n < _MAX_FALHAS_DESCONTO) return null;
+        return Math.max(1, Math.ceil((reg.ate - Date.now()) / 1000));
+    }
+
+    function _mensagemBloqueio(segundos) {
+        const min = Math.ceil(segundos / 60);
+        return segundos > 90
+            ? `Muitas tentativas de senha. Tente novamente em ${min} minuto${min > 1 ? 's' : ''}.`
+            : `Muitas tentativas de senha. Tente novamente em ${segundos} segundos.`;
+    }
+
+    // POST /api/vendas/autorizar-desconto
+    //
+    // Dois caminhos de autorização:
+    //   1. O próprio usuário logado já tem alçada (gerente/admin editando o pedido).
+    //   2. O vendedor está na tela e o SUPERVISOR digita login+senha no modal — a
+    //      credencial é validada aqui, no servidor, e o aprovador precisa ter alçada
+    //      para a faixa. É este o fluxo do dia a dia (o supervisor não precisa deslogar
+    //      o vendedor para liberar um desconto).
+    router.post('/autorizar-desconto', authenticateToken, async (req, res) => {
+        try {
+            let pct = parseFloat(req.body?.desconto_pct);
+            if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
+                return res.status(400).json({ success: false, message: 'Percentual de desconto inválido.' });
+            }
+            // A autorização do piso/margem vale somente para o cabo e preço exibidos
+            // no modal. O servidor recalcula o percentual a partir do próprio catálogo,
+            // para o cliente não conseguir reduzir a alçada enviada no JSON.
+            const _tokenDoItem = !!req.body?.exigir_senha || req.body?.tipo_autorizacao === 'margem_item';
+            const _pedidoIdDoItem = Number.isFinite(Number(req.body?.pedido_id)) && Number(req.body?.pedido_id) > 0
+                ? String(parseInt(req.body.pedido_id, 10))
+                : null;
+            const _chaveProdutoDoItem = _chaveEscopoProduto(req.body?.produto_id, req.body?.codigo);
+            const _precoLiquidoDoItem = Number(req.body?.preco_liquido);
+            if (_tokenDoItem) {
+                if (!_chaveProdutoDoItem || !Number.isFinite(_precoLiquidoDoItem) || _precoLiquidoDoItem < 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Informe o cabo e o preço líquido para solicitar a autorização.'
+                    });
+                }
+                const referencia = await _precoCatalogoProduto(req.body?.produto_id, req.body?.codigo);
+                // 307 dos 1.288 produtos do catálogo estão com `preco_venda` E `preco` zerados.
+                // Neles a tela ainda abre o modal de senha — a base dela, ao EDITAR um item, é
+                // `item.preco_tabela || item.preco_unitario` — mas aqui não havia referência
+                // nenhuma e a resposta era 422. Resultado: beco sem saída, o vendedor não
+                // conseguia nem baixar o preço nem obter a autorização.
+                // A referência cai então para o preço JÁ GRAVADO no item do pedido, que é a
+                // mesma base que a tela usa. Vem do banco, não do JSON do cliente, então
+                // continua valendo a regra de o cliente não escolher a própria alçada.
+                let _tabelaRef = referencia.tabela;
+                if (!(_tabelaRef > 0) && _pedidoIdDoItem) {
+                    try {
+                        const [[itemGravado]] = await pool.query(
+                            `SELECT preco_unitario FROM pedido_itens
+                              WHERE pedido_id = ? AND (produto_id = ? OR codigo = ?) AND preco_unitario > 0
+                              ORDER BY id DESC LIMIT 1`,
+                            [_pedidoIdDoItem, req.body?.produto_id || null, req.body?.codigo || null]
+                        );
+                        _tabelaRef = parseFloat(itemGravado && itemGravado.preco_unitario) || 0;
+                    } catch (e) {
+                        console.warn('[VENDAS/PISO] fallback do preço do item falhou:', e.message);
+                    }
+                }
+                if (!(_tabelaRef > 0)) {
+                    return res.status(422).json({
+                        success: false,
+                        message: 'Este cabo não tem preço de tabela cadastrado nem preço anterior neste pedido, '
+                            + 'então não há referência para medir a redução. Cadastre o preço de venda do produto '
+                            + 'para liberar a autorização.'
+                    });
+                }
+                pct = _pctAbaixoDoPiso(_tabelaRef, _precoLiquidoDoItem);
+            }
+            const _extraTokenItem = _tokenDoItem ? {
+                tipoAutorizacao: 'margem_item',
+                pedidoId: _pedidoIdDoItem,
+                chaveProduto: _chaveProdutoDoItem,
+                precoLiquidoMin: _precoLiquidoDoItem
+            } : {};
+            const _expiraTokenEm = () => Date.now() + _TTL_TOKEN_DESCONTO;
+            // `exigir_senha` vem do piso de preço unitário: uma redução de 0,2% cai na
+            // faixa livre e sairia daqui sem pedir nada. Com a flag, o pedido segue para
+            // o caminho da senha — a alçada por faixa continua valendo depois.
+            if (!_tokenDoItem && await _descontoEhLivre(pct)) {
+                return res.json({ success: true, autorizacaoNecessaria: false, message: `Desconto de ${pct}% está na faixa livre.` });
+            }
+
+            const { perfilExigido } = await podeAprovarDesconto(req.user, pct);
+            const login = req.body?.supervisor_login;
+            const senha = req.body?.supervisor_senha;
+
+            // Com `exigir_senha` a credencial é OBRIGATÓRIA. Sem esta guarda o pedido
+            // escorregava até o "Caminho 1: quem já está logado tem alçada?" e, numa
+            // redução de 0,2%, qualquer vendedor tem — saía token sem senha alguma.
+            if (_tokenDoItem && !senha && !login) {
+                return res.status(401).json({
+                    success: false,
+                    credencialNecessaria: true,
+                    message: "Informe a senha do supervisor para aprovar preço abaixo da tabela."
+                });
+            }
+
+            // Caminho 2: SENHA DE SUPERVISOR (o modal pede só isso).
+            // Primeiro tenta IDENTIFICAR o supervisor pela senha (ele usa a própria senha de
+            // login) — assim o registro diz quem autorizou de verdade. Se a senha não for de
+            // ninguém, cai na senha compartilhada do .env, que libera mas não identifica.
+            if (senha && !login) {
+                const _chaveFreio = _chaveTentativa(req);
+                const _bloqueioSeg = _bloqueadoPorTentativas(_chaveFreio);
+                if (_bloqueioSeg) {
+                    return res.status(429).json({
+                        success: false, bloqueado: true, segundosRestantes: _bloqueioSeg,
+                        message: _mensagemBloqueio(_bloqueioSeg)
+                    });
+                }
+
+                // A senha compartilhada fica somente em hash no .env. Se o valor digitado
+                // for a senha de LOGIN de um supervisor, identifica-o pelo
+                // nome; senão, vale a senha compartilhada, cujo DONO (Guilherme/compras@) é o
+                // aprovador registrado — não o vendedor logado na tela.
+                const _ident = await _identificarSupervisorPorSenha(senha, pct);
+                const sup = (_ident && _ident.temAlcada) ? _ident.usuario : null;
+                const compartilhada = sup ? false : await _senhaSupervisorConfere(senha);
+                const dono = compartilhada ? await _donoSenhaSupervisor() : null;
+
+                if (!sup && !compartilhada) {
+                    // Senha RECONHECIDA, mas de quem não tem alçada para esta faixa. Isso é
+                    // falta de permissão, não tentativa de invasão: não conta para o freio
+                    // (senão quem tem a senha certa se autobloqueia) e a mensagem diz a
+                    // verdade, em vez do antigo "senha incorreta" que fazia a pessoa repetir.
+                    if (_ident) {
+                        const _quem = _ident.usuario.nome || _ident.usuario.login || _ident.usuario.email;
+                        return res.status(403).json({
+                            success: false,
+                            semAlcada: true,
+                            message: `${_quem} não tem alçada para ${pct}% — essa faixa exige ${perfilExigido}. `
+                                + `Use a senha de um ${perfilExigido} (ou a senha de supervisor do setor).`
+                        });
+                    }
+                    _registrarFalhaDesconto(_chaveFreio);
+                    return res.status(401).json({ success: false, message: 'Senha de supervisor incorreta.' });
+                }
+                _tentativasDesconto.delete(_chaveFreio);
+
+                // Quem AUTORIZOU: o supervisor identificado pela senha, ou o dono da senha
+                // compartilhada (Guilherme). Só cai no usuário logado se o dono não estiver
+                // configurado. Quem APLICOU: sempre o usuário logado na tela.
+                const aprovador = sup || dono || req.user;
+                const quemAutorizou = aprovador.nome || aprovador.login || aprovador.email || ('#' + aprovador.id);
+                const quemAplicou = req.user.nome || req.user.name || req.user.email || ('#' + req.user.id);
+
+                const token = _novoTokenDesconto(aprovador, pct, {
+                    ..._extraTokenItem,
+                    autorizadoPorNome: quemAutorizou,   // supervisor identificado ou dono da senha (Guilherme)
+                    aplicadoPorNome: quemAplicou,       // usuário logado na tela
+                    aplicadoPorId: req.user.id
+                });
+
+                await _auditarAutorizacaoDesconto(aprovador, pct, req);
+                const _viaSenha = sup ? 'senha própria' : (dono ? 'senha compartilhada (dono)' : 'senha compartilhada');
+                console.log(`[VENDAS/DESCONTO] ${pct}% — autorizado por: ${quemAutorizou} (id=${aprovador.id || '-'}, ${_viaSenha}) | aplicado por: ${quemAplicou} (id=${req.user.id})`);
+                return res.json({
+                    success: true, autorizacaoNecessaria: true, token,
+                    autorizadoPor: quemAutorizou,
+                    identificado: !!sup,
+                    reutilizavel: false, pctAutorizado: pct, expiraEm: _expiraTokenEm(),
+                    message: _tokenDoItem
+                        ? `Exceção autorizada por ${quemAutorizou} somente para este cabo e este preço.`
+                        : `Desconto de ${pct}% autorizado por ${quemAutorizou}.`
+                });
+            }
+
+            // Caminho 3: credencial NOMINAL do supervisor (login + senha) — dá rastreabilidade.
+            if (login) {
+                const _chaveFreio = _chaveTentativa(req);
+                const _bloqueioSeg = _bloqueadoPorTentativas(_chaveFreio);
+                if (_bloqueioSeg) {
+                    return res.status(429).json({
+                        success: false, bloqueado: true, segundosRestantes: _bloqueioSeg,
+                        message: _mensagemBloqueio(_bloqueioSeg)
+                    });
+                }
+
+                const sup = await _autenticarSupervisor(login, senha);
+                if (!sup) {
+                    _registrarFalhaDesconto(_chaveFreio);
+                    return res.status(401).json({ success: false, message: 'Login ou senha do supervisor incorretos.' });
+                }
+
+                const alcada = await podeAprovarDesconto(sup, pct);
+                if (!alcada.pode) {
+                    // Credencial CORRETA, só sem alçada — mesma razão do caminho da senha:
+                    // não é força bruta e não pode empurrar quem acertou a senha para o
+                    // bloqueio. O 403 abaixo já explica o que fazer.
+                    return res.status(403).json({
+                        success: false,
+                        semAlcada: true,
+                        message: `${sup.nome || sup.login} não tem alçada para ${pct}% — essa faixa exige ${perfilExigido} (ou admin).`
+                    });
+                }
+
+                _tentativasDesconto.delete(_chaveFreio);
+                const token = _novoTokenDesconto(sup, pct, {
+                    ..._extraTokenItem,
+                    aplicadoPorNome: req.user.nome || req.user.name || req.user.email || ('#' + req.user.id),
+                    aplicadoPorId: req.user.id
+                });
+                await _auditarAutorizacaoDesconto(sup, pct, req);
+                console.log(`[VENDAS/DESCONTO] ${pct}% autorizado por ${sup.nome || sup.login} (id=${sup.id}) na sessão de ${req.user.nome || req.user.email}`);
+                return res.json({
+                    success: true, autorizacaoNecessaria: true, token,
+                    autorizadoPor: sup.nome || sup.login || sup.email,
+                    reutilizavel: false, pctAutorizado: pct, expiraEm: _expiraTokenEm(),
+                    message: _tokenDoItem
+                        ? `Exceção autorizada por ${sup.nome || sup.login} somente para este cabo e este preço.`
+                        : `Desconto de ${pct}% autorizado por ${sup.nome || sup.login}.`
+                });
+            }
+
+            // Caminho 1: quem já está logado tem alçada?
+            const { pode } = await podeAprovarDesconto(req.user, pct);
+            if (!pode) {
+                return res.status(403).json({
+                    success: false,
+                    credencialNecessaria: true,
+                    perfilExigido,
+                    message: `Desconto de ${pct}% exige autorização de ${perfilExigido}. Peça ao supervisor para autorizar com o login dele.`
+                });
+            }
+            const token = _novoTokenDesconto(req.user, pct, _extraTokenItem);
+            await _auditarAutorizacaoDesconto(req.user, pct, req);
+            return res.json({
+                success: true, autorizacaoNecessaria: true, token,
+                autorizadoPor: req.user.nome || req.user.name || req.user.email,
+                reutilizavel: false, pctAutorizado: pct, expiraEm: _expiraTokenEm(),
+                message: _tokenDoItem ? 'Exceção autorizada somente para este cabo e este preço.' : `Desconto de ${pct}% autorizado.`
+            });
+        } catch (e) {
+            console.error('[VENDAS/DESCONTO] autorizar-desconto erro:', e.message);
+            return res.status(500).json({ success: false, message: 'Erro ao autorizar desconto.' });
+        }
+    });
+
+    // Valida a alçada de desconto no salvamento do pedido. null = OK; objeto = erro.
+    // `ctx` (opcional) recebe em `ctx.autorizacao` os dados de QUEM autorizou — o token guarda
+    // o usuário que estava logado quando a senha de supervisor foi digitada. Sem isso a
+    // informação se perdia no consumo do token e o pedido não registrava o responsável.
+    async function validarAlcadaDesconto(descontoPct, autorizacaoToken, ctx) {
+        const pct = parseFloat(descontoPct) || 0;
+        if (pct <= 0) return null;
+        if (await _descontoEhLivre(pct)) return null;
+        if (!autorizacaoToken) {
+            const { perfilExigido } = await podeAprovarDesconto({ role: '' }, pct);
+            return { status: 403, message: `Desconto de ${pct}% requer autorização de ${perfilExigido} (ou admin).` };
+        }
+        const consumo = _consumirTokenDesconto(autorizacaoToken, pct);
+        if (!consumo.ok) return { status: 403, message: `Autorização de desconto inválida: ${consumo.motivo}. Solicite nova autorização.` };
+        if (ctx && consumo.info) ctx.autorizacao = { ...consumo.info, pct };
+        return null;
+    }
+
+    // ── PISO DO PREÇO UNITÁRIO (quatro instâncias) ────────────────────────────
+    // A tela deixa subir o preço à vontade e pede senha para atravessar a alçada
+    // ou o equilíbrio individual. Um request montado à mão passa pela mesma regra.
+    //
+    // O piso é o mesmo que a tela usa, para os dois não divergirem:
+    //   INSERT → preço de venda do produto no cadastro
+    //   UPDATE → preço que já estava gravado no item
+    function _marcaExigePisoPreco() {
+        const _MARCAS_PISO = ['aluforce', 'labor-energy', 'labor-eletric', 'cobal'];
+        return _MARCAS_PISO.includes(String(process.env.BRAND || 'aluforce').toLowerCase());
+    }
+
+    async function _precoCatalogoProduto(produtoId, codigo) {
+        try {
+            const colunas = await getTableColumns('produtos');
+            const pisoSelect = colunas.has('preco_minimo') ? 'preco_minimo' : 'NULL AS preco_minimo';
+            const equilibrioSelect = colunas.has('preco_equilibrio') ? 'preco_equilibrio' : 'NULL AS preco_equilibrio';
+            const select = `SELECT preco_venda, preco, ${pisoSelect}, ${equilibrioSelect} FROM produtos`;
+            if (produtoId) {
+                const [r] = await pool.query(`${select} WHERE id = ? LIMIT 1`, [produtoId]);
+                if (r.length) return {
+                    tabela: parseFloat(r[0].preco_venda) || parseFloat(r[0].preco) || 0,
+                    minimo: parseFloat(r[0].preco_minimo) || 0,
+                    equilibrio: parseFloat(r[0].preco_equilibrio) || 0
+                };
+            }
+            if (codigo) {
+                const [r] = await pool.query(`${select} WHERE codigo = ? LIMIT 1`, [codigo]);
+                if (r.length) return {
+                    tabela: parseFloat(r[0].preco_venda) || parseFloat(r[0].preco) || 0,
+                    minimo: parseFloat(r[0].preco_minimo) || 0,
+                    equilibrio: parseFloat(r[0].preco_equilibrio) || 0
+                };
+            }
+        } catch (e) {
+            // Cadastro sem essas colunas nesta base: sem piso conhecido, não trava.
+            console.warn('[VENDAS/PISO] não consegui ler o preço de catálogo:', e.message);
+        }
+        return { tabela: 0, minimo: 0, equilibrio: 0 };
+    }
+
+    // Mesmo arredondamento da tela, senão o token (emitido com o pct do front)
+    // é recusado por diferença na terceira casa.
+    function _pctAbaixoDoPiso(piso, preco) {
+        if (!(piso > 0)) return 0;
+        const pct = ((piso - preco) / piso) * 100;
+        return Math.max(0.01, Math.round(pct * 100) / 100);
+    }
+
+    async function validarPisoPrecoItem({ produtoId, codigo, preco, quantidade, desconto, token, pedidoId, ctx }) {
+        if (!_marcaExigePisoPreco()) return null;
+        try {
+            const [cfg] = await pool.query(
+                "SELECT valor FROM configuracoes_venda_produtos WHERE empresa_id = 1 AND chave_config = 'seguranca' ORDER BY id DESC LIMIT 1"
+            );
+            let seguranca = {};
+            try { seguranca = cfg.length ? JSON.parse(cfg[0].valor || '{}') : {}; } catch (_) {}
+            if (seguranca.exigir_senha_valor_unitario !== true) return null;
+        } catch (e) {
+            if (e.code === 'ER_NO_SUCH_TABLE' || e.code === 'ER_BAD_FIELD_ERROR') return null;
+            throw e;
+        }
+        const precoNovo = parseFloat(preco) || 0;
+        const qty = Math.max(parseFloat(quantidade) || 1, 0.000001);
+        const descontoValor = Math.max(parseFloat(desconto) || 0, 0);
+        const precoLiquido = Math.max(0, precoNovo - descontoValor / qty);
+        const referencia = await _precoCatalogoProduto(produtoId, codigo);
+        const tabela = referencia.tabela;
+        if (!(tabela > 0)) return null;
+
+        // Enquanto o piso calculado ainda não foi aplicado ao catálogo, o
+        // fallback preserva ao menos a regra comercial de 26,40%.
+        const pisoPolitica = tabela * (1 - LIMITE_DESCONTO_LIVRE_PCT / 100);
+        const pisoComercial = referencia.minimo > 0 ? Math.max(referencia.minimo, pisoPolitica) : pisoPolitica;
+        // Bases ainda não recalculadas não têm o equilíbrio persistido. Nesse
+        // caso o custo cadastrado é usado como última barreira contra prejuízo.
+        let pisoEconomico = referencia.equilibrio;
+        if (!(pisoEconomico > 0)) {
+            try {
+                const colunas = await getTableColumns('produtos');
+                const custoExpr = ['custo_unitario', 'preco_custo', 'custo_aquisicao']
+                    .filter(c => colunas.has(c)).map(c => `NULLIF(${c}, 0)`);
+                if (custoExpr.length) {
+                    const where = produtoId ? 'id = ?' : 'codigo = ?';
+                    const valor = produtoId || codigo;
+                    const [[custo]] = await pool.query(
+                        `SELECT COALESCE(${custoExpr.join(', ')}, 0) AS custo FROM produtos WHERE ${where} LIMIT 1`,
+                        [valor]
+                    );
+                    pisoEconomico = parseFloat(custo && custo.custo) || 0;
+                }
+            } catch (e) { /* fallback comercial continua ativo */ }
+        }
+        const pct = _pctAbaixoDoPiso(tabela, precoLiquido);
+
+        const margemNegativa = pisoEconomico > 0 && precoLiquido < pisoEconomico - 0.005;
+        const foraDaAlcada = precoLiquido < pisoComercial - 0.005 || pct > LIMITE_DESCONTO_LIVRE_PCT + 0.001;
+        if (margemNegativa || foraDaAlcada) {
+            if (!token) return margemNegativa ? {
+                status: 422,
+                message: `Margem negativa bloqueada neste cabo. O preço líquido de R$ ${precoLiquido.toFixed(2)} `
+                    + `está abaixo do ponto de equilíbrio de R$ ${pisoEconomico.toFixed(2)}. `
+                    + 'A margem de 26,40% pertence ao pedido e não elimina o piso individual; solicite a senha do supervisor para esta exceção.',
+                code: 'MARGEM_NEGATIVA_REQUER_SUPERVISOR',
+                piso: pisoEconomico,
+                preco_tabela: tabela
+            } : {
+                status: 403,
+                message: `Redução efetiva de ${pct.toFixed(2)}% neste cabo requer autorização do supervisor.`,
+                code: 'DESCONTO_REQUER_AUTORIZACAO'
+            };
+            const consumo = _consumirTokenDesconto(token, pct, pedidoId, {
+                produtoId,
+                codigo,
+                precoLiquido
+            });
+            if (!consumo.ok) return {
+                status: 403,
+                message: `Autorização do preço inválida: ${consumo.motivo}. Solicite nova autorização.`,
+                code: 'AUTORIZACAO_PRECO_INVALIDA'
+            };
+            if (ctx && consumo.info) {
+                ctx.autorizacao = {
+                    ...consumo.info,
+                    pct,
+                    produtoId,
+                    codigo,
+                    precoLiquido,
+                    pisoEconomico,
+                    margemNegativa
+                };
+            }
+        }
+        return null;
+    }
+
+    // Outros arquivos de rota (pcp-routes, vendas-extended) também gravam item com
+    // preço vindo do usuário. Precisam do MESMO validador e, sobretudo, do mesmo
+    // store de tokens — uma cópia por arquivo não acharia o token recém-emitido.
+    global.__validarPisoPrecoItem = validarPisoPrecoItem;
+
+    // Registra no PEDIDO quem AUTORIZOU o desconto (o supervisor identificado pela senha) e,
+    // no histórico, também quem APLICOU (o usuário logado na tela). Os dois papéis importam:
+    // a senha é da Andreia/do Guilherme, mas quem digita o desconto é o vendedor.
+    // Best-effort: não derruba o salvamento do pedido.
+    async function _registrarAutorizacaoNoPedido(conn, pedidoId, autorizacao) {
+        if (!pedidoId || !autorizacao) return;
+        const quemAutorizou = autorizacao.autorizadoPorNome || ('#' + autorizacao.autorizadoPorId);
+        const quemAplicou = autorizacao.aplicadoPorNome || null;
+        const pct = Number(autorizacao.descontoMax || autorizacao.pct || 0);
+        try {
+            await conn.query(
+                `UPDATE pedidos
+                    SET desconto_autorizado_por = ?, desconto_autorizado_por_id = ?, desconto_autorizado_em = NOW()
+                  WHERE id = ?`,
+                [String(quemAutorizou).slice(0, 120), autorizacao.autorizadoPorId || null, pedidoId]
+            );
+        } catch (e) {
+            console.warn('[VENDAS/DESCONTO] não gravou autorização no pedido:', e.message);
+        }
+        try {
+            const desc = `Desconto de ${pct.toFixed(2).replace('.', ',')}% autorizado por ${quemAutorizou}`
+                + (quemAplicou && quemAplicou !== quemAutorizou ? ` — aplicado por ${quemAplicou}` : '');
+            await conn.query(
+                `INSERT INTO pedido_historico (pedido_id, usuario_id, usuario_nome, acao, descricao, created_at)
+                 VALUES (?, ?, ?, 'desconto-autorizado', ?, NOW())`,
+                [pedidoId, autorizacao.autorizadoPorId || null, String(quemAutorizou).slice(0, 120), desc]
+            );
+        } catch (e) {
+            console.warn('[VENDAS/DESCONTO] não gravou histórico da autorização:', e.message);
+        }
+    }
+
+    // Registra a exceção no nível correto: o cabo e o preço efetivamente aprovados.
+    // Não grava mais uma permissão permanente no cabeçalho do pedido.
+    /**
+     * Marca de onde veio o preço deste item: pessoa ou motor de precificação.
+     *
+     * Existe porque o repreço por contexto (frete / representante / 50% NF) reescrevia TODOS os
+     * itens do pedido, e não havia como distinguir o preço que o sistema sugeriu do preço que o
+     * vendedor combinou com o cliente. Em 09/09/2026 isso apagou os 21 preços negociados do
+     * pedido 3603, todos já autorizados por senha de supervisor.
+     *
+     * Comparar preço com preço NÃO resolve: os parâmetros de custo (preço do kg do alumínio)
+     * mudam de um dia para o outro, então recalcular hoje nunca reproduz o preço gravado ontem —
+     * medido, a comparação preserva 100% dos itens e o repreço vira letra morta. Procedência
+     * precisa ser GRAVADA no momento da escrita.
+     *
+     * Quem manda é o formulário do item (`preco_manual`, ligado pelos eventos de digitação em
+     * `#item-pedido-preco`). Autorização de margem força 1 por definição: preço que precisou de
+     * senha de supervisor é decisão comercial, nunca sugestão de tabela.
+     *
+     * A coluna é opcional de propósito — base sem a migração continua funcionando, só volta a
+     * não distinguir a procedência.
+     */
+    async function _marcarProcedenciaPreco(conn, itemId, body, autorizacaoMargem) {
+        if (!itemId) return;
+        const b = body || {};
+        const manual = Boolean(
+            b.preco_manual === true || b.preco_manual === 1 || b.preco_manual === '1'
+            || autorizacaoMargem
+            || b.autorizacao_preco_token || b.autorizacao_desconto_token
+        );
+        try {
+            await (conn || pool).query(
+                'UPDATE pedido_itens SET preco_manual = ? WHERE id = ?', [manual ? 1 : 0, itemId]);
+        } catch (e) {
+            if (e.code !== 'ER_BAD_FIELD_ERROR') {
+                console.warn('[VENDAS] não consegui marcar a procedência do preço:', e.message);
+            }
+        }
+    }
+
+    async function _registrarAutorizacaoMargemItem(conn, pedidoId, itemId, autorizacao) {
+        if (!conn || !pedidoId || !autorizacao) return;
+        const quemAutorizou = autorizacao.autorizadoPorNome || ('#' + autorizacao.autorizadoPorId);
+        const quemAplicou = autorizacao.aplicadoPorNome || null;
+        const codigo = String(autorizacao.codigo || autorizacao.chaveProduto || 'cabo').slice(0, 80);
+        const preco = Number(autorizacao.precoLiquido || 0);
+        const piso = Number(autorizacao.pisoEconomico || 0);
+        const situacao = autorizacao.margemNegativa ? 'margem negativa' : 'fora da alçada livre';
+        const descricao = `Exceção de ${situacao} autorizada no item ${itemId || '-'} (${codigo}): `
+            + `preço líquido R$ ${preco.toFixed(2)}`
+            + (piso > 0 ? `, equilíbrio R$ ${piso.toFixed(2)}` : '')
+            + ` — autorizado por ${quemAutorizou}`
+            + (quemAplicou && quemAplicou !== quemAutorizou ? ` — aplicado por ${quemAplicou}` : '');
+        try {
+            await conn.query(
+                `INSERT INTO pedido_historico (pedido_id, usuario_id, usuario_nome, acao, descricao, created_at)
+                 VALUES (?, ?, ?, 'margem-item-autorizada', ?, NOW())`,
+                [pedidoId, autorizacao.autorizadoPorId || null, String(quemAutorizou).slice(0, 120), descricao]
+            );
+        } catch (e) {
+            console.warn('[VENDAS/MARGEM] não gravou histórico da exceção do item:', e.message);
         }
     }
 
@@ -130,6 +1275,9 @@ module.exports = function createVendasRoutes(deps) {
         determineRemessaCfop
     } = require('../services/faturamento-parcial.service');
     const faturamentoShared = getFaturamentoSharedService(pool);
+    // Trava de crédito do cliente — a mesma avaliação nas 4 portas (criar, aprovar,
+    // mover para faturar e emitir a NF-e). Ver services/credito-cliente.service.js.
+    const creditoCliente = require('../services/credito-cliente.service');
 
     // --- Standard requires for extracted routes ---
     const { body, param, query, validationResult } = require('express-validator');
@@ -144,9 +1292,6 @@ module.exports = function createVendasRoutes(deps) {
         next();
     };
 
-    // AUDIT-FIX SEC-001: IDOR protection for pedidos (owner = vendedor_id)
-    const pedidoOwnership = checkOwnership ? checkOwnership(pool, 'pedidos', 'vendedor_id') : (req, res, next) => next();
-
     // LGPD-FIX: Criptografar PII (CNPJ/CPF) antes de gravar no banco
     let lgpdCrypto = null;
     try { lgpdCrypto = require('../lgpd-crypto'); } catch (_) {}
@@ -157,21 +1302,180 @@ module.exports = function createVendasRoutes(deps) {
     function isPcpUser(reqUser) {
         if (!reqUser) return false;
         const role = String(reqUser.role || '').toLowerCase().trim();
-        const email = String(reqUser.email || '').toLowerCase().trim();
         return role === 'pcp' || role === 'producao' || role === 'produção'
-            || email.startsWith('pcp@');
+            || identidadeUsuario(reqUser) === 'pcp';
     }
 
+    // Detecta o usuário de Compras (aprovador de crédito). Não é dono de nenhum pedido:
+    // analisa e aprova os pedidos de TODA a equipe comercial e os encaminha para faturamento.
+    function isComprasUser(reqUser) {
+        if (!reqUser) return false;
+        const role = String(reqUser.role || '').toLowerCase().trim();
+        return role === 'aprovador' || role === 'compras'
+            || identidadeUsuario(reqUser) === 'compras';
+    }
+
+    // Detecta o usuário de Logística. Opera a carteira igual ao Compras: não é dono de
+    // pedido nenhum, precisa ver os pedidos de toda a equipe e encaminhar até "faturar".
+    function isLogisticaUser(reqUser) {
+        if (!reqUser) return false;
+        const role = String(reqUser.role || '').toLowerCase().trim();
+        return role === 'logistica' || role === 'logística'
+            || identidadeUsuario(reqUser) === 'logistica';
+    }
+
+    // O claim `email` do JWT nem sempre é um e-mail: quem entra pelo campo "login" recebe
+    // ali o LOGIN ("compras"), não "compras@aluforce.ind.br". Comparar a parte antes do "@"
+    // cobre os dois formatos — um `startsWith('compras@')` falha em silêncio para esses.
+    function identidadeUsuario(reqUser) {
+        const bruto = String((reqUser && (reqUser.email || reqUser.login)) || '').toLowerCase().trim();
+        return bruto.split('@')[0];
+    }
+
+    function isAdminUser(reqUser) {
+        if (!reqUser) return false;
+        return reqUser.is_admin === true || reqUser.is_admin === 1
+            || String(reqUser.role || '').toLowerCase().trim() === 'admin';
+    }
+
+    // Consultoria acompanha a carteira comercial completa, mas o writeGuard do
+    // router mantém a sessão estritamente em leitura (sem criar, editar,
+    // aprovar, faturar ou cancelar pedidos).
+    function isConsultoriaUser(reqUser) {
+        return String(reqUser?.role || '').toLowerCase().trim() === 'consultoria';
+    }
+
+    // Quem enxerga a carteira inteira de pedidos (e não apenas os próprios):
+    // admin, PCP (fatura para toda a equipe), Compras (aprova para toda a equipe),
+    // Logística, Consultoria e os supervisores comerciais Augusto/Renata.
+    // A última concessão é somente de VISUALIZAÇÃO; o middleware de ownership
+    // abaixo continua impedindo alterações em pedidos de outros vendedores.
+    function podeVerTodosPedidos(reqUser) {
+        return isAdminUser(reqUser) || isPcpUser(reqUser)
+            || isComprasUser(reqUser) || isLogisticaUser(reqUser)
+            || isConsultoriaUser(reqUser) || reqUser?.vendas_visualizar_todos === true
+            || isSupervisorCarteiraVendas(reqUser);
+    }
+
+    function podeOperarTodosPedidos(reqUser) {
+        return isAdminUser(reqUser) || isPcpUser(reqUser)
+            || isComprasUser(reqUser) || isLogisticaUser(reqUser)
+            || isConsultoriaUser(reqUser);
+    }
+
+    // AUDIT-FIX SEC-001: IDOR protection for pedidos (owner = vendedor_id)
+    // PCP e Compras não têm "pedidos próprios" — precisam abrir o pedido de qualquer
+    // vendedor para faturar/aprovar, então passam antes da checagem de dono.
+    const _pedidoOwnershipBase = checkOwnership ? checkOwnership(pool, 'pedidos', 'vendedor_id') : (req, res, next) => next();
+    const pedidoOwnership = (req, res, next) => {
+        if (podeOperarTodosPedidos(req.user)) return next();
+        if (req.method === 'GET' && podeVerTodosPedidos(req.user)) return next();
+        return _pedidoOwnershipBase(req, res, next);
+    };
+
+    // Deixa o emitter de NF-e saber quem disparou a ação (log de não repúdio do envio).
+    router.use(require('../services/request-context').middleware);
     router.use(authenticateToken);
-    // PCP entra no módulo Vendas (somente leitura do Kanban + faturamento — criação
-    // e edição continuam barradas pelas verificações por-rota abaixo).
-    router.use(authorizeArea(['vendas', 'pcp']));
+    // O claim `email` do JWT pode trazer só o LOGIN — canoniza pelo banco antes de
+    // qualquer decisão de escopo (senão Compras/Logística caem no filtro de vendedor
+    // e recebem uma lista vazia, sem erro nenhum).
+    router.use(canonizarIdentidade(pool));
+    // PCP entra no módulo Vendas para leitura/faturamento. Compras também entra para
+    // aprovar e, agora, criar pedidos vinculados a um vendedor da equipe comercial.
+    router.use(authorizeArea(['vendas', 'pcp', 'compras']));
+    // Necessário também dentro do router porque ele é reutilizado pelos aliases
+    // /api/clientes e /api/empresas, fora do prefixo /api/vendas.
+    router.use(activeVendasAccessProfile);
     // AUDIT-FIX PERM-004: Block mutations for consultoria/restricted roles
-    router.use(writeGuard || ((req, res, next) => next()));
+    router.use(activeWriteGuard);
     // Audit trail for mutation operations
     router.use(auditTrail('vendas'));
     // Multi-tenant isolation
     router.use(tenantScope());
+
+    const ETAPAS_KANBAN_PADRAO = [
+        { id: 'orcamento', nome: 'Orçamento', status: 'orcamento' },
+        { id: 'análise', nome: 'Análise de Crédito', status: 'análise' },
+        { id: 'aprovado', nome: 'Pedido Aprovado', status: 'aprovado' },
+        { id: 'aguardando-faturamento', nome: 'Aguardando Faturamento', status: 'aguardando-faturamento' },
+        { id: 'faturar', nome: 'Faturar', status: 'faturar' },
+        { id: 'faturado', nome: 'Faturado', status: 'faturado', destaque: true },
+        { id: 'recibo', nome: 'Recibo', status: 'recibo' },
+        { id: 'cancelado', nome: 'Cancelado', status: 'cancelado' }
+    ];
+
+    async function ensureKanbanSettingsTable() {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS vendas_kanban_configuracoes (
+                empresa_id INT NOT NULL PRIMARY KEY,
+                etapas LONGTEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+    }
+
+    function validarEtapasKanban(value) {
+        if (!Array.isArray(value) || value.length < 2 || value.length > 10) return null;
+        const usados = new Set();
+        const etapas = [];
+        for (const item of value) {
+            const status = String(item?.status || item?.id || '').trim().toLowerCase();
+            const nome = String(item?.nome || '').trim();
+            if (!status || !nome || nome.length > 100 || status.length > 60 || !/^[\p{L}\p{N}_-]+$/u.test(status) || usados.has(status)) {
+                return null;
+            }
+            usados.add(status);
+            etapas.push({
+                id: status,
+                nome,
+                status,
+                destaque: item?.destaque === true
+            });
+        }
+        return etapas;
+    }
+
+    // Etapas do Kanban são configuração da empresa, não preferência do navegador.
+    router.get('/configuracoes/etapas', async (req, res, next) => {
+        try {
+            await ensureKanbanSettingsTable();
+            const empresaId = Number(req.user?.empresa_id) || 1;
+            const [[row]] = await pool.query(
+                'SELECT etapas FROM vendas_kanban_configuracoes WHERE empresa_id = ? LIMIT 1',
+                [empresaId]
+            );
+            let etapas = ETAPAS_KANBAN_PADRAO;
+            if (row?.etapas) {
+                try {
+                    etapas = validarEtapasKanban(JSON.parse(row.etapas)) || ETAPAS_KANBAN_PADRAO;
+                } catch (_) {
+                    etapas = ETAPAS_KANBAN_PADRAO;
+                }
+            }
+            return res.json({ success: true, persisted: Boolean(row?.etapas), etapas });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    router.post('/configuracoes/etapas', authorizeAdminOrComercial, async (req, res, next) => {
+        try {
+            const etapas = validarEtapasKanban(req.body?.etapas);
+            if (!etapas) {
+                return res.status(400).json({ success: false, message: 'Informe de 2 a 10 etapas válidas, sem duplicidade.' });
+            }
+            await ensureKanbanSettingsTable();
+            const empresaId = Number(req.user?.empresa_id) || 1;
+            await pool.query(`
+                INSERT INTO vendas_kanban_configuracoes (empresa_id, etapas)
+                VALUES (?, ?)
+                ON DUPLICATE KEY UPDATE etapas = VALUES(etapas), updated_at = CURRENT_TIMESTAMP
+            `, [empresaId, JSON.stringify(etapas)]);
+            return res.json({ success: true, etapas });
+        } catch (error) {
+            return next(error);
+        }
+    });
 
     // Garantir que tabela notificacoes existe (inicialização única)
     pool.query(`
@@ -226,11 +1530,80 @@ module.exports = function createVendasRoutes(deps) {
     };
     sincronizarCondicoesPedidosAfetados();
 
+    // UFs em que a operação recolhe ICMS ST. Fora desta lista o ST não é calculado.
+    // É a mesma lista usada pelo recálculo em massa e pela aba "ICMS ST" do pedido.
+    // MG entrou em 25/08/2026 (a tabela de alíquotas já tinha a linha dele).
+    //
+    // A lista vem de UFS_COM_ICMS_ST no .env quando definida — protocolo/convênio de ST
+    // muda por ato estadual, e antes disso incluir uma UF exigia editar o código e
+    // reimplantar as instâncias (foi o que aconteceu com MG, que ficou fora até alguém
+    // perceber). Sem a variável, continua valendo exatamente a mesma lista de antes.
+    // ⚠️ ST depende do NCM, não só da UF: esta lista é um filtro grosso, não a regra fiscal.
+    const UFS_COM_ICMS_ST = (() => {
+        const bruto = String(process.env.UFS_COM_ICMS_ST || '').trim();
+        if (!bruto) return ['RJ', 'AP', 'PE', 'SP', 'PR', 'DF', 'MG'];
+        const lista = bruto.toUpperCase().split(/[,;\s]+/).filter(uf => /^[A-Z]{2}$/.test(uf));
+        if (!lista.length) {
+            console.warn('[VENDAS-FISCAL] UFS_COM_ICMS_ST definido mas sem UF válida; usando a lista padrão.');
+            return ['RJ', 'AP', 'PE', 'SP', 'PR', 'DF', 'MG'];
+        }
+        console.log('[VENDAS-FISCAL] UFs com ICMS-ST vindas do .env:', lista.join(', '));
+        return lista;
+    })();
+
+    // Tabela de destino usada pelo orçamento. Ao contrário do legado
+    // /precificacao, este endpoint não traz uma planilha hardcoded: combina a
+    // matriz de alíquotas da instância com os defaults versionados por UF e
+    // explicita o FCP (no RJ, DIFAL 8% + FCP 2%).
+    router.get('/fiscal-destino', authenticateToken, async (req, res, next) => {
+        try {
+            const empresa = await regimeTributarioDaEmpresaVenda(async (sql, params) => {
+                try { const [rows] = await pool.query(sql, params); return rows; } catch (_) { return []; }
+            });
+            const origem = String(empresa.ufOrigem || 'SP').toUpperCase();
+            // Só a LISTA de UFs sai daqui (os valores vêm da matriz da instância logo
+            // abaixo, com fallback em aliquotasInternasPorUF). Antes vinha de uma segunda
+            // tabela `aliquotasICMS` que foi removida por divergir desta nas alíquotas.
+            const ufs = Object.keys(TRIBUTACAO_CLIENTE.aliquotasInternasPorUF || {});
+            const [linhas] = await pool.query(
+                'SELECT uf_destino, aliquota_interna, aliquota_interestadual, fcp_aliquota FROM aliquotas_icms_uf WHERE uf_origem = ?', [origem]
+            ).catch(() => [[]]);
+            const porUf = new Map((linhas || []).map(row => [String(row.uf_destino || '').toUpperCase(), row]));
+            const sulSudeste = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS'];
+            const mapa = {};
+            for (const uf of ufs) {
+                const linha = porUf.get(uf) || {};
+                const interna = numeroFiscalItem(linha.aliquota_interna) || numeroFiscalItem(TRIBUTACAO_CLIENTE.aliquotasInternasPorUF?.[uf]);
+                let interestadual = numeroFiscalItem(linha.aliquota_interestadual);
+                if (!interestadual && uf !== origem) {
+                    const origemSS = sulSudeste.includes(origem) && origem !== 'ES';
+                    const destinoSS = sulSudeste.includes(uf) && uf !== 'ES';
+                    interestadual = origemSS && !destinoSS ? 7 : 12;
+                }
+                mapa[uf] = {
+                    interna,
+                    interestadual,
+                    difal: uf === origem ? 0 : Math.max(0, interna - interestadual),
+                    // FCP não é devido para toda mercadoria da UF. Só usar o
+                    // percentual cadastrado para o par origem/destino; sem
+                    // classificação de produto, o fallback seguro é zero.
+                    fcp: numeroFiscalItem(linha.fcp_aliquota),
+                    fonte: porUf.has(uf) ? 'aliquotas_icms_uf' : 'tabela_uf_versionada'
+                };
+            }
+            res.json({ success: true, uf_origem: origem, regime: empresa.regime, ufs: mapa });
+        } catch (error) { next(error); }
+    });
+
     // Precificação: retorna fatores de preço por tipo de venda e UF
     router.get('/precificacao', async (req, res) => {
         try {
             const tipoVenda = req.query.tipo_venda || 'consumidor';
             const uf = (req.query.uf || 'SP').toUpperCase();
+            const empresaFiscal = await regimeTributarioDaEmpresaVenda(async (sql, params) => {
+                try { const [rows] = await pool.query(sql, params); return rows; } catch (_) { return []; }
+            });
+            const origemFiscal = String(empresaFiscal.ufOrigem || 'SP').toUpperCase();
 
             // Buscar configuração de precificação do banco se existir
             let config = null;
@@ -244,24 +1617,27 @@ module.exports = function createVendasRoutes(deps) {
             }
 
             // Tabela de ICMS interestadual por UF (alíquota destino)
-            const icmsEstados = {
-                'AC': { icms: 12, difal: 5, st: 0 }, 'AL': { icms: 12, difal: 6, st: 0 },
-                'AM': { icms: 12, difal: 6, st: 0 }, 'AP': { icms: 12, difal: 6, st: 0 },
-                'BA': { icms: 12, difal: 7.5, st: 0 }, 'CE': { icms: 12, difal: 6, st: 0 },
-                'DF': { icms: 12, difal: 6, st: 0 }, 'ES': { icms: 12, difal: 5, st: 0 },
-                'GO': { icms: 12, difal: 5, st: 0 }, 'MA': { icms: 12, difal: 6, st: 0 },
-                'MG': { icms: 12, difal: 6, st: 10 }, 'MS': { icms: 12, difal: 5, st: 0 },
-                'MT': { icms: 12, difal: 5, st: 0 }, 'PA': { icms: 12, difal: 5, st: 0 },
-                'PB': { icms: 12, difal: 6, st: 0 }, 'PE': { icms: 12, difal: 6, st: 0 },
-                'PI': { icms: 12, difal: 9, st: 0 }, 'PR': { icms: 12, difal: 7, st: 10 },
-                'RJ': { icms: 12, difal: 8, st: 10 }, 'RN': { icms: 12, difal: 6, st: 0 },
-                'RO': { icms: 12, difal: 5.5, st: 0 }, 'RR': { icms: 12, difal: 5, st: 0 },
-                'RS': { icms: 12, difal: 5, st: 10 }, 'SC': { icms: 12, difal: 5, st: 10 },
-                'SE': { icms: 12, difal: 6, st: 0 }, 'SP': { icms: 18, difal: 0, st: 10 },
-                'TO': { icms: 12, difal: 6, st: 0 }
+            let matrizFiscal = null;
+            try {
+                const [[linha]] = await pool.query(
+                    'SELECT aliquota_interna, aliquota_interestadual, fcp_aliquota FROM aliquotas_icms_uf WHERE uf_origem = ? AND uf_destino = ? ORDER BY id LIMIT 1',
+                    [origemFiscal, uf]
+                );
+                matrizFiscal = linha || null;
+            } catch (_) { /* tabela fiscal pode não existir em instalação antiga */ }
+            const internaDestino = numeroFiscalItem(matrizFiscal?.aliquota_interna)
+                || numeroFiscalItem(TRIBUTACAO_CLIENTE.aliquotasInternasPorUF?.[uf]);
+            const interestadual = origemFiscal === uf
+                ? internaDestino
+                : (numeroFiscalItem(matrizFiscal?.aliquota_interestadual)
+                    || (['SP', 'RJ', 'MG', 'PR', 'SC', 'RS'].includes(origemFiscal)
+                        && !['SP', 'RJ', 'MG', 'PR', 'SC', 'RS'].includes(uf) ? 7 : 12));
+            const ufData = {
+                icms: internaDestino,
+                difal: Math.max(0, internaDestino - interestadual),
+                fcp: numeroFiscalItem(matrizFiscal?.fcp_aliquota),
+                st: 0
             };
-
-            const ufData = icmsEstados[uf] || { icms: 12, difal: 5, st: 0 };
 
             // Calcular fator de preço baseado no tipo de venda
             let markup = config ? parseFloat(config.markup_padrao || 1.3) : 1.3;
@@ -270,7 +1646,7 @@ module.exports = function createVendasRoutes(deps) {
             let icms_st = 0;
 
             if (tipoVenda === 'consumidor' || tipoVenda === 'consumidor_final') {
-                difal = ufData.difal;
+                difal = empresaFiscal.regime === 'simples_nacional' ? 0 : ufData.difal;
                 icms_st = 0;
             } else {
                 // revenda
@@ -286,7 +1662,11 @@ module.exports = function createVendasRoutes(deps) {
                 icms: icms,
                 difal: difal,
                 icms_st: icms_st,
-                pis_cofins: 3.65
+                pis_cofins: empresaFiscal.regime === 'lucro_real' ? 9.25
+                    : (empresaFiscal.regime === 'simples_nacional' ? 0 : 3.65),
+                fcp: ufData.fcp,
+                uf_origem: origemFiscal,
+                regime: empresaFiscal.regime
             });
         } catch (error) {
             console.error('Erro ao buscar precificação:', error);
@@ -540,12 +1920,14 @@ module.exports = function createVendasRoutes(deps) {
     // PEDIDOS
     router.get('/pedidos', cacheMiddleware('vendas_pedidos', 60000), async (req, res, next) => {
         try {
-            const { period, page = 1, limit = 100, status } = req.query;
+            const { period, page = 1, limit = 100, status, data_inicio, data_fim } = req.query;
             const user = req.user || {};
-            const isAdmin = user.is_admin === true || user.is_admin === 1 || (user.role && user.role.toString().toLowerCase() === 'admin');
+            // "veTudo": além do admin, PCP e Compras enxergam os pedidos de toda a equipe
+            // (não são donos de pedido algum — faturam/aprovam o que os vendedores criam).
+            const veTudo = podeVerTodosPedidos(user);
             // AUDIT-FIX S9.8: Cap limit to prevent unbounded queries
             const safeLimit = Math.min(Math.max(1, parseInt(limit) || 100), 500);
-            const rows = await repos.pedido.list({ period, page, limit: safeLimit, userId: user.id, isAdmin, status });
+            const rows = await repos.pedido.list({ period, page, limit: safeLimit, userId: user.id, isAdmin: veTudo, status, data_inicio, data_fim });
             res.json(rows);
         } catch (error) { next(error); }
     });
@@ -561,8 +1943,23 @@ module.exports = function createVendasRoutes(deps) {
             const { id } = req.params;
             const [[pedido]] = await pool.query(`
                 SELECT p.*, p.valor as valor_total, p.created_at as data_pedido,
+                       -- Documento fiscal lido da tabela nfes: as colunas do pedido apontam para
+                       -- a NF-e ATIVA e são zeradas no cancelamento, mas a tela precisa continuar
+                       -- exibindo o número de uma nota cancelada. Autorizada na frente, porque
+                       -- pode haver uma rejeitada mais nova que a válida.
+                       (SELECT n2.numero FROM nfes n2 WHERE n2.pedido_id = p.id
+                         ORDER BY (LOWER(COALESCE(n2.status, '')) = 'autorizada') DESC, n2.id DESC LIMIT 1) AS nfe_doc_numero,
+                       (SELECT n2.status FROM nfes n2 WHERE n2.pedido_id = p.id
+                         ORDER BY (LOWER(COALESCE(n2.status, '')) = 'autorizada') DESC, n2.id DESC LIMIT 1) AS nfe_doc_status,
+                       -- BUG-FAT-010: mesma fórmula do kanban (vendas-extended kanban/pedidos);
+                       -- a coluna crua valor_pendente (default 0) divergia do valor exibido no kanban
+                       COALESCE(p.valor, 0) - COALESCE(p.valor_faturado, 0) AS valor_pendente,
+                       (SELECT cu.nome FROM usuarios cu WHERE cu.id = p.conferido_por) AS conferido_por_nome,
+                       c.email AS cliente_email_cadastro, c.email_nfe AS cliente_email_nfe,
                        p.transportadora_id, p.transportadora_nome,
                        COALESCE(c.nome_fantasia, c.razao_social, c.nome, p.cliente_nome, p.cliente, 'Cliente não informado') AS cliente_nome,
+                       c.nome_fantasia AS cliente_nome_fantasia,
+                       c.razao_social AS cliente_razao_social,
                        c.cnpj_cpf AS cliente_cnpj, c.inscricao_estadual AS cliente_ie,
                        c.endereco AS cliente_endereco, c.numero AS cliente_numero,
                        c.bairro AS cliente_bairro, c.cidade AS cliente_cidade,
@@ -570,7 +1967,10 @@ module.exports = function createVendasRoutes(deps) {
                        c.contato AS cliente_contato, c.complemento AS cliente_complemento,
                        c.email AS cliente_email, c.telefone AS cliente_telefone,
                        e.nome_fantasia AS empresa_nome, e.razao_social AS empresa_razao_social,
-                       COALESCE(p.vendedor_nome, u.nome) AS vendedor_nome,
+                       COALESCE(
+                           NULLIF(CASE WHEN LOWER(TRIM(COALESCE(p.vendedor_nome, ''))) = 'mel' THEN 'Melissa Navarro' ELSE TRIM(p.vendedor_nome) END, ''),
+                           NULLIF(TRIM(u.nome), '')
+                       ) AS vendedor_nome,
                        t.razao_social AS transp_razao_social,
                        t.cnpj_cpf AS transp_cnpj,
                        t.telefone AS transp_telefone,
@@ -676,19 +2076,42 @@ module.exports = function createVendasRoutes(deps) {
         }
     };
 
+    const dataIsoValida = (valor) => {
+        if (valor === null || valor === undefined || valor === '') return true;
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(valor));
+        if (!match) return false;
+        const ano = Number(match[1]);
+        const mes = Number(match[2]);
+        const dia = Number(match[3]);
+        const data = new Date(Date.UTC(ano, mes - 1, dia));
+        return data.getUTCFullYear() === ano
+            && data.getUTCMonth() === mes - 1
+            && data.getUTCDate() === dia;
+    };
+
     let pedidosWriteColumnsReady = null;
     const ensurePedidosWriteColumns = () => {
         if (pedidosWriteColumnsReady) return pedidosWriteColumnsReady;
 
         const columns = [
             ['cliente_nome', 'VARCHAR(255) NULL'],
+            ['vendedor_orcamento_nome', 'VARCHAR(120) NULL'],
             ['numero_pedido', 'INT NULL'],
             ['condicao_pagamento', 'VARCHAR(255) NULL'],
             ['condicoes_pagamento', 'VARCHAR(255) NULL'],
             ['cenario_fiscal', 'VARCHAR(100) NULL'],
+            ['transportadora', 'VARCHAR(255) NULL'],
             ['transportadora_nome', 'VARCHAR(255) NULL'],
+            ['transportadora_id', 'INT NULL'],
             ['tipo_frete', 'VARCHAR(20) NULL'],
+            // Contexto de PREÇO do pedido: o mesmo produto custa diferente para venda por
+            // representante (comissão maior) e para faturamento parcial ("50% NF", em que
+            // os tributos incidem só sobre a parcela faturada). Sem gravar, reabrir o
+            // pedido perde a escolha e o preço do item fica sem explicação.
+            ['is_representante', 'TINYINT(1) DEFAULT 0'],
+            ['faturamento_tipo', "VARCHAR(20) DEFAULT 'Total'"],
             ['frete', 'DECIMAL(15,2) DEFAULT 0'],
+            ['prazo_entrega', 'INT NULL'],
             ['placa_veiculo', 'VARCHAR(20) NULL'],
             ['veiculo_uf', 'VARCHAR(2) NULL'],
             ['rntrc', 'VARCHAR(50) NULL'],
@@ -703,6 +2126,8 @@ module.exports = function createVendasRoutes(deps) {
             ['tipo_entrega', 'VARCHAR(50) NULL'],
             ['numero_lacre', 'VARCHAR(50) NULL'],
             ['codigo_rastreio', 'VARCHAR(100) NULL'],
+            ['data_previsao', 'DATE NULL'],
+            ['data_validade', 'DATE NULL'],
             ['veiculo_proprio', 'TINYINT(1) DEFAULT 0'],
             ['redespacho', 'TINYINT(1) DEFAULT 0'],
             ['desconto_pct', 'DECIMAL(6,3) DEFAULT 0'],
@@ -712,15 +2137,60 @@ module.exports = function createVendasRoutes(deps) {
             ['parcelas', 'TEXT NULL'],
             ['estado_destino', 'VARCHAR(2) NULL'],
             ['tipo_venda', 'VARCHAR(20) NULL'],
+            ['cenario_fiscal_id', 'INT NULL'],
+            ['base_calculo_icms', 'DECIMAL(18,2) DEFAULT 0'],
+            ['total_icms', 'DECIMAL(18,2) DEFAULT 0'],
+            ['base_calculo_icms_st', 'DECIMAL(18,2) DEFAULT 0'],
+            ['total_icms_st', 'DECIMAL(18,2) DEFAULT 0'],
+            ['total_ipi', 'DECIMAL(18,2) DEFAULT 0'],
+            ['total_pis', 'DECIMAL(18,2) DEFAULT 0'],
+            ['total_cofins', 'DECIMAL(18,2) DEFAULT 0'],
+            ['total_difal', 'DECIMAL(18,2) DEFAULT 0'],
+            ['total_fcp', 'DECIMAL(18,2) DEFAULT 0'],
+            ['total_impostos', 'DECIMAL(18,2) DEFAULT 0'],
             ['etapa', 'VARCHAR(50) NULL'],
-            ['version', 'INT NOT NULL DEFAULT 1']
+            ['version', 'INT NOT NULL DEFAULT 1'],
+            ['conferido', 'TINYINT(1) NOT NULL DEFAULT 0'],
+            ['conferido_por', 'INT NULL'],
+            ['conferido_em', 'DATETIME NULL'],
+            // BUG-FAT-008: trilha de auditoria da aprovação de pedido
+            ['aprovado_por', 'INT NULL'],
+            ['data_aprovacao', 'DATETIME NULL'],
+            // BUG-FAT-018: vínculo bidirecional Vendas ↔ PCP (OP auto-criada)
+            ['ordem_producao_id', 'INT NULL'],
+            // A senha do supervisor libera os preços uma única vez por pedido.
+            ['preco_livre_autorizado', 'TINYINT(1) NOT NULL DEFAULT 0'],
+            ['preco_livre_autorizado_por', 'VARCHAR(120) NULL'],
+            ['preco_livre_autorizado_por_id', 'INT NULL'],
+            ['preco_livre_autorizado_em', 'DATETIME NULL'],
+            // Reservado ao Fisco (infAdFisco) e lista estruturada do modal "Campos de
+            // Observação" — `campos_obs_nfe` (legado, texto livre) já existe fora deste guard
+            // e é usado como fallback de infCpl; esta é uma coluna nova e separada.
+            ['info_fisco', 'TEXT NULL'],
+            ['campos_obs_nfe_lista', 'TEXT NULL'],
+            // Modal "ICMS Retido no Transporte" — grupo <retTransp> do XML (NFePedidoMapper.mapearIcmsRetidoTransporte).
+            ['dados_icms_transporte', 'TEXT NULL'],
+            // Modal "Notas ou Cupons Relacionados" — vira <NFref><refNFe> na NF-e (NFePedidoMapper.mapearNotasReferenciadas).
+            ['notas_relacionadas', 'TEXT NULL'],
+            // Modal "Endereço de Retirada" — grupo <retirada> do XML (mesmo formato de endereco_entrega_nfe).
+            ['endereco_retirada_nfe', 'TEXT NULL'],
+            // Indicador de Presença da Operação (ide/indPres) — override manual; vazio
+            // deduz de `origem_pedido` (NFePedidoMapper.mapearIndicadorPresenca).
+            ['indicador_presenca', 'VARCHAR(1) NULL']
         ];
 
         // Colunas em `clientes` usadas pelo bloqueio de inadimplência na criação do pedido.
         // Sem elas o SELECT falha com "Unknown column ... in 'field list'" (500).
         const clientesColumns = [
             ['ativo', 'TINYINT(1) NOT NULL DEFAULT 1'],
-            ['bloqueado_inadimplencia', 'TINYINT(1) NOT NULL DEFAULT 0']
+            ['bloqueado_inadimplencia', 'TINYINT(1) NOT NULL DEFAULT 0'],
+            // BUG-FAT-002: código IBGE do município do cliente é obrigatório na NF-e (cMun).
+            ['codigo_ibge', 'VARCHAR(7) NULL'],
+            ['codigo_municipio', 'VARCHAR(7) NULL'],
+            // Situação cadastral do CNPJ na Receita Federal (ATIVA/BAIXADA/INAPTA/...).
+            // Alimenta o aviso "Atenção!" no cadastro de cliente e no início de venda/orçamento.
+            ['situacao_cadastral', 'VARCHAR(40) NULL'],
+            ['situacao_cadastral_em', 'DATETIME NULL']
         ];
 
         pedidosWriteColumnsReady = (async () => {
@@ -763,11 +2233,18 @@ module.exports = function createVendasRoutes(deps) {
         return pedidosWriteColumnsReady;
     };
 
+    // Mantém o esquema de escrita pronto também para pedidos já existentes que só serão
+    // editados (PATCH), sem depender de alguém criar um novo pedido primeiro.
+    ensurePedidosWriteColumns().catch((err) => {
+        console.error('[VENDAS] Não foi possível preparar colunas de pedidos:', err.message);
+    });
+
     router.post('/pedidos', authenticateToken, async (req, res, next) => {
         let connection;
         try {
             // PCP tem acesso de leitura/faturamento ao Kanban, mas NÃO pode criar pedidos.
-            if (isPcpUser(req.user) || !(await podeCadastrarVendas(req.user, 'pedidos'))) {
+            // Compras é liberado por podeCadastrarVendas e deve escolher um vendedor abaixo.
+            if (!(await podeCadastrarVendas(req.user, 'pedidos'))) {
                 return res.status(403).json({ success: false, message: 'Seu perfil nao tem permissao para criar pedidos de venda.', code: 'SEM_PERMISSAO_PEDIDOS' });
             }
             await ensurePedidosWriteColumns();
@@ -775,31 +2252,146 @@ module.exports = function createVendasRoutes(deps) {
             await connection.beginTransaction();
 
             const sanitize = (v) => (v === 'null' || v === 'undefined' || v === '' || v === undefined ? null : v);
-            const sanitizeNum = (v) => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+            const sanitizeNum = (v) => normalizarNumeroTransporte(v, 3);
 
             const {
                 empresa_id, cliente_id, cliente_nome, cliente,
                 valor, descricao, observacao, observacoes, observacao_producao,
                 status = 'orcamento',
-                condicao_pagamento, condicoes_pagamento, cenario_fiscal,
-                transportadora, transportadora_nome,
+                condicao_pagamento, condicoes_pagamento, cenario_fiscal, cenario_fiscal_id, estado_destino,
+                transportadora, transportadora_nome, transportadora_id,
                 tipo_frete, frete = 0,
+                is_representante, faturamento_tipo,
                 placa_veiculo, veiculo_uf, rntrc,
                 qtd_volumes, especie_volumes, marca_volumes, numeracao_volumes,
                 peso_liquido, peso_bruto, valor_seguro, outras_despesas,
                 tipo_entrega, endereco_entrega, municipio_entrega, prazo_entrega,
+                data_validade,
                 desconto_pct = 0, origem,
                 vendedor_id: vendedorSelecionado,
-                itens, produtos, parcelas
+                vendedor_orcamento_nome,
+                itens, produtos, parcelas,
+                autorizacao_desconto_token
             } = req.body;
+            const statusNovo = String(status || 'orcamento').toLowerCase().trim();
+            const isRascunho = statusNovo === 'rascunho';
+            if (!['orcamento', 'orçamento', 'rascunho'].includes(statusNovo)) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Status inicial inválido.' });
+            }
+
+            const erroCamposTransporte = validarCamposTransporte(req.body || {});
+            if (erroCamposTransporte) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: erroCamposTransporte });
+            }
+            if (!dataIsoValida(data_validade)) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Informe uma validade de orçamento válida.' });
+            }
+
+            // SEGURANÇA: revalida a alçada de desconto no servidor (o cliente não decide mais).
+            const _ctxDescNovo = {};
+            const _erroDesc = await validarAlcadaDesconto(desconto_pct, autorizacao_desconto_token, _ctxDescNovo);
+            if (_erroDesc && !isRascunho) {
+                if (connection) { try { await connection.rollback(); connection.release(); } catch (_) {} }
+                return res.status(_erroDesc.status).json({ success: false, message: _erroDesc.message });
+            }
+            const _autorizacaoDescontoNovo = _ctxDescNovo.autorizacao || null;
 
             // BUG-VEND-012: gravar o vendedor SELECIONADO no formulário quando informado.
             // Antes usava sempre req.user.id, então o pedido saía atribuído ao usuário logado
             // em vez do vendedor escolhido. Fallback no logado quando nada é informado.
+            //
+            // SEGURANÇA: o vendedor vinha do formulário e era aceito sem conferência — qualquer
+            // usuário podia atribuir um pedido a QUALQUER vendedor. Só é permitido lançar para:
+            // si mesmo, um vendedor em `vendedores_vinculados` (ex.: Márcia lança pela Lorena),
+            // qualquer um se for admin, ou um vendedor ATIVO se a origem for Compras.
             const vendedorFormId = sanitizeNum(vendedorSelecionado);
-            const vendedor_id = (vendedorFormId && vendedorFormId > 0) ? vendedorFormId : req.user.id;
+            // PCP segue a regra do Compras: não é titular comercial, escolhe um vendedor ativo.
+            const ehCompras = isComprasUser(req.user) || isPcpUser(req.user);
+            let vendedor_id = req.user.id;
+
+            // Compras não é o titular comercial do pedido: sem uma escolha explícita o
+            // pedido ficaria atribuído ao próprio compras@ e distorceria carteira/comissão.
+            if (ehCompras && !(vendedorFormId && vendedorFormId > 0)) {
+                await connection.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'Selecione o vendedor responsável pelo pedido.',
+                    code: 'VENDEDOR_OBRIGATORIO_COMPRAS'
+                });
+            }
+
+            if (vendedorFormId && vendedorFormId > 0 && (ehCompras || vendedorFormId !== req.user.id)) {
+                const ehAdmin = req.user.is_admin === 1 || req.user.is_admin === true ||
+                    ['admin', 'administrador'].includes(String(req.user.role || '').toLowerCase().trim());
+
+                let permitido = false;
+                if (ehCompras) {
+                    // A mesma regra da API GET /vendedores: impede vincular o pedido a
+                    // usuário inativo, demitido ou que não pertence à equipe comercial.
+                    const usuarioCols = await getTableColumns('usuarios');
+                    const [vendedoresValidos] = await connection.query(
+                        `SELECT u.id FROM usuarios u
+                          WHERE u.id = ? AND ${sqlVendedorAtivo(usuarioCols, 'u')}
+                          LIMIT 1`,
+                        [vendedorFormId]
+                    );
+                    permitido = vendedoresValidos.length === 1;
+                } else if (ehAdmin) {
+                    permitido = true;
+                } else {
+                    const [vinc] = await connection.query(
+                        'SELECT vendedores_vinculados FROM usuarios WHERE id = ?', [req.user.id]
+                    );
+                    const lista = String(vinc[0]?.vendedores_vinculados || '')
+                        .split(',').map(v => parseInt(v.trim(), 10)).filter(Boolean);
+                    permitido = lista.includes(vendedorFormId);
+                }
+
+                if (!permitido) {
+                    if (connection) { try { await connection.rollback(); } catch (_) {} }
+                    return res.status(403).json({
+                        success: false,
+                        message: ehCompras
+                            ? 'Selecione um vendedor ativo da equipe comercial.'
+                            : 'Você não pode lançar pedidos para este vendedor.',
+                        code: ehCompras ? 'VENDEDOR_INVALIDO_COMPRAS' : 'VENDEDOR_SEM_VINCULO'
+                    });
+                }
+                vendedor_id = vendedorFormId;
+            }
+
+            // 18/09/2026: `vendedor_nome` nunca era gravado na criação — ficava NULL e só era
+            // preenchido depois, num PUT. Vendedor sem cadastro em `vendedores` (só login em
+            // `usuarios`) conseguia lançar pedido normalmente, mas o documento saía com
+            // "Vendedor: -" porque pelo menos uma leitura (recibo) não tem fallback nenhum além
+            // do JOIN com `usuarios`. Gravar aqui resolve na origem, sem mexer em cada SELECT.
+            let vendedor_nome = req.user.nome || null;
+            if (vendedor_id !== req.user.id) {
+                const [[_vendedorSelecionadoInfo]] = await connection.query('SELECT nome FROM usuarios WHERE id = ? LIMIT 1', [vendedor_id]);
+                vendedor_nome = _vendedorSelecionadoInfo?.nome || vendedor_nome;
+            }
             const nomeCliente = sanitize(cliente_nome) || sanitize(cliente) || null;
             const obs = sanitize(observacao) || sanitize(observacoes) || sanitize(descricao) || null;
+            let nomeOrcamento = null;
+            if (vendedor_orcamento_nome !== undefined && vendedor_orcamento_nome !== null && String(vendedor_orcamento_nome).trim()) {
+                if (!podeEditarNomeVendedorOrcamento(req.user)) {
+                    await connection.rollback();
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Somente Lorena ou Márcia podem alterar o nome exibido no orçamento.',
+                        code: 'NOME_ORCAMENTO_SEM_PERMISSAO'
+                    });
+                }
+                try {
+                    nomeOrcamento = sanitizarNomeVendedorOrcamento(vendedor_orcamento_nome);
+                } catch (error) {
+                    await connection.rollback();
+                    return res.status(400).json({ success: false, message: error.message, code: error.code });
+                }
+            }
 
             // empresa_id: aceitar do body OU buscar pelo nome do cliente
             let empresaFinalId = sanitize(empresa_id) ? parseInt(empresa_id) : null;
@@ -818,19 +2410,19 @@ module.exports = function createVendasRoutes(deps) {
             let clienteFinalId = sanitize(cliente_id) ? parseInt(cliente_id) : null;
             let clienteFinalNome = sanitize(cliente_nome) || sanitize(cliente) || null;
 
-            if (!empresaFinalId && !clienteFinalId && !nomeCliente) {
+            if (!isRascunho && !empresaFinalId && !clienteFinalId && !nomeCliente) {
                 await connection.rollback();
                 return res.status(400).json({ message: 'Informe o cliente ou empresa.' });
             }
 
             // Validar tipo de frete obrigatório
-            if (!sanitize(tipo_frete) && sanitize(tipo_frete) !== '0' && sanitize(tipo_frete) !== 0) {
+            if (!isRascunho && !sanitize(tipo_frete) && sanitize(tipo_frete) !== '0' && sanitize(tipo_frete) !== 0) {
                 await connection.rollback();
                 return res.status(400).json({ message: 'Selecione o Tipo de Frete (CIF, FOB, etc.).' });
             }
 
             // Validar cliente_id: se enviado, verificar se existe na tabela clientes
-            if (clienteFinalId) {
+            if (!isRascunho && clienteFinalId) {
                 const [clienteRows] = await connection.query(
                     'SELECT id, COALESCE(nome_fantasia, razao_social, nome) as nome_resolved, ativo, bloqueado_inadimplencia FROM clientes WHERE id = ? LIMIT 1',
                     [clienteFinalId]
@@ -841,19 +2433,18 @@ module.exports = function createVendasRoutes(deps) {
                     if (!clienteFinalNome) {
                         clienteFinalNome = clienteRows[0].nome_resolved;
                     }
-                    // Bloquear criação de pedido para clientes inadimplentes
-                    if (clienteRows[0].bloqueado_inadimplencia === 1) {
-                        await connection.rollback();
-                        return res.status(403).json({
-                            message: `Cliente bloqueado por inadimplência. Regularize as contas a receber vencidas no módulo Financeiro antes de emitir novos pedidos.`,
-                            code: 'CLIENTE_INADIMPLENTE'
-                        });
-                    }
+                    // A trava é recalculada abaixo pelo serviço de crédito. Não confiar no
+                    // flag cadastral antigo: uma baixa via banco/API pode tê-lo deixado stale.
                 }
             }
 
             // Calcular valor total dos itens (server-side)
             const itensArray = itens || produtos || [];
+            const cenarioFiscalInformado = cenario_fiscal_id || cenario_fiscal || null;
+            const cenarioFiscalRegistro = await buscarCenarioFiscalVenda(cenarioFiscalInformado, connection);
+            const cenarioFiscalNome = cenarioFiscalRegistro
+                ? (cenarioFiscalRegistro.nome || cenarioFiscalRegistro.codigo)
+                : sanitize(cenario_fiscal);
             let valorTotal = 0;
             if (Array.isArray(itensArray) && itensArray.length > 0) {
                 for (const item of itensArray) {
@@ -890,34 +2481,60 @@ module.exports = function createVendasRoutes(deps) {
                 valorTotal = sanitizeNum(valor) || 0;
             }
 
-            // Gerar numero_pedido sequencial — AUDIT-FIX BUG-02: FOR UPDATE lock para evitar duplicata
-            const [[npRow]] = await connection.query('SELECT COALESCE(MAX(CAST(numero_pedido AS UNSIGNED)), 0) + 1 AS next_num FROM pedidos FOR UPDATE');
-            const numeroPedido = npRow.next_num || 1;
+            // ── TRAVA DE CRÉDITO DO CLIENTE (porta 1 de 4: criação) ──────────────────
+            // Cliente com título vencido em aberto, sem análise de crédito ou com o limite
+            // estourado não gera pedido novo. A trava sai sozinha quando o financeiro dá
+            // baixa no Contas a Receber. Admin pode seguir com `forcar_credito: true`, e
+            // isso fica registrado no histórico do pedido logo após a criação.
+            let _avaliacaoCredito = null;
+            if (clienteFinalId) {
+                _avaliacaoCredito = await creditoCliente.avaliarCreditoCliente(connection, {
+                    clienteId: clienteFinalId, valorPedido: valorTotal, porta: 'criar'
+                });
+                if (_avaliacaoCredito.bloqueado) {
+                    const _adminCredito = faturamentoShared.isAdmin(req.user);
+                    const _forcar = req.body?.forcar_credito === true || req.body?.forcar_credito === 'true';
+                    if (!(_adminCredito && _forcar)) {
+                        await connection.rollback();
+                        connection.release();
+                        return res.status(409).json(
+                            creditoCliente.respostaBloqueio(_avaliacaoCredito, 'criar o pedido para este cliente')
+                        );
+                    }
+                    console.warn(`[CREDITO-GATE] Admin ${req.user?.nome || req.user?.email} criou pedido para cliente #${clienteFinalId} com pendência de crédito.`);
+                }
+            }
 
             const [result] = await connection.query(`
                 INSERT INTO pedidos (
-                    empresa_id, cliente_id, cliente_nome, vendedor_id, valor, descricao, status,
+                    empresa_id, cliente_id, cliente_nome, vendedor_id, vendedor_nome, vendedor_orcamento_nome, valor, descricao, status,
                     numero_pedido, condicao_pagamento, cenario_fiscal,
-                    transportadora_nome, tipo_frete, frete,
+                    transportadora_nome, transportadora_id, tipo_frete, frete,
+                    is_representante, faturamento_tipo,
                     placa_veiculo, veiculo_uf, rntrc,
                     qtd_volumes, especie_volumes, marca_volumes, numeracao_volumes,
                     peso_liquido, peso_bruto, valor_seguro, outras_despesas,
-                    desconto_pct, origem, observacao, parcelas
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    desconto_pct, origem, observacao, parcelas, data_validade
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 empresaFinalId,
                 clienteFinalId,
                 clienteFinalNome,
                 vendedor_id,
+                vendedor_nome,
+                nomeOrcamento,
                 valorTotal,
                 obs,
-                'orcamento',
-                numeroPedido,
+                isRascunho ? 'rascunho' : 'orcamento',
+                null,
                 sanitize(condicao_pagamento) || sanitize(condicoes_pagamento),
-                sanitize(cenario_fiscal),
+                cenarioFiscalNome,
                 sanitize(transportadora_nome) || sanitize(transportadora),
+                normalizarNumeroTransporte(transportadora_id, 0),
                 sanitize(tipo_frete),
                 sanitizeNum(frete) || 0,
+                is_representante === true || is_representante === 1 || is_representante === '1' ? 1 : 0,
+                String(faturamento_tipo || 'Total').trim() || 'Total',
                 sanitize(placa_veiculo),
                 sanitize(veiculo_uf),
                 sanitize(rntrc),
@@ -932,27 +2549,93 @@ module.exports = function createVendasRoutes(deps) {
                 sanitizeNum(desconto_pct) || 0,
                 sanitize(origem) || 'Sistema',
                 obs,
-                parcelas ? (typeof parcelas === 'string' ? parcelas : JSON.stringify(parcelas)) : null
+                parcelas ? (typeof parcelas === 'string' ? parcelas : JSON.stringify(parcelas)) : null,
+                sanitize(data_validade)
             ]);
 
             const pedidoId = result.insertId;
+            const numeroComercialPedido = await atribuirNumeroComercialPedido(connection, pedidoId);
+
+            // O estado precisa estar disponível antes do fechamento fiscal para que
+            // a tabela de ICMS/ST por UF seja aplicada já na criação do orçamento.
+            if (estado_destino !== undefined && estado_destino !== null && String(estado_destino).trim()) {
+                await connection.query(
+                    'UPDATE pedidos SET estado_destino = ? WHERE id = ?',
+                    [String(estado_destino).toUpperCase().slice(0, 2), pedidoId]
+                );
+            }
+
+            // Pedido criado por cima da trava de crédito: quem liberou e o que estava
+            // pendente ficam no histórico (é o que a auditoria vai procurar depois).
+            if (_avaliacaoCredito?.bloqueado) {
+                await creditoCliente.registrarLiberacaoForcada(connection, {
+                    pedidoId, usuario: req.user, avaliacao: _avaliacaoCredito, acao: 'criação do pedido'
+                });
+            }
+
+            // Quem liberou o desconto acima do limite fica gravado no pedido + histórico.
+            // Dentro da transação: se o pedido não for criado, a autorização não fica órfã.
+            if (_autorizacaoDescontoNovo) {
+                await _registrarAutorizacaoNoPedido(connection, pedidoId, _autorizacaoDescontoNovo);
+            }
 
             // Salvar itens
             if (Array.isArray(itensArray) && itensArray.length > 0) {
+                // Piso do preço: este caminho cria o pedido já com os itens, então o
+                // preço chega pelo corpo sem passar pelo POST /itens. Cada item pode
+                // trazer o próprio token; aceita também um token no nível do pedido.
+                const _autorizacoesMargemItens = [];
                 for (const item of itensArray) {
+                    const _ctxMargemItem = {};
+                    const _erroPiso = await validarPisoPrecoItem({
+                        produtoId: item.produto_id,
+                        codigo: item.codigo || item['código'] || '',
+                        preco: parseFloat(item.preco_unitario || item.preco || 0),
+                        quantidade: parseFloat(item.quantidade) || 1,
+                        desconto: parseFloat(item.desconto) || 0,
+                        token: item.autorizacao_desconto_token || item.autorizacao_preco_token
+                            || req.body?.autorizacao_desconto_token || req.body?.autorizacao_preco_token,
+                        pedidoId,
+                        ctx: _ctxMargemItem
+                    });
+                    if (_erroPiso) {
+                        await connection.rollback();
+                        connection.release();
+                        return res.status(_erroPiso.status).json({ success: false, message: _erroPiso.message, code: _erroPiso.code });
+                    }
+                    _autorizacoesMargemItens.push(_ctxMargemItem.autorizacao || null);
+                }
+                for (let _itemIndex = 0; _itemIndex < itensArray.length; _itemIndex += 1) {
+                    const item = itensArray[_itemIndex];
                     const qty = parseFloat(item.quantidade) || 1;
                     const preco = parseFloat(item.preco_unitario || item.preco || 0);
                     const desc = parseFloat(item.desconto) || 0;
                     const subtotal = (qty * preco) - desc;
                     const itemCodigo = item.codigo || item['código'] || '';
                     const itemDescricao = item.descricao || item['descrição'] || item.nome || '';
-                    await connection.query(
-                        `INSERT INTO pedido_itens (pedido_id, codigo, descricao, quantidade, unidade, local_estoque, preco_unitario, desconto, subtotal)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [pedidoId, itemCodigo, itemDescricao, qty,
+                    const [_itemInserido] = await connection.query(
+                        `INSERT INTO pedido_itens (pedido_id, produto_id, codigo, descricao, quantidade, unidade, local_estoque, preco_unitario, desconto, subtotal)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [pedidoId, item.produto_id || null, itemCodigo, itemDescricao, qty,
                          item.unidade || 'UN', item.local_estoque || 'PADRAO', preco, desc, subtotal]
                     );
+                    if (_autorizacoesMargemItens[_itemIndex]) {
+                        await _registrarAutorizacaoMargemItem(
+                            connection,
+                            pedidoId,
+                            _itemInserido.insertId,
+                            _autorizacoesMargemItens[_itemIndex]
+                        );
+                    }
                 }
+            }
+
+            // O fluxo principal cria o cabeçalho e envia os itens em seguida. Recalcular
+            // ainda dentro da transação garante que o orçamento já nasça com ICMS/IPI/ST,
+            // sem depender do botão manual ou de uma segunda gravação no navegador.
+            if (Array.isArray(itensArray) && itensArray.length > 0) {
+                const fiscalCriacao = await recalcularImpostosPedidoVenda(pedidoId, connection, cenarioFiscalNome);
+                if (fiscalCriacao) valorTotal = fiscalCriacao.valor;
             }
 
             await connection.commit();
@@ -981,6 +2664,7 @@ module.exports = function createVendasRoutes(deps) {
                 setIf(b.transportadora_id !== undefined, 'transportadora_id', sanitizeNum(b.transportadora_id));
                 setIf((b.transportadora_nome || b.transportadora) !== undefined, 'transportadora', sanitize(b.transportadora_nome) || sanitize(b.transportadora));
                 setIf((b.previsao_faturamento || b.data_previsao || b.data_previsao_entrega) !== undefined, 'data_previsao', sanitize(b.data_previsao_entrega) || sanitize(b.data_previsao) || sanitize(b.previsao_faturamento) || null);
+                setIf(b.data_validade !== undefined, 'data_validade', sanitize(b.data_validade));
                 setIf(b.redespacho !== undefined, 'redespacho', toBit(b.redespacho));
                 setIf(b.placa_veiculo !== undefined, 'placa_veiculo', sanitize(b.placa_veiculo));
                 setIf(b.veiculo_uf !== undefined, 'veiculo_uf', sanitize(b.veiculo_uf));
@@ -995,6 +2679,10 @@ module.exports = function createVendasRoutes(deps) {
                 setIf(b.tipo_entrega !== undefined, 'tipo_entrega', sanitize(b.tipo_entrega));
                 setIf(b.numero_lacre !== undefined, 'numero_lacre', sanitize(b.numero_lacre));
                 setIf(b.outras_despesas !== undefined, 'outras_despesas', sanitizeNum(b.outras_despesas));
+                setIf(b.prazo_entrega !== undefined, 'prazo_entrega', (() => {
+                    const dias = parseInt(b.prazo_entrega, 10);
+                    return Number.isFinite(dias) && dias > 0 ? dias : null;
+                })());
                 setIf(b.codigo_rastreio !== undefined, 'codigo_rastreio', sanitize(b.codigo_rastreio));
                 setIf(b.veiculo_proprio !== undefined, 'veiculo_proprio', toBit(b.veiculo_proprio));
                 setIf(b.nf !== undefined, 'nf', sanitize(b.nf));
@@ -1013,8 +2701,14 @@ module.exports = function createVendasRoutes(deps) {
                 setIf(b.email_pix !== undefined, 'email_pix', toBit(b.email_pix));
                 setIf(b.dados_adicionais_nf !== undefined, 'dados_adicionais_nf', sanitize(b.dados_adicionais_nf));
                 setIf(b.campos_obs_nfe !== undefined, 'campos_obs_nfe', sanitize(b.campos_obs_nfe));
+                setIf(b.campos_obs_nfe_lista !== undefined, 'campos_obs_nfe_lista', sanitize(b.campos_obs_nfe_lista));
                 setIf(b.endereco_entrega_nfe !== undefined, 'endereco_entrega_nfe', sanitize(b.endereco_entrega_nfe));
                 setIf(b.dados_agropecuaria !== undefined, 'dados_agropecuaria', sanitize(b.dados_agropecuaria));
+                setIf(b.info_fisco !== undefined, 'info_fisco', sanitize(b.info_fisco));
+                setIf(b.dados_icms_transporte !== undefined, 'dados_icms_transporte', sanitize(b.dados_icms_transporte));
+                setIf(b.notas_relacionadas !== undefined, 'notas_relacionadas', sanitize(b.notas_relacionadas));
+                setIf(b.endereco_retirada_nfe !== undefined, 'endereco_retirada_nfe', sanitize(b.endereco_retirada_nfe));
+                setIf(b.indicador_presenca !== undefined, 'indicador_presenca', sanitize(b.indicador_presenca));
 
                 if (extraCols.length > 0) {
                     extraVals.push(pedidoId);
@@ -1053,7 +2747,7 @@ module.exports = function createVendasRoutes(deps) {
                 }
             } catch (_) {}
 
-            res.status(201).json({ message: 'Pedido criado com sucesso!', id: pedidoId, insertId: pedidoId });
+            res.status(201).json({ message: 'Pedido criado com sucesso!', id: pedidoId, insertId: pedidoId, numero_pedido: numeroComercialPedido });
         } catch (error) {
             if (connection) { try { await connection.rollback(); } catch (_) {} }
             next(error);
@@ -1061,42 +2755,93 @@ module.exports = function createVendasRoutes(deps) {
             if (connection) connection.release();
         }
     });
-    // Statuses bloqueados para edição; só ti@aluforce.ind.br pode editar tudo.
+    // Statuses bloqueados para edição; só as contas liberadas abaixo editam tudo.
     // Orçamento/aprovado/faturar seguem o controle RBAC normal (vendedor edita o próprio; admin edita qualquer um).
     const STATUS_ANALISE_CREDITO_BLOQUEADO = ['analise-credito', 'análise-crédito', 'analise', 'análise'];
-    const STATUS_FINAL_BLOQUEADO_EDICAO = ['faturado', 'recibo', 'entregue'];
+    // 'parcial' é o status gravado no faturamento meia nota (F9) — sem ele aqui, um
+    // pedido F9 aparecia travado no front (colunaEfetivaDoPedido mapeia 'parcial' para
+    // 'faturado' lá) mas continuava 100% editável por esta rota, já que o backend só
+    // conhecia o status bruto. Mesmo pedido, duas respostas diferentes: tela dizia
+    // bloqueado, servidor aceitava a edição.
+    const STATUS_FINAL_BLOQUEADO_EDICAO = ['faturado', 'parcial', 'recibo', 'entregue'];
     const STATUS_BLOQUEADO_EDICAO = [...STATUS_ANALISE_CREDITO_BLOQUEADO, ...STATUS_FINAL_BLOQUEADO_EDICAO];
-    const EMAIL_EDICAO_LIBERADO = 'ti@aluforce.ind.br';
+    // Contas com edição liberada nos status travados. A comparação é pela PARTE LOCAL do
+    // e-mail, não pelo endereço inteiro: a regra fixa em 'ti@aluforce.ind.br' não valia nas
+    // instâncias Labor, onde as contas são ti@energy.com.br e ti@labor.com.br — lá ninguém
+    // conseguia destravar um pedido. Mesma regra usada no front (modules/Vendas).
+    // compras@ entrou em 21/09/2026: já vê e opera todos os pedidos (podeOperarTodosPedidos) e
+    // aprova a equipe inteira, mas ficava sem poder mexer em pedido em Análise de Crédito nem
+    // ajustar o imposto do item — o que ti@/logistica@ podiam. Espelha o front (vendas-page-main.js).
+    const CONTAS_EDICAO_LIBERADA = new Set(['ti', 'logistica', 'compras', 'pcp']);
+    function contaComEdicaoLiberada(user) {
+        const email = String((user && user.email) || '').toLowerCase().trim();
+        if (!email) return false;
+        return CONTAS_EDICAO_LIBERADA.has(email.split('@')[0]);
+    }
+    // Pedido faturado/F9/recibo/entregue trava para TODO MUNDO, sem exceção — nem
+    // ti@/logistica@ passam por aqui mais. A conta liberada continua existindo só para
+    // destravar Análise de Crédito (checado à parte por quem chama). Existia um "escape"
+    // geral pra TI corrigir pedido com problema, mas isso também deixava passar edição
+    // indevida em pedido já fechado — o pedido tem que voltar pra Faturar pra ser mexido.
+    function pedidoBloqueadoParaEdicao(status) {
+        return STATUS_FINAL_BLOQUEADO_EDICAO.includes(String(status || '').toLowerCase().trim());
+    }
 
     router.put('/pedidos/:id', pedidoOwnership, async (req, res, next) => {
         try {
             const { id } = req.params;
 
             // Lock: verificar status do pedido antes de permitir edição
-            const [[pedidoLock]] = await pool.query('SELECT status FROM pedidos WHERE id = ?', [parseInt(id)]);
-            if (pedidoLock && STATUS_BLOQUEADO_EDICAO.includes((pedidoLock.status || '').toLowerCase())) {
-                const userEmail = (req.user && req.user.email || '').toLowerCase();
-                if (userEmail !== EMAIL_EDICAO_LIBERADO) {
-                    return res.status(403).json({ message: `Pedido com status "${pedidoLock.status}" não pode ser editado. Somente TI pode editar pedidos neste status.`, code: 'EDIT_LOCKED_BY_STATUS' });
+            // (traz também a condição atual, para saber se ela MUDOU neste save — ver o
+            // recálculo de parcelas no fim da rota)
+            const [[pedidoLock]] = await pool.query(
+                'SELECT status, condicao_pagamento, faturamento_tipo FROM pedidos WHERE id = ?', [parseInt(id)]);
+            if (pedidoLock && pedidoBloqueadoParaEdicao(pedidoLock.status)) {
+                return res.status(403).json({ message: `Pedido com status "${pedidoLock.status}" não pode ser editado — pedido já faturado.`, code: 'EDIT_LOCKED_BY_STATUS' });
+            }
+            if (pedidoLock && STATUS_ANALISE_CREDITO_BLOQUEADO.includes((pedidoLock.status || '').toLowerCase())) {
+                if (!contaComEdicaoLiberada(req.user)) {
+                    return res.status(403).json({ message: `Pedido com status "${pedidoLock.status}" não pode ser editado. Somente TI, Compras ou Logística podem editar pedidos neste status.`, code: 'EDIT_LOCKED_BY_STATUS' });
                 }
             }
 
             const sanitize = (v) => (v === 'null' || v === 'undefined' || v === '' || v === undefined ? null : v);
-            const sanitizeNum = (v) => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+            const sanitizeNum = (v) => normalizarNumeroTransporte(v, 3);
 
             const {
                 empresa_id, cliente_id, cliente_nome, cliente,
-                valor, descricao, observacao, observacoes,
+                valor, descricao, observacao, observacoes, observacao_producao,
                 status,
                 condicao_pagamento, condicoes_pagamento, cenario_fiscal,
-                transportadora, transportadora_nome,
+                transportadora, transportadora_nome, transportadora_id,
                 tipo_frete, frete,
+                is_representante, faturamento_tipo,
                 placa_veiculo, veiculo_uf, rntrc,
                 qtd_volumes, especie_volumes, marca_volumes, numeracao_volumes,
                 peso_liquido, peso_bruto, valor_seguro, outras_despesas,
-                tipo_entrega, numero_lacre, codigo_rastreio, veiculo_proprio, data_previsao_entrega,
-                desconto_pct, origem, parcelas
+                tipo_entrega, numero_lacre, codigo_rastreio, veiculo_proprio, prazo_entrega, data_previsao_entrega,
+                desconto_pct, origem, parcelas,
+                // Campos de logística que a Ficha do Pedido edita. Já existiam como coluna
+                // e eram exibidos, mas nenhuma rota os gravava — editar por aqui salvava
+                // todo o resto e descartava estes quatro em silêncio.
+                prioridade, endereco_entrega, municipio_entrega, observacao_cliente,
+                autorizacao_desconto_token
             } = req.body;
+
+            const erroCamposTransporte = validarCamposTransporte(req.body || {});
+            if (erroCamposTransporte) {
+                return res.status(400).json({ success: false, message: erroCamposTransporte });
+            }
+
+            // SEGURANÇA: revalida a alçada de desconto no servidor também na edição do pedido.
+            let _autorizacaoDescontoPatch = null;
+            if (desconto_pct !== undefined) {
+                const _ctxDesc = {};
+                const _erroDesc = await validarAlcadaDesconto(desconto_pct, autorizacao_desconto_token, _ctxDesc);
+                if (_erroDesc) return res.status(_erroDesc.status).json({ success: false, message: _erroDesc.message });
+                // Guarda quem autorizou para gravar no pedido logo após o UPDATE.
+                _autorizacaoDescontoPatch = _ctxDesc.autorizacao || null;
+            }
 
             const obs = sanitize(observacao) || sanitize(observacoes) || sanitize(descricao) || null;
 
@@ -1117,7 +2862,9 @@ module.exports = function createVendasRoutes(deps) {
             if (status !== undefined && sanitize(status)) {
                 return res.status(400).json({ message: 'Alteração de status não permitida via PUT. Use PUT /pedidos/:id/status para garantir validação de transição.' });
             }
-            const condicaoPagamentoFinal = condicao_pagamento !== undefined ? condicao_pagamento : condicoes_pagamento;
+            const faturamentoSemNF = String(faturamento_tipo || '').trim().toLowerCase() === '0% nf';
+            const condicaoPagamentoFinal = faturamentoSemNF ? 'a vista'
+                : (condicao_pagamento !== undefined ? condicao_pagamento : condicoes_pagamento);
             if (condicaoPagamentoFinal !== undefined) {
                 const condicaoSanitizada = sanitize(condicaoPagamentoFinal);
                 sets.push('condicao_pagamento = ?'); params.push(condicaoSanitizada);
@@ -1127,7 +2874,12 @@ module.exports = function createVendasRoutes(deps) {
             if (transportadora_nome !== undefined || transportadora !== undefined) {
                 sets.push('transportadora_nome = ?'); params.push(sanitize(transportadora_nome) || sanitize(transportadora));
             }
+            if (transportadora_id !== undefined) {
+                sets.push('transportadora_id = ?'); params.push(normalizarNumeroTransporte(transportadora_id, 0));
+            }
             if (tipo_frete !== undefined) { sets.push('tipo_frete = ?'); params.push(sanitize(tipo_frete)); }
+            if (is_representante !== undefined) { sets.push('is_representante = ?'); params.push(is_representante === true || is_representante === 1 || is_representante === '1' ? 1 : 0); }
+            if (faturamento_tipo !== undefined) { sets.push('faturamento_tipo = ?'); params.push(String(faturamento_tipo || 'Total').trim() || 'Total'); }
             if (frete !== undefined) { sets.push('frete = ?'); params.push(sanitizeNum(frete) || 0); }
             if (placa_veiculo !== undefined) { sets.push('placa_veiculo = ?'); params.push(sanitize(placa_veiculo)); }
             if (veiculo_uf !== undefined) { sets.push('veiculo_uf = ?'); params.push(sanitize(veiculo_uf)); }
@@ -1144,10 +2896,22 @@ module.exports = function createVendasRoutes(deps) {
             if (numero_lacre !== undefined) { sets.push('numero_lacre = ?'); params.push(sanitize(numero_lacre)); }
             if (codigo_rastreio !== undefined) { sets.push('codigo_rastreio = ?'); params.push(sanitize(codigo_rastreio)); }
             if (veiculo_proprio !== undefined) { sets.push('veiculo_proprio = ?'); params.push(veiculo_proprio === '1' || veiculo_proprio === 1 || veiculo_proprio === true ? 1 : 0); }
+            if (prazo_entrega !== undefined) {
+                const dias = parseInt(prazo_entrega, 10);
+                sets.push('prazo_entrega = ?'); params.push(Number.isFinite(dias) && dias > 0 ? dias : null);
+            }
             if (data_previsao_entrega !== undefined) { sets.push('data_previsao = ?'); params.push(sanitize(data_previsao_entrega)); }
             if (desconto_pct !== undefined) { sets.push('desconto_pct = ?'); params.push(sanitizeNum(desconto_pct) || 0); }
             if (origem !== undefined) { sets.push('origem = ?'); params.push(sanitize(origem)); }
-            if (parcelas !== undefined) { sets.push('parcelas = ?'); params.push(parcelas ? (typeof parcelas === 'string' ? parcelas : JSON.stringify(parcelas)) : null); }
+            if (prioridade !== undefined) { sets.push('prioridade = ?'); params.push(sanitize(prioridade)); }
+            if (endereco_entrega !== undefined) { sets.push('endereco_entrega = ?'); params.push(sanitize(endereco_entrega)); }
+            if (municipio_entrega !== undefined) { sets.push('municipio_entrega = ?'); params.push(sanitize(municipio_entrega)); }
+            if (observacao_cliente !== undefined) { sets.push('observacao_cliente = ?'); params.push(sanitize(observacao_cliente)); }
+            if (parcelas !== undefined || faturamentoSemNF) {
+                sets.push('parcelas = ?');
+                params.push(faturamentoSemNF ? 'a_vista'
+                    : (parcelas ? (typeof parcelas === 'string' ? parcelas : JSON.stringify(parcelas)) : null));
+            }
 
             if (sets.length === 0) {
                 return res.status(400).json({ message: 'Nenhum campo para atualizar.' });
@@ -1182,8 +2946,120 @@ module.exports = function createVendasRoutes(deps) {
                 );
                 if (result.affectedRows === 0) return res.status(404).json({ message: 'Pedido não encontrado.' });
             }
+            // Quem liberou o desconto acima do limite fica gravado no pedido + histórico.
+            if (_autorizacaoDescontoPatch) {
+                await _registrarAutorizacaoNoPedido(pool, parseInt(id), _autorizacaoDescontoPatch);
+            }
+
+            // A troca de modalidade altera o total econômico mesmo sem editar itens.
+            // Em 0% NF a base é só mercadorias líquidas; ao voltar para Total/Parcial,
+            // os valores fiscais são reconstruídos a partir dos itens e do cenário.
+            if (faturamento_tipo !== undefined &&
+                String(faturamento_tipo).trim() !== String(pedidoLock?.faturamento_tipo || 'Total').trim()) {
+                await recalcularImpostosPedidoVenda(parseInt(id));
+            }
+
+            // Mudou a condição de pagamento -> as duplicatas seguem junto.
+            //
+            // O rascunho `parcelas_conta_receber` é um retrato de quando o modal de
+            // parcelas foi aberto; ele NÃO se refazia sozinho. O pedido ficava com
+            // condição nova e duplicata velha, e como o rascunho tem prioridade a nota
+            // saía com o prazo antigo — foi o caso do pedido 1645 da Energy, condição
+            // "30" e duplicata vencendo em 21 dias.
+            //
+            // O recálculo usa `duplicatasDoPedido`, a MESMA função que a DANFE, o XML da
+            // NF-e e a conferência de divergência já usam. Reimplementar a leitura da
+            // condição aqui ("30/60", "Para 28 dias", "3", "à vista") produziria uma
+            // segunda interpretação da mesma string — e a tela passaria a discordar da nota.
+            let _parcelasRecalculadas = null;
+            let _avisoParcelas = null;
+            // Só vale "mudou" se o VALOR mudou, não se o campo veio no corpo: o modal do
+            // módulo Vendas envia `condicao_pagamento` em todo save, e disparar o recálculo
+            // pela mera presença apagaria, a cada gravação, parcelas ajustadas na mão.
+            //
+            // A comparação ignora pontuação e caixa porque a mesma condição circula em
+            // formatos diferentes conforme a tela ("30/60", "30_60", "30 / 60") — sem isso,
+            // salvar sem tocar em nada acusaria mudança e recalcularia à toa.
+            const _assinaturaCondicao = (v) => String(v == null ? '' : v)
+                .toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
+            const _condicaoMudou = condicaoPagamentoFinal !== undefined
+                && _assinaturaCondicao(condicaoPagamentoFinal)
+                   !== _assinaturaCondicao(pedidoLock && pedidoLock.condicao_pagamento);
+            // Parcelas enviadas explicitamente no mesmo request vencem o recálculo: quem
+            // digitou um vencimento específico agora quis aquele vencimento.
+            const _mandouParcelas = parcelas !== undefined || faturamentoSemNF;
+            if (_condicaoMudou && !_mandouParcelas) {
+                try {
+                    const { duplicatasDoPedido } = require('../modules/_shared/services/duplicatas-pedido.service');
+                    // Só colunas que existem em `pedidos`: `data_vencimento` NÃO existe aqui
+                    // (o serviço a lê como opcional, de outras origens). Incluí-la fazia o
+                    // SELECT falhar e o recálculo cair inteiro no catch — o pedido salvava
+                    // com a condição nova e a duplicata velha, sem erro visível na tela.
+                    const [[ped]] = await pool.query(
+                        `SELECT id, valor, condicao_pagamento, parcelas, parcelas_conta_receber,
+                                data_previsao, data_faturamento, created_at
+                           FROM pedidos WHERE id = ?`, [parseInt(id)]
+                    );
+                    if (ped) {
+                        const novas = duplicatasDoPedido(ped, parseFloat(ped.valor) || 0);
+
+                        // Rascunho anterior indexado por número, para preservar o que a
+                        // condição não descreve (categoria, conta corrente, projeto...).
+                        let antigo = ped.parcelas_conta_receber;
+                        if (typeof antigo === 'string') { try { antigo = JSON.parse(antigo); } catch (_) { antigo = null; } }
+                        if (!antigo || typeof antigo !== 'object' || Array.isArray(antigo)) antigo = {};
+
+                        let mapa = null;
+                        if (novas.length) {
+                            mapa = {};
+                            novas.forEach((d) => {
+                                mapa[String(d.numero)] = Object.assign({}, antigo[String(d.numero)] || {}, {
+                                    numero: d.numero,
+                                    vencimento: d.vencimento,
+                                    valor: d.valor,
+                                    // A condição mudou: o prazo novo manda, a data editada à mão da
+                                    // condição antiga deixa de valer.
+                                    vencimento_manual: false
+                                });
+                            });
+                        }
+                        // À vista não tem duplicata (rejeição 853 da SEFAZ se informada):
+                        // o rascunho precisa ficar NULO, não virar um mapa vazio.
+                        await pool.query('UPDATE pedidos SET parcelas_conta_receber = ? WHERE id = ?',
+                            [mapa ? JSON.stringify(mapa) : null, parseInt(id)]);
+                        _parcelasRecalculadas = mapa;
+
+                        // Título já criado no Contas a Receber não é reescrito por aqui:
+                        // mexer em cobrança emitida é decisão do financeiro, não efeito
+                        // colateral de editar o pedido. Avisa para que alguém decida.
+                        const [[titulos]] = await pool.query(
+                            `SELECT COUNT(*) AS n FROM contas_receber
+                              WHERE pedido_id = ? AND deleted_at IS NULL
+                                AND LOWER(COALESCE(status,'pendente')) NOT IN ('cancelado','cancelada')`,
+                            [parseInt(id)]
+                        ).catch(() => [[{ n: 0 }]]);
+                        if (titulos && titulos.n > 0) {
+                            _avisoParcelas = `As parcelas do pedido foram recalculadas, mas ${titulos.n} título(s) `
+                                + 'já lançado(s) no Contas a Receber continuam com os valores e vencimentos anteriores. '
+                                + 'Ajuste-os pelo módulo Financeiro.';
+                        }
+                    }
+                } catch (erroParcelas) {
+                    // Recalcular parcela não pode derrubar o save do pedido: o campo que o
+                    // usuário editou já foi gravado, e devolver erro aqui faria a tela dizer
+                    // que nada foi salvo quando na verdade foi.
+                    console.error('[VENDAS/PUT-PEDIDO] Falha ao recalcular parcelas:', erroParcelas.message);
+                    _avisoParcelas = 'O pedido foi salvo, mas não foi possível recalcular as parcelas '
+                        + 'automaticamente: ' + erroParcelas.message;
+                }
+            }
+
             clearPedidosCache();
-            res.json({ message: 'Pedido atualizado com sucesso.' });
+            res.json({
+                message: 'Pedido atualizado com sucesso.',
+                parcelas_recalculadas: _parcelasRecalculadas,
+                aviso: _avisoParcelas
+            });
         } catch (error) { next(error); }
     });
     router.delete('/pedidos/:id', authenticateToken, authorizeAdmin, async (req, res, next) => {
@@ -1269,7 +3145,7 @@ module.exports = function createVendasRoutes(deps) {
             // Registrar no histórico
             try {
                 await connection.query(
-                    `INSERT INTO pedido_historico (pedido_id, acao, usuario_id, detalhes, created_at)
+                    `INSERT INTO pedido_historico (pedido_id, acao, usuario_id, descricao, created_at)
                      VALUES (?, 'exclusao_logica', ?, 'Pedido marcado como excluído (soft-delete)', NOW())`,
                     [id, req.user?.id || null]
                 );
@@ -1292,11 +3168,106 @@ module.exports = function createVendasRoutes(deps) {
         }
     });
 
+    // GET /pedidos/:id/emails - E-mails já enviados deste pedido (modal "Emails Enviados").
+    // Alimentado por services/nfe-notificacao.service.js, que grava em `emails_enviados`
+    // a cada envio de NF-e (logística e cliente).
+    //
+    // 26/08/2026 — antes de responder, confere no provedor o que REALMENTE aconteceu com cada
+    // envio ainda marcado como 'enviado'. O `status` gravado no momento do envio significa
+    // apenas "o relay aceitou" (250 no SMTP); o bounce chega minutos depois e ninguém ficava
+    // sabendo — o pedido 3578 exibiu "Enviado" para um e-mail que o servidor do destinatário
+    // recusou com `550 5.7.1 SPFBL blocked by unwanted content`. Ver utils/email-entrega.js.
+    // A conciliação tem timeout e catch próprios: provedor fora do ar não pode fechar o modal.
+    router.get('/pedidos/:id/emails', authenticateToken, async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            await conciliarEntregasDoPedido(pool, parseInt(id, 10)).catch(() => null);
+
+            const colunasNovas = 'provider_evento, provider_detalhe, conferido_em';
+            const selecionar = extras => pool.query(
+                `SELECT id, pedido_id, destinatario, assunto, status, enviado_em, lido_em, usuario_nome
+                        ${extras ? ', ' + extras : ''}
+                   FROM emails_enviados
+                  WHERE pedido_id = ?
+                  ORDER BY enviado_em DESC, id DESC
+                  LIMIT 200`, [id]);
+
+            // A migração das colunas novas é aditiva e roda na primeira conciliação; numa base
+            // que ainda não passou por ela o SELECT completo falharia — daí o fallback.
+            const [rows] = await selecionar(colunasNovas)
+                .catch(() => selecionar(null))
+                .catch(() => [[]]);
+            res.json(rows || []);
+        } catch (error) {
+            console.error('Erro ao listar e-mails do pedido:', error);
+            next(error);
+        }
+    });
+
+    // POST /pedidos/:id/emails - Registra um e-mail enviado manualmente pela tela do pedido,
+    // para ele aparecer no modal "Emails Enviados" (o envio da NF-e já se registra sozinho
+    // pelo services/nfe-notificacao.service.js).
+    router.post('/pedidos/:id/emails', authenticateToken, async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const { destinatario, assunto, corpo, status } = req.body || {};
+            if (!destinatario) return res.status(400).json({ success: false, message: 'Destinatário obrigatório.' });
+            await pool.query(
+                `INSERT INTO emails_enviados (pedido_id, destinatario, assunto, corpo, status, usuario_id, usuario_nome)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [id, String(destinatario).slice(0, 255), String(assunto || '').slice(0, 500), corpo || null,
+                 (status === 'erro' ? 'erro' : 'enviado'), req.user?.id || null, req.user?.nome || null]
+            );
+            res.status(201).json({ success: true });
+        } catch (error) {
+            console.error('Erro ao registrar e-mail do pedido:', error);
+            next(error);
+        }
+    });
+
+    // POST /pedidos/:id/conferir - Marca o pedido como CONFERIDO (grava quem/quando).
+    // Valida cliente + valor + itens antes de gravar. Idempotente (re-conferir atualiza).
+    router.post('/pedidos/:id/conferir', pedidoOwnership, async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const [[pedido]] = await pool.query(
+                'SELECT id, cliente_id, cliente_nome, cliente, valor FROM pedidos WHERE id = ?', [id]);
+            if (!pedido) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+
+            const erros = [];
+            if (!(pedido.cliente_id || pedido.cliente_nome || pedido.cliente)) erros.push('cliente não informado');
+            if (!(parseFloat(pedido.valor) > 0)) erros.push('valor inválido ou zerado');
+            const [[itc]] = await pool.query('SELECT COUNT(*) AS n FROM pedido_itens WHERE pedido_id = ?', [id]);
+            if (!itc || Number(itc.n) === 0) erros.push('pedido sem itens');
+            if (erros.length) {
+                return res.status(400).json({ success: false, message: 'Não é possível conferir: ' + erros.join(', ') });
+            }
+
+            const userId = (req.user && req.user.id) ? req.user.id : null;
+            await pool.query(
+                'UPDATE pedidos SET conferido = 1, conferido_por = ?, conferido_em = NOW() WHERE id = ?',
+                [userId, id]);
+
+            let nome = (req.user && req.user.nome) ? req.user.nome : null;
+            if (!nome && userId) {
+                const [urows] = await pool.query('SELECT nome FROM usuarios WHERE id = ? LIMIT 1', [userId]).catch(() => [[]]);
+                if (urows && urows[0]) nome = urows[0].nome;
+            }
+            if (typeof clearPedidosCache === 'function') clearPedidosCache();
+            console.log(`✅ Pedido #${id} conferido por usuário ${userId}`);
+            res.json({ success: true, message: 'Pedido conferido.', conferido_por_nome: nome || 'usuário', conferido_em: new Date().toISOString() });
+        } catch (error) {
+            console.error('Erro ao conferir pedido:', error);
+            next(error);
+        }
+    });
+
     // POST /pedidos/:id/duplicar - Duplicar pedido existente
     router.post('/pedidos/:id/duplicar', pedidoOwnership, async (req, res, next) => {
         const connection = await pool.getConnection();
         try {
             const { id } = req.params;
+            await ensurePedidosWriteColumns();
             await connection.beginTransaction();
 
             // Buscar pedido original
@@ -1306,49 +3277,85 @@ module.exports = function createVendasRoutes(deps) {
                 return res.status(404).json({ message: 'Pedido não encontrado' });
             }
 
-            // Criar novo pedido (cópia) - usando nomes corretos das colunas
-            const [result] = await connection.query(`
-                INSERT INTO pedidos (
-                    cliente_id, cliente, valor, status, vendedor_id,
-                    observacoes, data_prevista, empresa_id, frete, desconto, cenario_fiscal,
-                    condicao_pagamento, parcelas, created_at
-                ) VALUES (?, ?, ?, 'orcamento', ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY), ?, ?, ?, ?, ?, ?, NOW())
-            `, [
-                pedidoOriginal.cliente_id,
-                pedidoOriginal.cliente,
-                pedidoOriginal.valor,
-                pedidoOriginal.vendedor_id,
-                `[CÓPIA DO PEDIDO #${id}] ${pedidoOriginal.observacoes || ''}`,
-                req.user.empresa_id,
-                pedidoOriginal.frete || 0,
-                pedidoOriginal.desconto || 0,
-                pedidoOriginal.cenario_fiscal || 'Venda Normal',
-                pedidoOriginal.condicao_pagamento || 'A Vista',
-                pedidoOriginal.parcelas || 1
+            // Clona pelo schema em vez de manter uma lista fixa. Assim frete/modalidade,
+            // transportadora, pagamento, entrega, volumes, observações e campos futuros
+            // não desaparecem silenciosamente ao duplicar.
+            const quoteId = nome => `\`${String(nome).replace(/`/g, '``')}\``;
+            const [pedidoColsInfo] = await connection.query('SHOW COLUMNS FROM pedidos');
+            const pedidoCols = pedidoColsInfo
+                .filter(col => col.Field !== 'id' && !/GENERATED/i.test(String(col.Extra || '')))
+                .map(col => col.Field);
+            const resetPedido = new Map([
+                ['status', "'orcamento'"],
+                ['numero_pedido', 'NULL'],
+                ['nf', 'NULL'], ['numero_nf', 'NULL'], ['nfe_id', 'NULL'],
+                ['nfe_chave', 'NULL'], ['nfe_protocolo', 'NULL'],
+                ['data_faturamento', 'NULL'], ['faturado_em', 'NULL'],
+                ['status_logistica', 'NULL'], ['deleted_at', 'NULL'],
+                ['conferido', '0'], ['conferido_por', 'NULL'], ['conferido_em', 'NULL'],
+                ['percentual_faturado', '0'], ['valor_faturado', '0'], ['valor_pendente', '0'],
+                ['estoque_baixado', '0'], ['version', '1'],
+                ['created_at', 'NOW()'], ['updated_at', 'NOW()'],
+                ['created_by', connection.escape(req.user?.id || null)],
+                // Vínculo com o Omie NÃO se copia. A cópia é um pedido LOCAL novo, não o
+                // mesmo registro do Omie — e `omie_id` tem índice único (ux_pedidos_omie_id),
+                // então duplicar qualquer pedido importado morria em "Duplicate entry ...
+                // for key 'pedidos.ux_pedidos_omie_id'" e a tela só dizia "erro inesperado
+                // no servidor". Como a base veio de uma migração do Omie, isso atingia a
+                // maioria dos pedidos: 3.431 de 3.557 na Aluforce.
+                //
+                // Mesmo sem o índice a cópia teria de zerar isto: com o vínculo herdado, a
+                // próxima sincronização casaria o registro do Omie com a duplicata e
+                // sobrescreveria o pedido novo com os dados do antigo.
+                ['omie_id', 'NULL'], ['omie_codigo_pedido', 'NULL'], ['omie_numero_pedido', 'NULL'],
+                ['omie_codigo', 'NULL'], ['omie_sync_at', 'NULL'], ['omie_last_sync_at', 'NULL'],
+                ['omie_sync_status', 'NULL'], ['omie_payload_hash', 'NULL']
             ]);
+            const pedidoSelect = pedidoCols.map(col => resetPedido.get(col) || `p.${quoteId(col)}`);
+            const [result] = await connection.query(`
+                INSERT INTO pedidos (${pedidoCols.map(quoteId).join(', ')})
+                SELECT ${pedidoSelect.join(', ')} FROM pedidos p WHERE p.id = ?
+            `, [id]);
 
             const novoPedidoId = result.insertId;
+            const novoNumeroComercial = await atribuirNumeroComercialPedido(connection, novoPedidoId);
 
-            // Copiar itens do pedido usando colunas corretas (batch INSERT)
-            const [itens] = await connection.query('SELECT id, pedido_id, codigo, descricao, quantidade, quantidade_parcial, unidade, local_estoque, preco_unitario, desconto, subtotal FROM pedido_itens WHERE pedido_id = ?', [id]);
-            if (itens.length > 0) {
-                const values = itens.map(item => [
-                    novoPedidoId,
-                    item.codigo || item.produto_codigo || '',
-                    item.descricao || item.produto_nome || '',
-                    item.quantidade || 1,
-                    item.unidade || 'UN',
-                    item.preco_unitario || item.valor_unitario || 0,
-                    item.subtotal || item.valor_total || 0,
-                    item.desconto || 0
-                ]);
-                const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+            // Os itens também são cópias integrais: impostos, NCM/CFOP, quantidades
+            // parciais, estoque, certificações e qualquer coluna adicionada depois.
+            //
+            // EXCEÇÃO: `impostos_manuais` NÃO é copiado. É uma sobreposição travada em
+            // valores ABSOLUTOS (base de cálculo e valor do ICMS em R$) digitada à mão
+            // para o pedido ORIGINAL — recalcularImpostosPedidoVenda a trata como
+            // vencedora sobre o motor fiscal mesmo depois de editar preço/quantidade no
+            // item duplicado. Resultado real (pedidos 1685/1686, Labor Energy,
+            // 15/09/2026): duplicar um pedido de item caro e baratear o preço na cópia
+            // manteve a base de ICMS antiga (R$ 427.166,40 num item de R$ 50.000,00) —
+            // SEFAZ rejeitou com "Total da BC ICMS difere do somatório dos itens". Sem
+            // essa sobreposição, o motor recalcula do zero a partir do subtotal real.
+            const COLUNAS_ITEM_ZERADAS_NA_COPIA = new Set(['impostos_manuais']);
+            const [itemColsInfo] = await connection.query('SHOW COLUMNS FROM pedido_itens');
+            const itemCols = itemColsInfo
+                .filter(col => col.Field !== 'id' && !/GENERATED/i.test(String(col.Extra || '')))
+                .map(col => col.Field);
+            const itemSelect = itemCols.map(col => {
+                if (col === 'pedido_id') return '?';
+                if (COLUNAS_ITEM_ZERADAS_NA_COPIA.has(col)) return 'NULL';
+                return `i.${quoteId(col)}`;
+            });
+            await connection.query(`
+                INSERT INTO pedido_itens (${itemCols.map(quoteId).join(', ')})
+                SELECT ${itemSelect.join(', ')} FROM pedido_itens i WHERE i.pedido_id = ?
+            `, [novoPedidoId, id]);
+
+            // Anexos fazem parte das informações do pedido. Histórico, faturamentos,
+            // baixas e documentos fiscais não são copiados por serem eventos, não dados.
+            try {
                 await connection.query(`
-                    INSERT INTO pedido_itens (
-                        pedido_id, codigo, descricao, quantidade, unidade,
-                        preco_unitario, subtotal, desconto
-                    ) VALUES ${placeholders}
-                `, values.flat());
+                    INSERT INTO pedido_anexos (pedido_id, nome, tipo, tamanho, conteudo)
+                    SELECT ?, nome, tipo, tamanho, conteudo FROM pedido_anexos WHERE pedido_id = ?
+                `, [novoPedidoId, id]);
+            } catch (anexoErr) {
+                if (anexoErr.code !== 'ER_NO_SUCH_TABLE') throw anexoErr;
             }
 
             await connection.commit();
@@ -1359,11 +3366,87 @@ module.exports = function createVendasRoutes(deps) {
                 success: true,
                 message: 'Pedido duplicado com sucesso',
                 id: novoPedidoId,
+                numero_pedido: novoNumeroComercial,
                 original_id: id
             });
         } catch (error) {
             await connection.rollback();
             console.error('Erro ao duplicar pedido:', error);
+            // Colisão de índice único vira mensagem que diz o QUE colidiu. O handler
+            // genérico devolvia só "erro inesperado no servidor", que não permite nem
+            // reportar o problema direito — foi o que escondeu o `omie_id` por meses.
+            if (error && error.code === 'ER_DUP_ENTRY') {
+                const indice = String(error.sqlMessage || '').match(/for key '([^']+)'/);
+                return res.status(409).json({
+                    success: false,
+                    message: 'Não foi possível duplicar: o pedido novo colidiu com um registro existente'
+                        + (indice ? ` (índice ${indice[1]})` : '') + '. Avise o TI com este texto.',
+                    code: 'DUPLICACAO_CONFLITO'
+                });
+            }
+            next(error);
+        } finally {
+            connection.release();
+        }
+    });
+
+    // PATCH /pedidos/:id/nome-vendedor-orcamento
+    // Operação propositalmente separada do PATCH geral: Márcia/Lorena podem ajustar
+    // somente o texto impresso mesmo quando o vendedor_id do pedido pertence à outra
+    // conta compartilhada. Responsável, comissão e demais dados nunca entram no UPDATE.
+    router.patch('/pedidos/:id/nome-vendedor-orcamento', async (req, res, next) => {
+        const connection = await pool.getConnection();
+        try {
+            await ensurePedidosWriteColumns();
+            if (!podeEditarNomeVendedorOrcamento(req.user)) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Somente Lorena ou Márcia podem alterar o nome exibido no orçamento.',
+                    code: 'NOME_ORCAMENTO_SEM_PERMISSAO'
+                });
+            }
+
+            let nome;
+            try {
+                nome = sanitizarNomeVendedorOrcamento(req.body?.nome);
+            } catch (error) {
+                return res.status(400).json({ success: false, message: error.message, code: error.code });
+            }
+
+            await connection.beginTransaction();
+            const [[pedido]] = await connection.query(
+                'SELECT id, status, vendedor_id FROM pedidos WHERE id = ? FOR UPDATE',
+                [req.params.id]
+            );
+            if (!pedido) {
+                await connection.rollback();
+                return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+            }
+            if (String(pedido.status || '').toLowerCase().trim() !== 'orcamento') {
+                await connection.rollback();
+                return res.status(409).json({
+                    success: false,
+                    message: 'O nome exibido só pode ser alterado enquanto o pedido estiver em Orçamento.',
+                    code: 'NOME_ORCAMENTO_STATUS_BLOQUEADO'
+                });
+            }
+
+            await connection.query(
+                'UPDATE pedidos SET vendedor_orcamento_nome = ?, updated_at = NOW() WHERE id = ?',
+                [nome, pedido.id]
+            );
+            await connection.commit();
+            clearPedidosCache();
+            console.log(`[ORCAMENTO-VENDEDOR] Pedido #${pedido.id}: nome impresso atualizado por ${req.user?.id || req.user?.email}`);
+            return res.json({
+                success: true,
+                pedido_id: pedido.id,
+                vendedor_id: pedido.vendedor_id,
+                vendedor_orcamento_nome: nome,
+                message: nome ? `Nome do orçamento salvo como "${nome}".` : 'Nome padrão restaurado no orçamento.'
+            });
+        } catch (error) {
+            try { await connection.rollback(); } catch (_) {}
             next(error);
         } finally {
             connection.release();
@@ -1375,9 +3458,21 @@ module.exports = function createVendasRoutes(deps) {
     router.patch('/pedidos/:id', async (req, res, next) => {
         const patchConn = await pool.getConnection();
         try {
+            await ensurePedidosWriteColumns();
             await patchConn.beginTransaction();
             const { id } = req.params;
             let updates = req.body;
+
+            if (!dataIsoValida(updates && updates.data_validade)) {
+                await patchConn.rollback();
+                return res.status(400).json({ success: false, message: 'Informe uma validade de orçamento válida.' });
+            }
+
+            const erroCamposTransporte = validarCamposTransporte(updates || {});
+            if (erroCamposTransporte) {
+                await patchConn.rollback();
+                return res.status(400).json({ success: false, message: erroCamposTransporte });
+            }
 
             // Sanitizar valores: converter 'null' string para null real e tratar números inválidos
             const sanitizeValue = (val) => {
@@ -1385,11 +3480,7 @@ module.exports = function createVendasRoutes(deps) {
                 return val;
             };
 
-            const sanitizeNumber = (val) => {
-                if (val === 'null' || val === 'undefined' || val === '' || val === null) return null;
-                const num = parseFloat(val);
-                return isNaN(num) ? null : num;
-            };
+            const sanitizeNumber = (val) => normalizarNumeroTransporte(val, 3);
 
             // Aplicar sanitização em todos os campos
             Object.keys(updates).forEach(key => {
@@ -1406,20 +3497,55 @@ module.exports = function createVendasRoutes(deps) {
             const user = req.user || {};
             const isAdmin = user.is_admin === true || user.is_admin === 1 || (user.role && user.role.toString().toLowerCase() === 'admin');
 
-            // Lock: pedidos em análise de crédito bloqueiam alterações comerciais;
-            // pedidos finais/fiscais bloqueiam alterações gerais. Somente TI tem acesso total.
+            // Campo exclusivo do documento: não altera vendedor_id, comissão ou relatórios.
+            if (Object.prototype.hasOwnProperty.call(updates, 'vendedor_orcamento_nome')) {
+                const statusNomeOrcamento = String(existing.status || '').toLowerCase().trim();
+                if (statusNomeOrcamento !== 'orcamento') {
+                    await patchConn.rollback();
+                    return res.status(409).json({
+                        success: false,
+                        message: 'O nome exibido só pode ser alterado enquanto o pedido estiver em Orçamento.',
+                        code: 'NOME_ORCAMENTO_STATUS_BLOQUEADO'
+                    });
+                }
+                if (!podeEditarNomeVendedorOrcamento(user)) {
+                    await patchConn.rollback();
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Somente Lorena ou Márcia podem alterar o nome exibido no orçamento.',
+                        code: 'NOME_ORCAMENTO_SEM_PERMISSAO'
+                    });
+                }
+                try {
+                    updates.vendedor_orcamento_nome = sanitizarNomeVendedorOrcamento(updates.vendedor_orcamento_nome);
+                } catch (error) {
+                    await patchConn.rollback();
+                    return res.status(400).json({ success: false, message: error.message, code: error.code });
+                }
+            }
+
+            // Lock: pedidos em análise de crédito bloqueiam alterações comerciais (TI/Logística
+            // ainda destravam). Pedidos finais/fiscais (faturado/F9/recibo/entregue) bloqueiam
+            // alterações gerais PARA TODOS, sem exceção de conta — só os campos liberados abaixo.
             const statusAtualPatch = (existing.status || '').toLowerCase().trim();
-            const userEmail = (user.email || '').toLowerCase();
-            if (STATUS_ANALISE_CREDITO_BLOQUEADO.includes(statusAtualPatch) && userEmail !== EMAIL_EDICAO_LIBERADO) {
-                const CAMPOS_LIBERADOS_ANALISE_CREDITO = ['transportadora_nome', 'transportadora', 'transportadora_id', 'metodo_envio', 'tipo_frete', 'conta_corrente'];
+            if (STATUS_ANALISE_CREDITO_BLOQUEADO.includes(statusAtualPatch) && !contaComEdicaoLiberada(req.user)) {
+                // O vendedor responsável ainda pode corrigir dados operacionais enquanto o
+                // crédito é analisado. Todo o restante (cliente, itens, desconto, valor etc.)
+                // continua removido do payload antes da montagem do UPDATE.
+                const CAMPOS_LIBERADOS_ANALISE_CREDITO = [
+                    'transportadora_nome', 'transportadora', 'transportadora_id', 'metodo_envio', 'tipo_frete',
+                    'conta_corrente', 'frete',
+                    'condicao_pagamento', 'condicoes_pagamento', 'parcelas',
+                    'observacao', 'observacao_cliente', 'observacao_producao'
+                ];
                 Object.keys(updates).forEach(k => {
                     if (!CAMPOS_LIBERADOS_ANALISE_CREDITO.includes(k)) delete updates[k];
                 });
                 if (Object.keys(updates).length === 0) {
                     await patchConn.rollback();
-                    return res.status(403).json({ message: `Pedido em Análise de Crédito só permite ajustar Transportadora e Conta Corrente.`, code: 'EDIT_LOCKED_BY_STATUS' });
+                    return res.status(403).json({ message: `Pedido em Análise de Crédito só permite ajustar Frete, Observações, Condição de Pagamento, Transportadora e Conta Corrente.`, code: 'EDIT_LOCKED_BY_STATUS' });
                 }
-            } else if (STATUS_FINAL_BLOQUEADO_EDICAO.includes(statusAtualPatch) && userEmail !== EMAIL_EDICAO_LIBERADO) {
+            } else if (STATUS_FINAL_BLOQUEADO_EDICAO.includes(statusAtualPatch)) {
                 const CAMPOS_LIBERADOS_FATURADO = ['categoria', 'projeto', 'vendedor_id', 'vendedor_nome', 'conta_corrente', 'condicao_pagamento', 'condicoes_pagamento', 'parcelas'];
                 Object.keys(updates).forEach(k => {
                     if (!CAMPOS_LIBERADOS_FATURADO.includes(k)) delete updates[k];
@@ -1523,6 +3649,11 @@ module.exports = function createVendasRoutes(deps) {
                 }
             }
 
+            if (updates.vendedor_orcamento_nome !== undefined) {
+                fieldsToUpdate.push('vendedor_orcamento_nome = ?');
+                values.push(updates.vendedor_orcamento_nome);
+            }
+
             // Observação existe na tabela
             if (updates.observacao !== undefined) {
                 fieldsToUpdate.push('observacao = ?');
@@ -1587,9 +3718,9 @@ module.exports = function createVendasRoutes(deps) {
             }
 
             // Transportadora ID
-            if (updates.transportadora_id !== undefined && updates.transportadora_id !== null) {
+            if (updates.transportadora_id !== undefined) {
                 fieldsToUpdate.push('transportadora_id = ?');
-                values.push(sanitizeNumber(updates.transportadora_id));
+                values.push(normalizarNumeroTransporte(updates.transportadora_id, 0));
             }
 
             // NF - salvar em nf
@@ -1599,8 +3730,27 @@ module.exports = function createVendasRoutes(deps) {
             }
 
             // Parcelas/Condição de Pagamento - salvar em múltiplos campos
-            if (updates.parcelas !== undefined || updates.condicao_pagamento !== undefined || updates.condicoes_pagamento !== undefined) {
-                const condicaoValor = updates.condicao_pagamento || updates.condicoes_pagamento || updates.parcelas;
+            // Contexto de preço do cabeçalho (0% NF / 50% NF / Total e representante). O PUT
+            // sempre gravou; o PATCH — que é o que a tela de edição chama — descartava os dois
+            // em silêncio, então "0% NF" respondia "atualizado com sucesso" e nada mudava.
+            // O recálculo fiscal mais abaixo lê faturamento_tipo do banco, por isso a gravação
+            // tem de acontecer antes dele.
+            const faturamentoSemNFPatch = updates.faturamento_tipo !== undefined
+                && String(updates.faturamento_tipo || '').trim().toLowerCase() === '0% nf';
+            if (updates.faturamento_tipo !== undefined) {
+                fieldsToUpdate.push('faturamento_tipo = ?');
+                values.push(String(updates.faturamento_tipo || 'Total').trim() || 'Total');
+            }
+            if (updates.is_representante !== undefined) {
+                fieldsToUpdate.push('is_representante = ?');
+                values.push(updates.is_representante === true || updates.is_representante === 1 || updates.is_representante === '1' || updates.is_representante === 'true' ? 1 : 0);
+            }
+
+            if (updates.parcelas !== undefined || updates.condicao_pagamento !== undefined || updates.condicoes_pagamento !== undefined || faturamentoSemNFPatch) {
+                // 0% NF é venda sem nota: não há duplicata a prazo (mesma regra do PUT).
+                const condicaoValor = faturamentoSemNFPatch
+                    ? 'a vista'
+                    : (updates.condicao_pagamento || updates.condicoes_pagamento || updates.parcelas);
                 fieldsToUpdate.push('condicao_pagamento = ?');
                 values.push(condicaoValor);
                 fieldsToUpdate.push('condicoes_pagamento = ?');
@@ -1700,10 +3850,11 @@ module.exports = function createVendasRoutes(deps) {
                 fieldsToUpdate.push('municipio_entrega = ?');
                 values.push(updates.municipio_entrega);
             }
-            // prazo_entrega é INT (número de dias), só salvar se for número
-            if (updates.prazo_entrega !== undefined && !isNaN(parseInt(updates.prazo_entrega))) {
+            // prazo_entrega é INT (número de dias); null limpa o prazo anterior.
+            if (updates.prazo_entrega !== undefined) {
+                const dias = parseInt(updates.prazo_entrega, 10);
                 fieldsToUpdate.push('prazo_entrega = ?');
-                values.push(parseInt(updates.prazo_entrega));
+                values.push(Number.isFinite(dias) && dias > 0 ? dias : null);
             }
             if (updates.tipo_entrega !== undefined) {
                 fieldsToUpdate.push('tipo_entrega = ?');
@@ -1713,6 +3864,10 @@ module.exports = function createVendasRoutes(deps) {
             if (updates.data_previsao !== undefined || updates.previsao_faturamento !== undefined || updates.data_previsao_entrega !== undefined) {
                 fieldsToUpdate.push('data_previsao = ?');
                 values.push(updates.data_previsao_entrega || updates.data_previsao || updates.previsao_faturamento || null);
+            }
+            if (updates.data_validade !== undefined) {
+                fieldsToUpdate.push('data_validade = ?');
+                values.push(updates.data_validade || null);
             }
 
             // ========== CAMPOS DE OBSERVAÇÕES E INFORMAÇÕES ==========
@@ -1768,6 +3923,41 @@ module.exports = function createVendasRoutes(deps) {
                 fieldsToUpdate.push('dados_agropecuaria = ?');
                 values.push(updates.dados_agropecuaria);
             }
+            // Reservado ao Fisco (modal "Informações de Interesse do Fisco" do pedido) —
+            // alimenta infAdFisco na emissão da NF-e (NFePedidoMapper.mapearInformacoesAdicionais).
+            if (updates.info_fisco !== undefined) {
+                fieldsToUpdate.push('info_fisco = ?');
+                values.push(updates.info_fisco);
+            }
+            // Lista estruturada do modal "Campos de Observação" (nome/valor). Coluna própria,
+            // separada de `campos_obs_nfe` — aquela é texto livre e serve de fallback pro
+            // infCpl (ver comentário em NFePedidoMapper.mapearInformacoesAdicionais); gravar a
+            // lista JSON ali vazaria JSON cru pra dentro da nota fiscal quando os outros campos
+            // de infCpl estivessem vazios.
+            if (updates.campos_obs_nfe_lista !== undefined) {
+                fieldsToUpdate.push('campos_obs_nfe_lista = ?');
+                values.push(updates.campos_obs_nfe_lista);
+            }
+            // Modal "ICMS Retido no Transporte" — grupo <retTransp> do XML.
+            if (updates.dados_icms_transporte !== undefined) {
+                fieldsToUpdate.push('dados_icms_transporte = ?');
+                values.push(updates.dados_icms_transporte);
+            }
+            // Modal "Notas ou Cupons Relacionados" — vira <NFref><refNFe> na NF-e.
+            if (updates.notas_relacionadas !== undefined) {
+                fieldsToUpdate.push('notas_relacionadas = ?');
+                values.push(updates.notas_relacionadas);
+            }
+            // Modal "Endereço de Retirada" — grupo <retirada> do XML.
+            if (updates.endereco_retirada_nfe !== undefined) {
+                fieldsToUpdate.push('endereco_retirada_nfe = ?');
+                values.push(updates.endereco_retirada_nfe);
+            }
+            // Indicador de Presença da Operação (ide/indPres) — vazio deduz de origem_pedido.
+            if (updates.indicador_presenca !== undefined) {
+                fieldsToUpdate.push('indicador_presenca = ?');
+                values.push(updates.indicador_presenca || null);
+            }
             if (updates.email_cliente !== undefined) {
                 fieldsToUpdate.push('email_cliente = ?');
                 values.push(updates.email_cliente);
@@ -1810,6 +4000,22 @@ module.exports = function createVendasRoutes(deps) {
                 fieldsToUpdate.push('cenario_fiscal = ?');
                 values.push(updates.cenario_fiscal);
             }
+            if (updates.cenario_fiscal_id !== undefined) {
+                const cenarioId = Number(updates.cenario_fiscal_id);
+                if (Number.isInteger(cenarioId) && cenarioId > 0) {
+                    fieldsToUpdate.push('cenario_fiscal_id = ?');
+                    values.push(cenarioId);
+                    const [[cenarioAtualizado]] = await patchConn.query(
+                        'SELECT nome FROM cenarios_fiscais WHERE id = ? AND ativo = 1 LIMIT 1', [cenarioId]
+                    );
+                    if (cenarioAtualizado && updates.cenario_fiscal === undefined) {
+                        fieldsToUpdate.push('cenario_fiscal = ?');
+                        values.push(cenarioAtualizado.nome);
+                    }
+                } else {
+                    fieldsToUpdate.push('cenario_fiscal_id = NULL');
+                }
+            }
             if (updates.departamento !== undefined) {
                 fieldsToUpdate.push('departamento = ?');
                 values.push(updates.departamento);
@@ -1842,27 +4048,20 @@ module.exports = function createVendasRoutes(deps) {
 
             console.log(`✅ Pedido ${id} atualizado com sucesso! (${result.affectedRows} linha(s) afetada(s))`);
 
-            // Sprint 4.3: Recalcular valor server-side a partir de pedido_itens
-            // Sempre que campos financeiros mudam (frete, desconto, valor direto), recalcula se itens existem
-            const camposFinanceirosAlterados = ['frete', 'desconto', 'valor', 'valor_seguro', 'outras_despesas'].some(f => updates[f] !== undefined);
-            if (camposFinanceirosAlterados) {
+            // Recalcular o fiscal quando qualquer dado que muda a operação for salvo.
+            // Isso impede que uma troca de UF/cenário/frete deixe o orçamento com os
+            // impostos da versão anterior ou obrigue o vendedor a clicar novamente.
+            const camposFiscaisAlterados = ['frete', 'desconto', 'valor', 'valor_seguro', 'outras_despesas', 'faturamento_tipo',
+                'estado_destino', 'tipo_venda', 'cenario_fiscal', 'cenario_fiscal_id'].some(f => updates[f] !== undefined);
+            if (camposFiscaisAlterados) {
                 try {
-                    const [itensAgg] = await patchConn.query(
-                        `SELECT COUNT(*) as count,
-                                COALESCE(SUM(subtotal), 0) as total_subtotais,
-                                COALESCE(SUM(valor_ipi), 0) as total_ipi,
-                                COALESCE(SUM(valor_icms_st), 0) as total_icms_st
-                         FROM pedido_itens WHERE pedido_id = ?`, [id]
+                    const fiscalPatch = await recalcularImpostosPedidoVenda(
+                        id, patchConn, updates.cenario_fiscal_id || updates.cenario_fiscal || null
                     );
-                    if (itensAgg[0].count > 0) {
-                        const [pedAtual] = await patchConn.query('SELECT COALESCE(frete, 0) as frete FROM pedidos WHERE id = ?', [id]);
-                        const novoValor = parseFloat(itensAgg[0].total_subtotais) + parseFloat(itensAgg[0].total_ipi) + parseFloat(itensAgg[0].total_icms_st) + parseFloat(pedAtual[0]?.frete || 0);
-                        await patchConn.query('UPDATE pedidos SET valor = ?, total_ipi = ?, total_icms_st = ? WHERE id = ?',
-                            [novoValor, itensAgg[0].total_ipi, itensAgg[0].total_icms_st, id]);
-                        console.log(`🔄 [Sprint 4.3] Valor recalculado pedido #${id}: R$${novoValor.toFixed(2)} (${itensAgg[0].count} itens, subtotais: ${itensAgg[0].total_subtotais}, IPI: ${itensAgg[0].total_ipi}, ICMS-ST: ${itensAgg[0].total_icms_st}, frete: ${pedAtual[0]?.frete || 0})`);
-                    }
+                    if (fiscalPatch) console.log(`🔄 [Vendas] Fiscal recalculado no pedido #${id}: ICMS R$${fiscalPatch.total_icms.toFixed(2)}, ICMS-ST R$${fiscalPatch.total_icms_st.toFixed(2)}, IPI R$${fiscalPatch.total_ipi.toFixed(2)}, total R$${fiscalPatch.valor.toFixed(2)}`);
                 } catch (recalcErr) {
-                    console.error(`[Sprint 4.3] Erro ao recalcular valor pedido #${id} (não-bloqueante):`, recalcErr.message);
+                    console.error(`[Vendas] Erro ao recalcular impostos do pedido #${id}:`, recalcErr.message);
+                    throw recalcErr;
                 }
             }
 
@@ -1871,19 +4070,24 @@ module.exports = function createVendasRoutes(deps) {
                 const camposAlterados = Object.keys(updates).filter(k => updates[k] !== undefined).join(', ');
 
                 // Sprint E2E-S2 (E1-HIGH-02): Auditoria delta — registrar valor anterior vs novo
-                let deltaInfo = {};
-                const camposAuditaveis = ['valor', 'frete', 'desconto', 'valor_seguro', 'outras_despesas', 'condicao_pagamento'];
-                camposAuditaveis.forEach(campo => {
+                const deltaInfo = {};
+                Object.keys(updates).forEach(campo => {
                     if (updates[campo] !== undefined && existing[campo] !== undefined) {
-                        deltaInfo[campo] = { anterior: existing[campo], novo: updates[campo] };
+                        const anterior = existing[campo];
+                        const novo = updates[campo];
+                        const normalizar = valor => valor == null ? '' : String(valor).trim();
+                        if (normalizar(anterior) !== normalizar(novo)) {
+                            deltaInfo[campo] = { anterior, novo };
+                        }
                     }
                 });
 
                 await patchConn.query(
-                    'INSERT INTO pedido_historico (pedido_id, usuario_id, usuario_nome, acao, descricao, meta) VALUES (?, ?, ?, ?, ?, ?)',
+                    'INSERT INTO pedido_historico (pedido_id, usuario_id, usuario_nome, acao, descricao, meta, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)',
                     [id, user.id || null, user.nome || user.email || 'Sistema', 'edicao',
                      `Atualização via PATCH: ${camposAlterados}`,
-                     JSON.stringify({ campos: Object.keys(updates), status_anterior: statusAtual, status_novo: updates.status || statusAtual, delta: deltaInfo })]
+                     JSON.stringify({ campos: Object.keys(updates), status_anterior: statusAtual, status_novo: updates.status || statusAtual, delta: deltaInfo }),
+                     req.ip || req.headers['x-forwarded-for'] || null]
                 ).catch(() => {
                     // Fallback para colunas alternativas
                     return patchConn.query(
@@ -2011,9 +4215,9 @@ module.exports = function createVendasRoutes(deps) {
         // Mapa de permissões por role do banco (usuarios.role)
         statusPermissions: {
             // Vendedores (role=user/comercial) podem mover até análise de crédito e cancelar antes de aprovação final
-            'default': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'cancelado'],
-            'user': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'cancelado'],
-            'comercial': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'cancelado'],
+            'default': ['rascunho', 'orcamento', 'orçamento', 'analise', 'analise-credito', 'cancelado'],
+            'user': ['rascunho', 'orcamento', 'orçamento', 'analise', 'analise-credito', 'cancelado'],
+            'comercial': ['rascunho', 'orcamento', 'orçamento', 'analise', 'analise-credito', 'cancelado'],
             // Supervisores podem aprovar, mas não faturar diretamente
             'supervisor': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'cancelado'],
             // Aprovadores podem encaminhar para faturamento, mas não marcar como faturado diretamente
@@ -2022,7 +4226,7 @@ module.exports = function createVendasRoutes(deps) {
             'pcp': ['aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'faturado', 'entregue', 'recibo'],
             'producao': ['aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'faturado', 'entregue', 'recibo'],
             // Admin tem acesso total (redundante pois admin bypassa, mas documenta)
-            'admin': ['orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'faturado', 'entregue', 'recibo', 'cancelado']
+            'admin': ['rascunho', 'orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'faturado', 'entregue', 'recibo', 'cancelado']
         },
         canMoveToStatus(userRole, status) {
             const role = (userRole || 'default').toLowerCase();
@@ -2033,6 +4237,7 @@ module.exports = function createVendasRoutes(deps) {
 
     // Mapa de transições válidas de status de pedido
     const VALID_STATUS_TRANSITIONS = {
+        'rascunho': ['orcamento', 'cancelado'],
         'orcamento': ['analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'cancelado'],
         'orçamento': ['analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'cancelado'],
         'analise': ['analise-credito', 'aprovado', 'orcamento', 'cancelado'],
@@ -2045,10 +4250,56 @@ module.exports = function createVendasRoutes(deps) {
         'faturar': ['faturado', 'aguardando-faturamento', 'cancelado'],
         'parcial': ['faturado', 'entregue', 'cancelado'], // Faturamento parcial pode completar ou cancelar
         'faturado': ['entregue', 'recibo'], // Não pode ser cancelado diretamente (precisa cancelar NF-e)
+        // SEM exceção desde 19/08/2026: até então um pedido cuja NF-e foi cancelada voltava
+        // para a esteira (`REABERTURA_POS_CANCELAMENTO_NFE`) para ser refaturado. O pedido foi
+        // faturado do mesmo jeito e o histórico da venda não se apaga, então "faturado" virou
+        // um estado de saída única (entregue/recibo). Admin ainda passa por `forceTransition`.
         'entregue': ['recibo'],
         'recibo': [],
         'cancelado': [] // Estado final
     };
+
+    // (A lista REABERTURA_POS_CANCELAMENTO_NFE saiu em 19/08/2026 junto com a reabertura:
+    // não há mais destino de volta a partir de "faturado".)
+
+    // Situações em que a NF-e ainda vale como documento fiscal do pedido. Fora desta lista
+    // (cancelada, rejeitada, denegada, erro) o pedido está sem nota válida.
+    const NFE_STATUS_ATIVOS = ['autorizada', 'processando', 'emitida', 'enviada', 'pendente'];
+
+    /**
+     * true quando o pedido não tem mais nenhuma NF-e válida — é o estado em que o
+     * cancelamento da nota deixa o pedido (status preservado em 'faturado', colunas fiscais
+     * zeradas). A tabela `nfes` é a fonte da verdade; quando o pedido não tem registro lá
+     * (faturamentos antigos), caímos nas colunas do próprio pedido. Qualquer falha responde
+     * `false` e mantém o bloqueio.
+     */
+    async function pedidoSemNfeAtiva(conn, pedidoId) {
+        try {
+            try {
+                // Conta as notas ATIVAS, não a última: uma tentativa de reemissão rejeitada
+                // depois da nota válida não pode passar por "pedido sem NF-e".
+                const [[r]] = await conn.query(
+                    `SELECT COUNT(*) AS total,
+                            SUM(LOWER(COALESCE(status, '')) IN (?) ) AS ativas
+                       FROM nfes WHERE pedido_id = ?`,
+                    [NFE_STATUS_ATIVOS, pedidoId]
+                );
+                if (Number(r?.total || 0) > 0) return Number(r.ativas || 0) === 0;
+            } catch (e) {
+                if (!['ER_NO_SUCH_TABLE', 'ER_BAD_TABLE_ERROR'].includes(e.code)) throw e;
+            }
+            const [[ped]] = await conn.query(
+                'SELECT nfe_id, numero_nf, nf, nfe_chave FROM pedidos WHERE id = ?',
+                [pedidoId]
+            );
+            if (!ped) return false;
+            const vazio = v => v === null || v === undefined || String(v).trim() === '';
+            return vazio(ped.nfe_id) && vazio(ped.numero_nf) && vazio(ped.nf) && vazio(ped.nfe_chave);
+        } catch (e) {
+            console.warn('[VENDAS/STATUS] Não foi possível checar NF-e do pedido:', e.message);
+            return false;
+        }
+    }
 
     // Persiste o rascunho da "Conta a Receber" (parcelas editadas no modal) na coluna JSON
     // pedidos.parcelas_conta_receber. NÃO cria contas_receber real — isso só ocorre no faturamento,
@@ -2076,7 +4327,43 @@ module.exports = function createVendasRoutes(deps) {
             }
 
             await pool.query('UPDATE pedidos SET parcelas_conta_receber = ? WHERE id = ?', [JSON.stringify(mapa), id]);
-            res.json({ success: true, parcelas_conta_receber: mapa });
+
+            // Se o pedido já foi faturado e possui título financeiro, mantém o
+            // título alinhado ao modal. Antes deste ajuste o pedido guardava o
+            // rascunho, mas a conta já criada continuava com os dados antigos.
+            let titulosAtualizados = 0;
+            if (numero !== undefined && numero !== null && dados && typeof dados === 'object') {
+                const texto = (valor, limite = 500) => {
+                    const normalizado = String(valor || '').trim().replace(/[<>]/g, '');
+                    return normalizado ? normalizado.slice(0, limite) : null;
+                };
+                const data = (valor) => /^\d{4}-\d{2}-\d{2}$/.test(String(valor || '').slice(0, 10)) ? String(valor).slice(0, 10) : null;
+                const numeroParcela = Math.max(1, parseInt(numero, 10) || 1);
+                const vencimento = data(dados.vencimento);
+                if (vencimento) {
+                    const [resultado] = await pool.query(`
+                        UPDATE contas_receber
+                           SET data_vencimento = ?, vencimento = ?, data_previsao = ?,
+                               categoria_nome = ?, conta_corrente_nome = ?, nota_fiscal = ?,
+                               data_emissao = ?, projeto = ?, vendedor = ?, observacoes = ?,
+                               parcela_info = ?, departamentos_json = ?, repeticao_json = ?
+                         WHERE pedido_id = ?
+                           AND (parcela_numero = ? OR (? = 1 AND (parcela_numero IS NULL OR parcela_numero = 1)))
+                           AND (deleted_at IS NULL)
+                           AND LOWER(COALESCE(status, 'pendente')) NOT IN ('pago', 'recebido', 'liquidada')
+                    `, [
+                        vencimento, vencimento, data(dados.previsao_recebimento) || vencimento,
+                        texto(dados.categoria), texto(dados.conta_corrente), texto(dados.nota_fiscal, 100),
+                        data(dados.data_emissao), texto(dados.projeto), texto(dados.vendedor), texto(dados.observacoes, 5000),
+                        JSON.stringify({ ...dados, numero: numeroParcela }),
+                        JSON.stringify(Array.isArray(dados.departamentos) ? dados.departamentos : []),
+                        JSON.stringify({ ativo: !!dados.repetir, ...(dados.repeticao || {}) }),
+                        id, numeroParcela, numeroParcela
+                    ]);
+                    titulosAtualizados = resultado.affectedRows || 0;
+                }
+            }
+            res.json({ success: true, parcelas_conta_receber: mapa, titulos_atualizados: titulosAtualizados });
         } catch (error) {
             console.error('[API/VENDAS/PARCELAS-CR] Erro:', error);
             next(error);
@@ -2091,7 +4378,7 @@ module.exports = function createVendasRoutes(deps) {
 
             console.log(`📝 Atualizando status do pedido ${id} para: ${status}`);
 
-            const validStatuses = ['orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'faturado', 'entregue', 'cancelado', 'recibo'];
+            const validStatuses = ['rascunho', 'orcamento', 'orçamento', 'analise', 'analise-credito', 'aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'faturado', 'entregue', 'cancelado', 'recibo'];
             if (!status || !validStatuses.includes(status)) {
                 console.log(`❌ Status inválido: ${status}`);
                 return res.status(400).json({ message: 'Status inválido.' });
@@ -2099,7 +4386,9 @@ module.exports = function createVendasRoutes(deps) {
 
             // Sprint 1 (K-03/RC-01 fix): SELECT ... FOR UPDATE para atomicidade
             await connection.beginTransaction();
-            const [pedidoAtual] = await connection.query('SELECT id, status, vendedor_id, cliente_id, cliente_nome, valor, condicao_pagamento, parcelas FROM pedidos WHERE id = ? FOR UPDATE', [id]);
+            // numero_pedido entra aqui porque a OP auto-gerada precisa citar o número do
+            // documento do Vendas, não o id interno (ver INSERT em ordens_producao abaixo).
+            const [pedidoAtual] = await connection.query('SELECT id, numero_pedido, status, vendedor_id, cliente_id, cliente_nome, valor, condicao_pagamento, parcelas, parcelas_conta_receber FROM pedidos WHERE id = ? FOR UPDATE', [id]);
             if (pedidoAtual.length === 0) {
                 await connection.rollback();
                 return res.status(404).json({ message: 'Pedido não encontrado.' });
@@ -2112,7 +4401,14 @@ module.exports = function createVendasRoutes(deps) {
             const isAdmin = faturamentoShared.isAdmin(user);
 
             // Validar transição de status (admin pode forçar)
-            const transicoesValidas = VALID_STATUS_TRANSITIONS[statusAtual] || [];
+            const transicoesValidas = [...(VALID_STATUS_TRANSITIONS[statusAtual] || [])];
+
+            // A reabertura de pedido "faturado" com NF-e cancelada foi REMOVIDA em 19/08/2026:
+            // ele foi faturado, e nem o cancelamento da nota o devolve para a esteira. Só
+            // admin, via forceTransition, ainda consegue tirá-lo de "faturado".
+            if (statusAtual === 'faturado' && !transicoesValidas.includes(status)) {
+                console.log(`🔒 Pedido #${id} está "faturado" — transição para "${status}" bloqueada (vale mesmo com a NF-e cancelada).`);
+            }
             // Sprint E2E-S2 (E2-CRIT-03): forceTransition só permitido para admin
             const canForce = forceTransition && isAdmin;
             if (!transicoesValidas.includes(status) && !canForce) {
@@ -2139,9 +4435,12 @@ module.exports = function createVendasRoutes(deps) {
 
 // ===== VERIFICAÇÃO GRANULAR DE PERMISSÕES (Sprint 1 - K-01 fix: usa role, não nome) =====
             if (!isAdmin) {
-                const isComprasUser = String(user.email || '').toLowerCase().indexOf('compras@') === 0;
+                const _isCompras = isComprasUser(user);
                 const _isPcp = isPcpUser(user);
-                const userRole = _isPcp ? 'pcp' : (isComprasUser ? 'aprovador' : (user.role || 'user'));
+                // Logística tem as MESMAS permissões de etapa do Compras: entra como 'aprovador'
+                // (move até "faturar"; quem fecha em "faturado"/"recibo" continua sendo admin/PCP).
+                const _isLogistica = isLogisticaUser(user);
+                const userRole = _isPcp ? 'pcp' : ((_isCompras || _isLogistica) ? 'aprovador' : (user.role || 'user'));
 
                 // Verificar se o role do usuário pode mover para este status específico
                 if (!userPermissions.canMoveToStatus(userRole, status)) {
@@ -2161,7 +4460,7 @@ module.exports = function createVendasRoutes(deps) {
             if (!isAdmin) {
                 // Usar pedidoAtual já consultado acima
                 const pedido = pedidoAtual[0];
-                const _isCompras = String(user.email || '').toLowerCase().indexOf('compras@') === 0;
+                const _isCompras = isComprasUser(user) || isLogisticaUser(user);
                 // PCP fatura pedidos de qualquer vendedor — não tem "pedidos próprios".
                 const _isPcpMover = isPcpUser(user);
                 if (!_isCompras && !_isPcpMover && pedido.vendedor_id && user.id && Number(pedido.vendedor_id) !== Number(user.id)) {
@@ -2226,56 +4525,187 @@ module.exports = function createVendasRoutes(deps) {
             }
 
             // ========================================
-            // AUDIT-FIX 2026-04-03: VALIDAÇÃO DE LIMITE DE CRÉDITO
-            // Quando pedido vai para 'aprovado' ou 'pedido-aprovado', verificar se
-            // o cliente possui limite de crédito suficiente.
-            // Admin pode forçar com forceTransition=true.
+            // BUG-FAT-002/017: GATE DE APTIDÃO FISCAL NA APROVAÇÃO
+            // Pedido só avança para status faturável se o cliente tem os dados fiscais
+            // mínimos da NF-e (código IBGE do município e CNPJ/CPF). Antes, o pedido era
+            // aprovado, gerava OP no PCP e só falhava na emissão (IBGE_PREFLIGHT) —
+            // deixando OPs órfãs impossíveis de faturar. Admin pode forçar (forceTransition).
             // ========================================
-            if (['aprovado', 'pedido-aprovado'].includes(status) && !canForce) {
-                try {
-                    const pedidoData = pedidoAtual[0];
-                    const valorPedido = parseFloat(pedidoData.valor || 0);
-
-                    if (pedidoData.cliente_id && valorPedido > 0) {
-                        const [clienteData] = await connection.query(
-                            'SELECT limite_credito FROM clientes WHERE id = ? LIMIT 1',
-                            [pedidoData.cliente_id]
+            if (['aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar'].includes(status) && !canForce) {
+                const cliIdFiscal = pedidoAtual[0]?.cliente_id;
+                if (cliIdFiscal) {
+                    let cliFiscalRows = null;
+                    try {
+                        [cliFiscalRows] = await connection.query(
+                            `SELECT nome, razao_social, cnpj, cnpj_cpf, cpf,
+                                    inscricao_estadual, ie, endereco, logradouro,
+                                    numero, bairro, cidade, estado, uf, cep,
+                                    codigo_ibge, codigo_municipio,
+                                    COALESCE(razao_social, nome) AS nome_cli
+                             FROM clientes WHERE id = ? LIMIT 1`,
+                            [cliIdFiscal]
                         );
-                        const limiteCredito = parseFloat(clienteData[0]?.limite_credito || 0);
-
-                        // Só valida se o cliente possui limite configurado (> 0)
-                        if (limiteCredito > 0) {
-                            // Somar pedidos pendentes do mesmo cliente (excluir cancelados e o pedido atual)
-                            const [creditUsed] = await connection.query(
-                                `SELECT COALESCE(SUM(valor), 0) as total_pendente
-                                 FROM pedidos
-                                 WHERE cliente_id = ? AND id != ?
-                                   AND status IN ('aprovado', 'pedido-aprovado', 'faturar', 'faturado', 'parcial')`,
-                                [pedidoData.cliente_id, id]
-                            );
-                            const totalExposicao = parseFloat(creditUsed[0].total_pendente) + valorPedido;
-
-                            if (totalExposicao > limiteCredito) {
-                                console.log(`[CREDITO] ❌ Limite excedido para cliente #${pedidoData.cliente_id}: limite=R$${limiteCredito.toFixed(2)}, exposição=R$${totalExposicao.toFixed(2)}`);
-                                await connection.rollback();
-                                return res.status(400).json({
-                                    message: `Limite de crédito excedido. Limite: R$${limiteCredito.toFixed(2)}, Exposição total: R$${totalExposicao.toFixed(2)} (pendente: R$${parseFloat(creditUsed[0].total_pendente).toFixed(2)} + este pedido: R$${valorPedido.toFixed(2)}). Solicite aprovação a um administrador.`,
-                                    code: 'CREDIT_LIMIT_EXCEEDED',
-                                    limite: limiteCredito,
-                                    exposicao: totalExposicao
-                                });
-                            }
-                            console.log(`[CREDITO] ✅ Cliente #${pedidoData.cliente_id} dentro do limite: R$${totalExposicao.toFixed(2)} / R$${limiteCredito.toFixed(2)}`);
+                    } catch (fiscErr) {
+                        // Falha técnica na consulta não bloqueia (mesmo padrão dos demais gates)
+                        console.warn('[FISCAL-GATE] Erro ao validar dados fiscais (não-bloqueante):', fiscErr.message);
+                    }
+                    if (cliFiscalRows && cliFiscalRows[0]) {
+                        const cf = cliFiscalRows[0];
+                        const pendencias = listarPendenciasFiscais(cf).map(item => item.label);
+                        if (pendencias.length > 0) {
+                            console.log(`[FISCAL-GATE] 🚫 Pedido #${id} bloqueado: cliente "${cf.nome_cli}" sem ${pendencias.join(' e ')}`);
+                            await connection.rollback();
+                            return res.status(400).json({
+                                success: false,
+                                code: 'CLIENTE_FISCAL_INCOMPLETO',
+                                message: `Não é possível aprovar: o cadastro do cliente "${cf.nome_cli}" está sem ${pendencias.join(' e ')}. Complete o cadastro antes de aprovar o pedido — sem esses dados a NF-e não pode ser emitida.`
+                            });
                         }
                     }
-                } catch (creditErr) {
-                    console.warn('[CREDITO] Erro ao validar limite (não-bloqueante):', creditErr.message);
-                    // Não bloqueia operação se a validação falhar por erro técnico
+                }
+            }
+
+            // ========================================
+            // AUDIT-FIX 2026-04-03 (removido em 15/09/2026): este gate somava
+            // `pedidos.status IN (...,'faturado',...)` para medir exposição de crédito —
+            // um pedido faturado ENTRAVA nessa soma e nunca mais SAÍA, mesmo depois de o
+            // cliente pagar. `pedidos.status` não muda quando o título é liquidado; quem
+            // sabe disso é o Contas a Receber (`contas_receber.status`). Resultado: o
+            // limite de crédito do cliente nunca "voltava" para pedidos futuros, mesmo com
+            // tudo quitado — o cliente ficava bloqueado para sempre depois do primeiro
+            // pedido grande.
+            //
+            // A TRAVA DE CRÉDITO DO CLIENTE logo abaixo (`_ETAPAS_TRAVA_CREDITO`, via
+            // `services/credito-cliente.service.js`) cobre as MESMAS transições
+            // ('aprovado'/'pedido-aprovado') e já fazia a conta certa: exposição =
+            // pedidos ainda não faturados + títulos em aberto no Contas a Receber
+            // (excluindo os já recebidos/liquidados/baixados) + o pedido atual. Como este
+            // gate rodava PRIMEIRO e retornava 400 assim que "excedia", ele podia barrar
+            // uma aprovação que a trava de verdade — mais nova e correta — já liberaria.
+            // Manter os dois era pior que remover um: nunca havia lógica extra ganha,
+            // só a chance de o gate errado vencer a corrida.
+            // ========================================
+
+            // ── GATE: CLIENTE COM FATURAMENTO BLOQUEADO ──────────────────────────────
+            // FIX 2026-07-13: o checkbox "Bloquear o Faturamento para este Cliente"
+            // (clientes.bloquear_faturamento) era salvo mas NUNCA era respeitado.
+            // Agora impede o avanço para faturamento. Admin pode forçar com forceTransition.
+            if (['aguardando-faturamento', 'faturar', 'faturado'].includes(status) && !canForce) {
+                try {
+                    const cliId = pedidoAtual[0]?.cliente_id;
+                    if (cliId) {
+                        const [bloq] = await connection.query(
+                            'SELECT COALESCE(bloquear_faturamento,0) AS b, nome, razao_social FROM clientes WHERE id = ? LIMIT 1',
+                            [cliId]
+                        );
+                        if (bloq[0] && Number(bloq[0].b) === 1) {
+                            const nomeCli = bloq[0].razao_social || bloq[0].nome || ('#' + cliId);
+                            console.log(`[CREDITO] 🚫 Faturamento bloqueado p/ cliente ${nomeCli} (pedido #${id})`);
+                            await connection.rollback();
+                            connection.release();
+                            return res.status(400).json({
+                                success: false,
+                                code: 'CLIENTE_FATURAMENTO_BLOQUEADO',
+                                message: `Faturamento bloqueado: o cliente "${nomeCli}" está marcado como "Bloquear o Faturamento" no cadastro. Desmarque essa opção no cadastro do cliente (aba Faturamento e Crédito) ou solicite liberação a um administrador.`
+                            });
+                        }
+                    }
+                } catch (bErr) {
+                    console.warn('[CREDITO] Erro ao validar bloqueio de faturamento (não-bloqueante):', bErr.message);
+                }
+            }
+
+            // ── TRAVA DE CRÉDITO DO CLIENTE (portas 2 e 3: aprovar e mandar faturar) ──
+            // Mesma avaliação da criação, agora com o valor real do pedido. Vale para o
+            // avanço a partir de "aprovado": antes disso (orçamento/análise) o pedido só
+            // está sendo estudado. Admin fura com forceTransition, e fica registrado.
+            const _ETAPAS_TRAVA_CREDITO = ['aprovado', 'pedido-aprovado', 'aguardando-faturamento', 'faturar', 'faturado'];
+            if (_ETAPAS_TRAVA_CREDITO.includes(status) && pedidoAtual[0]?.cliente_id) {
+                const _porta = ['aprovado', 'pedido-aprovado'].includes(status) ? 'aprovar' : 'faturar';
+                const _avaliacao = await creditoCliente.avaliarCreditoCliente(connection, {
+                    clienteId: pedidoAtual[0].cliente_id,
+                    valorPedido: parseFloat(pedidoAtual[0].valor || 0),
+                    pedidoId: id,
+                    porta: _porta
+                });
+                if (_avaliacao.bloqueado) {
+                    if (!canForce) {
+                        console.log(`[CREDITO-GATE] 🚫 Pedido #${id} barrado em "${status}": ${_avaliacao.pendencias.map(p => p.codigo).join(', ')}`);
+                        await connection.rollback();
+                        connection.release();
+                        return res.status(409).json(
+                            creditoCliente.respostaBloqueio(_avaliacao, _porta === 'aprovar' ? 'aprovar o pedido' : 'mandar o pedido para faturamento')
+                        );
+                    }
+                    await creditoCliente.registrarLiberacaoForcada(connection, {
+                        pedidoId: id, usuario: user, avaliacao: _avaliacao, acao: `mudança de status para ${status}`
+                    });
+                    console.warn(`[CREDITO-GATE] Admin ${user?.nome || user?.email} forçou o pedido #${id} para "${status}" com pendência de crédito.`);
+                }
+            }
+
+            // ── GATE DE COBERTURA DE CRÉDITO ─────────────────────────────────────────
+            // O pedido só pode ser faturado se a diferença entre o valor do pedido e o
+            // crédito liberado estiver coberta. Enquanto houver título de "cobertura-credito"
+            // em aberto (não recebido) para o pedido, bloqueia o avanço para faturamento.
+            // Admin pode forçar com forceTransition=true.
+            if (['aguardando-faturamento', 'faturar', 'faturado'].includes(status) && !canForce) {
+                try {
+                    const [coberturaRows] = await connection.query(
+                        `SELECT COALESCE(SUM(valor), 0) AS total, COUNT(*) AS qtd
+                         FROM contas_receber
+                         WHERE pedido_id = ? AND origem = 'cobertura-credito' AND status NOT IN ('recebido','cancelado')`,
+                        [id]
+                    );
+                    const coberturaPendente = parseFloat(coberturaRows[0]?.total || 0);
+                    if (parseInt(coberturaRows[0]?.qtd || 0, 10) > 0 && coberturaPendente > 0.005) {
+                        console.log(`[CREDITO] 🚫 Faturamento bloqueado pedido #${id}: cobertura pendente R$${coberturaPendente.toFixed(2)}`);
+                        await connection.rollback();
+                        connection.release();
+                        return res.status(400).json({
+                            success: false,
+                            code: 'COVERAGE_PENDING',
+                            cobertura_pendente: coberturaPendente,
+                            message: `Faturamento bloqueado: há R$ ${coberturaPendente.toFixed(2)} de cobertura de crédito pendente para este pedido. Registre o recebimento do título de entrada (Contas a Receber) para liberar o faturamento, ou solicite liberação a um administrador.`
+                        });
+                    }
+                } catch (covErr) {
+                    console.warn('[CREDITO] Erro ao validar cobertura (não-bloqueante):', covErr.message);
                 }
             }
 
             // Atualiza status e registra histórico (usando updated_at se existir)
-            const [result] = await connection.query('UPDATE pedidos SET status = ?, updated_at = NOW() WHERE id = ?', [status, id]);
+            // BUG-FAT-009: a coluna `etapa` ficava para trás (status="pedido-aprovado",
+            // etapa="orcamento") — agora acompanha o status persistido.
+            // BUG-FAT-008: transição para aprovado grava QUEM aprovou e QUANDO.
+            const ehAprovacao = ['aprovado', 'pedido-aprovado'].includes(status)
+                && !['aprovado', 'pedido-aprovado'].includes(statusAtual);
+            const [result] = ehAprovacao
+                ? await connection.query(
+                    'UPDATE pedidos SET status = ?, etapa = ?, aprovado_por = ?, data_aprovacao = NOW(), updated_at = NOW() WHERE id = ?',
+                    [status, status, user.id || null, id]
+                )
+                : await connection.query(
+                    'UPDATE pedidos SET status = ?, etapa = ?, updated_at = NOW() WHERE id = ?',
+                    [status, status, id]
+                );
+
+            // BUG-FAT-014: o snapshot pedidos.cliente_nome divergia do cadastro (razão social
+            // alterada depois da criação do pedido) e ia para NF-e/relatórios com destinatário
+            // errado. Na aprovação, ressincroniza com o master de clientes.
+            if (ehAprovacao && pedidoAtual[0].cliente_id) {
+                try {
+                    await connection.query(
+                        `UPDATE pedidos p
+                         JOIN clientes c ON c.id = p.cliente_id
+                         SET p.cliente_nome = COALESCE(c.razao_social, c.nome, p.cliente_nome)
+                         WHERE p.id = ?`,
+                        [id]
+                    );
+                } catch (snapErr) {
+                    console.warn(`[VENDAS] Snapshot do cliente não ressincronizado no pedido #${id}:`, snapErr.message);
+                }
+            }
 
             // ========================================
             // Sprint 3 (Gap-1 fix): FILA AUTOMÁTICA VENDAS → PCP
@@ -2294,20 +4724,8 @@ module.exports = function createVendasRoutes(deps) {
                         const [itensOP] = await connection.query(
                             'SELECT codigo, descricao, quantidade, unidade FROM pedido_itens WHERE pedido_id = ? ORDER BY id ASC', [id]
                         );
-                        // Gerar código sequencial da OP (com FOR UPDATE para evitar race condition)
-                        const [ultimaOrdem] = await connection.query(`
-                            SELECT codigo FROM ordens_producao
-                            WHERE codigo LIKE 'OP N° %'
-                            ORDER BY id DESC LIMIT 1
-                            FOR UPDATE
-                        `);
-                        let proximoNumero = 1;
-                        if (ultimaOrdem.length > 0 && ultimaOrdem[0].codigo) {
-                            const matchNum = ultimaOrdem[0].codigo.match(/(\d+)$/);
-                            if (matchNum) proximoNumero = parseInt(matchNum[1]) + 1;
-                        }
-                        const ano = new Date().getFullYear();
-                        const codigoOP = `OP N° ${ano}/${String(proximoNumero).padStart(5, '0')}`;
+                        // Lê também os formatos legados, mas grava somente AAAA/NNNNN.
+                        const codigoOP = await getNextOpCode(connection);
 
                         const pedidoData = pedidoAtual[0];
 
@@ -2385,11 +4803,25 @@ module.exports = function createVendasRoutes(deps) {
                         `, [codigoOP, descProduto, qtdOP, undOP, obsItens, id,
                             clienteNomeOP, clienteCnpjOP, clienteContatoOP, clienteTelefoneOP,
                             clienteEmailOP, clienteEnderecoOP, clienteCepOP,
-                            vendedorOP, condicaoPagamentoOP, valorTotalOP, String(id)]);
+                            vendedorOP, condicaoPagamentoOP, valorTotalOP,
+                            String(pedidoData.numero_pedido || id)]);
 
                         opAutoCriada = { id: opResult.insertId, codigo: codigoOP };
+
+                        // BUG-FAT-018: vínculo bidirecional — a OP guarda pedido_vinculado_id,
+                        // mas o pedido não guardava a OP (ordem_producao_id ficava null).
+                        await connection.query(
+                            'UPDATE pedidos SET ordem_producao_id = ? WHERE id = ?',
+                            [opResult.insertId, id]
+                        );
+
                         console.log(`[PIPELINE_AUTO] OP ${codigoOP} criada automaticamente para Pedido #${id}`);
                     } else {
+                        // BUG-FAT-018: garante o vínculo também quando a OP já existia
+                        await connection.query(
+                            'UPDATE pedidos SET ordem_producao_id = COALESCE(ordem_producao_id, ?) WHERE id = ?',
+                            [opExistente[0].id, id]
+                        );
                         console.log(`[PIPELINE_AUTO] OP já existe para Pedido #${id}: ${opExistente[0].codigo}`);
                     }
                 } catch (opError) {
@@ -2399,13 +4831,41 @@ module.exports = function createVendasRoutes(deps) {
             }
 
             // ========================================
+            // PESQUISA DE SATISFAÇÃO — pedido entregue
+            // O cliente recebe o link por e-mail assim que o pedido é marcado como
+            // entregue. Fora da transação e sem await no envio: pesquisa é acessório,
+            // não pode atrasar nem derrubar a mudança de status do pedido.
+            // A trava de "uma pesquisa por pedido" mora no próprio módulo.
+            // ========================================
+            if (status === 'entregue' && statusAtual !== 'entregue') {
+                setImmediate(() => {
+                    try {
+                        const criarPesquisas = require('./pesquisas-routes');
+                        const rota = criarPesquisas({ pool, authenticateToken, writeAuditLog });
+                        rota.enviarPesquisaDoPedido(req, Number(id))
+                            .then(r => {
+                                if (r.ok) console.log(`[PESQUISA_AUTO] Pedido #${id}: enviada=${r.email_enviado} para ${r.para || '-'}`);
+                                else console.log(`[PESQUISA_AUTO] Pedido #${id} sem pesquisa: ${r.motivo}`);
+                            })
+                            .catch(e => console.error(`[PESQUISA_AUTO] Falha no pedido #${id}:`, e.message));
+                    } catch (e) {
+                        console.error('[PESQUISA_AUTO] Módulo de pesquisas indisponível:', e.message);
+                    }
+                });
+            }
+
+            // ========================================
             // BAIXA AUTOMÁTICA DE ESTOQUE
             // Quando pedido vai para "faturar" ou "faturado", baixar estoque automaticamente
             // ========================================
             let movimentacoesEstoque = [];
             // FIX: Estoque só baixa em 'faturar' ou 'faturado', NÃO em 'aprovado'
             // Baixar estoque na aprovação causava estoque fantasma quando pedidos eram cancelados
-            if (baixar_estoque && ['faturar', 'faturado'].includes(status) &&
+            if (!BAIXA_ESTOQUE_AUTOMATICA && ['faturar', 'faturado'].includes(status) &&
+                !['faturar', 'faturado'].includes(statusAtual)) {
+                console.log(`[ESTOQUE_AUTO] Baixa automática desligada (ESTOQUE_BAIXA_AUTOMATICA=0) — pedido #${id} faturado sem movimentar estoque`);
+            }
+            if (BAIXA_ESTOQUE_AUTOMATICA && baixar_estoque && ['faturar', 'faturado'].includes(status) &&
                 !['faturar', 'faturado'].includes(statusAtual)) {
                 try {
                     // AUDIT-FIX: Verificar se já existem movimentações de saída para evitar duplicação
@@ -2421,6 +4881,9 @@ module.exports = function createVendasRoutes(deps) {
                         SELECT codigo, descricao, quantidade, unidade, preco_unitario
                         FROM pedido_itens
                         WHERE pedido_id = ?
+                          -- Item SOB ENCOMENDA fica de fora da baixa: foi vendido sem saldo
+                          -- justamente para nao movimentar estoque (trava em POST/PUT do item).
+                          AND COALESCE(nao_gerar_saida_estoque, 0) = 0
                     `, [id]);
 
                     if (itens.length > 0) {
@@ -2469,7 +4932,11 @@ module.exports = function createVendasRoutes(deps) {
                                 descricao: `Faturamento Pedido #${id} - ${pedidoData.cliente_nome || 'Cliente'}`,
                                 valor: valorFaturamento,
                                 tipo: 'faturamento',
-                                pedido: pedidoData
+                                pedido: pedidoData,
+                                // Vínculo fiscal: sem ele o cancelamento da NF-e não acha o
+                                // título e a cobrança segue aberta sem documento fiscal.
+                                nfe_id: pedidoData.nfe_id || null,
+                                nota_fiscal: pedidoData.nfe_faturamento_numero || pedidoData.numero_nf || pedidoData.nf || null
                             });
                             console.log(`[FINANCEIRO_AUTO] Conta a receber #${contaReceberGerada.insertId} gerada para pedido #${id} (R$${valorFaturamento}, venc. ${contaReceberGerada.data_vencimento_dias} dias)`);
                         } else {
@@ -2612,6 +5079,21 @@ module.exports = function createVendasRoutes(deps) {
 
             clearPedidosCache();
             console.log(`✅ Status do pedido ${id} atualizado: ${statusAtual} → ${status} por ${user.nome || user.email} (Admin: ${isAdmin})`);
+
+            // Avisa o vendedor dono do pedido na hora, sem ele recarregar a tela.
+            // Depois do commit e sem await: a etapa já está gravada e o aviso é
+            // best-effort — nunca pode atrasar nem derrubar a resposta.
+            emitirMudancaEtapa(req.app, {
+                pedidoId: Number(id),
+                numeroPedido: pedidoAtual[0].numero_pedido,
+                de: statusAtual,
+                para: status,
+                vendedorId: pedidoAtual[0].vendedor_id,
+                clienteNome: pedidoAtual[0].cliente_nome,
+                autor: user,
+                origem: 'status'
+            });
+
             res.json({
                 message: 'Status atualizado com sucesso.',
                 success: true,
@@ -2649,50 +5131,95 @@ module.exports = function createVendasRoutes(deps) {
             );
             if (!ped) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
 
-            // NF-e vinculada (nfes.pedido_id)
-            let nfe = null;
+            // TODAS as NF-e do pedido, não só a última: uma nota rejeitada seguida da
+            // reemissão autorizada (ou uma cancelada seguida de outra) faz parte da mesma
+            // conversa com a SEFAZ e o histórico do pedido precisa mostrar as duas.
+            let nfes = [];
             try {
                 const [rows] = await pool.query(
-                    `SELECT id, numero, serie, chave_acesso, status, data_emissao, protocolo_autorizacao, created_at, usuario_id
-                     FROM nfes WHERE pedido_id = ? ORDER BY id DESC LIMIT 1`, [id]
+                    `SELECT id, numero, serie, chave_acesso, status, data_emissao, data_autorizacao,
+                            data_cancelamento, motivo_cancelamento, protocolo_autorizacao, created_at,
+                            usuario_id, autorizado_por, cancelada_por, sefaz_codigo_status,
+                            sefaz_motivo, sefaz_data_retorno
+                       FROM nfes WHERE pedido_id = ? ORDER BY id ASC`, [id]
                 );
-                nfe = rows[0] || null;
-            } catch (_e) { nfe = null; }
+                nfes = rows || [];
+            } catch (_e) { nfes = []; }
 
-            let usuarioNome = 'Integração';
-            if (nfe && nfe.usuario_id) {
-                try { const [[u]] = await pool.query('SELECT nome FROM usuarios WHERE id = ?', [nfe.usuario_id]); if (u && u.nome) usuarioNome = u.nome; } catch (_e) { /* noop */ }
+            // Cada evento é atribuído a QUEM o executou: emitir (usuario_id), autorizar
+            // (autorizado_por) e cancelar (cancelada_por) podem ser pessoas diferentes —
+            // antes a timeline inteira saía no nome de quem emitiu.
+            const nomePorId = new Map();
+            const idsUsuarios = [...new Set(nfes.flatMap(n => [n.usuario_id, n.autorizado_por, n.cancelada_por]).filter(Boolean))];
+            if (idsUsuarios.length) {
+                try {
+                    const [us] = await pool.query('SELECT id, nome FROM usuarios WHERE id IN (?)', [idsUsuarios]);
+                    us.forEach(u => nomePorId.set(Number(u.id), u.nome));
+                } catch (_e) { /* noop */ }
             }
+            const quem = (...ids) => {
+                for (const i of ids) { const n = i && nomePorId.get(Number(i)); if (n) return n; }
+                return 'Integração';
+            };
 
+            const nfe = nfes.find(n => String(n.status || '').toLowerCase() === 'autorizada') || nfes[nfes.length - 1] || null;
             const numeroFmt  = padNum((nfe && nfe.numero) || ped.nfe_faturamento_numero || ped.nfe_remessa_numero);
             const protocolo  = (nfe && nfe.protocolo_autorizacao) || ped.nfe_protocolo || null;
             const statusPed  = String(ped.status || '').toLowerCase();
-            const faturado   = ['faturado', 'entregue', 'recibo', 'concluido', 'concluído', 'finalizado', 'emitida', 'autorizada'].includes(statusPed);
+            const faturado   = ['faturado', 'parcial', 'entregue', 'recibo', 'concluido', 'concluído', 'finalizado', 'emitida', 'autorizada'].includes(statusPed);
             const eventos = [];
 
-            if (nfe) {
-                const dtBase    = nfe.data_emissao || nfe.created_at;
-                const statusNfe = String(nfe.status || '').toLowerCase();
-                eventos.push({ status: 'info', data: dtBase, descricao: `Enviando a NF-e Nº ${numeroFmt} para a SEFAZ`, usuario: usuarioNome });
-                if (statusNfe === 'cancelada') {
-                    eventos.push({ status: 'ok',    data: dtBase, descricao: `NF-e Nº ${numeroFmt} autorizada${protocolo ? `, protocolo ${protocolo}` : ''}.`, usuario: usuarioNome });
-                    eventos.push({ status: 'error', data: nfe.created_at, descricao: `NF-e Nº ${numeroFmt} cancelada.`, usuario: usuarioNome });
-                } else {
-                    eventos.push({ status: 'ok', data: dtBase, descricao: `NF-e Nº ${numeroFmt} autorizada${protocolo ? `, protocolo ${protocolo}` : ''}.`, usuario: usuarioNome });
-                }
-                // Eventos registrados (CC-e, cancelamento eletrônico, e-mail, etc.)
-                try {
-                    const [evs] = await pool.query(
-                        `SELECT tipo_evento, descricao_evento, COALESCE(data_evento, created_at) AS data, protocolo_evento, status
-                         FROM nfe_eventos WHERE nfe_id = ? ORDER BY COALESCE(data_evento, created_at) ASC`, [nfe.id]
-                    );
-                    evs.forEach(r => {
-                        const st = String(r.status || '').toLowerCase();
-                        const tp = String(r.tipo_evento || '').toLowerCase();
-                        const isErr = st.includes('err') || st.includes('rejeit') || tp.includes('cancel');
-                        eventos.push({ status: isErr ? 'error' : 'ok', data: r.data, descricao: r.descricao_evento || r.tipo_evento || 'Evento', usuario: usuarioNome });
+            if (nfes.length) {
+                for (const n of nfes) {
+                    const num       = padNum(n.numero);
+                    const statusNfe = String(n.status || '').toLowerCase();
+                    const dtEnvio   = n.data_emissao || n.created_at;
+                    const prot      = n.protocolo_autorizacao || null;
+                    const emissor   = quem(n.usuario_id, n.autorizado_por);
+                    const motivoSefaz = [n.sefaz_codigo_status, n.sefaz_motivo].filter(Boolean).join(' - ');
+
+                    eventos.push({ status: 'info', data: dtEnvio, descricao: `Enviando a NF-e Nº ${num} para a SEFAZ`, usuario: emissor });
+
+                    if (['rejeitada', 'denegada', 'erro'].includes(statusNfe)) {
+                        eventos.push({
+                            status: 'error', data: n.sefaz_data_retorno || dtEnvio,
+                            descricao: `NF-e Nº ${num} ${statusNfe} pela SEFAZ${motivoSefaz ? ` (${motivoSefaz})` : ''}.`,
+                            usuario: emissor
+                        });
+                        continue;
+                    }
+
+                    eventos.push({
+                        status: 'ok', data: n.data_autorizacao || dtEnvio,
+                        descricao: `NF-e Nº ${num} autorizada${prot ? `, protocolo ${prot}` : ''}.`,
+                        usuario: quem(n.autorizado_por, n.usuario_id)
                     });
-                } catch (_e) { /* tabela pode não existir */ }
+
+                    if (statusNfe === 'cancelada') {
+                        eventos.push({
+                            status: 'error', data: n.data_cancelamento || n.data_autorizacao || dtEnvio,
+                            descricao: `NF-e Nº ${num} cancelada${n.motivo_cancelamento ? `: ${n.motivo_cancelamento}` : '.'}`,
+                            usuario: quem(n.cancelada_por, n.usuario_id)
+                        });
+                    }
+
+                    // Eventos registrados (CC-e, cancelamento eletrônico, e-mail, etc.)
+                    try {
+                        const [evs] = await pool.query(
+                            `SELECT tipo_evento, descricao_evento, COALESCE(data_evento, created_at) AS data, protocolo_evento, status
+                             FROM nfe_eventos WHERE nfe_id = ? ORDER BY COALESCE(data_evento, created_at) ASC`, [n.id]
+                        );
+                        evs.forEach(r => {
+                            const st = String(r.status || '').toLowerCase();
+                            const tp = String(r.tipo_evento || '').toLowerCase();
+                            const isErr = st.includes('err') || st.includes('rejeit') || tp.includes('cancel');
+                            // O cancelamento já foi narrado acima com o usuário certo; o registro
+                            // do evento 110111 repetiria a mesma linha.
+                            if (tp === '110111' && statusNfe === 'cancelada') return;
+                            eventos.push({ status: isErr ? 'error' : 'ok', data: r.data, descricao: r.descricao_evento || r.tipo_evento || 'Evento', usuario: quem(n.cancelada_por, n.usuario_id) });
+                        });
+                    } catch (_e) { /* tabela pode não existir */ }
+                }
             } else if (faturado) {
                 const dt = ped.faturado_em || ped.data_faturamento || ped.created_at;
                 if (ped.nfe_chave || ped.nfe_protocolo || ped.nfe_faturamento_numero) {
@@ -2703,7 +5230,7 @@ module.exports = function createVendasRoutes(deps) {
                 }
             }
 
-            eventos.sort((a, b) => new Date(a.data) - new Date(b.data));
+            eventos.sort((a, b) => new Date(a.data || 0) - new Date(b.data || 0));
             res.json({ success: true, data: eventos.map(e => ({ status: e.status, data_hora: fmt(e.data), descricao: e.descricao, usuario: e.usuario })) });
         } catch (error) { next(error); }
     });
@@ -2797,7 +5324,8 @@ module.exports = function createVendasRoutes(deps) {
                 finalidade: '4',
                 tipoOperacao: String(tipoOperacao || '0'), // 0 = entrada (mercadoria retornando)
                 nfRef: [original.chave_acesso],
-                transmitir: true
+                transmitir: true,
+                auditoriaEnvio: require('../services/nfe-confirmacao-audit.service').identidadeConfirmada(req)
             });
 
             // Histórico
@@ -2827,9 +5355,12 @@ module.exports = function createVendasRoutes(deps) {
 
     // ====================== NF-e PAGAMENTO ANTECIPADO ======================
     // Emite NF-e (modelo 55, finalidade 1) para venda com pagamento antecipado,
-    // antes do faturamento normal. Reusa o motor NF-e. Admin + confirmar. Idempotente.
+    // antes do faturamento normal. Reusa o motor NF-e. Admin/Logística + confirmar. Idempotente.
     router.get('/pedidos/:id/nfe-antecipada', authenticateToken, async (req, res, next) => {
         try {
+            if (!isAdminUser(req.user) && !isLogisticaUser(req.user)) {
+                return res.status(403).json({ success: false, message: 'Ação restrita a administradores e Logística.' });
+            }
             const { id } = req.params;
             const [itens] = await pool.query(
                 `SELECT produto_id, codigo, descricao, quantidade, preco_unitario, desconto
@@ -2849,8 +5380,8 @@ module.exports = function createVendasRoutes(deps) {
             const { id } = req.params;
             const { confirmar } = req.body || {};
             const usuarioId = req.user?.id || req.user?.userId || null;
-            const isAdmin = req.user?.isAdmin || req.user?.is_admin || req.user?.perfil === 'admin';
-            if (!isAdmin) return res.status(403).json({ success: false, message: 'Ação restrita a administradores.' });
+            const temAcesso = isAdminUser(req.user) || isLogisticaUser(req.user);
+            if (!temAcesso) return res.status(403).json({ success: false, message: 'Ação restrita a administradores e Logística.' });
             if (confirmar !== true) return res.status(400).json({ success: false, message: 'Confirmação obrigatória (confirmar:true).' });
 
             const [nfes] = await pool.query(`SELECT id, numero, status, natureza_operacao FROM nfes WHERE pedido_id = ? ORDER BY id DESC`, [id]);
@@ -2868,7 +5399,8 @@ module.exports = function createVendasRoutes(deps) {
             const emissao = await emitirNFePedido(pool, {
                 pedidoId: Number(id), itens, usuarioId,
                 naturezaOperacao: 'Venda - Pagamento Antecipado',
-                finalidade: '1', tipoOperacao: '1', transmitir: true
+                finalidade: '1', tipoOperacao: '1', transmitir: true,
+                auditoriaEnvio: require('../services/nfe-confirmacao-audit.service').identidadeConfirmada(req)
             });
             try {
                 await pool.query(`INSERT INTO pedido_historico (pedido_id, usuario_id, acao, descricao) VALUES (?, ?, 'nfe_antecipada', ?)`,
@@ -2886,8 +5418,13 @@ module.exports = function createVendasRoutes(deps) {
     // ====================== MDF-e (Manifesto Eletrônico, modelo 58) ======================
     // Cria/lista o MDF-e do pedido a partir dos dados de transporte. Persiste como
     // 'rascunho' (a transmissão modelo-58 à SEFAZ depende do webservice MDFe dedicado).
+    // A tabela É `mdfe_pedido`, e não `mdfe_documentos`: esse nome já pertence à Logística
+    // (`routes/logistica-routes.js`, os DOCUMENTOS dentro de um MDF-e: mdfe_id,
+    // tipo_documento, chave_acesso, ordem). Como aquele CREATE roda primeiro, o
+    // `CREATE TABLE IF NOT EXISTS` daqui não fazia nada e todo GET/POST do MDF-e do pedido
+    // morria em "Unknown column 'pedido_id'" (500 nas 4 instâncias).
     async function ensureMdfeTable() {
-        await pool.query(`CREATE TABLE IF NOT EXISTS mdfe_documentos (
+        await pool.query(`CREATE TABLE IF NOT EXISTS mdfe_pedido (
             id INT AUTO_INCREMENT PRIMARY KEY,
             pedido_id INT NULL, numero INT NULL, serie INT DEFAULT 1, chave VARCHAR(60) NULL,
             uf_ini VARCHAR(2) NULL, uf_fim VARCHAR(2) NULL, placa VARCHAR(10) NULL,
@@ -2900,7 +5437,7 @@ module.exports = function createVendasRoutes(deps) {
         try {
             await ensureMdfeTable();
             const { id } = req.params;
-            const [docs] = await pool.query(`SELECT * FROM mdfe_documentos WHERE pedido_id = ? ORDER BY id DESC`, [id]);
+            const [docs] = await pool.query(`SELECT * FROM mdfe_pedido WHERE pedido_id = ? ORDER BY id DESC`, [id]);
             const [[ped]] = await pool.query(
                 `SELECT p.id, p.valor, p.transportadora_nome, p.estado_destino, c.estado AS cliente_uf
                  FROM pedidos p LEFT JOIN clientes c ON p.cliente_id = c.id WHERE p.id = ?`, [id]);
@@ -2919,10 +5456,10 @@ module.exports = function createVendasRoutes(deps) {
                 `SELECT p.id, p.valor, p.transportadora_nome, p.estado_destino, c.estado AS cliente_uf
                  FROM pedidos p LEFT JOIN clientes c ON p.cliente_id = c.id WHERE p.id = ?`, [id]);
             if (!ped) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
-            const [[mx]] = await pool.query(`SELECT COALESCE(MAX(numero),0)+1 AS prox FROM mdfe_documentos`);
+            const [[mx]] = await pool.query(`SELECT COALESCE(MAX(numero),0)+1 AS prox FROM mdfe_pedido`);
             const payload = { itensCarga: ped.valor, origem: 'vendas' };
             const [ins] = await pool.query(
-                `INSERT INTO mdfe_documentos (pedido_id, numero, uf_ini, uf_fim, placa, transportadora, modal, valor_carga, status, payload, usuario_id)
+                `INSERT INTO mdfe_pedido (pedido_id, numero, uf_ini, uf_fim, placa, transportadora, modal, valor_carga, status, payload, usuario_id)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'rascunho', ?, ?)`,
                 [id, mx.prox, uf_ini || ped.cliente_uf || ped.estado_destino || null, uf_fim || ped.estado_destino || ped.cliente_uf || null,
                  placa || null, ped.transportadora_nome || null, modal || '01', Number(ped.valor) || 0, JSON.stringify(payload), usuarioId]);
@@ -2930,6 +5467,142 @@ module.exports = function createVendasRoutes(deps) {
                 [id, usuarioId, `MDF-e Nº ${mx.prox} criado (rascunho).`]); } catch (_e) {}
             res.json({ success: true, message: `MDF-e Nº ${mx.prox} criado (rascunho). Transmissão modelo-58 pendente de webservice MDFe.`, id: ins.insertId, numero: mx.prox });
         } catch (error) { next(error); }
+    });
+
+    // ====================== CARTA DE CORREÇÃO ELETRÔNICA (CC-e / evento 110110) ======================
+    // Corrige informações de uma NF-e autorizada SEM alterar valores, destinatário ou produto.
+    // Transmite o evento 110110 à SEFAZ (transmitirEvento) e registra em pedido_cce.
+    async function ensureCceTable() {
+        await pool.query(`CREATE TABLE IF NOT EXISTS pedido_cce (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pedido_id INT NOT NULL,
+            chave_acesso VARCHAR(44) NULL,
+            sequencia INT DEFAULT 1,
+            correcao TEXT NOT NULL,
+            protocolo VARCHAR(30) NULL,
+            cstat VARCHAR(6) NULL,
+            xmotivo VARCHAR(255) NULL,
+            status VARCHAR(20) DEFAULT 'registrada',
+            usuario_id INT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_cce_pedido (pedido_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`).catch(() => {});
+    }
+
+    // Número/chave/protocolo da NF-e vêm da tabela `nfes`, que é a fonte da verdade. As
+    // colunas do pedido são um espelho: o cancelamento as ZERA e o faturamento parcial nem
+    // sempre as preenche — lendo só delas, a Carta de Correção abria sem nota nenhuma
+    // ("nf: null") mesmo em pedido faturado. Nota autorizada tem prioridade sobre cancelada.
+    async function nfeDoPedido(pedidoId) {
+        try {
+            const [[n]] = await pool.query(
+                `SELECT numero, chave_acesso, protocolo_autorizacao, status
+                   FROM nfes WHERE pedido_id = ?
+                  ORDER BY (LOWER(COALESCE(status, '')) = 'autorizada') DESC, id DESC LIMIT 1`,
+                [pedidoId]
+            );
+            return n || null;
+        } catch (_) { return null; }
+    }
+
+    router.get('/pedidos/:id/carta-correcao', authenticateToken, async (req, res, next) => {
+        try {
+            await ensureCceTable();
+            const { id } = req.params;
+            const [[ped]] = await pool.query('SELECT id, nf, nfe_chave, nfe_protocolo, status FROM pedidos WHERE id = ?', [id]);
+            const nfe = await nfeDoPedido(id);
+            const pedidoComNfe = ped ? {
+                ...ped,
+                nf: ped.nf || (nfe ? nfe.numero : null),
+                nfe_chave: ped.nfe_chave || (nfe ? nfe.chave_acesso : null),
+                nfe_protocolo: ped.nfe_protocolo || (nfe ? nfe.protocolo_autorizacao : null),
+                nfe_status: nfe ? nfe.status : null
+            } : null;
+            const [cces] = await pool.query('SELECT id, sequencia, correcao, protocolo, cstat, xmotivo, status, created_at FROM pedido_cce WHERE pedido_id = ? ORDER BY id DESC', [id]);
+            res.json({ success: true, pedido: pedidoComNfe, cces });
+        } catch (error) { next(error); }
+    });
+
+    router.post('/pedidos/:id/carta-correcao', authenticateToken, async (req, res, next) => {
+        try {
+            await ensureCceTable();
+            const { id } = req.params;
+            const usuarioId = req.user?.id || req.user?.userId || null;
+            const isAdmin = req.user?.isAdmin || req.user?.is_admin || req.user?.perfil === 'admin';
+            if (!isAdmin) return res.status(403).json({ success: false, message: 'Ação restrita a administradores.' });
+
+            const correcao = String(req.body?.correcao || '').trim();
+            if (correcao.length < 15) return res.status(400).json({ success: false, message: 'A correção deve ter no mínimo 15 caracteres (norma SEFAZ).' });
+            if (correcao.length > 1000) return res.status(400).json({ success: false, message: 'A correção excede o limite de 1000 caracteres da SEFAZ.' });
+
+            const [[ped]] = await pool.query('SELECT id, nfe_chave, nfe_protocolo FROM pedidos WHERE id = ?', [id]);
+            if (!ped) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+            // Mesma fonte do GET: sem isto, pedido faturado por caminho que não preenche as
+            // colunas do pedido ficava sem chave e a CC-e era recusada por engano.
+            const nfe = await nfeDoPedido(id);
+            const chave = String(ped.nfe_chave || nfe?.chave_acesso || '').replace(/\D/g, '');
+            if (chave.length !== 44) {
+                return res.status(400).json({ success: false, message: 'Este pedido não possui NF-e autorizada (chave de 44 dígitos) para corrigir.' });
+            }
+            if (nfe && String(nfe.status || '').toLowerCase() === 'cancelada') {
+                return res.status(400).json({
+                    success: false,
+                    code: 'NFE_CANCELADA',
+                    message: `A NF-e ${nfe.numero || ''} deste pedido está CANCELADA — a SEFAZ não aceita carta de correção sobre nota cancelada. Emita uma nova nota.`.trim()
+                });
+            }
+
+            // A sequência conta as CC-e das DUAS origens. O módulo Faturamento grava em
+            // `nfe_eventos` e esta tela em `pedido_cce`; olhando só a própria tabela, uma CC-e
+            // emitida pelo outro caminho não era vista e a seguinte repetia o nSeqEvento —
+            // duplicidade de evento na SEFAZ.
+            const [[seqRow]] = await pool.query('SELECT COUNT(*) AS n FROM pedido_cce WHERE pedido_id = ?', [id]);
+            const [[seqNfe]] = await pool.query(`
+                SELECT COUNT(*) AS n
+                  FROM nfe_eventos e
+                  JOIN nfes n ON n.id = e.nfe_id
+                 WHERE e.tipo_evento = '110110' AND REPLACE(n.chave_acesso, ' ', '') = ?
+            `, [chave]).catch(() => [[{ n: 0 }]]);
+            const sequencia = Number(seqRow?.n || 0) + Number(seqNfe?.n || 0) + 1;
+            if (sequencia > 20) {
+                return res.status(409).json({ success: false, message: 'Limite de 20 Cartas de Correção atingido para esta NF-e.' });
+            }
+
+            // Transmite o evento 110110 à SEFAZ (mesmo transmissor real usado pelo módulo NF-e).
+            let resp;
+            try {
+                const { loadCertFromDb } = require('../services/sefaz.service');
+                const { transmitirEvento } = require('../services/sefaz-nfe.service');
+                const cred = await loadCertFromDb(pool, req.user?.empresa_id || 1);
+                // `sequencia` precisa chegar ao transmissor: sem ela toda CC-e ia com
+                // nSeqEvento=1 e a segunda da mesma nota voltava como duplicidade de evento.
+                resp = await transmitirEvento({ tipo: 'cce', chave, correcao, nProtAutorizacao: ped.nfe_protocolo || '', cred, sequencia });
+            } catch (sefazErr) {
+                return res.status(502).json({ success: false, message: `Falha ao transmitir a Carta de Correção à SEFAZ: ${sefazErr.message}` });
+            }
+
+            // Só 135 comprova registro E vínculo com a NF-e. O 136 é "evento registrado, mas
+            // NÃO vinculado a NF-e": gravar isso como homologada dava ao usuário a certeza de
+            // uma correção que não chegou ao documento.
+            const cstat = resp?.cStat || null;
+            const homologada = resp?.success && String(cstat) === '135';
+            if (!homologada) {
+                return res.status(400).json({ success: false, message: `A SEFAZ rejeitou a Carta de Correção (${cstat || 'sem status'}): ${resp?.xMotivo || 'motivo não informado'}.`, cstat });
+            }
+
+            await pool.query(
+                `INSERT INTO pedido_cce (pedido_id, chave_acesso, sequencia, correcao, protocolo, cstat, xmotivo, status, usuario_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'homologada', ?)`,
+                [id, chave, sequencia, correcao, resp?.nProt || null, cstat, resp?.xMotivo || null, usuarioId]);
+            try { await pool.query(`INSERT INTO pedido_historico (pedido_id, usuario_id, acao, descricao) VALUES (?, ?, 'carta_correcao', ?)`,
+                [id, usuarioId, `Carta de Correção nº ${sequencia} homologada (protocolo ${resp?.nProt || '-'}).`]); } catch (_e) {}
+            if (typeof clearPedidosCache === 'function') clearPedidosCache();
+
+            res.json({ success: true, message: `Carta de Correção nº ${sequencia} transmitida e homologada pela SEFAZ.`, protocolo: resp?.nProt || null, sequencia, cstat });
+        } catch (error) {
+            console.error('[Vendas] Erro na Carta de Correção:', error);
+            next(error);
+        }
     });
 
     // ====================== EVENTOS DA REFORMA TRIBUTÁRIA (IBS/CBS 2026) ======================
@@ -3092,7 +5765,10 @@ module.exports = function createVendasRoutes(deps) {
             }
 
             const [historico] = await pool.query(`
-                SELECT id, pedido_id, usuario_id, usuario_nome, acao, descricao, meta, created_at
+                SELECT id, pedido_id, usuario_id, usuario_nome, usuario_nome AS user_name,
+                       acao, acao AS action, descricao, meta, campo_alterado,
+                       valor_antigo, valor_novo, status_antigo, status_novo,
+                       observacao, ip_address, created_at
                 FROM pedido_historico
                 WHERE pedido_id = ?
                 ORDER BY created_at DESC
@@ -3264,6 +5940,7 @@ module.exports = function createVendasRoutes(deps) {
             ]);
             const empresaUfSelect = firstExistingColumnSelect('e', empresaColumns, ['estado', 'uf'], 'uf');
             const clienteUfSelect = firstExistingColumnSelect('c', clienteColumns, ['estado', 'uf'], 'uf');
+            const clienteIeSelect = firstExistingColumnSelect('c', clienteColumns, ['inscricao_estadual', 'ie'], 'inscricao_estadual');
             const normalizeUf = value => String(value || '').trim().toUpperCase();
 
             // Buscar empresas (nome_fantasia, razao_social, cnpj com/sem formatação)
@@ -3279,7 +5956,7 @@ module.exports = function createVendasRoutes(deps) {
 
             // Buscar clientes (nome, nome_fantasia, razao_social, cnpj, cnpj_cpf, cpf, email)
             let sqlClientes = `SELECT c.id, c.nome, c.nome_fantasia, c.razao_social, c.email,
-                        c.telefone, c.cpf, c.cnpj, c.cnpj_cpf, ${clienteUfSelect}, c.empresa_id,
+                        c.telefone, c.cpf, c.cnpj, c.cnpj_cpf, ${clienteUfSelect}, ${clienteIeSelect}, c.empresa_id,
                         e.nome_fantasia as empresa_nome, 'cliente' as tipo
                  FROM clientes c LEFT JOIN empresas e ON c.empresa_id = e.id
                  WHERE c.nome LIKE ? OR c.nome_fantasia LIKE ? OR c.razao_social LIKE ?
@@ -3288,7 +5965,8 @@ module.exports = function createVendasRoutes(deps) {
             if (queryDigits) {
                 sqlClientes += ` OR REPLACE(REPLACE(REPLACE(c.cnpj_cpf, '.', ''), '-', ''), '/', '') LIKE ?`;
                 sqlClientes += ` OR REPLACE(REPLACE(REPLACE(c.cnpj, '.', ''), '-', ''), '/', '') LIKE ?`;
-                paramsClientes.push(queryDigits, queryDigits);
+                sqlClientes += ` OR REPLACE(REPLACE(REPLACE(c.cpf, '.', ''), '-', ''), '/', '') LIKE ?`;
+                paramsClientes.push(queryDigits, queryDigits, queryDigits);
             }
             sqlClientes += ` ORDER BY c.nome LIMIT 15`;
             const [clientes] = await pool.query(sqlClientes, paramsClientes);
@@ -3312,14 +5990,16 @@ module.exports = function createVendasRoutes(deps) {
                     razao_social: c.razao_social || '',
                     cnpj: c.cnpj || c.cnpj_cpf || '',
                     cpf: c.cpf || '',
+                    inscricao_estadual: c.inscricao_estadual || '',
+                    ie: c.inscricao_estadual || '',
                     email: c.email || '',
                     uf: normalizeUf(c.uf),
                     estado: normalizeUf(c.uf),
                     subtitulo: [
                         c.razao_social && c.razao_social !== (c.nome_fantasia || c.nome) ? c.razao_social : '',
                         c.cnpj || c.cnpj_cpf ? `CNPJ/CPF: ${c.cnpj || c.cnpj_cpf}` : (c.cpf ? `CPF: ${c.cpf}` : ''),
-                        c.uf ? `UF: ${normalizeUf(c.uf)}` : '',
-                        c.empresa_nome ? `(${c.empresa_nome})` : ''
+                        c.inscricao_estadual ? `IE: ${c.inscricao_estadual}` : 'IE não informada',
+                        c.uf ? `UF: ${normalizeUf(c.uf)}` : ''
                     ].filter(Boolean).join(' | '),
                     tipo: 'cliente',
                     cliente_id: c.id,
@@ -3367,7 +6047,11 @@ module.exports = function createVendasRoutes(deps) {
                 // Não-admin: clientes do próprio vendedor + os ainda sem vendedor (recém-cadastrados).
                 // (Hoje as empresas estão com vendedor_id NULL, então todos continuam visíveis;
                 //  o filtro vai apertando conforme as empresas recebem um vendedor responsável.)
-                query += ` AND (vendedor_id = ? OR vendedor_id IS NULL)`;
+                // Fichas das contas de setor (ti@/compras@/logistica@) também entram: elas
+                // cadastram para a equipe toda e o vendedor não achava o cliente. A parte local
+                // do e-mail vale para todas as instâncias (o domínio muda em cada uma).
+                query += ` AND (vendedor_id = ? OR vendedor_id IS NULL OR vendedor_id IN (
+                    SELECT id FROM usuarios WHERE SUBSTRING_INDEX(LOWER(email), '@', 1) IN ('ti', 'compras', 'logistica')))`;
                 params.push(req.user.id);
             }
 
@@ -3436,7 +6120,7 @@ module.exports = function createVendasRoutes(deps) {
         try {
             const search = req.query.search || req.query.q || req.query.termo || '';
             const limit = parseInt(req.query.limit) || 20;
-            let query = `SELECT id, nome, razao_social, nome_fantasia, cnpj_cpf, email, telefone, cidade, estado FROM clientes WHERE ativo = 1`;
+            let query = `SELECT id, nome, razao_social, nome_fantasia, cnpj_cpf, inscricao_estadual, email, telefone, cidade, estado FROM clientes WHERE ativo = 1`;
             const params = [];
             if (search) {
                 query += ` AND (nome LIKE ? OR razao_social LIKE ? OR cnpj_cpf LIKE ? OR email LIKE ?)`;
@@ -3453,16 +6137,198 @@ module.exports = function createVendasRoutes(deps) {
             const { page = 1, limit = 2000 } = req.query;
             const isAdmin = req.user && (req.user.is_admin || req.user.role === 'admin' || req.user.role === 'administrador');
             const isComercial = req.user?.role === 'comercial';
+            if (req.query.paginado === '1') {
+                const result = await repos.cliente.listPaginated({
+                    page,
+                    limit,
+                    search: req.query.busca,
+                    status: req.query.status,
+                    nome: req.query.nome,
+                    documento: req.query.documento,
+                    telefone: req.query.telefone,
+                    email: req.query.email,
+                    sort: req.query.ordenar,
+                    direction: req.query.direcao,
+                    isAdmin,
+                    isComercial,
+                    vendedorId: req.user?.id,
+                    vendedorNome: req.user?.nome
+                });
+                return res.json(result);
+            }
             const rows = await repos.cliente.list({ page, limit, isAdmin, isComercial, vendedorId: req.user?.id, vendedorNome: req.user?.nome });
             res.json(rows);
         } catch (error) { next(error); }
     });
+
+    // Consulta fiscal completa para um CNPJ ainda não cadastrado. A resposta
+    // separa dados federais, inscrições estaduais por UF e pendências de fonte
+    // municipal/SINTEGRA; nenhuma alíquota ou inscrição é presumida.
+    router.post('/clientes/dados-fiscais/consultar', authenticateToken, async (req, res, next) => {
+        try {
+            const cnpj = onlyFiscalDigits(req.body?.cnpj);
+            if (!validFiscalCnpj(cnpj)) return res.status(400).json({ success: false, error: 'CNPJ inválido' });
+            const consulta = await consultarCnpjFiscal(cnpj);
+            if (!consulta.success) return res.status(502).json({ ...consulta, error: 'Não foi possível consultar o CNPJ nas fontes configuradas.' });
+            res.json(consulta);
+        } catch (error) { next(error); }
+    });
+
+    // Dados fiscais persistidos do cliente, incluindo a última consulta e se
+    // a informação está velha (30 dias). O frontend pode exibir um aviso sem
+    // bloquear um orçamento por indisponibilidade temporária do provedor.
+    router.get('/clientes/:id/dados-fiscais', authenticateToken, async (req, res, next) => {
+        try {
+            const clienteId = parseInt(req.params.id, 10);
+            if (!Number.isInteger(clienteId) || clienteId <= 0) return res.status(400).json({ error: 'ID inválido' });
+            const [rows] = await pool.query('SELECT id, cnpj, cnpj_cpf, inscricao_estadual, inscricao_municipal, estado, uf, fiscal_fonte, fiscal_contribuinte_icms, fiscal_consultado_em, fiscal_dados_json, situacao_cadastral FROM clientes WHERE id = ? LIMIT 1', [clienteId]);
+            if (!rows.length) return res.status(404).json({ error: 'Cliente não encontrado' });
+            const cliente = rows[0];
+            const snapshot = parseFiscalJson(cliente.fiscal_dados_json);
+            const consultadoEm = cliente.fiscal_consultado_em ? new Date(cliente.fiscal_consultado_em) : null;
+            const desatualizado = !consultadoEm || Number.isNaN(consultadoEm.getTime()) || (Date.now() - consultadoEm.getTime()) > 30 * 24 * 60 * 60 * 1000;
+            res.json({
+                success: true,
+                cliente_id: clienteId,
+                cnpj: onlyFiscalDigits(cliente.cnpj || cliente.cnpj_cpf),
+                inscricao_estadual: cliente.inscricao_estadual || null,
+                inscricao_municipal: cliente.inscricao_municipal || null,
+                contribuinte_icms: cliente.fiscal_contribuinte_icms == null ? null : !!cliente.fiscal_contribuinte_icms,
+                situacao_cadastral: cliente.situacao_cadastral || snapshot?.dados?.situacao_cadastral || null,
+                fonte: cliente.fiscal_fonte || snapshot?.fonte || null,
+                consultado_em: consultadoEm && !Number.isNaN(consultadoEm.getTime()) ? consultadoEm.toISOString() : null,
+                desatualizado,
+                dados: snapshot?.dados || null,
+                warnings: snapshot?.warnings || [],
+                historico_disponivel: true
+            });
+        } catch (error) { next(error); }
+    });
+
+    router.get('/clientes/:id/dados-fiscais/historico', authenticateToken, async (req, res, next) => {
+        try {
+            const clienteId = parseInt(req.params.id, 10);
+            if (!Number.isInteger(clienteId) || clienteId <= 0) return res.status(400).json({ error: 'ID inválido' });
+            const limite = Math.min(100, Math.max(1, parseInt(req.query.limite, 10) || 20));
+            const [rows] = await pool.query(
+                `SELECT id, cnpj, fonte, sucesso, consultado_em, avisos_json, usuario_id
+                   FROM cliente_fiscal_consultas WHERE cliente_id = ?
+                  ORDER BY consultado_em DESC, id DESC LIMIT ?`, [clienteId, limite]
+            );
+            res.json({ success: true, cliente_id: clienteId, historico: rows.map(row => ({
+                ...row,
+                sucesso: !!row.sucesso,
+                avisos: parseFiscalJson(row.avisos_json) || []
+            })) });
+        } catch (error) {
+            if (error.code === 'ER_NO_SUCH_TABLE') return res.json({ success: true, historico: [] });
+            next(error);
+        }
+    });
+
+    // Reconsulta e atualiza somente campos vazios do cadastro. Informações
+    // digitadas por um usuário nunca são sobrescritas; o histórico registra a
+    // fonte e os avisos para auditoria.
+    router.post('/clientes/:id/dados-fiscais/atualizar', authenticateToken, async (req, res, next) => {
+        try {
+            const clienteId = parseInt(req.params.id, 10);
+            if (!Number.isInteger(clienteId) || clienteId <= 0) return res.status(400).json({ error: 'ID inválido' });
+            const [rows] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [clienteId]);
+            if (!rows.length) return res.status(404).json({ error: 'Cliente não encontrado' });
+            const cliente = rows[0];
+            const cnpj = onlyFiscalDigits(cliente.cnpj || cliente.cnpj_cpf);
+            if (!validFiscalCnpj(cnpj)) return res.status(400).json({ success: false, error: 'Cliente não possui CNPJ válido' });
+            const consulta = await consultarCnpjFiscal(cnpj, { force: req.query.forcar === '1' });
+            if (!consulta.success) return res.status(502).json({ ...consulta, cliente_id: clienteId, error: 'Fontes fiscais indisponíveis' });
+            const persistido = await atualizarCadastroFiscalCliente(clienteId, consulta, cliente, req.user?.id);
+            res.json({ ...consulta, cliente_id: clienteId, atualizado: persistido.changed, campos_atualizados: Object.keys(persistido.update) });
+        } catch (error) { next(error); }
+    });
+
+    // POST /clientes/verificar-documentos — consulta em lote usada pelo Radar de Clientes.
+    // A comparação ignora máscara e considera registros ativos ou inativos: se o documento
+    // já existe no ERP, a empresa não deve voltar para a prospecção nem para um novo cadastro.
+    // Em lote evita uma requisição por card quando a pesquisa retorna centenas de empresas.
+    router.post('/clientes/verificar-documentos', authenticateToken, async (req, res, next) => {
+        try {
+            const documentos = [...new Set((Array.isArray(req.body?.documentos) ? req.body.documentos : [])
+                .map(onlyDigits)
+                .filter(doc => doc.length === 11 || doc.length === 14))].slice(0, 500);
+
+            if (!documentos.length) {
+                return res.json({ success: true, cadastrados: [], clientes: {} });
+            }
+
+            const [cols] = await pool.query('SHOW COLUMNS FROM clientes');
+            const disponiveis = new Set(cols.map(col => col.Field));
+            const camposDocumento = ['cnpj_cpf', 'cnpj', 'cpf'].filter(campo => disponiveis.has(campo));
+            if (!camposDocumento.length) {
+                return res.json({ success: true, cadastrados: [], clientes: {} });
+            }
+
+            const documentoSql = campo =>
+                `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(${campo}, ''), '.', ''), '/', ''), '-', ''), '(', ''), ')', ''), ' ', '')`;
+            const marcadores = documentos.map(() => '?').join(',');
+            const where = camposDocumento.map(campo => `${documentoSql(campo)} IN (${marcadores})`).join(' OR ');
+            const params = camposDocumento.flatMap(() => documentos);
+            const documentosSelect = camposDocumento.map((campo, index) => `${documentoSql(campo)} AS documento_${index}`);
+
+            const [rows] = await pool.query(
+                `SELECT id,
+                        COALESCE(NULLIF(nome_fantasia, ''), NULLIF(razao_social, ''), NULLIF(nome, ''), 'Cliente') AS nome,
+                        ${documentosSelect.join(', ')}
+                   FROM clientes
+                  WHERE ${where}`,
+                params
+            );
+
+            const clientes = {};
+            const solicitados = new Set(documentos);
+            for (const row of rows) {
+                camposDocumento.forEach((_, index) => {
+                    const documento = onlyDigits(row[`documento_${index}`]);
+                    if (solicitados.has(documento)) clientes[documento] = { id: row.id, nome: row.nome };
+                });
+            }
+            res.json({ success: true, cadastrados: Object.keys(clientes), clientes });
+        } catch (error) { next(error); }
+    });
+
     router.get('/clientes/:id', authenticateToken, async (req, res, next) => {
         try {
             const cliente = await repos.cliente.findById(req.params.id);
             if (!cliente) return res.status(404).json({ message: 'Cliente não encontrado.' });
             res.json(cliente);
         } catch (error) { next(error); }
+    });
+
+    // ============================================================
+    // CENÁRIOS FISCAIS — lista para os seletores do pedido e do editor de NF-e.
+    // A tabela `cenarios_fiscais` existia e estava populada nas 3 instâncias, mas não havia
+    // rota de LISTAGEM (só `/impostos/cenarios/:codigo`, que busca um). Sem lista, nenhuma tela
+    // conseguia oferecer o campo — e o faturamento é bloqueado por CV-005 quando o pedido não
+    // tem cenário, o que deixava praticamente todo pedido impossível de faturar.
+    // ============================================================
+    router.get('/cenarios-fiscais', authenticateToken, async (req, res, next) => {
+        try {
+            const [linhas] = await pool.query(
+                `SELECT id, codigo, nome, descricao, tipo_operacao,
+                        icms_aliquota, icms_reducao_base, icms_st_aliquota, icms_st_mva,
+                        ipi_aliquota, pis_aliquota, cofins_aliquota, iss_aliquota,
+                        NULL AS cst_icms,
+                        ipi_cst AS cst_ipi, pis_cst AS cst_pis, cofins_cst AS cst_cofins,
+                        calcula_icms_st, 1 AS destaca_impostos
+                   FROM cenarios_fiscais
+                  WHERE ativo = 1
+                  ORDER BY id ASC`
+            );
+            res.json(linhas);
+        } catch (error) {
+            // Base sem a tabela não deve derrubar a tela: devolve lista vazia e o seletor
+            // avisa que não há cenário cadastrado, em vez de quebrar o modal inteiro.
+            if (error && error.code === 'ER_NO_SUCH_TABLE') return res.json([]);
+            next(error);
+        }
     });
     // Resumo/inteligência do cliente (KPIs, pedidos recentes, financeiro)
     router.get('/clientes/:id/resumo', authenticateToken, async (req, res, next) => {
@@ -3488,9 +6354,13 @@ module.exports = function createVendasRoutes(deps) {
 
             let stats = { total_pedidos: 0, valor_total: 0, ticket_medio: 0, maior_pedido: 0, pedidos_concluidos: 0, pedidos_aprovados: 0, pedidos_em_aberto: 0, pedidos_cancelados: 0 };
             try {
+                // FIX 2026-07-13: a tabela `pedidos` NÃO tem a coluna `valor_total` (é `valor`).
+                // A query estourava com ER_BAD_FIELD_ERROR, caía no catch e `stats` ficava zerado
+                // -> o Resumo de TODO cliente mostrava "Nenhum pedido registrado" e o histórico
+                // de análise de crédito era descartado. Os ALIASES de saída seguem iguais.
                 const [statsRows] = await pool.query(
-                    `SELECT COUNT(*) as total_pedidos, COALESCE(SUM(valor_total),0) as valor_total,
-                            COALESCE(AVG(valor_total),0) as ticket_medio, COALESCE(MAX(valor_total),0) as maior_pedido,
+                    `SELECT COUNT(*) as total_pedidos, COALESCE(SUM(valor),0) as valor_total,
+                            COALESCE(AVG(valor),0) as ticket_medio, COALESCE(MAX(valor),0) as maior_pedido,
                             SUM(CASE WHEN status IN ('entregue','faturado') THEN 1 ELSE 0 END) as pedidos_concluidos,
                             SUM(CASE WHEN status = 'aprovado' OR status = 'pedido-aprovado' THEN 1 ELSE 0 END) as pedidos_aprovados,
                             SUM(CASE WHEN status IN ('orcamento','analise','analise-credito') THEN 1 ELSE 0 END) as pedidos_em_aberto,
@@ -3503,7 +6373,7 @@ module.exports = function createVendasRoutes(deps) {
             let pedidosRecentes = [];
             try {
                 const [rows] = await pool.query(
-                    `SELECT id, created_at, valor_total as valor, status FROM pedidos WHERE cliente_id = ? ORDER BY created_at DESC LIMIT 5`, [clienteId]
+                    `SELECT id, created_at, valor, status FROM pedidos WHERE cliente_id = ? ORDER BY created_at DESC LIMIT 5`, [clienteId]
                 );
                 pedidosRecentes = rows;
             } catch (e) { console.error('[Vendas] Erro pedidos recentes:', e.message); }
@@ -3519,24 +6389,252 @@ module.exports = function createVendasRoutes(deps) {
                 produtosMais = rows;
             } catch (e) { console.error('[Vendas] Erro produtos mais:', e.message); }
 
-            let financeiro = { valor_pago: 0, valor_pendente: 0, valor_vencido: 0, total_titulos: 0 };
+            // Título quitado/cancelado sai da conta em AMBOS os blocos abaixo — usar a
+            // MESMA lista do gate de crédito (`credito-cliente.service.js`) evita a
+            // divergência que já existiu aqui: esta rota tinha sua própria lista, mais
+            // curta (sem 'liquidado', 'baixado'/'baixada', 'estornado'/'estornada'...), e
+            // um título pago com uma dessas grafias continuava contando como em aberto
+            // nesta tela mesmo já quitado no Financeiro.
+            const _statusQuitado = creditoCliente.STATUS_CR_QUITADO;
+            const _quitadoPlaceholders = _statusQuitado.map(() => '?').join(',');
+
+            // "Valor pago" e "total de títulos" são estatística pura (não entram em
+            // nenhum gate) — ficam com consulta própria. "Em aberto"/"vencido"/crédito
+            // vêm do MESMO serviço que decide se um pedido pode ser aprovado ou
+            // faturado, pra esta tela nunca mostrar um crédito disponível que o gate
+            // real não respeitaria.
+            let financeiro = { valor_pago: 0, valor_pendente: 0, valor_vencido: 0, total_titulos: 0, total_a_receber: 0 };
             try {
                 const [fin] = await pool.query(
                     `SELECT COUNT(*) as total_titulos,
-                            COALESCE(SUM(CASE WHEN status = 'pago' THEN valor ELSE 0 END),0) as valor_pago,
-                            COALESCE(SUM(CASE WHEN status = 'pendente' AND data_vencimento >= CURDATE() THEN valor ELSE 0 END),0) as valor_pendente,
-                            COALESCE(SUM(CASE WHEN status = 'pendente' AND data_vencimento < CURDATE() THEN valor ELSE 0 END),0) as valor_vencido
-                     FROM contas_receber WHERE cliente_id = ?`, [clienteId]
+                            COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(status,''))) IN (${_quitadoPlaceholders})
+                                THEN COALESCE(NULLIF(valor_recebido,0), valor) ELSE COALESCE(valor_recebido,0) END),0) as valor_pago
+                     FROM contas_receber WHERE cliente_id = ?`, [..._statusQuitado, clienteId]
                 );
-                if (fin[0]) financeiro = fin[0];
+                if (fin[0]) financeiro.valor_pago = fin[0].valor_pago;
+                financeiro.total_titulos = fin[0] ? fin[0].total_titulos : 0;
             } catch (_) { /* contas_receber may not exist */ }
+
+            // Dados de crédito do cliente (limite, bloqueio, exposição) para a aba
+            // "Faturamento e Crédito" — mesma avaliação usada para aprovar/faturar
+            // pedido, só que sem valor de pedido novo (`valorPedido` fica 0: aqui é
+            // consulta da ficha do cliente, não uma aprovação em curso).
+            let credito = { limite_credito: 0, bloquear_faturamento: 0, credito_disponivel: 0 };
+            try {
+                const [[clienteFlags]] = await pool.query(
+                    'SELECT COALESCE(bloquear_faturamento,0) AS bloquear_faturamento FROM clientes WHERE id = ? LIMIT 1',
+                    [clienteId]
+                );
+                const avaliacao = await creditoCliente.avaliarCreditoCliente(pool, { clienteId, porta: 'consulta' });
+                const resumo = avaliacao.resumo || {};
+                const lim = parseFloat(resumo.limite_credito) || 0;
+                const exposicaoAtual = (parseFloat(resumo.pedidos_em_andamento) || 0) + (parseFloat(resumo.total_em_aberto) || 0);
+
+                financeiro.total_a_receber = Math.round((parseFloat(resumo.total_em_aberto) || 0) * 100) / 100;
+                financeiro.valor_vencido = Math.round((parseFloat(resumo.titulos_vencidos) || 0) * 100) / 100;
+                financeiro.valor_pendente = Math.max(0, Math.round((financeiro.total_a_receber - financeiro.valor_vencido) * 100) / 100);
+
+                credito = {
+                    limite_credito: lim,
+                    bloquear_faturamento: Number(clienteFlags?.bloquear_faturamento) ? 1 : 0,
+                    credito_disponivel: resumo.limite_cadastrado ? Math.max(0, Math.round((lim - exposicaoAtual) * 100) / 100) : 0,
+                    pedidos_em_andamento: Math.round((parseFloat(resumo.pedidos_em_andamento) || 0) * 100) / 100,
+                    exposicao_total: Math.round(exposicaoAtual * 100) / 100
+                };
+            } catch (_) {}
+
+            // Histórico de análises de crédito (aprovações/reprovações registradas em
+            // pedido_historico pela rota /pedidos/:id/aprovacao-credito)
+            let historicoCredito = [];
+            try {
+                const [tables] = await pool.query("SHOW TABLES LIKE 'pedido_historico'");
+                if (tables.length > 0) {
+                    // `meta` (JSON) guarda o valor do crédito liberado/diferença da análise.
+                    const [rows] = await pool.query(
+                        `SELECT h.pedido_id, h.usuario_nome, h.descricao, h.created_at, h.meta, p.valor as pedido_valor
+                         FROM pedido_historico h
+                         JOIN pedidos p ON p.id = h.pedido_id
+                         WHERE p.cliente_id = ? AND h.acao = 'aprovacao-credito'
+                         ORDER BY h.created_at DESC LIMIT 20`, [clienteId]
+                    );
+                    historicoCredito = rows.map(r => {
+                        let meta = null;
+                        try { meta = r.meta ? JSON.parse(r.meta) : null; } catch (_) { meta = null; }
+                        return { ...r, meta };
+                    });
+                }
+            } catch (e) { console.error('[Vendas] Erro histórico crédito resumo cliente:', e.message); }
 
             res.json({
                 estatisticas: stats,
                 tempo_cliente,
                 pedidos_recentes: pedidosRecentes,
                 produtos_mais_comprados: produtosMais,
-                financeiro
+                financeiro,
+                credito,
+                historico_credito: historicoCredito
+            });
+        } catch (error) { next(error); }
+    });
+
+    // ═══════════════════════════════════════════════════════
+    // SITUAÇÃO CADASTRAL DO CNPJ NA RECEITA FEDERAL
+    // ═══════════════════════════════════════════════════════
+    // Alimenta o aviso "Atenção! A situação cadastral consta como BAIXADA..."
+    // exibido no cadastro de cliente e ao iniciar uma venda/orçamento.
+    // A consulta é best-effort: se a Receita/BrasilAPI não responder, devolvemos
+    // `situacao: null` e o front NÃO bloqueia nada.
+
+    const SITUACOES_IRREGULARES = new Set(['BAIXADA', 'INAPTA', 'SUSPENSA', 'NULA']);
+    // Código numérico da BrasilAPI (`situacao_cadastral`) → descrição.
+    const SITUACAO_POR_CODIGO = { 1: 'NULA', 2: 'ATIVA', 3: 'SUSPENSA', 4: 'INAPTA', 8: 'BAIXADA' };
+    // Cache em processo (evita estourar o rate limit da BrasilAPI/ReceitaWS).
+    const situacaoCache = new Map();
+    const SITUACAO_CACHE_MS = 6 * 60 * 60 * 1000;      // 6 h
+    const SITUACAO_REVALIDA_MS = 30 * 24 * 60 * 60 * 1000; // 30 dias (valor gravado no cliente)
+
+    function normalizarSituacao(valor) {
+        if (valor === null || valor === undefined) return '';
+        return String(valor)
+            .normalize('NFD').replace(/[^\x20-\x7E]/g, '')
+            .toUpperCase().trim();
+    }
+
+    function situacaoIrregular(valor) {
+        const s = normalizarSituacao(valor);
+        return !!s && SITUACOES_IRREGULARES.has(s);
+    }
+
+    // GET JSON sem dependência externa (o módulo `https` sempre existe; axios nem sempre
+    // está instalado nas 3 instâncias).
+    function httpGetJson(url, timeoutMs) {
+        return new Promise((resolve, reject) => {
+            const https = require('https');
+            const req = https.get(url, { headers: { 'Accept': 'application/json' } }, (resp) => {
+                if (resp.statusCode < 200 || resp.statusCode >= 300) {
+                    resp.resume();
+                    return reject(new Error('HTTP ' + resp.statusCode));
+                }
+                let body = '';
+                resp.setEncoding('utf8');
+                resp.on('data', (chunk) => { body += chunk; });
+                resp.on('end', () => {
+                    try { resolve(JSON.parse(body)); }
+                    catch (e) { reject(e); }
+                });
+            });
+            req.setTimeout(timeoutMs || 12000, () => req.destroy(new Error('timeout')));
+            req.on('error', reject);
+        });
+    }
+
+    /** Consulta a situação na BrasilAPI, com fallback ReceitaWS. Devolve null se indisponível. */
+    async function consultarSituacaoReceita(cnpjDigits) {
+        const cached = situacaoCache.get(cnpjDigits);
+        if (cached && (Date.now() - cached.ts) < SITUACAO_CACHE_MS) {
+            return { situacao: cached.situacao, fonte: cached.fonte, cache: true };
+        }
+
+        let resultado = null;
+        try {
+            const data = await httpGetJson(`https://brasilapi.com.br/api/cnpj/v1/${cnpjDigits}`, 12000);
+            const situacao = normalizarSituacao(data?.descricao_situacao_cadastral)
+                || SITUACAO_POR_CODIGO[Number(data?.situacao_cadastral)] || '';
+            if (situacao) resultado = { situacao, fonte: 'brasilapi' };
+        } catch (_) { /* tenta o fallback */ }
+
+        if (!resultado) {
+            try {
+                const data = await httpGetJson(`https://receitaws.com.br/v1/cnpj/${cnpjDigits}`, 12000);
+                if (data && data.status !== 'ERROR') {
+                    const situacao = normalizarSituacao(data.situacao);
+                    if (situacao) resultado = { situacao, fonte: 'receitaws' };
+                }
+            } catch (_) { /* indisponível */ }
+        }
+
+        if (resultado) situacaoCache.set(cnpjDigits, { ...resultado, ts: Date.now() });
+        return resultado;
+    }
+
+    /** Grava a situação no cadastro do cliente (silencioso se as colunas não existirem). */
+    async function gravarSituacaoCliente(clienteId, situacao) {
+        try {
+            await pool.query(
+                'UPDATE clientes SET situacao_cadastral = ?, situacao_cadastral_em = NOW() WHERE id = ?',
+                [situacao, clienteId]
+            );
+        } catch (err) {
+            if (err.code !== 'ER_BAD_FIELD_ERROR') {
+                console.warn('[VENDAS] Não foi possível gravar situacao_cadastral:', err.message);
+            }
+        }
+    }
+
+    // GET /situacao-cadastral/:cnpj — consulta avulsa (cliente ainda não salvo)
+    router.get('/situacao-cadastral/:cnpj', authenticateToken, async (req, res, next) => {
+        try {
+            const doc = onlyDigits(req.params.cnpj);
+            if (doc.length !== 14) {
+                // CPF ou documento incompleto: não há situação cadastral a consultar.
+                return res.json({ success: true, cnpj: doc || null, situacao: null, irregular: false, motivo: 'sem_cnpj' });
+            }
+            const consulta = await consultarSituacaoReceita(doc);
+            res.json({
+                success: true,
+                cnpj: doc,
+                situacao: consulta ? consulta.situacao : null,
+                irregular: consulta ? situacaoIrregular(consulta.situacao) : false,
+                fonte: consulta ? consulta.fonte : null,
+                verificado_em: consulta ? new Date().toISOString() : null,
+                indisponivel: !consulta
+            });
+        } catch (error) { next(error); }
+    });
+
+    // GET /clientes/:id/situacao-cadastral — usa o valor gravado; revalida se antigo
+    router.get('/clientes/:id/situacao-cadastral', authenticateToken, async (req, res, next) => {
+        try {
+            const clienteId = parseInt(req.params.id);
+            if (isNaN(clienteId)) return res.status(400).json({ message: 'ID inválido.' });
+
+            const [rows] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [clienteId]);
+            if (rows.length === 0) return res.status(404).json({ message: 'Cliente não encontrado.' });
+
+            const cliente = rows[0];
+            const doc = onlyDigits(cliente.cnpj || cliente.cnpj_cpf || '');
+            if (doc.length !== 14) {
+                return res.json({ success: true, cliente_id: clienteId, cnpj: doc || null, situacao: null, irregular: false, motivo: 'sem_cnpj' });
+            }
+
+            const gravada = normalizarSituacao(cliente.situacao_cadastral);
+            const gravadaEm = cliente.situacao_cadastral_em ? new Date(cliente.situacao_cadastral_em) : null;
+            const recente = gravadaEm && !isNaN(gravadaEm) && (Date.now() - gravadaEm.getTime()) < SITUACAO_REVALIDA_MS;
+            const forcar = req.query.forcar === '1';
+
+            let situacao = gravada || null;
+            let fonte = gravada ? 'cadastro' : null;
+            let verificadoEm = gravadaEm;
+
+            if (forcar || !gravada || !recente) {
+                const consulta = await consultarSituacaoReceita(doc);
+                if (consulta) {
+                    situacao = consulta.situacao;
+                    fonte = consulta.fonte;
+                    verificadoEm = new Date();
+                    if (situacao !== gravada || !recente) await gravarSituacaoCliente(clienteId, situacao);
+                }
+            }
+
+            res.json({
+                success: true,
+                cliente_id: clienteId,
+                cnpj: doc,
+                situacao: situacao,
+                irregular: situacaoIrregular(situacao),
+                fonte: fonte,
+                verificado_em: verificadoEm ? verificadoEm.toISOString() : null,
+                indisponivel: !situacao
             });
         } catch (error) { next(error); }
     });
@@ -3545,61 +6643,228 @@ module.exports = function createVendasRoutes(deps) {
     // CREDIT ANALYSIS ROUTES
     // ═══════════════════════════════════════════════════════
 
-    // GET /clientes/:id/credito — Credit limit and available credit
+    // GET /clientes/:id/credito — Limite e crédito disponível do cliente.
+    //
+    // Até 15/09/2026 esta tela somava `pedidos.status IN (...,'faturado',...)` pra medir
+    // "quanto o cliente já usou" — a mesma conta ingênua do gate removido acima, com o
+    // mesmo defeito: um pedido faturado ficava contando pra sempre contra o limite, mesmo
+    // depois de o cliente pagar. Agora usa o mesmo serviço que decide se o pedido pode ser
+    // aprovado/faturado (`creditoCliente.avaliarCreditoCliente`), então a tela nunca mais
+    // diverge do que realmente trava ou libera um pedido — e o crédito volta sozinho assim
+    // que o financeiro dá baixa no título no Contas a Receber.
     router.get('/clientes/:id/credito', authenticateToken, async (req, res, next) => {
         try {
             const clienteId = parseInt(req.params.id);
             if (isNaN(clienteId)) return res.status(400).json({ message: 'ID inválido.' });
 
-            const [clienteRows] = await pool.query(
-                'SELECT id, nome, razao_social, limite_credito, empresa_id FROM clientes WHERE id = ? LIMIT 1',
-                [clienteId]
-            );
-            if (clienteRows.length === 0) return res.status(404).json({ message: 'Cliente não encontrado.' });
+            const avaliacao = await creditoCliente.avaliarCreditoCliente(pool, { clienteId, porta: 'consulta' });
+            if (!avaliacao.cliente) return res.status(404).json({ message: 'Cliente não encontrado.' });
 
-            const cliente = clienteRows[0];
-            const limiteCredito = parseFloat(cliente.limite_credito || 0);
-
-            const [creditUsed] = await pool.query(
-                `SELECT COALESCE(SUM(valor), 0) as total_pendente
-                 FROM pedidos
-                 WHERE cliente_id = ?
-                   AND status IN ('aprovado', 'pedido-aprovado', 'faturar', 'faturado', 'parcial')`,
-                [clienteId]
-            );
-            const totalPendente = parseFloat(creditUsed[0].total_pendente || 0);
-            const creditoDisponivel = Math.max(0, limiteCredito - totalPendente);
+            const resumo = avaliacao.resumo;
+            // Exposição SEM o pedido corrente (não há pedido nesta consulta — é a ficha do
+            // cliente, não uma aprovação em curso): pedidos em andamento + títulos em aberto.
+            const totalPendente = Math.round((resumo.pedidos_em_andamento + resumo.total_em_aberto) * 100) / 100;
+            const creditoDisponivel = resumo.limite_cadastrado
+                ? Math.max(0, Math.round((resumo.limite_credito - totalPendente) * 100) / 100)
+                : 0;
 
             res.json({
                 cliente_id: clienteId,
-                nome: cliente.razao_social || cliente.nome,
-                limite_credito: limiteCredito,
+                nome: avaliacao.cliente.nome,
+                limite_credito: resumo.limite_credito,
+                limite_cadastrado: resumo.limite_cadastrado,
+                // Nomes antigos, mantidos para não quebrar quem já lê esta rota.
                 total_pendente: totalPendente,
-                credito_disponivel: creditoDisponivel
+                credito_disponivel: creditoDisponivel,
+                // Nomes novos: a mesma composição que o gate usa, aberta em partes.
+                total_em_aberto: resumo.total_em_aberto,
+                pedidos_em_andamento: resumo.pedidos_em_andamento,
+                titulos_vencidos: resumo.titulos_vencidos,
+                qtd_titulos_vencidos: resumo.qtd_titulos_vencidos,
+                vencimento_mais_antigo: resumo.vencimento_mais_antigo,
+                bloqueado: avaliacao.bloqueado,
+                pendencias: avaliacao.pendencias
             });
+        } catch (error) { next(error); }
+    });
+
+    // Histórico estruturado da análise de crédito. O pedido_historico continua sendo
+    // alimentado para a linha do tempo, mas esta tabela preserva cada indicador usado
+    // na decisão sem depender de interpretar texto ou JSON.
+    let analiseCreditoTableReady = null;
+    const ensureAnaliseCreditoTable = () => {
+        if (analiseCreditoTableReady) return analiseCreditoTableReady;
+        analiseCreditoTableReady = pool.query(`
+            CREATE TABLE IF NOT EXISTS pedido_analises_credito (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                pedido_id INT NOT NULL,
+                cliente_id INT NULL,
+                usuario_id INT NULL,
+                usuario_nome VARCHAR(255) NULL,
+                parecer VARCHAR(30) NOT NULL,
+                status_anterior VARCHAR(50) NULL,
+                status_novo VARCHAR(50) NULL,
+                valor_pedido DECIMAL(18,2) NOT NULL DEFAULT 0,
+                credito_liberado DECIMAL(18,2) NOT NULL DEFAULT 0,
+                limite_credito DECIMAL(18,2) NOT NULL DEFAULT 0,
+                titulos_em_aberto DECIMAL(18,2) NOT NULL DEFAULT 0,
+                titulos_vencidos DECIMAL(18,2) NOT NULL DEFAULT 0,
+                pedidos_em_andamento DECIMAL(18,2) NOT NULL DEFAULT 0,
+                exposicao_total DECIMAL(18,2) NOT NULL DEFAULT 0,
+                diferenca_cobertura DECIMAL(18,2) NOT NULL DEFAULT 0,
+                condicao_pagamento VARCHAR(255) NULL,
+                observacoes TEXT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_pedido_analise_credito (pedido_id, created_at),
+                INDEX idx_cliente_analise_credito (cliente_id, created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `).then(() => true).catch(error => {
+            analiseCreditoTableReady = null;
+            throw error;
+        });
+        return analiseCreditoTableReady;
+    };
+
+    async function carregarContextoAnaliseCredito(pedidoId, conn = pool) {
+        const [[pedido]] = await conn.query(`
+            SELECT p.id, p.status, p.cliente_id, p.cliente_nome, p.valor, p.condicao_pagamento,
+                   c.nome AS cliente_nome_cadastro, c.razao_social, c.nome_fantasia,
+                   c.cnpj_cpf, c.cnpj, c.cpf, c.limite_credito, c.bloquear_faturamento
+              FROM pedidos p
+              LEFT JOIN clientes c ON c.id = p.cliente_id
+             WHERE p.id = ? LIMIT 1`, [pedidoId]);
+        if (!pedido) return null;
+
+        let avaliacao = { resumo: {}, pendencias: [], bloqueado: false };
+        if (pedido.cliente_id) {
+            try {
+                avaliacao = await creditoCliente.avaliarCreditoCliente(conn, {
+                    clienteId: pedido.cliente_id,
+                    valorPedido: Number(pedido.valor) || 0,
+                    pedidoId,
+                    porta: 'aprovar'
+                });
+            } catch (error) {
+                console.warn(`[CREDITO] Contexto do pedido #${pedidoId} indisponível:`, error.message);
+            }
+        }
+
+        const resumo = avaliacao.resumo || {};
+        const exposicaoSemPedido = Math.max(0,
+            (Number(resumo.total_em_aberto) || 0) + (Number(resumo.pedidos_em_andamento) || 0));
+        const creditoDisponivelAntes = Math.max(0,
+            (Number(resumo.limite_credito) || 0) - exposicaoSemPedido);
+
+        let historico = [];
+        try {
+            await ensureAnaliseCreditoTable();
+            const [rows] = await conn.query(`
+                SELECT id, parecer, status_anterior, status_novo, valor_pedido, credito_liberado,
+                       limite_credito, titulos_em_aberto, titulos_vencidos, pedidos_em_andamento,
+                       exposicao_total, diferenca_cobertura, condicao_pagamento, observacoes,
+                       usuario_nome, created_at
+                  FROM pedido_analises_credito
+                 WHERE pedido_id = ? ORDER BY id DESC LIMIT 8`, [pedidoId]);
+            historico = rows;
+        } catch (error) {
+            console.warn(`[CREDITO] Histórico estruturado do pedido #${pedidoId} indisponível:`, error.message);
+        }
+
+        return {
+            pedido: {
+                id: pedido.id,
+                status: pedido.status,
+                valor: Number(pedido.valor) || 0,
+                condicao_pagamento: pedido.condicao_pagamento || ''
+            },
+            cliente: {
+                id: pedido.cliente_id || null,
+                nome: pedido.razao_social || pedido.nome_fantasia || pedido.cliente_nome_cadastro || pedido.cliente_nome || 'Cliente não informado',
+                documento: pedido.cnpj_cpf || pedido.cnpj || pedido.cpf || '',
+                bloquear_faturamento: Number(pedido.bloquear_faturamento) === 1
+            },
+            credito: {
+                limite_credito: Number(resumo.limite_credito) || Number(pedido.limite_credito) || 0,
+                total_em_aberto: Number(resumo.total_em_aberto) || 0,
+                titulos_vencidos: Number(resumo.titulos_vencidos) || 0,
+                qtd_titulos_vencidos: Number(resumo.qtd_titulos_vencidos) || 0,
+                vencimento_mais_antigo: resumo.vencimento_mais_antigo || null,
+                pedidos_em_andamento: Number(resumo.pedidos_em_andamento) || 0,
+                exposicao_total: Number(resumo.exposicao_total) || Number(pedido.valor) || 0,
+                exposicao_sem_pedido: exposicaoSemPedido,
+                credito_disponivel_antes: creditoDisponivelAntes,
+                cobertura_necessaria: Math.max(0, (Number(pedido.valor) || 0) - creditoDisponivelAntes),
+                bloqueado_faturamento: Number(pedido.bloquear_faturamento) === 1,
+                pendencias: avaliacao.pendencias || []
+            },
+            historico
+        };
+    }
+
+    // GET /pedidos/:id/aprovacao-credito — dados completos para o modal de decisão.
+    router.get('/pedidos/:id/aprovacao-credito', authenticateToken, async (req, res, next) => {
+        try {
+            const pedidoId = parseInt(req.params.id, 10);
+            if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+                return res.status(400).json({ success: false, message: 'ID inválido.' });
+            }
+            const contexto = await carregarContextoAnaliseCredito(pedidoId);
+            if (!contexto) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+            res.json({ success: true, ...contexto });
         } catch (error) { next(error); }
     });
 
     // POST /pedidos/:id/aprovacao-credito — Register credit analysis decision
     router.post('/pedidos/:id/aprovacao-credito', authenticateToken, async (req, res, next) => {
+        let connection;
         try {
-            const pedidoId = parseInt(req.params.id);
-            if (isNaN(pedidoId)) return res.status(400).json({ success: false, message: 'ID inválido.' });
+            const pedidoId = parseInt(req.params.id, 10);
+            if (!Number.isInteger(pedidoId) || pedidoId <= 0) return res.status(400).json({ success: false, message: 'ID inválido.' });
 
-            const { parecer, condicao_pagamento, observacoes } = req.body;
+            const { parecer, condicao_pagamento, observacoes, credito_liberado } = req.body || {};
             if (!parecer || !['aprovado', 'aprovado_avista', 'reprovado'].includes(parecer)) {
                 return res.status(400).json({ success: false, message: 'Parecer inválido.' });
             }
+            const user = req.user || {};
+            const role = String(user.role || '').toLowerCase().trim();
+            const podeAnalisar = isAdminUser(user) || isComprasUser(user) || isPcpUser(user)
+                || ['supervisor', 'gerente', 'diretoria', 'faturamento'].includes(role);
+            if (!podeAnalisar) {
+                return res.status(403).json({ success: false, message: 'Seu perfil não tem permissão para analisar crédito.' });
+            }
+            // Crédito liberado (aceita "50.000,00" ou "50000.00") — usado para calcular a diferença de cobertura.
+            const creditoLiberadoNum = parseMoney(credito_liberado);
+            if (parecer === 'aprovado' && creditoLiberadoNum <= 0) {
+                return res.status(400).json({ success: false, message: 'Informe um crédito liberado maior que zero para aprovar.' });
+            }
+            if (parecer !== 'reprovado' && !String(condicao_pagamento || '').trim()) {
+                return res.status(400).json({ success: false, message: 'Informe a condição de pagamento.' });
+            }
 
-            const [pedidoRows] = await pool.query('SELECT id, status, cliente_id, valor FROM pedidos WHERE id = ? LIMIT 1', [pedidoId]);
-            if (pedidoRows.length === 0) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
-
-            const connection = await pool.getConnection();
+            // DDL pode efetuar commit implícito no MySQL; garanta a tabela antes da transação.
+            await ensureAnaliseCreditoTable();
+            connection = await pool.getConnection();
             try {
                 await connection.beginTransaction();
 
-                if (condicao_pagamento) {
-                    await connection.query('UPDATE pedidos SET condicao_pagamento = ? WHERE id = ?', [condicao_pagamento, pedidoId]);
+                const [pedidoRows] = await connection.query(
+                    // vendedor_id/numero_pedido/cliente_nome entram aqui para o aviso em
+                    // tempo real saber PARA QUEM mandar e o que escrever no card.
+                    'SELECT id, status, cliente_id, cliente_nome, numero_pedido, vendedor_id, valor, condicao_pagamento FROM pedidos WHERE id = ? FOR UPDATE', [pedidoId]);
+                if (pedidoRows.length === 0) {
+                    await connection.rollback();
+                    return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+                }
+                const pedido = pedidoRows[0];
+                const contexto = await carregarContextoAnaliseCredito(pedidoId, connection);
+                const resumo = contexto?.credito || {};
+                const valorPedido = parseFloat(pedido.valor || 0) || 0;
+
+                const condicaoFinal = parecer === 'aprovado_avista'
+                    ? 'a_vista'
+                    : (String(condicao_pagamento || pedido.condicao_pagamento || '').trim() || null);
+                if (condicaoFinal) {
+                    await connection.query('UPDATE pedidos SET condicao_pagamento = ? WHERE id = ?', [condicaoFinal, pedidoId]);
                 }
 
                 let novoStatus;
@@ -3615,24 +6880,104 @@ module.exports = function createVendasRoutes(deps) {
                     novoStatus = 'credito-reprovado';
                     descricao = 'Crédito reprovado';
                 }
-                if (observacoes) descricao += ' — ' + observacoes;
+                const observacoesSeguras = String(observacoes || '').trim().slice(0, 10000);
+                if (observacoesSeguras) descricao += ' — ' + observacoesSeguras;
 
                 await connection.query('UPDATE pedidos SET status = ? WHERE id = ?', [novoStatus, pedidoId]);
 
-                // Log to history
+                // ── LIMITE DE CRÉDITO: cobertura da diferença ────────────────────────────
+                // Regra (2026-07): o pedido só pode ser FATURADO se o crédito liberado cobrir
+                // o valor do pedido. Se o crédito liberado for menor, a diferença vira um título
+                // de "Entrada de cobertura de crédito" em Contas a Receber; o faturamento fica
+                // bloqueado até esse título ser RECEBIDO (pago). "à vista" = pago, não gera título.
+                let coberturaInfo = null;
+                if (novoStatus === 'pedido-aprovado') {
+                    // Cancela títulos de cobertura anteriores em aberto (re-análise do mesmo pedido)
+                    await connection.query(
+                        `UPDATE contas_receber SET status = 'cancelado'
+                         WHERE pedido_id = ? AND origem = 'cobertura-credito' AND status NOT IN ('recebido','cancelado')`,
+                        [pedidoId]
+                    );
+                    const diferenca = Math.round(Math.max(0, valorPedido - creditoLiberadoNum) * 100) / 100;
+                    if (parecer === 'aprovado' && creditoLiberadoNum > 0 && diferenca > 0.005) {
+                        const desc = `Entrada de cobertura de crédito - Pedido #${pedidoId} (crédito liberado R$ ${creditoLiberadoNum.toFixed(2)} de R$ ${valorPedido.toFixed(2)})`;
+                        await connection.query(
+                            `INSERT INTO contas_receber (cliente_id, pedido_id, valor, descricao, status, situacao, tipo_documento, origem, vencimento, data_vencimento)
+                             VALUES (?, ?, ?, ?, 'aberto', 'aberto', 'entrada-cobertura', 'cobertura-credito', CURDATE(), CURDATE())`,
+                            [pedido.cliente_id, pedidoId, diferenca, desc]
+                        );
+                        coberturaInfo = { valor_pedido: valorPedido, credito_liberado: creditoLiberadoNum, diferenca };
+                        descricao += ` | Crédito liberado R$ ${creditoLiberadoNum.toFixed(2)}; cobertura pendente R$ ${diferenca.toFixed(2)} (título gerado em Contas a Receber — faturamento bloqueado até o recebimento).`;
+                    } else if (creditoLiberadoNum > 0) {
+                        descricao += ` | Crédito liberado R$ ${creditoLiberadoNum.toFixed(2)} cobre o valor do pedido.`;
+                    }
+                }
+
+                const creditoSnapshot = {
+                    limite_credito: Number(resumo.limite_credito) || 0,
+                    titulos_em_aberto: Number(resumo.total_em_aberto) || 0,
+                    titulos_vencidos: Number(resumo.titulos_vencidos) || 0,
+                    pedidos_em_andamento: Number(resumo.pedidos_em_andamento) || 0,
+                    exposicao_total: Number(resumo.exposicao_total) || valorPedido,
+                    diferenca_cobertura: coberturaInfo
+                        ? coberturaInfo.diferenca
+                        : (parecer === 'aprovado_avista' ? 0 : Math.max(0, valorPedido - creditoLiberadoNum))
+                };
+                const [analiseResult] = await connection.query(`
+                    INSERT INTO pedido_analises_credito
+                    (pedido_id, cliente_id, usuario_id, usuario_nome, parecer, status_anterior, status_novo,
+                     valor_pedido, credito_liberado, limite_credito, titulos_em_aberto, titulos_vencidos,
+                     pedidos_em_andamento, exposicao_total, diferenca_cobertura, condicao_pagamento, observacoes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    pedidoId, pedido.cliente_id || null, user.id || null, user.nome || user.email || 'Sistema',
+                    parecer, pedido.status || null, novoStatus, valorPedido, creditoLiberadoNum,
+                    creditoSnapshot.limite_credito, creditoSnapshot.titulos_em_aberto,
+                    creditoSnapshot.titulos_vencidos, creditoSnapshot.pedidos_em_andamento,
+                    creditoSnapshot.exposicao_total, creditoSnapshot.diferenca_cobertura,
+                    condicaoFinal, observacoesSeguras || null
+                ]);
+
+                // Log to history — grava também QUANTO foi aprovado (coluna `meta`, JSON),
+                // para o Resumo do cliente exibir o valor do crédito liberado.
+                const metaHist = JSON.stringify({
+                    parecer,
+                    valor_pedido: valorPedido,
+                    credito_liberado: creditoLiberadoNum,
+                    diferenca: coberturaInfo ? coberturaInfo.diferenca : 0,
+                    condicao_pagamento: condicaoFinal,
+                    credito: creditoSnapshot,
+                    analise_id: analiseResult.insertId
+                });
                 try {
                     const [tables] = await connection.query("SHOW TABLES LIKE 'pedido_historico'");
                     if (tables.length > 0) {
                         await connection.query(
-                            `INSERT INTO pedido_historico (pedido_id, usuario_id, usuario_nome, acao, descricao, created_at)
-                             VALUES (?, ?, ?, ?, ?, NOW())`,
-                            [pedidoId, req.user.id, req.user.nome || req.user.email, 'aprovacao-credito', descricao]
+                            `INSERT INTO pedido_historico (pedido_id, usuario_id, usuario_nome, acao, descricao, meta, created_at)
+                             VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+                            [pedidoId, req.user.id, req.user.nome || req.user.email, 'aprovacao-credito', descricao, metaHist]
                         );
                     }
                 } catch (_) { /* table may not exist */ }
 
                 await connection.commit();
-                res.json({ success: true, message: descricao, novo_status: novoStatus });
+                clearPedidosCache();
+
+                // É este o caso do "compras@ moveu de análise para aprovado": quem
+                // decide o crédito não é o vendedor, e ele precisa ver na hora.
+                emitirMudancaEtapa(req.app, {
+                    pedidoId,
+                    numeroPedido: pedido.numero_pedido,
+                    de: pedido.status,
+                    para: novoStatus,
+                    vendedorId: pedido.vendedor_id,
+                    clienteNome: pedido.cliente_nome,
+                    autor: req.user,
+                    origem: 'aprovacao-credito'
+                });
+
+                res.json({ success: true, message: descricao, novo_status: novoStatus, cobertura: coberturaInfo,
+                    analise_id: analiseResult.insertId, credito: creditoSnapshot });
             } catch (err) {
                 await connection.rollback();
                 throw err;
@@ -3648,13 +6993,35 @@ module.exports = function createVendasRoutes(deps) {
                 return res.status(403).json({ success: false, message: 'Seu perfil nao tem permissao para cadastrar clientes.', code: 'SEM_PERMISSAO_CLIENTES' });
             }
             // Field aliasing — frontend may send razao_social/cnpj_cpf/ie/logradouro/número
-            const b = req.body;
+            let b = req.body || {};
+            const documentoInicial = onlyDigits(b.cnpj || b.cnpj_cpf || b.cpf);
+            if (documentoInicial && !isValidDoc(documentoInicial)) {
+                return res.status(400).json({ message: 'CNPJ/CPF inválido — verifique os dígitos (14 díg. p/ CNPJ ou 11 p/ CPF).' });
+            }
+
+            // O enriquecimento acontece no servidor para cobrir a tela, app,
+            // importações e integrações nas quatro instâncias. A consulta por
+            // CNPJ traz IE/dados federais; o CEP é o fallback do código IBGE.
+            const fiscalPreparacao = await completarCadastroFiscalCliente(b);
+            b = fiscalPreparacao.dados;
+            if (fiscalPreparacao.pendencias.length) {
+                return res.status(422).json({
+                    success: false,
+                    code: 'CLIENTE_FISCAL_INCOMPLETO',
+                    message: `Complete os dados fiscais antes de cadastrar: ${fiscalPreparacao.pendencias.map(item => item.label).join(', ')}.`,
+                    pendencias: fiscalPreparacao.pendencias,
+                    avisos: fiscalPreparacao.warnings
+                });
+            }
             const nome = (b.nome || b.razao_social || '').trim();
             const cnpj = b.cnpj || b.cnpj_cpf || null;
-            const endereco = b.endereco || b.logradouro || null;
+            // AUDIT-FIX: o modal de clientes (clientes.html) envia a chave com cedilha
+            // ("endereço"), que nunca era lida aqui — o endereço era sempre salvo como null.
+            const endereco = b.endereco || b.logradouro || b.endereço || null;
             const numero = b.numero || b.número || null;
             const inscricao_estadual = b.inscricao_estadual || b.ie || null;
             const contato = b.contato || b.contato_nome || null;
+            const tags = typeof b.tags === 'string' ? b.tags : null;
             const { nome_fantasia, telefone, celular, email, website,
                     complemento, bairro, cidade, uf, cep,
                     inscricao_municipal, limite_credito, ativo, empresa_id,
@@ -3662,7 +7029,9 @@ module.exports = function createVendasRoutes(deps) {
                     fax, ddd_fax, enviar_anexos, banco, agencia, conta, pix, titular_doc, titular_nome, tipo_conta,
                     suframa, simples_nacional, produtor_rural, tipo_atividade, cnae,
                     obs_internas, obs_detalhadas, parcelas_padrao, vendedor_padrao,
-                    email_nfe, transportadora, codigo_receita, bloquear_faturamento } = b;
+                    email_nfe, transportadora, codigo_receita, bloquear_faturamento,
+                    endereco_entrega, numero_entrega, complemento_entrega, bairro_entrega,
+                    cidade_entrega, uf_entrega, cep_entrega } = b;
             if (!nome) {
                 return res.status(400).json({ message: 'Nome / Razão Social é obrigatório.' });
             }
@@ -3675,6 +7044,16 @@ module.exports = function createVendasRoutes(deps) {
             // BUG-VEND-008: rejeitar CNPJ/CPF inválido (só valida se informado — documento é opcional)
             if (cnpj && onlyDigits(cnpj).length > 0 && !isValidDoc(cnpj)) {
                 return res.status(400).json({ message: 'CNPJ/CPF inválido — verifique os dígitos (14 díg. p/ CNPJ ou 11 p/ CPF).' });
+            }
+
+            // BUG-FAT-002: código IBGE do município (cMun da NF-e) — 7 dígitos quando informado
+            const codigoIbgeRaw = b.codigo_ibge ?? b.codigo_municipio;
+            let codigoIbge = null;
+            if (codigoIbgeRaw !== undefined && codigoIbgeRaw !== null && String(codigoIbgeRaw).trim() !== '') {
+                codigoIbge = String(codigoIbgeRaw).replace(/\D/g, '');
+                if (codigoIbge.length !== 7) {
+                    return res.status(400).json({ message: 'Código IBGE do município inválido — deve ter 7 dígitos (ex.: 3550308 para São Paulo).' });
+                }
             }
 
             const [cols] = await pool.query('SHOW COLUMNS FROM clientes');
@@ -3691,6 +7070,7 @@ module.exports = function createVendasRoutes(deps) {
                 } catch (_) { /* tabela empresas pode não existir */ }
             }
 
+            const limiteCreditoNumerico = parseMoney(limite_credito);
             const payload = {
                 nome,
                 nome_fantasia: nome_fantasia || null,
@@ -3713,10 +7093,20 @@ module.exports = function createVendasRoutes(deps) {
                 estado: uf || null,
                 uf: uf || null,
                 cep: cep || null,
+                codigo_ibge: codigoIbge,
+                codigo_municipio: codigoIbge,
                 inscricao_estadual: inscricao_estadual || null,
                 ie: inscricao_estadual || null,
                 inscricao_municipal: inscricao_municipal || null,
-                credito_total: limite_credito ? parseFloat(limite_credito) : 0,
+                limite_credito: limiteCreditoNumerico,
+                credito_total: limiteCreditoNumerico,
+                endereco_entrega: endereco_entrega || null,
+                numero_entrega: numero_entrega || null,
+                complemento_entrega: complemento_entrega || null,
+                bairro_entrega: bairro_entrega || null,
+                cidade_entrega: cidade_entrega || null,
+                uf_entrega: uf_entrega || null,
+                cep_entrega: cep_entrega || null,
                 ativo: ativo !== undefined ? (ativo ? 1 : 0) : 1,
                 empresa_id: empresaIdFinal,
                 observacoes: observacoes || null,
@@ -3751,62 +7141,125 @@ module.exports = function createVendasRoutes(deps) {
                 email_nfe: email_nfe || null,
                 transportadora: transportadora || null,
                 codigo_receita: codigo_receita || null,
-                bloquear_faturamento: bloquear_faturamento ? 1 : 0
+                bloquear_faturamento: bloquear_faturamento ? 1 : 0,
+                tags: tags,
+                fiscal_fonte: b.fiscal_fonte || null,
+                fiscal_contribuinte_icms: b.fiscal_contribuinte_icms ?? null,
+                fiscal_consultado_em: b.fiscal_consultado_em || null,
+                fiscal_dados_json: b.fiscal_dados_json || null,
+                fiscal_sync_hash: b.fiscal_sync_hash || null
             };
 
-            const documentoDigits = String(cnpj || '').replace(/\D/g, '');
-            if (documentoDigits) {
-                const docConditions = [];
-                const docParams = [];
-                ['cnpj', 'cnpj_cpf', 'cpf'].forEach(field => {
-                    if (availableColumns.has(field)) {
-                        docConditions.push(`REPLACE(REPLACE(REPLACE(COALESCE(${field}, ''), '.', ''), '/', ''), '-', '') = ?`);
-                        docParams.push(documentoDigits);
-                    }
-                });
+            // Situação cadastral na Receita (vinda da consulta feita no modal de clientes).
+            const situacaoInformada = normalizarSituacao(b.situacao_cadastral);
+            if (situacaoInformada) {
+                payload.situacao_cadastral = situacaoInformada;
+                payload.situacao_cadastral_em = new Date();
+            }
 
-                if (docConditions.length) {
-                    const [clientesExistentes] = await pool.query(
-                        `SELECT id FROM clientes WHERE ${docConditions.join(' OR ')} LIMIT 1`,
-                        docParams
-                    );
-
-                    if (clientesExistentes.length) {
-                        const updateFields = [];
-                        const updateValues = [];
-                        ['vendedor_id', 'usuario_id', 'user_id'].forEach(field => {
-                            if (availableColumns.has(field) && usuarioLogadoId) {
-                                updateFields.push(`${field} = ?`);
-                                updateValues.push(usuarioLogadoId);
-                            }
-                        });
-                        ['vendedor_responsavel', 'vendedor_proprietario'].forEach(field => {
-                            if (availableColumns.has(field) && usuarioLogadoNome) {
-                                updateFields.push(`${field} = ?`);
-                                updateValues.push(usuarioLogadoNome);
-                            }
-                        });
-                        if (availableColumns.has('incluido_por') && usuarioLogadoNome) {
-                            updateFields.push(`incluido_por = COALESCE(NULLIF(incluido_por, ''), ?)`);
-                            updateValues.push(usuarioLogadoNome);
-                        }
-                        if (availableColumns.has('created_by') && usuarioLogadoId) {
-                            updateFields.push(`created_by = COALESCE(created_by, ?)`);
-                            updateValues.push(usuarioLogadoId);
-                        }
-
-                        if (updateFields.length) {
-                            updateValues.push(clientesExistentes[0].id);
-                            await pool.query(`UPDATE clientes SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
-                        }
-
-                        return res.status(200).json({
-                            message: 'Cliente já cadastrado e vinculado ao vendedor atual.',
-                            id: clientesExistentes[0].id,
-                            existente: true
-                        });
-                    }
+            // Dono comercial: uma mesma ficha não pode ser reaberta por outro
+            // vendedor. O bloqueio é no backend para também cobrir chamadas
+            // manuais e concorrentes do frontend.
+            const conflito = await localizarConflitoCliente({
+                pool,
+                colunasCliente: availableColumns,
+                empresaId: empresaIdFinal,
+                dados: {
+                    nome,
+                    nome_fantasia,
+                    cnpj,
+                    cpf: b.cpf,
+                    cnpj_cpf: b.cnpj_cpf,
+                    email,
+                    telefone,
+                    celular
+                },
+                usuario: req.user
+            });
+            if (conflito) {
+                // A conta de Lorena e a conta de Márcia pertencem à mesma
+                // vendedora comercial. Se a ficha já existe na carteira dessa
+                // identidade compartilhada, devolvemos o ID existente em vez
+                // de tentar duplicar o CNPJ ou bloquear o cadastro.
+                if (conflito.mesmoProprietario) {
+                    return res.status(200).json({
+                        success: true,
+                        id: conflito.cliente.id,
+                        existente: true,
+                        compartilhado: true,
+                        message: 'Cliente já cadastrado na carteira compartilhada desta vendedora.'
+                    });
                 }
+                if (!conflito.podeAssumir) {
+                    const dono = conflito.proprietarioNome;
+                    // Filial: o CNPJ é OUTRO, mas a raiz é a mesma de um cliente que já tem
+                    // dono. A mensagem genérica manda procurar um cadastro que não existe —
+                    // o que existe é o estabelecimento irmão. Aqui a resposta diz QUAL é.
+                    if (conflito.ehFilial) {
+                        const g = conflito.grupo || {};
+                        const alvo = g.documentoNovo ? `${g.estabelecimentoNovo} (${g.documentoNovo})` : 'esta filial';
+                        return res.status(409).json({
+                            success: false,
+                            code: 'CLIENTE_FILIAL_DE_OUTRA_CARTEIRA',
+                            message: `Cadastro bloqueado: ${alvo} pertence ao mesmo CNPJ raiz de ${g.razaoSocialExistente}`
+                                + ` — ${g.estabelecimentoExistente} ${g.documentoExistente}, na carteira de ${dono}.`,
+                            motivo: conflito.motivo,
+                            clienteId: conflito.cliente.id,
+                            vendedorResponsavel: dono,
+                            correspondencia: 'filial',
+                            grupo: g
+                        });
+                    }
+                    return res.status(409).json({
+                        success: false,
+                        code: 'CLIENTE_RESERVADO',
+                        message: `Cadastro bloqueado: este cliente já está sob responsabilidade de ${dono}.`,
+                        motivo: 'cliente_reservado_a_outro_vendedor',
+                        clienteId: conflito.cliente.id,
+                        vendedorResponsavel: dono,
+                        correspondencia: conflito.correspondencia
+                    });
+                }
+
+                const transferencia = montarTransferenciaCliente({
+                    colunasCliente: availableColumns,
+                    usuario: req.user,
+                    motivo: conflito.motivo
+                });
+                if (transferencia.campos.length) {
+                    await pool.query(
+                        `UPDATE clientes SET ${transferencia.campos.join(', ')} WHERE id = ?`,
+                        [...transferencia.valores, conflito.cliente.id]
+                    );
+                }
+                if (typeof writeAuditLog === 'function') {
+                    await writeAuditLog({
+                        userId: usuarioLogadoId,
+                        action: 'TRANSFERENCIA_CLIENTE',
+                        module: 'VENDAS',
+                        description: `Cliente #${conflito.cliente.id} transferido para ${transferencia.nome} (${conflito.motivo}).`,
+                        previousData: { proprietario: conflito.proprietarioNome },
+                        newData: { proprietario: transferencia.nome, motivo: conflito.motivo },
+                        ip: req.ip,
+                        userAgent: req.headers['user-agent']
+                    });
+                }
+                await registrarClienteGlobal({
+                    dados: { nome, nome_fantasia, cnpj, cpf: b.cpf, cnpj_cpf: b.cnpj_cpf, email, telefone, celular },
+                    usuario: req.user,
+                    clienteId: conflito.cliente.id,
+                    instancia: req.brand,
+                    ativo: 1,
+                    forcar: true
+                });
+                return res.status(200).json({
+                    success: true,
+                    message: `Cliente liberado e vinculado a ${transferencia.nome}.`,
+                    id: conflito.cliente.id,
+                    existente: true,
+                    transferido: true,
+                    motivo: conflito.motivo
+                });
             }
 
             const insertColumns = [];
@@ -3825,7 +7278,23 @@ module.exports = function createVendasRoutes(deps) {
                 `INSERT INTO clientes (${insertColumns.join(', ')}) VALUES (${placeholders.join(', ')})`,
                 insertValues
             );
-            res.status(201).json({ message: 'Cliente cadastrado com sucesso!', id: result.insertId });
+            if (fiscalPreparacao.consultaCnpj) {
+                await registrarConsultaFiscalCliente(result.insertId, fiscalPreparacao.consultaCnpj, usuarioLogadoId);
+            }
+            await registrarClienteGlobal({
+                dados: { nome, nome_fantasia, cnpj, cpf: b.cpf, cnpj_cpf: b.cnpj_cpf, email, telefone, celular },
+                usuario: req.user,
+                clienteId: result.insertId,
+                instancia: req.brand,
+                ativo: payload.ativo,
+                forcar: true
+            });
+            res.status(201).json({
+                message: 'Cliente cadastrado com dados fiscais completos!',
+                id: result.insertId,
+                fiscal_enriquecido: fiscalPreparacao.enriquecido,
+                avisos_fiscais: fiscalPreparacao.warnings
+            });
         } catch (error) {
             console.error('[VENDAS] Erro ao cadastrar cliente:', error.code, error.message);
             if (error.code === 'ER_NO_SUCH_TABLE') {
@@ -3847,9 +7316,19 @@ module.exports = function createVendasRoutes(deps) {
 
             // Se é apenas toggle de ativo, permitir sem exigir nome/empresa
             if (body.ativo !== undefined && Object.keys(body).length <= 2) {
+                const clienteColumns = await getTableColumns('clientes');
+                const statusFields = ['ativo = ?'];
+                const statusValues = [body.ativo ? 1 : 0];
+                if (clienteColumns.has('inativado_em')) {
+                    statusFields.push('inativado_em = ?');
+                    statusValues.push(body.ativo ? null : new Date());
+                }
+                if (clienteColumns.has('data_atualizacao')) statusFields.push('data_atualizacao = NOW()');
+                if (clienteColumns.has('data_ultima_alteracao')) statusFields.push('data_ultima_alteracao = NOW()');
+                statusValues.push(id);
                 const [result] = await pool.query(
-                    'UPDATE clientes SET ativo = ? WHERE id = ?',
-                    [body.ativo ? 1 : 0, id]
+                    `UPDATE clientes SET ${statusFields.join(', ')} WHERE id = ?`,
+                    statusValues
                 );
                 if (result.affectedRows === 0) return res.status(404).json({ message: 'Cliente não encontrado.' });
                 return res.json({ message: `Cliente ${body.ativo ? 'ativado' : 'inativado'} com sucesso.` });
@@ -3858,10 +7337,13 @@ module.exports = function createVendasRoutes(deps) {
             // Field aliasing — frontend may send razao_social/cnpj_cpf/ie/logradouro/número
             const nome = (body.nome || body.razao_social || '').trim();
             const cnpj = body.cnpj || body.cnpj_cpf || null;
-            const endereco = body.endereco || body.logradouro || null;
+            // AUDIT-FIX: o modal de clientes (clientes.html) envia a chave com cedilha
+            // ("endereço"), que nunca era lida aqui — o endereço era sempre salvo como null.
+            const endereco = body.endereco || body.logradouro || body.endereço || null;
             const numero = body.numero || body.número || null;
             const inscricao_estadual = body.inscricao_estadual || body.ie || null;
             const contato = body.contato || body.contato_nome || null;
+            const tags = typeof body.tags === 'string' ? body.tags : undefined;
             const { nome_fantasia, telefone, celular, email, website,
                     complemento, bairro, cidade, uf, cep,
                     inscricao_municipal, limite_credito, empresa_id,
@@ -3869,13 +7351,30 @@ module.exports = function createVendasRoutes(deps) {
                     fax, ddd_fax, enviar_anexos, banco, agencia, conta, pix, titular_doc, titular_nome, tipo_conta,
                     suframa, simples_nacional, produtor_rural, tipo_atividade, cnae,
                     obs_internas, obs_detalhadas, parcelas_padrao, vendedor_padrao,
-                    email_nfe, transportadora, codigo_receita, bloquear_faturamento } = body;
+                    email_nfe, transportadora, codigo_receita, bloquear_faturamento,
+                    endereco_entrega, numero_entrega, complemento_entrega, bairro_entrega,
+                    cidade_entrega, uf_entrega, cep_entrega } = body;
 
             if (!nome) return res.status(400).json({ message: 'Nome é obrigatório.' });
+
+            // BUG-FAT-002: código IBGE do município (cMun da NF-e) — só altera quando enviado
+            const codigoIbgeRaw = body.codigo_ibge ?? body.codigo_municipio;
+            let codigoIbge;
+            if (codigoIbgeRaw !== undefined) {
+                if (codigoIbgeRaw === null || String(codigoIbgeRaw).trim() === '') {
+                    codigoIbge = null;
+                } else {
+                    codigoIbge = String(codigoIbgeRaw).replace(/\D/g, '');
+                    if (codigoIbge.length !== 7) {
+                        return res.status(400).json({ message: 'Código IBGE do município inválido — deve ter 7 dígitos (ex.: 3550308 para São Paulo).' });
+                    }
+                }
+            }
 
             const [cols] = await pool.query('SHOW COLUMNS FROM clientes');
             const availableColumns = new Set(cols.map(col => col.Field));
 
+            const limiteCreditoNumerico = parseMoney(limite_credito);
             const payload = {
                 nome,
                 nome_fantasia: nome_fantasia || null,
@@ -3901,9 +7400,18 @@ module.exports = function createVendasRoutes(deps) {
                 inscricao_estadual: inscricao_estadual || null,
                 ie: inscricao_estadual || null,
                 inscricao_municipal: inscricao_municipal || null,
-                credito_total: limite_credito ? parseFloat(limite_credito) : 0,
-                ativo: body.ativo !== undefined ? (body.ativo ? 1 : 0) : 1,
-                observacoes: observacoes || null,
+                limite_credito: limiteCreditoNumerico,
+                credito_total: limiteCreditoNumerico,
+                endereco_entrega: endereco_entrega || null,
+                numero_entrega: numero_entrega || null,
+                complemento_entrega: complemento_entrega || null,
+                bairro_entrega: bairro_entrega || null,
+                cidade_entrega: cidade_entrega || null,
+                uf_entrega: uf_entrega || null,
+                 cep_entrega: cep_entrega || null,
+                 ...(body.ativo !== undefined ? { ativo: body.ativo ? 1 : 0 } : {}),
+                 ...(body.ativo !== undefined ? { inativado_em: body.ativo ? null : new Date() } : {}),
+                 observacoes: observacoes || null,
                 fax: fax || null,
                 ddd_fax: ddd_fax || null,
                 enviar_anexos: enviar_anexos !== undefined ? (enviar_anexos ? 1 : 0) : 1,
@@ -3929,6 +7437,17 @@ module.exports = function createVendasRoutes(deps) {
                 codigo_receita: codigo_receita || null,
                 bloquear_faturamento: bloquear_faturamento ? 1 : 0
             };
+            if (tags !== undefined) payload.tags = tags;
+            if (codigoIbgeRaw !== undefined) {
+                payload.codigo_ibge = codigoIbge;
+                payload.codigo_municipio = codigoIbge;
+            }
+            // Só sobrescreve a situação cadastral quando o front reconsultou a Receita.
+            const situacaoInformadaUpdate = normalizarSituacao(body.situacao_cadastral);
+            if (situacaoInformadaUpdate) {
+                payload.situacao_cadastral = situacaoInformadaUpdate;
+                payload.situacao_cadastral_em = new Date();
+            }
 
             // Só incluir empresa_id se tiver valor válido (coluna NOT NULL)
             const empresaIdUpdate = empresa_id || req.user?.empresa_id;
@@ -4032,21 +7551,98 @@ module.exports = function createVendasRoutes(deps) {
             const [tables] = await pool.query("SHOW TABLES LIKE 'metas_vendas'");
             if (tables.length === 0) return res.json([]);
             const periodo = req.query.periodo;
+            const categoria = req.query.categoria;
             const params = [];
-            let where = 'WHERE (m.ativo = 1 OR m.ativo IS NULL)';
+            let where = 'WHERE 1 = 1';
             if (periodo) { where += ' AND m.periodo = ?'; params.push(periodo); }
+            if (categoria) { where += ' AND m.categoria = ?'; params.push(categoria); }
+            // Lê pelo SQL_METAS_DEDUP em vez de metas_vendas cru: a tabela acumula uma linha
+            // por regravação (13 para o mesmo vendedor em 03/2026 na aluforce) e o painel de
+            // metas SOMA as linhas por categoria — sem dedup a meta aparecia multiplicada
+            // pelo número de vezes que foi salva. O filtro de ativo já está no SQL_METAS_DEDUP.
             const [rows] = await pool.query(
-                `SELECT m.*, u.nome AS vendedor_nome FROM metas_vendas m LEFT JOIN usuarios u ON m.vendedor_id = u.id ${where} ORDER BY m.periodo DESC, m.vendedor_id`,
+                `SELECT d.*, u.nome AS vendedor_nome
+                    FROM (${SQL_METAS_DEDUP} ${where}) d
+                    LEFT JOIN usuarios u ON d.vendedor_id = u.id
+                   ORDER BY d.periodo DESC, d.vendedor_id`,
                 params
             );
             res.json(rows);
         } catch (error) { next(error); }
     });
+    // Regravar meta é o caso NORMAL (o painel manda salvar de novo toda vez que alguém
+    // ajusta o número), então esta rota é um UPSERT, não um INSERT. O INSERT cego que existia
+    // aqui é a origem das 13 linhas do mesmo (vendedor, 2026-03, faturamento) na aluforce:
+    // quem lê pega a de MAIOR id — a tela mostrava a meta certa e qualquer SOMA trazia a meta
+    // multiplicada por 13.
     router.post('/metas', authorizeAdminOrComercial, async (req, res, next) => {
         try {
-            const { vendedor_id, periodo, tipo, valor_meta } = req.body;
-            await pool.query('INSERT INTO metas_vendas (vendedor_id, periodo, tipo, valor_meta) VALUES (?, ?, ?, ?)', [vendedor_id || null, periodo, tipo, valor_meta]);
-            res.status(201).json({ message: 'Meta criada com sucesso!' });
+            const categoria = METAS_CATEGORIAS_VALIDAS.includes(req.body.categoria) ? req.body.categoria : 'faturamento';
+            const periodo = String(req.body.periodo || '').trim();
+            if (!/^d{4}-(0[1-9]|1[0-2])$/.test(periodo)) {
+                return res.status(400).json({ message: 'Período inválido. Use o formato AAAA-MM.' });
+            }
+            const valor = parseFloat(req.body.valor_meta);
+            if (!Number.isFinite(valor) || valor <= 0) {
+                return res.status(400).json({ message: 'Informe um valor de meta maior que zero.' });
+            }
+            // metas_vendas.tipo é ENUM('mensal','trimestral') nas 4 bases: qualquer outro valor
+            // derruba a escrita com ER_TRUNCATED_WRONG_VALUE em modo estrito.
+            const tipo = ['mensal', 'trimestral'].includes(req.body.tipo) ? req.body.tipo : 'mensal';
+            const vendedorId = (req.body.vendedor_id === null || req.body.vendedor_id === undefined || req.body.vendedor_id === '')
+                ? null : parseInt(req.body.vendedor_id, 10);
+            if (vendedorId !== null && !Number.isInteger(vendedorId)) {
+                return res.status(400).json({ message: 'Vendedor inválido.' });
+            }
+            if (vendedorId !== null) {
+                const [[vendedor]] = await pool.query('SELECT id FROM usuarios WHERE id = ? LIMIT 1', [vendedorId]);
+                if (!vendedor) return res.status(404).json({ message: 'Vendedor não encontrado nesta empresa.' });
+            }
+
+            // Não existe UNIQUE(vendedor_id, periodo, categoria) em nenhuma das 4 bases, então
+            // o upsert é manual: a linha mais nova vira a meta vigente e as anteriores do mesmo
+            // recorte saem por ativo = 0 (mesmo soft delete do DELETE /metas/:id).
+            const [existentes] = await pool.query(
+                `SELECT id FROM metas_vendas
+                   WHERE periodo = ? AND categoria = ?
+                     AND ((? IS NULL AND vendedor_id IS NULL) OR vendedor_id = ?)
+                   ORDER BY id DESC`,
+                [periodo, categoria, vendedorId, vendedorId]
+            );
+
+            let metaId;
+            if (existentes.length) {
+                metaId = existentes[0].id;
+                await pool.query(
+                    'UPDATE metas_vendas SET valor_meta = ?, tipo = ?, ativo = 1 WHERE id = ?',
+                    [valor, tipo, metaId]
+                );
+                const antigas = existentes.slice(1).map(r => r.id);
+                if (antigas.length) {
+                    await pool.query(
+                        `UPDATE metas_vendas SET ativo = 0 WHERE id IN (${antigas.map(() => '?').join(',')})`,
+                        antigas
+                    );
+                }
+            } else {
+                const [ins] = await pool.query(
+                    'INSERT INTO metas_vendas (vendedor_id, periodo, tipo, categoria, valor_meta) VALUES (?, ?, ?, ?, ?)',
+                    [vendedorId, periodo, tipo, categoria, valor]
+                );
+                metaId = ins.insertId;
+            }
+
+            res.status(201).json({
+                message: existentes.length ? 'Meta atualizada com sucesso!' : 'Meta criada com sucesso!',
+                id: metaId,
+                vendedor_id: vendedorId,
+                periodo,
+                categoria,
+                tipo,
+                valor_meta: valor,
+                atualizada: existentes.length > 0,
+                duplicatas_desativadas: Math.max(0, existentes.length - 1)
+            });
         } catch (error) { next(error); }
     });
     router.put('/metas/:id', authorizeAdminOrComercial, async (req, res, next) => {
@@ -4060,7 +7656,8 @@ module.exports = function createVendasRoutes(deps) {
                 if (metaCheck[0].vendedor_id !== user.id) return res.status(403).json({ error: 'Acesso negado' });
             }
             const { vendedor_id, periodo, tipo, valor_meta } = req.body;
-            await pool.query('UPDATE metas_vendas SET vendedor_id=?, periodo=?, tipo=?, valor_meta=? WHERE id=?', [vendedor_id || null, periodo, tipo, valor_meta, req.params.id]);
+            const categoria = METAS_CATEGORIAS_VALIDAS.includes(req.body.categoria) ? req.body.categoria : 'faturamento';
+            await pool.query('UPDATE metas_vendas SET vendedor_id=?, periodo=?, tipo=?, categoria=?, valor_meta=? WHERE id=?', [vendedor_id || null, periodo, tipo, categoria, valor_meta, req.params.id]);
             res.json({ message: 'Meta atualizada com sucesso!' });
         } catch (error) { next(error); }
     });
@@ -4086,14 +7683,156 @@ module.exports = function createVendasRoutes(deps) {
                 SELECT m.id AS meta_id, m.periodo, m.tipo, m.vendedor_id, m.valor_meta,
                        COALESCE(SUM(p.valor), 0) AS totalVendido
                 FROM metas_vendas m
-                LEFT JOIN pedidos p ON p.status IN ('faturado', 'recibo')
-                    AND DATE_FORMAT(p.created_at, '%Y-%m') = m.periodo
+                LEFT JOIN pedidos p ON ${sqlFiltroVenda('p')}
+                    AND ${sqlMesVenda('p')} = m.periodo
                     AND (m.vendedor_id IS NULL OR p.vendedor_id = m.vendedor_id)
                 WHERE m.periodo = ?
+                  AND m.categoria = 'faturamento'
                   AND (m.ativo = 1 OR m.ativo IS NULL)
                 GROUP BY m.id, m.periodo, m.tipo, m.vendedor_id, m.valor_meta
             `, [periodo]);
             res.json(progresso);
+        } catch (error) { next(error); }
+    });
+
+    // ------------------------------------------------------------------
+    // KPIs do topo de "Gestão de Vendas" (os 5 cards)
+    // ------------------------------------------------------------------
+    // Antes cada card era calculado no navegador somando `/api/vendas/pedidos?limit=500`.
+    // Isso tinha quatro defeitos que só apareciam em produção:
+    //   1. somava TUDO — orçamento, cancelado e excluído entravam em "Vendas do Mês"
+    //      (em 07/2026 a aluforce exibiria R$ 230.537 no lugar dos R$ 143.054 reais);
+    //   2. o intervalo ia por `BETWEEN data_inicio AND data_fim` sobre um DATETIME, então
+    //      todo pedido do último dia do mês depois da meia-noite caía fora;
+    //   3. o teto de 500 pedidos truncaria o mês em silêncio quando a base crescer;
+    //   4. metas duplicadas em metas_vendas eram somadas uma a uma.
+    // Agora o servidor devolve os 5 números prontos, com a mesma definição de venda do
+    // ranking logo abaixo — os dois não podem mais discordar.
+    router.get('/dashboard/kpis', async (req, res, next) => {
+        try {
+            const periodo = /^\d{4}-\d{2}$/.test(req.query.periodo || '')
+                ? req.query.periodo
+                : new Date().toISOString().substring(0, 7);
+            const anterior = mesAnterior(periodo);
+
+            const colunasUsuarios = await getTableColumns('usuarios');
+            const VENDA = sqlFiltroVenda('p');
+            const MES = sqlMesVenda('p');
+
+            // Quem está hoje na equipe comercial. Um ex-funcionário que vendeu no período
+            // continua contando em "Vendas do Mês" (o faturamento aconteceu), mas não pode
+            // entrar na conta de "Vendedores Ativos" — em 07/2026 a aluforce tem 5 pessoas
+            // com venda para 4 vendedores ativos, e o card ficaria dizendo "5 de 4".
+            const EQUIPE_ATUAL = `p.vendedor_id IN (SELECT u.id FROM usuarios u WHERE ${sqlVendedorAtivo(colunasUsuarios, 'u')})`;
+
+            // Um SELECT só para os dois meses: evita a ida e volta dupla e garante que os
+            // dois lados da comparação saiam do mesmo recorte.
+            const [[totais]] = await pool.query(`
+                SELECT
+                    COALESCE(SUM(CASE WHEN ${MES} = ? THEN p.valor END), 0) AS valor_periodo,
+                    COALESCE(SUM(CASE WHEN ${MES} = ? THEN 1 END), 0)       AS pedidos_periodo,
+                    COALESCE(SUM(CASE WHEN ${MES} = ? THEN p.valor END), 0) AS valor_anterior,
+                    COALESCE(SUM(CASE WHEN ${MES} = ? THEN 1 END), 0)       AS pedidos_anterior,
+                    COUNT(DISTINCT CASE WHEN ${MES} = ? AND ${EQUIPE_ATUAL} THEN p.vendedor_id END) AS vendedores_com_venda,
+                    COUNT(DISTINCT CASE WHEN ${MES} = ? THEN p.vendedor_id END) AS vendedores_com_venda_total
+                FROM pedidos p
+                WHERE ${VENDA} AND ${MES} IN (?, ?)
+            `, [periodo, periodo, anterior, anterior, periodo, periodo, periodo, anterior]);
+
+            // Vendas por vendedor no período — base do "Abaixo da Meta".
+            const [vendasPorVendedor] = await pool.query(`
+                SELECT p.vendedor_id, COALESCE(SUM(p.valor), 0) AS total
+                  FROM pedidos p
+                 WHERE ${VENDA} AND ${MES} = ? AND p.vendedor_id IS NOT NULL
+                 GROUP BY p.vendedor_id
+            `, [periodo]);
+
+            const [[{ cadastrados }]] = await pool.query(`
+                SELECT COUNT(*) AS cadastrados FROM usuarios u
+                 WHERE ${sqlVendedorAtivo(colunasUsuarios, 'u')}
+            `);
+
+            // Meta da equipe = metas individuais + a meta sem vendedor_id (meta do time).
+            let metas = [];
+            try {
+                [metas] = await pool.query(
+                    `${SQL_METAS_DEDUP} WHERE m.periodo = ? AND m.categoria = 'faturamento'`,
+                    [periodo]
+                );
+            } catch (e) {
+                // metas_vendas pode não existir numa base recém-criada — sem meta, não sem card.
+                if (!['ER_NO_SUCH_TABLE', 'ER_BAD_TABLE_ERROR'].includes(e.code)) throw e;
+            }
+
+            const metaPorVendedor = new Map();
+            let metaDoTime = 0;
+            metas.forEach(m => {
+                const valor = parseFloat(m.valor_meta) || 0;
+                if (m.vendedor_id) metaPorVendedor.set(Number(m.vendedor_id), valor);
+                else metaDoTime += valor;
+            });
+            const metaTotal = metaDoTime + [...metaPorVendedor.values()].reduce((s, v) => s + v, 0);
+
+            // "Abaixo da meta" só faz sentido para quem TEM meta individual cadastrada —
+            // sem meta não há de que estar abaixo. O corte de 80% é o mesmo do ranking.
+            const vendidoPor = new Map(vendasPorVendedor.map(r => [Number(r.vendedor_id), parseFloat(r.total) || 0]));
+            let abaixoMeta = 0;
+            metaPorVendedor.forEach((meta, vendedorId) => {
+                if (meta > 0 && (vendidoPor.get(vendedorId) || 0) < meta * 0.8) abaixoMeta++;
+            });
+
+            // Meses que têm venda — alimenta o seletor de período da tela. Sem isso o
+            // usuário só enxerga o mês corrente e não tem como saber onde estão os dados.
+            const [mesesComVenda] = await pool.query(`
+                SELECT ${MES} AS periodo, COUNT(*) AS pedidos, COALESCE(SUM(p.valor), 0) AS valor
+                  FROM pedidos p
+                 WHERE ${VENDA} AND ${MES} IS NOT NULL
+                 GROUP BY ${MES}
+                 ORDER BY periodo DESC
+                 LIMIT 24
+            `);
+
+            const variacao = (atual, ant) => {
+                if (!ant) return null;              // sem base de comparação — não é "100%"
+                return ((atual - ant) / ant) * 100;
+            };
+
+            const valorPeriodo = parseFloat(totais.valor_periodo) || 0;
+            const valorAnterior = parseFloat(totais.valor_anterior) || 0;
+            const pedidosPeriodo = Number(totais.pedidos_periodo) || 0;
+            const pedidosAnteriorN = Number(totais.pedidos_anterior) || 0;
+
+            res.json({
+                periodo,
+                periodo_anterior: anterior,
+                vendas: {
+                    valor: valorPeriodo,
+                    valor_anterior: valorAnterior,
+                    variacao_valor: variacao(valorPeriodo, valorAnterior),
+                    pedidos: pedidosPeriodo,
+                    pedidos_anterior: pedidosAnteriorN,
+                    variacao_pedidos: variacao(pedidosPeriodo, pedidosAnteriorN)
+                },
+                vendedores: {
+                    cadastrados: Number(cadastrados) || 0,
+                    com_venda: Number(totais.vendedores_com_venda) || 0,
+                    // Vendedores que faturaram no período mas não estão mais na equipe.
+                    fora_da_equipe: Math.max(0, (Number(totais.vendedores_com_venda_total) || 0)
+                        - (Number(totais.vendedores_com_venda) || 0))
+                },
+                meta: {
+                    total: metaTotal,
+                    tem_meta: metaTotal > 0,
+                    percentual_atingido: metaTotal > 0 ? (valorPeriodo / metaTotal) * 100 : null,
+                    com_meta_individual: metaPorVendedor.size,
+                    abaixo_da_meta: metaPorVendedor.size > 0 ? abaixoMeta : null
+                },
+                periodos_com_movimento: mesesComVenda.map(m => ({
+                    periodo: m.periodo,
+                    pedidos: Number(m.pedidos) || 0,
+                    valor: parseFloat(m.valor) || 0
+                }))
+            });
         } catch (error) { next(error); }
     });
 
@@ -4102,55 +7841,50 @@ module.exports = function createVendasRoutes(deps) {
         try {
             const periodo = req.query.periodo || new Date().toISOString().substring(0, 7);
 
+            // Mesma definição de venda usada pelos cards de KPI (ver o topo do arquivo):
+            // o filtro antigo era `status IN ('faturado','recibo')`, dois valores que não
+            // existem em nenhuma das 3 bases — zerava vendas, pedidos, progresso e ticket
+            // médio do ranking inteiro sem erro nenhum, só R$ 0 em todo mundo.
+            const FILTRO_VENDA = sqlFiltroVenda();
+            const MES_VENDA = sqlMesVenda();
+
+            const colunasUsuarios = await getTableColumns('usuarios');
             // Verificar se tabela metas_vendas existe
             const [tables] = await pool.query("SHOW TABLES LIKE 'metas_vendas'");
 
-            let rows = [];
-            if (tables.length > 0) {
-                [rows] = await pool.query(`
-                    SELECT
-                        u.id, u.nome, u.email,
-                        COALESCE(f.foto_perfil_url, u.foto, u.avatar) as foto,
-                        COALESCE(m.valor_meta, 0) as valor_meta,
-                        COALESCE((SELECT SUM(valor) FROM pedidos
-                                  WHERE vendedor_id = u.id
-                                  AND status IN ('faturado', 'recibo')
-                                  AND DATE_FORMAT(created_at, '%Y-%m') = ?), 0) as valor_realizado,
-                        COALESCE((SELECT COUNT(*) FROM pedidos
-                                  WHERE vendedor_id = u.id
-                                  AND status IN ('faturado', 'recibo')
-                                  AND DATE_FORMAT(created_at, '%Y-%m') = ?), 0) as qtd_vendas
-                    FROM usuarios u
-                    LEFT JOIN metas_vendas m ON u.id = m.vendedor_id AND m.periodo = ?
-                    LEFT JOIN funcionarios f ON f.email = u.email
-                    WHERE (u.departamento = 'Comercial' OR u.departamento = 'Vendas' OR u.role = 'comercial')
-                      AND (u.ativo = 1 OR u.ativo IS NULL)
-                      AND (f.id IS NULL OR f.status != 'Demitido')
-                    ORDER BY valor_realizado DESC
-                `, [periodo, periodo, periodo]);
-            } else {
-                // Fallback sem tabela de metas
-                [rows] = await pool.query(`
-                    SELECT
-                        u.id, u.nome, u.email,
-                        COALESCE(f.foto_perfil_url, u.foto, u.avatar) as foto,
-                        0 as valor_meta,
-                        COALESCE((SELECT SUM(valor) FROM pedidos
-                                  WHERE vendedor_id = u.id
-                                  AND status IN ('faturado', 'recibo')
-                                  AND DATE_FORMAT(created_at, '%Y-%m') = ?), 0) as valor_realizado,
-                        COALESCE((SELECT COUNT(*) FROM pedidos
-                                  WHERE vendedor_id = u.id
-                                  AND status IN ('faturado', 'recibo')
-                                  AND DATE_FORMAT(created_at, '%Y-%m') = ?), 0) as qtd_vendas
-                    FROM usuarios u
-                    LEFT JOIN funcionarios f ON f.email = u.email
-                    WHERE (u.departamento = 'Comercial' OR u.departamento = 'Vendas' OR u.role = 'comercial')
-                      AND (u.ativo = 1 OR u.ativo IS NULL)
-                      AND (f.id IS NULL OR f.status != 'Demitido')
-                    ORDER BY valor_realizado DESC
-                `, [periodo, periodo]);
-            }
+            // A meta entra por SUBQUERY, não por LEFT JOIN. metas_vendas guarda uma linha
+            // por regravação (a base da aluforce tem 13 para o mesmo vendedor/período), e o
+            // JOIN devolvia o vendedor repetido 13 vezes no ranking, com 13 posições.
+            const selectMeta = tables.length > 0
+                ? `COALESCE((SELECT m.valor_meta FROM metas_vendas m
+                              WHERE m.vendedor_id = u.id AND m.periodo = ?
+                                AND m.categoria = 'faturamento'
+                                AND (m.ativo = 1 OR m.ativo IS NULL)
+                              ORDER BY m.id DESC LIMIT 1), 0)`
+                : '0';
+            const params = tables.length > 0 ? [periodo, periodo, periodo] : [periodo, periodo];
+
+            // A foto vem por subquery pelo mesmo motivo: e-mail repetido em `funcionarios`
+            // duplicaria a linha do vendedor.
+            const [rows] = await pool.query(`
+                SELECT
+                    u.id, u.nome, u.email,
+                    COALESCE((SELECT f.foto_perfil_url FROM funcionarios f
+                               WHERE f.email = u.email AND f.foto_perfil_url IS NOT NULL
+                               LIMIT 1), u.foto, u.avatar) as foto,
+                    ${selectMeta} as valor_meta,
+                    COALESCE((SELECT SUM(valor) FROM pedidos
+                              WHERE vendedor_id = u.id
+                              AND ${FILTRO_VENDA}
+                              AND ${MES_VENDA} = ?), 0) as valor_realizado,
+                    COALESCE((SELECT COUNT(*) FROM pedidos
+                              WHERE vendedor_id = u.id
+                              AND ${FILTRO_VENDA}
+                              AND ${MES_VENDA} = ?), 0) as qtd_vendas
+                FROM usuarios u
+                WHERE ${sqlVendedorAtivo(colunasUsuarios, 'u')}
+                ORDER BY valor_realizado DESC, u.nome ASC
+            `, params);
 
             const ranking = rows.map((r, index) => ({
                 ...r,
@@ -4172,16 +7906,32 @@ module.exports = function createVendasRoutes(deps) {
     // Configuração de comissões por vendedor
     router.get('/comissoes/configuracao', async (req, res, next) => {
         try {
+            // BUG-VEND-CONFIG: query original referenciava u.departamento_id e u.comissao_tipo,
+            // colunas que nao existem em `usuarios` (so existe u.departamento VARCHAR e
+            // u.comissao_percentual) — a rota sempre retornava 500. Ajustado para as colunas reais.
+            // Admin gerencia a equipe inteira; vendedor só enxerga a própria comissão.
+            // Sem este recorte, um comercial abria a tela e via o percentual dos colegas.
+            const escopoComissaoConfiguracao = (req.user && (req.user.is_admin === 1 || req.user.is_admin === true
+                || ['admin', 'administrador'].includes(String(req.user.role || req.user.perfil || '').toLowerCase())))
+                ? { sql: '', params: [] }
+                : { sql: ' AND u.id = ?', params: [req.user && (req.user.id || req.user.userId)] };
             const [vendedores] = await pool.query(`
                 SELECT
                     u.id, u.nome, u.email,
                     COALESCE(u.comissao_percentual, 1.0) as comissao_percentual,
-                    COALESCE(u.comissao_tipo, 'percentual') as comissao_tipo
+                    'percentual' as comissao_tipo
                 FROM usuarios u
-                LEFT JOIN departamentos d ON u.departamento_id = d.id
-                WHERE d.nome = 'Comercial' AND u.status = 'ativo'
+                -- A coluna departamento e o SETOR e esta em branco em metade da equipe
+                -- (3 com 'Comercial' contra 6 com role 'comercial'), entao filtrar so por
+                -- ela escondia metade dos vendedores da tela de gestao.
+                WHERE (LOWER(COALESCE(u.role,'')) = 'comercial' OR u.departamento = 'Comercial')
+                  -- usuarios tem DUAS colunas de estado; exigir so uma some com quem tem
+                  -- a outra em branco.
+                  AND COALESCE(u.ativo, 1) = 1
+                  AND LOWER(COALESCE(u.status, 'ativo')) <> 'inativo'
+                  ${escopoComissaoConfiguracao.sql}
                 ORDER BY u.nome
-            `);
+            `, escopoComissaoConfiguracao.params);
 
             res.json(vendedores);
         } catch (error) {
@@ -4194,10 +7944,19 @@ module.exports = function createVendasRoutes(deps) {
         try {
             const user = req.user;
             const username = (user.email || '').split('@')[0].toLowerCase();
+            // A lista nominal continua valendo — ninguém perde o acesso que já tinha.
             const USERS_PERMITIDOS_COMISSAO = ['andreia', 'antonio', 'ti', 'tialuforce'];
-            const podeAlterarComissao = USERS_PERMITIDOS_COMISSAO.includes(username);
+            // ...mas ADMIN também gerencia. Sem isso o admin de qualquer instância levava
+            // 403 numa tela que o menu oferece a ele, e nas Labor/Cobal essas pessoas nem
+            // existem — a comissão ficava sem ninguém que pudesse alterar.
+            const ehAdminComissao = user.is_admin === 1 || user.is_admin === true
+                || ['admin', 'administrador'].includes(String(user.role || user.perfil || '').toLowerCase());
+            const podeAlterarComissao = ehAdminComissao || USERS_PERMITIDOS_COMISSAO.includes(username);
             if (!podeAlterarComissao) {
-                return res.status(403).json({ message: 'Apenas Andreia e Antonio (T.I.) podem alterar comissões.' });
+                return res.status(403).json({
+                    message: 'Só um administrador pode alterar comissões.',
+                    code: 'SEM_PERMISSAO_COMISSAO'
+                });
             }
 
             const { vendedorId } = req.params;
@@ -4292,6 +8051,7 @@ module.exports = function createVendasRoutes(deps) {
                     u.id as vendedor_id,
                     u.nome as vendedor_nome,
                     u.email,
+                    COALESCE(NULLIF(u.foto, ''), NULLIF(u.avatar, '')) as foto,
                     COALESCE(u.comissao_percentual, 1.0) as percentual_comissao,
                     COUNT(CASE WHEN p.status IN ('faturado', 'recibo') THEN 1 END) as qtd_faturados,
                     COALESCE(SUM(CASE WHEN p.status IN ('faturado', 'recibo') THEN p.valor ELSE 0 END), 0) as valor_faturado,
@@ -4302,7 +8062,7 @@ module.exports = function createVendasRoutes(deps) {
                 FROM usuarios u
                 LEFT JOIN pedidos p ON u.id = p.vendedor_id AND DATE_FORMAT(p.created_at, '%Y-%m') = ?
                 WHERE (u.role IN ('comercial', 'vendedor') OR u.departamento IN ('Comercial', 'Vendas')) AND u.status = 'ativo'${whereExtra}
-                GROUP BY u.id, u.nome, u.email, u.comissao_percentual
+                GROUP BY u.id, u.nome, u.email, u.foto, u.avatar, u.comissao_percentual
                 ORDER BY comissao_faturada DESC
             `, queryParams);
 
@@ -4481,60 +8241,994 @@ module.exports = function createVendasRoutes(deps) {
         const colunasExtras = [
             { nome: 'produto_id', tipo: 'INT DEFAULT NULL' },
             { nome: 'valor_ipi', tipo: 'DECIMAL(18,2) DEFAULT 0' },
+            { nome: 'valor_icms', tipo: 'DECIMAL(18,2) DEFAULT 0' },
             { nome: 'valor_icms_st', tipo: 'DECIMAL(18,2) DEFAULT 0' },
+            { nome: 'valor_difal', tipo: 'DECIMAL(18,2) DEFAULT 0' },
+            { nome: 'valor_fcp_destino', tipo: 'DECIMAL(18,2) DEFAULT 0' },
+            { nome: 'valor_fcp_st', tipo: 'DECIMAL(18,2) DEFAULT 0' },
+            { nome: 'base_calculo_fcp_st', tipo: 'DECIMAL(18,2) DEFAULT 0' },
+            { nome: 'aliquota_fcp_st', tipo: 'DECIMAL(10,2) DEFAULT 0' },
+            { nome: 'base_calculo_icms', tipo: 'DECIMAL(18,2) DEFAULT 0' },
+            { nome: 'base_calculo_icms_st', tipo: 'DECIMAL(18,2) DEFAULT 0' },
             { nome: 'aliquota_ipi', tipo: 'DECIMAL(10,2) DEFAULT 0' },
             { nome: 'aliquota_icms', tipo: 'DECIMAL(10,2) DEFAULT 0' },
+            { nome: 'aliquota_icms_st', tipo: 'DECIMAL(10,2) DEFAULT 0' },
             { nome: 'mva_st', tipo: 'DECIMAL(10,2) DEFAULT 0' },
+            { nome: 'mva_ja_ajustada', tipo: 'TINYINT(1) NOT NULL DEFAULT 0' },
             { nome: 'subtotal', tipo: 'DECIMAL(18,2) DEFAULT 0' },
             { nome: 'cfop', tipo: 'VARCHAR(20) DEFAULT NULL' },
             { nome: 'cenario_fiscal', tipo: 'VARCHAR(100) DEFAULT NULL' },
-            { nome: 'observacoes', tipo: 'TEXT DEFAULT NULL' }
+            { nome: 'observacoes', tipo: 'TEXT DEFAULT NULL' },
+            { nome: 'embalagem', tipo: 'VARCHAR(60) DEFAULT NULL' },
+            { nome: 'lances', tipo: 'VARCHAR(60) DEFAULT NULL' }
+            ,{ nome: 'tabela_preco_id', tipo: 'INT DEFAULT NULL' }
+            ,{ nome: 'numero_pedido_compra', tipo: 'VARCHAR(100) DEFAULT NULL' }
+            ,{ nome: 'item_pedido_compra', tipo: 'VARCHAR(30) DEFAULT NULL' }
         ];
         for (const col of colunasExtras) {
             try {
                 await pool.query(`ALTER TABLE pedido_itens ADD COLUMN ${col.nome} ${col.tipo}`);
             } catch(e) { /* Column already exists — safe to ignore */ }
         }
+        try { await pool.query('ALTER TABLE pedido_itens MODIFY COLUMN lances VARCHAR(255) DEFAULT NULL'); } catch (_) {}
     }
 
-    // AUDIT-FIX DB-008: audit_trail now consolidated into auditoria_logs (see writeAuditLog helper)
-    // Legacy ensureAuditTrailTable kept for backward compatibility with existing data
-    async function ensureAuditTrailTable() {
-        // No longer needed — auditoria_logs is created at startup
-        // Keeping function stub so existing callers don't break
+    // A criação do orçamento recalcula os impostos dentro da própria transação.
+    // Garantir o schema na inicialização evita que o primeiro pedido após um
+    // restart encontre as colunas fiscais ausentes.
+    ensurePedidoItensTable().catch((error) => {
+        console.error('[Vendas] Falha ao preparar colunas fiscais de pedido_itens:', error.message);
+    });
+
+    function numeroFiscalItem(valor) {
+        const texto = String(valor == null ? '' : valor).trim();
+        const normalizado = texto.includes(',')
+            ? texto.replace(/\./g, '').replace(',', '.')
+            : texto;
+        const n = parseFloat(normalizado);
+        return Number.isFinite(n) ? n : 0;
     }
 
-    // Call audit trail table creation on startup (no-op, using auditoria_logs instead)
-    ensureAuditTrailTable().catch(e => console.log('[AUDIT] Tabela audit_trail init:', e.message));
-
-    // ====================================================
-    // Histórico de pedidos por cliente
-    // ====================================================
-    router.get('/clientes/:clienteId/historico', async (req, res, next) => {
+    async function buscarCenarioFiscalVenda(valor, executor = pool) {
+        const termo = String(valor == null ? '' : valor).trim();
+        if (!termo) return null;
         try {
-            const { clienteId } = req.params;
-            const nomeCliente = req.query.nome || '';
+            const id = /^\d+$/.test(termo) ? parseInt(termo, 10) : 0;
+            const [rows] = await executor.query(
+                `SELECT * FROM cenarios_fiscais
+                  WHERE ativo = 1
+                    AND (id = ? OR LOWER(codigo) = LOWER(?) OR LOWER(nome) = LOWER(?))
+                  ORDER BY id ASC
+                  LIMIT 1`,
+                [id, termo, termo]
+            );
+            return rows[0] || null;
+        } catch (error) {
+            if (error && error.code === 'ER_NO_SUCH_TABLE') return null;
+            console.warn('[Vendas] Falha ao buscar cenário fiscal:', error.message);
+            return null;
+        }
+    }
 
+    async function buscarProdutoFiscalVenda(produtoId, codigo, executor = pool) {
+        try {
+            let rows = [];
+            // `rn.mva_st` é a MVA oficial cadastrada por NCM (tela Fiscal → Regras por NCM).
+            // O motor nunca lia essa tabela: como `produtos.mva_st` está zerado em todas as
+            // bases, toda venda caía direto no "MVA histórico" (o valor mais digitado em
+            // pedidos anteriores para a UF), que se auto-reforça — uma MVA errada num pedido
+            // antigo virava sugestão para todos os próximos. Trazendo aqui, preencher o
+            // cadastro passa a ter efeito real no cálculo.
+            if (produtoId) {
+                [rows] = await executor.query(
+                    `SELECT p.id, p.ncm, p.cest, p.calcular_ipi, p.aliquota_ipi, p.calcular_icms_st, p.mva_st,
+                            p.aliquota_icms, p.reducao_bc_icms, rn.mva_st AS mva_st_ncm
+                       FROM produtos p
+                       LEFT JOIN regras_fiscais_ncm rn
+                              ON rn.ncm COLLATE utf8mb4_general_ci
+                               = REPLACE(REPLACE(p.ncm, '.', ''), '-', '') COLLATE utf8mb4_general_ci
+                             AND rn.ativo = TRUE
+                      WHERE p.id = ? LIMIT 1`, [produtoId]
+                );
+            }
+            if (!rows.length && codigo) {
+                [rows] = await executor.query(
+                    `SELECT p.id, p.ncm, p.cest, p.calcular_ipi, p.aliquota_ipi, p.calcular_icms_st, p.mva_st,
+                            p.aliquota_icms, p.reducao_bc_icms, rn.mva_st AS mva_st_ncm
+                       FROM produtos p
+                       LEFT JOIN regras_fiscais_ncm rn
+                              ON rn.ncm COLLATE utf8mb4_general_ci
+                               = REPLACE(REPLACE(p.ncm, '.', ''), '-', '') COLLATE utf8mb4_general_ci
+                             AND rn.ativo = TRUE
+                      WHERE p.codigo = ? LIMIT 1`, [codigo]
+                );
+            }
+            return rows[0] || null;
+        } catch (error) {
+            if (error && (error.code === 'ER_NO_SUCH_TABLE' || error.code === 'ER_BAD_FIELD_ERROR')) return null;
+            throw error;
+        }
+    }
+
+    // `st_aliquotas_fornecedor.regime_tributario` fala o vocabulário de
+    // `config_fiscal_empresa` ('simples_nacional' | 'lucro_presumido' | 'lucro_real').
+    // `empresa_config` fala outro ('simples' | 'simples_excesso' | 'normal') e ainda tem
+    // o CRT, que é o que a NF-e usa. Tudo é traduzido para o primeiro antes de consultar
+    // a tabela de ST — senão a empresa do Simples não encontra a própria linha e cai na
+    // faixa de quem é lucro presumido, que é mais alta.
+    function normalizarRegimeTributarioVenda(valor, crt) {
+        const r = String(valor || '').trim().toLowerCase().replace(/[s-]+/g, '_');
+        if (r.includes('real')) return 'lucro_real';
+        if (r.includes('presumido') || r === 'normal') return 'lucro_presumido';
+        if (r.includes('simples') || r === 'mei') return 'simples_nacional';
+        // Sem texto utilizável, o CRT decide: 1/2/4 = Simples, 3 = regime normal.
+        if (crt !== null && crt !== undefined && String(crt) !== '') {
+            return String(crt) === '3' ? 'lucro_presumido' : 'simples_nacional';
+        }
+        return null;
+    }
+
+    // Regime da empresa desta instância, na MESMA cadeia que o FiscalProfileService usa
+    // para o CRT da nota: config_fiscal_empresa → empresa_config. Só depois de as duas
+    // faltarem é que 'lucro_presumido' entra como conservador (emitir CSOSN para quem não
+    // é do Simples é erro mais grave que o inverso).
+    async function regimeTributarioDaEmpresaVenda(consultar) {
+        const [fiscal] = await consultar('SELECT regime_tributario, uf_empresa FROM config_fiscal_empresa LIMIT 1');
+        const daFiscal = normalizarRegimeTributarioVenda(fiscal && fiscal.regime_tributario, null);
+        if (daFiscal) return { regime: daFiscal, ufOrigem: fiscal && fiscal.uf_empresa };
+
+        const [cfg] = await consultar('SELECT regime_tributario, crt FROM empresa_config WHERE id = 1 LIMIT 1');
+        const doCadastro = normalizarRegimeTributarioVenda(cfg && cfg.regime_tributario, cfg && cfg.crt);
+        if (doCadastro) return { regime: doCadastro, ufOrigem: fiscal && fiscal.uf_empresa };
+
+        console.warn('[Vendas] regime tributário não configurado — assumindo lucro_presumido');
+        return { regime: 'lucro_presumido', ufOrigem: fiscal && fiscal.uf_empresa };
+    }
+
+    /**
+     * Alíquotas padrão da empresa — o que o modal Configurações → Configuração de Impostos
+     * grava em `config_fiscal_empresa`.
+     *
+     * Esta tabela era lida apenas para regime/UF: as alíquotas digitadas no modal (ICMS, IPI,
+     * PIS, COFINS) não entravam em lugar nenhum do cálculo de venda. Com produto sem alíquota
+     * e sem cenário fiscal, o IPI saía 0 e o ICMS caía na matriz por UF — configurar o modal
+     * não mudava nada, o que fazia dele uma tela decorativa.
+     *
+     * Entra como ÚLTIMO fallback, nunca por cima de cenário/produto/matriz, e só para o
+     * imposto cujo "calcula_*" estiver ligado — desligar o IPI no modal continua zerando IPI.
+     */
+    async function padroesFiscaisDaEmpresa(consultar) {
+        try {
+            const [linha] = await consultar('SELECT * FROM config_fiscal_empresa LIMIT 1');
+            if (!linha) return {};
+            return {
+                icms: numeroFiscalItem(linha.icms_padrao),
+                ipi: numeroFiscalItem(linha.ipi_padrao),
+                pis: numeroFiscalItem(linha.pis_padrao),
+                cofins: numeroFiscalItem(linha.cofins_padrao),
+                calculaIcms: linha.calcula_icms == null ? true : Number(linha.calcula_icms) === 1,
+                calculaIpi: linha.calcula_ipi == null ? true : Number(linha.calcula_ipi) === 1,
+                calculaPisCofins: linha.calcula_pis_cofins == null ? true : Number(linha.calcula_pis_cofins) === 1,
+                // null aqui é "sem padrão": o cálculo segue para produto/NCM/histórico.
+                mvaSt: linha.mva_st_padrao == null ? null : numeroFiscalItem(linha.mva_st_padrao),
+                fcp: linha.fcp_padrao == null ? null : numeroFiscalItem(linha.fcp_padrao),
+                calculaSt: Number(linha.calcula_icms_st) === 1,
+                calculaDifal: linha.calcula_difal == null ? true : Number(linha.calcula_difal) === 1,
+                regraSp8544StAtiva: Number(linha.regra_sp_8544_st_ativa) === 1
+            };
+        } catch (erro) {
+            // Base sem as colunas (instância antiga) não pode derrubar o cálculo da venda.
+            console.warn('[Vendas] padrões fiscais da empresa indisponíveis:', erro.message);
+            return {};
+        }
+    }
+
+    async function buscarParametrosTributariosVenda(estadoDestino, comIpi, executor = pool) {
+        const uf = String(estadoDestino || '').trim().toUpperCase();
+        const parametros = {
+            uf,
+            ufOrigem: 'SP',
+            regime: 'lucro_presumido',
+            aplicaSt: UFS_COM_ICMS_ST.includes(uf),
+            aliquotaInterna: 0,
+            aliquotaInterestadual: 0,
+            fcpAliquotaDestino: 0,
+            aliquotaStDireta: 0,
+            mvaHistorico: 0
+        };
+
+        const consultar = async (sql, params) => {
+            try {
+                const [rows] = await executor.query(sql, params);
+                return rows;
+            } catch (error) {
+                if (error && (error.code === 'ER_NO_SUCH_TABLE' || error.code === 'ER_BAD_FIELD_ERROR')) return [];
+                throw error;
+            }
+        };
+
+        const empresa = await regimeTributarioDaEmpresaVenda(consultar);
+        parametros.regime = empresa.regime;
+        parametros.ufOrigem = String(empresa.ufOrigem || parametros.ufOrigem).trim().toUpperCase();
+
+        if (uf) {
+            const [aliquotaUf] = await consultar(
+                `SELECT aliquota_interna, aliquota_interestadual, fcp_aliquota
+                   FROM aliquotas_icms_uf
+                  WHERE uf_origem = ? AND uf_destino = ?
+                  LIMIT 1`,
+                [parametros.ufOrigem, uf]
+            );
+            if (aliquotaUf) {
+                parametros.aliquotaInterna = numeroFiscalItem(aliquotaUf.aliquota_interna);
+                parametros.aliquotaInterestadual = numeroFiscalItem(aliquotaUf.aliquota_interestadual);
+                parametros.fcpAliquotaDestino = numeroFiscalItem(aliquotaUf.fcp_aliquota);
+            }
+            // Se a linha da matriz não existe (ocorreu nas bases Labor), use
+            // somente as alíquotas gerais da tabela fiscal versionada. A falta
+            // de uma linha não pode virar ICMS/DIFAL silenciosamente igual a 0.
+            if (!(parametros.aliquotaInterna > 0)) {
+                parametros.aliquotaInterna = numeroFiscalItem(TRIBUTACAO_CLIENTE.aliquotasInternasPorUF?.[uf]);
+            }
+            if (!(parametros.aliquotaInterestadual > 0) && parametros.ufOrigem !== uf) {
+                const sulSudeste = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS'];
+                const origemSS = sulSudeste.includes(parametros.ufOrigem) && parametros.ufOrigem !== 'ES';
+                const destinoSS = sulSudeste.includes(uf) && uf !== 'ES';
+                parametros.aliquotaInterestadual = origemSS && !destinoSS ? 7 : 12;
+            }
+
+            if (parametros.aplicaSt) {
+                const regimes = comIpi
+                    ? [`${parametros.regime}_ipi`, parametros.regime]
+                    : [parametros.regime];
+                for (const regime of regimes) {
+                    const [linha] = await consultar(
+                        `SELECT aliquota_st
+                           FROM st_aliquotas_fornecedor
+                          WHERE uf_destino = ? AND regime_tributario = ? AND ativo = 1
+                          ORDER BY id
+                          LIMIT 1`,
+                        [uf, regime]
+                    );
+                    const aliquota = numeroFiscalItem(linha?.aliquota_st);
+                    if (aliquota > 0) {
+                        parametros.aliquotaStDireta = aliquota;
+                        break;
+                    }
+                }
+
+                // Se a tabela direta não existir para a UF, aproveita o MVA praticado
+                // nos próprios pedidos como fallback, igual à aba ICMS-ST.
+                const [mva] = await consultar(
+                    `SELECT i.mva_st
+                       FROM pedido_itens i
+                       JOIN pedidos p ON p.id = i.pedido_id
+                      WHERE COALESCE(i.mva_st, 0) > 0
+                        AND UPPER(TRIM(COALESCE(p.estado_destino, ''))) = ?
+                      GROUP BY i.mva_st
+                      ORDER BY COUNT(*) DESC
+                      LIMIT 1`,
+                    [uf]
+                );
+                parametros.mvaHistorico = numeroFiscalItem(mva?.mva_st);
+            }
+        }
+
+        return parametros;
+    }
+
+    async function buscarMvaPorUfVenda({ empresaId = 1, ufOrigem, ufDestino, ncmProduto, cestProduto, dataOperacao }, executor = pool) {
+        const uf=String(ufDestino||'').trim().toUpperCase(), origem=String(ufOrigem||'').trim().toUpperCase();
+        const ncm=String(ncmProduto||'').replace(/\D/g,''), cest=String(cestProduto||'').replace(/\D/g,'');
+        const data=/^\d{4}-\d{2}-\d{2}$/.test(String(dataOperacao||'').slice(0,10)) ? String(dataOperacao).slice(0,10) : new Date().toISOString().slice(0,10);
+        if(!/^[A-Z]{2}$/.test(uf)||!/^[A-Z]{2}$/.test(origem)||!/^[0-9]{8}$/.test(ncm)) return { valor:0, ajustada:false };
+        try{const [rows]=await executor.query(`SELECT mva_original,tipo_mva FROM fiscal_mva_uf WHERE empresa_id=? AND uf=? AND ncm=? AND ativo=1 AND vigencia_inicio<=? AND (vigencia_fim IS NULL OR vigencia_fim>=?) AND (uf_origem=? OR uf_origem IS NULL) AND (REPLACE(REPLACE(COALESCE(cest,''),'.',''),'-','')=? OR cest IS NULL) ORDER BY (uf_origem=?) DESC, (REPLACE(REPLACE(COALESCE(cest,''),'.',''),'-','')=?) DESC, vigencia_inicio DESC,id DESC LIMIT 1`,[Number(empresaId)||1,uf,ncm,data,data,origem,cest,origem,cest]);return {valor:numeroFiscalItem(rows?.[0]?.mva_original),ajustada:rows?.[0]?.tipo_mva==='ajustada'};}
+        catch(e){if(e&&['ER_NO_SUCH_TABLE','ER_BAD_FIELD_ERROR'].includes(e.code))return { valor:0, ajustada:false };throw e;}
+    }
+
+    // Fonte única do cálculo comercial. O cenário define ICMS/IPI quando possui
+    // alíquota; o cadastro do produto continua sendo a fonte do ST quando o
+    // cenário não traz MVA/alíquota de ST. Assim nenhum caminho de criação ou
+    // edição depende de o navegador ter calculado e enviado os valores.
+    async function calcularImpostosItemVenda({ codigo, produtoId, subtotal, quantidade = 0, desconto = 0, cenarioFiscal, estadoDestino = '', freteRateado = 0, executor = pool, parametrosTributarios = null, tipoVenda = null, clienteContribuinte = null, cfop = null, empresaId = 1, dataOperacao = null, modoSt = null }) {
+        let base = Math.max(0, numeroFiscalItem(subtotal));
+        const baseLiquidaOriginal = base;
+        const empresaFiscalId = Number(empresaId) || 1;
+        const cenario = await buscarCenarioFiscalVenda(cenarioFiscal, executor);
+        const produto = await buscarProdutoFiscalVenda(produtoId, codigo, executor);
+        const n = numeroFiscalItem;
+
+        // CFOPs de remessa/retorno/bonificação/amostra/conserto não têm venda por trás:
+        // destacar ICMS/IPI/PIS/COFINS nesses itens é erro fiscal (a nota sairia tributada
+        // onde a lei pede suspensão/não-incidência). Curto-circuita ANTES da cadeia de
+        // ICMS-ST/DIFAL/FCP para o item nascer zerado — do jeito que o espelho, o XML e a
+        // DANFE vão ler dali pra frente, em vez de zerar só na emissão (o que fazia o
+        // espelho de conferência mostrar imposto que a nota real não teria).
+        const { classificarCfop } = require('../services/cfop-operacao.service');
+        const classeCfopItem = classificarCfop(cfop);
+        if (!classeCfopItem.destacarImpostos) {
+            return {
+                cenario, produto,
+                base_calculo_icms: 0, valor_icms: 0, valor_pis: 0, valor_cofins: 0,
+                base_calculo_icms_st: 0, valor_ipi: 0, valor_icms_st: 0, valor_fcp_st: 0,
+                base_calculo_fcp_st: 0, aliquota_fcp_st: 0,
+                valor_difal: 0, valor_fcp_destino: 0, aliquota_difal: 0, aliquota_fcp_destino: 0,
+                aliquota_ipi: 0, aliquota_icms: 0, aliquota_pis: 0, aliquota_cofins: 0, aliquota_icms_st: 0,
+                mva_st: 0,
+                cenario_fiscal: cenario ? (cenario.nome || cenario.codigo) : (cenarioFiscal || null),
+                produto_id: produto?.id || produtoId || null,
+                cfop_natureza: classeCfopItem.natureza || null
+            };
+        }
+
+        // Seleção salva em Cenário de Impostos. Esta é a fonte única usada tanto no
+        // orçamento/pedido quanto, mais tarde, na emissão da NF-e.
+        let regrasIcmsUf = null;
+        try {
+            const ufRegra = String(estadoDestino || '').trim().toUpperCase();
+            if (/^[A-Z]{2}$/.test(ufRegra)) {
+                const [[linhaRegra]] = await executor.query(
+                    `SELECT somar_frete_seguro,subtrair_desconto,base_mva_revenda,
+                            base_consumo_final,valor_imposto_consumo_final,base_difal,valor_difal
+                       FROM fiscal_icms_regras_uf WHERE empresa_id=? AND uf=? LIMIT 1`,
+                    [empresaFiscalId, ufRegra]
+                );
+                regrasIcmsUf = linhaRegra || null;
+            }
+        } catch (_) { /* rollout gradual: o resolvedor mantém os padrões anteriores */ }
+
+        // Recomendações especiais do cenário: são persistidas por empresa e só entram
+        // quando combinam com o item/destino. Ausência da tabela mantém o comportamento
+        // anterior, importante durante atualização gradual das instâncias.
+        let recomendacao = null;
+        try {
+            const [[cfg]] = await executor.query('SELECT * FROM fiscal_recomendacoes_config WHERE empresa_id=? LIMIT 1', [empresaFiscalId]);
+            recomendacao = cfg || null;
+        } catch (_) { /* schema ainda não inicializado */ }
+        if (recomendacao && Number(recomendacao.desconto_incondicional_reduz_base) === 0) {
+            base += Math.max(0, n(desconto));
+        }
+        const pautaConfere = recomendacao && Number(recomendacao.pauta_ativa) === 1
+            && (!recomendacao.pauta_uf || String(recomendacao.pauta_uf).toUpperCase() === String(estadoDestino).toUpperCase())
+            && (!recomendacao.pauta_ncm || String(recomendacao.pauta_ncm) === String(produto?.ncm || '').replace(/\D/g, ''))
+            && (!recomendacao.pauta_cest || String(recomendacao.pauta_cest).replace(/\D/g, '') === String(produto?.cest || '').replace(/\D/g, ''));
+        if (pautaConfere && n(recomendacao.pauta_valor) > 0 && n(quantidade) > 0) {
+            const basePauta = n(recomendacao.pauta_valor) * n(quantidade);
+            base = recomendacao.pauta_tipo === 'valor_fixo' ? basePauta : Math.max(base, basePauta);
+        }
+
+        const aliqIPIcenario = n(cenario?.ipi_aliquota);
+        const aliqIPIproduto = n(produto?.aliquota_ipi);
+        // Padrões do modal Configuração de Impostos: último degrau, só onde falta dado.
+        const padroes = await padroesFiscaisDaEmpresa(async (sql, prm) => {
+            try { const [linhas] = await executor.query(sql, prm); return linhas; } catch (_) { return []; }
+        });
+        const ipiPadraoEmpresa = padroes.calculaIpi === false ? 0 : numeroFiscalItem(padroes.ipi);
+        // IPI segue exigindo a marca do produto (é imposto por TIPI, não por empresa); o
+        // padrão da empresa só preenche a ALÍQUOTA quando o produto está marcado e sem valor.
+        const aliqIPI = cenario
+            ? aliqIPIcenario
+            : (Number(produto?.calcular_ipi) === 1 ? (aliqIPIproduto || ipiPadraoEmpresa) : 0);
+
+        const parametros = parametrosTributarios || await buscarParametrosTributariosVenda(estadoDestino, aliqIPI > 0, executor);
+        const cadastroMvaUf = await buscarMvaPorUfVenda({ empresaId, ufOrigem: parametros.ufOrigem, ufDestino: parametros.uf, ncmProduto: produto?.ncm, cestProduto: produto?.cest, dataOperacao }, executor);
+        const mvaUf = cadastroMvaUf.valor;
+        const regraSp8544 = (() => {
+            if (!padroes.regraSp8544StAtiva) return null;
+            const ncm = String(produto?.ncm || '').replace(/\D/g, '');
+            const cest = String(produto?.cest || '').replace(/\D/g, '');
+            const origem = String(parametros.ufOrigem || '').toUpperCase();
+            const destino = String(parametros.uf || estadoDestino || '').toUpperCase();
+            if (parametros.regime !== 'simples_nacional' || origem !== 'SP' || destino !== 'SP'
+                || !ncm.startsWith('8544') || cest !== '1200700') return null;
+            const data = dataOperacao ? new Date(dataOperacao) : new Date();
+            if (Number.isNaN(data.getTime())) return null;
+            return { aplicar: data < new Date('2026-10-01T00:00:00-03:00'), mva: 42 };
+        })();
+        let aliqICMScenario = n(cenario?.icms_aliquota);
+        const aliqICMSproduto = n(produto?.aliquota_icms);
+        const aliqICMSDestino = parametros.uf === parametros.ufOrigem
+            ? parametros.aliquotaInterna
+            : parametros.aliquotaInterestadual;
+        const icmsPadraoEmpresa = padroes.calculaIcms === false ? 0 : numeroFiscalItem(padroes.icms);
+        // Operação interestadual com cenário TRIBUTADO usa a alíquota interestadual da matriz
+        // por UF (7% para N/NE/CO/ES, 12% para S/SE), a mesma que o emissor aplica no XML
+        // (calculo-tributos.service → getAliquotaICMSInterestadual). O cenário "Venda Fora
+        // do Estado" guarda 12% fixo, e o espelho saía com 12% numa venda SP→BA que a nota
+        // emite com 7%. Cenário com alíquota zero (Simples, exportação) continua mandando.
+        const operacaoInterestadualIcms = parametros.uf && parametros.ufOrigem && parametros.uf !== parametros.ufOrigem;
+        if (cenario && aliqICMScenario > 0 && operacaoInterestadualIcms && numeroFiscalItem(parametros.aliquotaInterestadual) > 0) {
+            aliqICMScenario = numeroFiscalItem(parametros.aliquotaInterestadual);
+        }
+        const aliquotaIcmsOperacao = padroes.calculaIcms === false
+            ? 0
+            : (cenario ? aliqICMScenario : (aliqICMSDestino || aliqICMSproduto || icmsPadraoEmpresa));
+        // No Simples Nacional o ICMS próprio não é destacado como débito normal na NF-e.
+        // A alíquota interestadual continua existindo exclusivamente para a dedução do
+        // ICMS-ST (Convênio 142/18); misturar os dois fazia o orçamento da Energy exibir
+        // ICMS que desaparecia no XML.
+        const simplesNacional = parametros.regime === 'simples_nacional';
+        const aliqICMS = simplesNacional ? 0 : aliquotaIcmsOperacao;
+        const reducao = cenario ? n(cenario.icms_reducao_base) : n(produto?.reducao_bc_icms);
+        const freteNaBaseIcms = !recomendacao || Number(recomendacao.frete_base_icms) === 1;
+        const baseICMSSemReducao = Math.max(0, base + (freteNaBaseIcms ? Math.max(0, n(freteRateado)) : 0));
+        const baseICMS = Math.max(0, baseICMSSemReducao * (1 - Math.min(100, reducao) / 100));
+        const baseICMSDestacada = simplesNacional ? 0 : baseICMS;
+        const valorICMS = Math.round(baseICMS * aliqICMS) / 100;
+
+        // PIS/COFINS também pertencem ao cenário. Antes o recálculo atualizava ICMS/IPI/ST,
+        // mas simplesmente reaproveitava os totais antigos do pedido para estas contribuições.
+        const aliqPIS = padroes.calculaPisCofins === false
+            ? 0
+            : (cenario ? n(cenario.pis_aliquota) : n(padroes.pis));
+        const aliqCOFINS = padroes.calculaPisCofins === false
+            ? 0
+            : (cenario ? n(cenario.cofins_aliquota) : n(padroes.cofins));
+        const valorPISBruto = base * aliqPIS / 100;
+        const valorCOFINSBruto = base * aliqCOFINS / 100;
+        const valorPIS = Math.round(valorPISBruto * 100) / 100;
+        const valorCOFINS = Math.round(valorCOFINSBruto * 100) / 100;
+
+        const aliqSTcenario = n(cenario?.icms_st_aliquota);
+        const mvaCenario = n(cenario?.icms_st_mva);
+        const aliqST = cenario
+            ? aliqSTcenario
+            : (parametros.aliquotaInterna || aliqICMSproduto);
+        // Ordem de confiança da MVA: cenário fiscal → NCM+UF vigente → produto → NCM → histórico.
+        // de propósito: ele não é um dado fiscal, é "o que já foi digitado antes".
+        // Padrão do modal entra ANTES do histórico: um valor configurado de propósito vale
+        // mais que "o que alguém digitou antes num pedido parecido".
+        const mvaForaDoCenario = regraSp8544?.aplicar ? regraSp8544.mva
+            : (mvaUf || n(produto?.mva_st) || n(produto?.mva_st_ncm) || n(padroes.mvaSt) || parametros.mvaHistorico);
+        // "Calcular ST" forçado no Editar NF-e com cenário sem MVA: usa a MVA do NCM/UF/produto.
+        const mva = cenario
+            ? mvaCenario || (modoSt === 'calcular' ? mvaForaDoCenario : mvaCenario)
+            : mvaForaDoCenario;
+        // CFOP de substituto tributário é declaração explícita de que a operação tem ST:
+        // emitir 5401 sem <ICMSST> no XML é rejeição certa na SEFAZ. Antes o ST dependia só
+        // do cadastro do produto (`calcular_icms_st`) ou do cenário — com o produto marcado
+        // 0, o operador trocava o CFOP para 5401 e o imposto continuava sem ser calculado.
+        // Só os CFOPs de SUBSTITUTO entram aqui: 5405/6404 são do substituído, em que o ST
+        // já foi recolhido antes e NÃO se destaca de novo.
+        const cfopItem = String(cfop || '').replace(/\D/g, '');
+        const cfopComSt = ['5401', '5402', '5403', '6401', '6402', '6403'].includes(cfopItem);
+        const stExplicito = Boolean(
+            (cenario && Number(cenario.calcula_icms_st) === 1)
+            || Number(produto?.calcular_icms_st) === 1
+            || cfopComSt
+            || regraSp8544?.aplicar
+        );
+        // A chave global "calcular ST" habilita o recurso, mas não prova que um item
+        // está sujeito ao regime. Ativá-la para toda revenda criava ST sem protocolo,
+        // NCM/UF ou CEST. A incidência precisa vir de cenário escolhido, produto,
+        // CFOP de substituto ou regra específica NCM+UF.
+        const stPermitidoPelaEmpresa = padroes.calculaSt !== false || regraSp8544?.aplicar === true;
+        // ICMS-ST antecipa o imposto das operacoes subsequentes. Uma venda marcada
+        // como consumo/consumidor final encerra a cadeia e nao pode herdar a tabela
+        // generica de "ST Revenda" apenas por causa da UF de destino.
+        //
+        // Em pedidos legados sem tipo, o CFOP de substituto permite inferir revenda.
+        // Quando o operador informou explicitamente consumidor final, essa escolha
+        // prevalece e um CFOP antigo/incoerente nao reativa ST silenciosamente.
+        const destinoIcms = classificarDestinoIcms({ tipoVenda, cfop: cfopItem, clienteContribuinte });
+        const consumidorFinal = destinoIcms.consumidorFinal;
+        // Tabela direta e histórico nunca ativam ST sozinhos: ambos são genéricos por UF e
+        // não provam que este NCM/CEST está sujeito ao protocolo. Eles são apenas fallback
+        // de percentual depois que produto, cenário, regra NCM+UF ou CFOP confirmou o ST.
+        // Cenário escolhido que DESLIGA o ST (calcula_icms_st = 0) vence a tabela NCM+UF:
+        // a tabela só diz o percentual, não que esta operação é de substituto. Sem isso
+        // uma venda 5101 no cenário "Venda Normal" ganhava ST pela alíquota direta genérica
+        // (7,74% sobre o produto no pedido #3654) — o histórico faturado da Aluforce mostra
+        // ST só nos CFOPs de substituto (5401/6401), nunca no 5101/6101.
+        const cenarioDesligaSt = Boolean(cenario) && Number(cenario.calcula_icms_st) !== 1;
+        const regraMvaUf = mvaUf > 0 && !cenarioDesligaSt;
+        // Modo de ST escolhido no Editar NF-e (pedidos.st_modo): 'remover' desliga o ST
+        // em qualquer caso; 'calcular' força o ST mesmo onde a regra automática não o
+        // ligaria (cenário sem ST, consumo). Continua exigindo CEST e MVA/alíquota, que o
+        // sistema não pode inventar. Vazio = regra automática abaixo.
+        const calculaSTAutomatico = regraSp8544?.aplicar === false ? false : stPermitidoPelaEmpresa && destinoIcms.aplicaST
+            && Boolean(stExplicito || regraMvaUf)
+            && Boolean(String(produto?.cest || '').replace(/\D/g, ''))
+            && Boolean(mva > 0 || parametros.aliquotaStDireta > 0)
+            && (parametros.aplicaSt || stExplicito || regraMvaUf);
+        const calculaST = modoSt === 'remover' ? false
+            : modoSt === 'calcular'
+                ? Boolean(String(produto?.cest || '').replace(/\D/g, '')) && Boolean(mva > 0 || parametros.aliquotaStDireta > 0)
+                : calculaSTAutomatico;
+        const valorIPI = Math.round(base * aliqIPI) / 100;
+        const baseSTDireta = base;
+        // Uma MVA configurada especificamente para NCM+UF (ou no cenário/produto)
+        // é mais precisa que a alíquota direta genérica da UF/fornecedor. Antes, a
+        // simples existência de `st_aliquotas_fornecedor` fazia o motor ignorar a
+        // MVA encontrada acima. Em MG isso aplicava 7,32% diretamente sobre vProd,
+        // mesmo com MVA 50,24% vigente para o NCM.
+        const usaAliquotaSTDireta = calculaST && parametros.aliquotaStDireta > 0 && !(mva > 0);
+        const valorICMSSTDireta = usaAliquotaSTDireta
+            ? Math.max(0, Math.round(baseSTDireta * parametros.aliquotaStDireta) / 100)
+            : 0;
+        const aliquotaInternaST = parametros.aliquotaInterna || aliqST;
+        const aliquotaPropriaST = parametros.aliquotaInterestadual || aliquotaIcmsOperacao;
+        const valorICMSProprioST = simplesNacional
+            ? Math.round(baseICMSSemReducao * aliquotaPropriaST) / 100
+            : valorICMS;
+        const operacaoInterna = parametros.uf === parametros.ufOrigem;
+        const mvaEfetiva = cadastroMvaUf.ajustada && mvaUf > 0 && !cenario
+            ? mva
+            : calcularMvaEfetiva({
+            mvaOriginal: mva,
+            operacaoInterna,
+            aliquotaInterestadual: aliquotaPropriaST,
+            aliquotaInternaDestino: aliquotaInternaST
+        });
+        const freteNaBaseSt = regrasIcmsUf
+            ? regrasIcmsUf.somar_frete_seguro === 'sim'
+            : (!recomendacao || Number(recomendacao.frete_base_st) === 1);
+        const baseICMSST = calculaST && !valorICMSSTDireta && mvaEfetiva > 0 && aliquotaInternaST > 0
+            ? RegraIcmsUf.calcularBaseST({
+                mercadoria: baseLiquidaOriginal + Math.max(0, n(desconto)), desconto,
+                ipi: valorIPI, frete: freteNaBaseSt ? Math.max(0, n(freteRateado)) : 0,
+                seguro: 0, despesas: 0, reducao,
+                mva: mvaEfetiva, baseICMS: baseICMSSemReducao, valorICMS: valorICMSProprioST,
+                aliquotaST: aliquotaInternaST, aliquotaFCPST: n(parametros.fcpAliquotaDestino),
+                aliquotaICMS: aliquotaPropriaST, consumidorFinal, regra: regrasIcmsUf
+            })
+            : 0;
+        // FCP-ST (Fundo de Combate à Pobreza sobre a Substituição Tributária, ou FECP-ST).
+        //
+        // `aliquotas_icms_uf.aliquota_interna` guarda o ICMS PURO, SEM o adicional — conferido
+        // em 03/09/2026 contra as 27 UFs: SC/PA/AP, que não cobram FCP, batem exatamente com a
+        // alíquota nominal (17/19/18), e MG/SP/ES estariam em 20/20/19 se o FCP estivesse
+        // embutido. O `difal_aliquota` também é exatamente `interna − interestadual` nas 27
+        // linhas — fórmula que só fecha sobre ICMS puro.
+        // Logo o FCP-ST é ADICIONAL: entra POR CIMA do ICMS-ST, não recortado dele.
+        // Enquanto `fcp_aliquota` estiver 0 na UF, o comportamento não muda em nada.
+        const aliquotaFcpSt = Math.max(0, numeroFiscalItem(parametros.fcpAliquotaDestino));
+        const valorICMSST = valorICMSSTDireta || (baseICMSST > 0
+            ? Math.round(RegraIcmsUf.calcularValorST({
+                baseST: baseICMSST, aliquotaST: aliquotaInternaST,
+                aliquotaICMS: aliquotaPropriaST, valorICMS: valorICMSProprioST,
+                consumidorFinal,
+                regra: regrasIcmsUf
+            }) * 100) / 100
+            : 0);
+        // Incide sobre a MESMA base do ICMS-ST e é devido mesmo quando o ICMS-ST zera por o
+        // crédito próprio superar o débito — são apurações distintas, com recolhimento
+        // separado (no RJ, DARJ próprio para o FECP).
+        //
+        // BUG (corrigido em 10/09/2026): quando o ICMS-ST vem da alíquota DIRETA de
+        // `st_aliquotas_fornecedor` (valorICMSSTDireta > 0 — o caminho usado por RJ, SP,
+        // MG, PR, DF, PE e AP, ver UFS_COM_ICMS_ST), `baseICMSST` fica zerada de propósito
+        // (ela só existe no caminho por MVA) e a condição abaixo excluía justamente esse
+        // caminho — o FCP-ST saía sempre R$ 0,00 para as UFs que mais o cobram. A base do
+        // FCP-ST é a mesma do ICMS-ST em qualquer um dos dois métodos.
+        const baseFcpSt = valorICMSSTDireta > 0 ? baseSTDireta : baseICMSST;
+        const valorFcpSt = (calculaST && baseFcpSt > 0 && aliquotaFcpSt > 0)
+            ? Math.round(baseFcpSt * aliquotaFcpSt) / 100
+            : 0;
+
+        // DIFAL/FECP só existem para operação interestadual destinada a não
+        // contribuinte. A IE consultada no cadastro é a fonte da condição do
+        // destinatário; quando a consulta não confirmou o cadastro, não se
+        // presume contribuinte nem se inventa uma alíquota municipal.
+        const ufOrigem = String(parametros.ufOrigem || '').toUpperCase();
+        const ufDestino = String(parametros.uf || estadoDestino || '').toUpperCase();
+        const aliquotaInternaDestino = numeroFiscalItem(parametros.aliquotaInterna)
+            || numeroFiscalItem(TRIBUTACAO_CLIENTE.aliquotasInternasPorUF?.[ufDestino]);
+        const aliquotaFcpDestino = numeroFiscalItem(parametros.fcpAliquotaDestino);
+        // O DIFAL compara a alíquota interna do destino com a interestadual da
+        // operação, nunca com a alíquota do cenário (que pode ser a interna da
+        // origem e foi a causa do RJ sair com apenas um imposto).
+        const aliquotaInterestadualDifal = numeroFiscalItem(parametros.aliquotaInterestadual) || aliqICMS;
+        // O modal pode desligar o DIFAL e fornecer o FCP padrão quando a matriz por UF
+        // não tem a alíquota cadastrada (hoje SP, SC, PA e AP estão sem FCP na matriz).
+        const difalFcp = padroes.calculaDifal === false
+            ? { valor_difal: 0, valor_fcp_destino: 0, aliquota_difal: 0, aliquota_fcp_destino: 0 }
+            : calcularDifalFcpVenda({
+                base, ufOrigem, ufDestino, tipoVenda, clienteContribuinte,
+                regimeFiscal: parametros.regime,
+                aliquotaInternaDestino,
+                aliquotaInterestadual: aliquotaInterestadualDifal,
+                aliquotaFcpDestino: aliquotaFcpDestino || n(padroes.fcp)
+            });
+        if (difalFcp.valor_difal > 0 || difalFcp.valor_fcp_destino > 0) {
+            const porRegra = RegraIcmsUf.calcularDifal({
+                baseICMS, baseICMSSemReducao, valorICMS,
+                aliquotaDestino: aliquotaInternaDestino,
+                aliquotaFCP: aliquotaFcpDestino || n(padroes.fcp),
+                aliquotaICMS: aliquotaInterestadualDifal,
+                reducao, regra: regrasIcmsUf
+            });
+            difalFcp.valor_difal = Math.round(porRegra.valor * 100) / 100;
+            difalFcp.valor_fcp_destino = Math.round(porRegra.fcp * 100) / 100;
+        }
+
+        return {
+            cenario,
+            produto,
+            regime: parametros.regime,
+            base_calculo_icms: Math.round(baseICMSDestacada * 100) / 100,
+            valor_icms: Math.round(valorICMS * 100) / 100,
+            valor_pis: Math.round(valorPIS * 100) / 100,
+            valor_cofins: Math.round(valorCOFINS * 100) / 100,
+            // Mantidos apenas durante a consolidação do pedido. O total da NF-e deve
+            // ser o arredondamento da soma exata, e os centavos são distribuídos nos
+            // itens para o XML fechar sem divergência entre <det> e <ICMSTot>.
+            valor_pis_bruto: valorPISBruto,
+            valor_cofins_bruto: valorCOFINSBruto,
+            base_calculo_icms_st: Math.round((valorICMSSTDireta > 0 ? baseSTDireta : baseICMSST) * 100) / 100,
+            valor_ipi: Math.round(valorIPI * 100) / 100,
+            valor_icms_st: Math.round(valorICMSST * 100) / 100,
+            valor_fcp_st: Math.round(valorFcpSt * 100) / 100,
+            base_calculo_fcp_st: Math.round((valorFcpSt > 0 ? baseFcpSt : 0) * 100) / 100,
+            aliquota_fcp_st: aliquotaFcpSt,
+            valor_difal: difalFcp.valor_difal,
+            valor_fcp_destino: difalFcp.valor_fcp_destino,
+            aliquota_difal: difalFcp.aliquota_difal,
+            aliquota_fcp_destino: difalFcp.aliquota_fcp_destino,
+            aliquota_ipi: aliqIPI,
+            aliquota_icms: aliqICMS,
+            aliquota_pis: aliqPIS,
+            aliquota_cofins: aliqCOFINS,
+            aliquota_icms_st: calculaST
+                ? (usaAliquotaSTDireta ? parametros.aliquotaStDireta : aliquotaInternaST)
+                : 0,
+            mva_st: mva,
+            // Conserva a natureza da MVA até a emissão. Sem esta marca, uma MVA já
+            // ajustada cadastrada por NCM+UF era ajustada novamente ao gerar o XML.
+            mva_ja_ajustada: cadastroMvaUf.ajustada && mvaUf > 0 && !cenario ? 1 : 0,
+            cenario_fiscal: cenario ? (cenario.nome || cenario.codigo) : (cenarioFiscal || null),
+            produto_id: produto?.id || produtoId || null
+        };
+    }
+
+    async function calcularImpostosPorCenarioFiscalItem(cenarioFiscal, baseLiquida) {
+        const resultado = await calcularImpostosItemVenda({ cenarioFiscal, subtotal: baseLiquida });
+        return resultado.cenario ? resultado : null;
+    }
+
+    /**
+     * Campos de imposto que podem ser ajustados à mão no modal do item.
+     *
+     * Lista FECHADA de propósito: `impostos_manuais` é um JSON que chega da tela, e
+     * aceitar chave livre deixaria qualquer campo do resultado fiscal ser sobrescrito
+     * por quem montasse a requisição — inclusive `produto_id` e `cenario_fiscal`.
+     */
+    /** Coluna JSON pode chegar como objeto (driver novo) ou string (driver antigo). */
+    function lerJsonFiscal(valor) {
+        if (!valor) return null;
+        if (typeof valor === 'object') return valor;
+        try { return JSON.parse(valor); } catch (_) { return null; }
+    }
+
+    const CAMPOS_IMPOSTO_MANUAL = new Set([
+        'valor_icms', 'aliquota_icms', 'base_calculo_icms',
+        'valor_icms_st', 'aliquota_icms_st', 'base_calculo_icms_st', 'mva_st',
+        'valor_fcp_st', 'aliquota_fcp_st', 'base_calculo_fcp_st',
+        'valor_ipi', 'aliquota_ipi', 'valor_difal', 'valor_fcp_destino'
+    ]);
+
+    /** Aplica sobre o resultado do motor os campos que foram travados à mão. */
+    function aplicarImpostosManuais(bruto, fiscal) {
+        if (!bruto || !fiscal) return fiscal;
+        let manuais = bruto;
+        if (typeof manuais === 'string') {
+            try { manuais = JSON.parse(manuais); } catch (_) { return fiscal; }
+        }
+        if (!manuais || typeof manuais !== 'object' || Array.isArray(manuais)) return fiscal;
+        for (const campo of Object.keys(manuais)) {
+            if (!CAMPOS_IMPOSTO_MANUAL.has(campo)) continue;
+            const v = Number(manuais[campo]);
+            if (!Number.isFinite(v) || v < 0) continue;
+            fiscal[campo] = Math.round(v * 100) / 100;
+        }
+        return fiscal;
+    }
+
+    async function recalcularImpostosPedidoVenda(pedidoId, executor = pool, cenarioFiscalOverride = null, opcoes = {}) {
+        const [[pedido]] = await executor.query(
+            `SELECT p.id, p.empresa_id, p.data_emissao, p.created_at, p.cliente_id,
+                    p.cenario_fiscal, p.cenario_fiscal_id, p.tipo_venda, p.faturamento_tipo,
+                    COALESCE(p.total_pis, 0) AS total_pis,
+                    COALESCE(p.total_cofins, 0) AS total_cofins,
+                    COALESCE(c.fiscal_contribuinte_icms,
+                        CASE WHEN NULLIF(c.inscricao_estadual, '') IS NULL THEN NULL
+                             WHEN UPPER(TRIM(c.inscricao_estadual)) IN ('ISENTO', 'NAO CONTRIBUINTE', 'NÃO CONTRIBUINTE') THEN 0
+                             ELSE 1 END) AS cliente_contribuinte_icms,
+                    COALESCE(p.frete, 0) AS frete,
+                    COALESCE(p.desconto_pct, 0) AS desconto_pct,
+                    COALESCE(NULLIF(p.estado_destino, ''), c.estado, '') AS estado_destino
+               FROM pedidos p LEFT JOIN clientes c ON c.id = p.cliente_id
+              WHERE p.id = ? FOR UPDATE`, [pedidoId]
+        );
+        if (!pedido) return null;
+        // Modo de ST do Editar NF-e. Consulta separada: instância sem a coluna ainda
+        // (criada por POST /pedidos/:id/st-modo) segue no modo automático.
+        try {
+            const [[linhaSt]] = await executor.query('SELECT st_modo FROM pedidos WHERE id = ?', [pedidoId]);
+            pedido.st_modo = ['calcular', 'remover'].includes(String(linhaSt?.st_modo || '')) ? linhaSt.st_modo : null;
+        } catch (_) { pedido.st_modo = null; }
+        const cenarioFiscal = cenarioFiscalOverride || pedido.cenario_fiscal_id || pedido.cenario_fiscal;
+        const cenarioResolvido = await buscarCenarioFiscalVenda(cenarioFiscal, executor);
+        if (cenarioFiscalOverride && !cenarioResolvido) {
+            const erro = new Error('Cenário fiscal selecionado não existe ou está inativo.');
+            erro.statusCode = 400;
+            throw erro;
+        }
+        // A calculadora de Faturamento também é uma edição do pedido. Antes ela usava o
+        // cenário somente durante esta chamada, mas deixava o cabeçalho com o cenário
+        // antigo (ou vazio); a próxima geração do espelho/NF-e então voltava a outra regra.
+        if (cenarioFiscalOverride && cenarioResolvido) {
+            await executor.query(
+                'UPDATE pedidos SET cenario_fiscal_id = ?, cenario_fiscal = ? WHERE id = ?',
+                [cenarioResolvido.id, cenarioResolvido.nome || cenarioResolvido.codigo, pedidoId]
+            );
+        }
+        // Reaplicar o cenário é uma ação explícita do usuário. Neste caso removemos
+        // as travas manuais antigas; nos recálculos automáticos elas continuam preservadas.
+        if (opcoes.reaplicarCenario === true) {
+            await executor.query('UPDATE pedido_itens SET impostos_manuais = NULL WHERE pedido_id = ?', [pedidoId]);
+        }
+        const [itens] = await executor.query(
+                `SELECT id, codigo, produto_id, quantidade, preco_unitario, desconto, subtotal, cfop,
+                        impostos_manuais
+               FROM pedido_itens WHERE pedido_id = ? ORDER BY id`, [pedidoId]
+            );
+        if (String(pedido.faturamento_tipo || '').trim().toLowerCase() === '0% nf') {
+            // O cabeçalho 0% NF é apenas comercial. Não transportar impostos antigos
+            // dos itens (nem frete cadastrado) para valor, PDF e resumos financeiros.
+            const descontoPct = Math.max(0, Math.min(100, numeroFiscalItem(pedido.desconto_pct)));
+            let subtotalTotal = 0;
+            for (const item of itens) {
+                const subtotal = Math.max(0, (Number(item.quantidade) || 0) * (Number(item.preco_unitario) || 0)
+                    - (Number(item.desconto) || 0));
+                subtotalTotal += subtotal;
+                await executor.query(
+                    `UPDATE pedido_itens SET subtotal = ?, valor_ipi = 0, valor_icms = 0,
+                     valor_icms_st = 0, pis_value = 0, cofins_value = 0, icms_value = 0,
+                     valor_difal = 0, valor_fcp_destino = 0, valor_fcp_st = 0,
+                     base_calculo_icms = 0, base_calculo_icms_st = 0,
+                     base_calculo_fcp_st = 0 WHERE id = ? AND pedido_id = ?`,
+                    [subtotal, item.id, pedidoId]
+                );
+            }
+            const valor = Math.round(Math.max(0, subtotalTotal * (1 - descontoPct / 100)) * 100) / 100;
+            await executor.query(
+                `UPDATE pedidos SET valor = ?, base_calculo_icms = 0, total_icms = 0,
+                 base_calculo_icms_st = 0, total_icms_st = 0, total_ipi = 0,
+                 total_pis = 0, total_cofins = 0, total_difal = 0, total_fcp = 0,
+                 total_fcp_st = 0, total_impostos = 0 WHERE id = ?`, [valor, pedidoId]
+            );
+            return { valor, total_ipi: 0, total_icms: 0, total_icms_st: 0,
+                total_pis: 0, total_cofins: 0, total_difal: 0, total_fcp: 0,
+                itens: [] };
+        }
+        if (!itens.length) return { total_ipi: 0, total_icms: 0, total_icms_st: 0, total_pis: 0, total_cofins: 0, total_difal: 0, total_fcp: 0, valor: Number(pedido.frete) || 0, cenario: cenarioResolvido, itens: [] };
+
+        const subtotalTotal = itens.reduce((s, item) => {
+            const subtotal = Math.max(0, (Number(item.quantidade) || 0) * (Number(item.preco_unitario) || 0) - (Number(item.desconto) || 0));
+            return s + subtotal;
+        }, 0);
+        const descontoPct = Math.max(0, Math.min(100, numeroFiscalItem(pedido.desconto_pct)));
+        const descontoGlobal = Math.round(subtotalTotal * descontoPct) / 100;
+        const fatorBaseFiscal = subtotalTotal > 0 ? Math.max(0, (subtotalTotal - descontoGlobal) / subtotalTotal) : 1;
+        const frete = Number(pedido.frete) || 0;
+        const calculados = [];
+        for (const item of itens) {
+            // O subtotal é SEMPRE derivado de quantidade x preço - desconto, nunca lido do
+            // próprio campo. Ler `item.subtotal` aqui e regravá-lo logo abaixo perpetuava
+            // qualquer contaminação: um subtotal que já tivesse imposto embutido voltava a
+            // ser gravado com o imposto dentro E servia de base para recalcular o ICMS-ST,
+            // que então incidia sobre a base inflada — o erro crescia a cada recálculo.
+            // Subtotal é valor comercial (o que o cliente negociou); imposto vive nos campos
+            // próprios (valor_icms_st, valor_ipi...) e é somado só no total do pedido.
+            const subtotal = Math.max(0,
+                (Number(item.quantidade) || 0) * (Number(item.preco_unitario) || 0) - (Number(item.desconto) || 0));
+            const subtotalFiscal = Math.round(subtotal * fatorBaseFiscal * 100) / 100;
+            const fiscal = await calcularImpostosItemVenda({
+                codigo: item.codigo, produtoId: item.produto_id, subtotal: subtotalFiscal,
+                quantidade: (Number(item.quantidade) || 0) * fatorBaseFiscal,
+                desconto: (Number(item.desconto) || 0) * fatorBaseFiscal,
+                cenarioFiscal: cenarioResolvido?.id || cenarioFiscal, estadoDestino: pedido.estado_destino,
+                tipoVenda: pedido.tipo_venda,
+                clienteContribuinte: pedido.cliente_contribuinte_icms == null ? null : Boolean(pedido.cliente_contribuinte_icms),
+                // O CFOP gravado no item manda no ST: 5401/5403 e afins declaram a operação
+                // como substituição tributária, mesmo com o produto sem a marca no cadastro.
+                cfop: item.cfop,
+                freteRateado: subtotalTotal > 0 ? frete * subtotal / subtotalTotal : 0, executor,
+                empresaId: pedido.empresa_id, dataOperacao: pedido.data_emissao || pedido.created_at,
+                modoSt: pedido.st_modo
+            });
+            // ── Sobreposição manual de imposto ───────────────────────────────
+            // Valor ajustado à mão por ti@/logistica@/admin no modal do item vence o motor.
+            //
+            // Sem isto a edição seria perdida em silêncio: QUALQUER alteração no pedido
+            // (mudar quantidade, preço, frete, UF) chama este recálculo, que reescreve a
+            // linha inteira. O usuário veria o valor certo ao salvar e o valor do motor
+            // depois — e a nota sairia com o segundo.
+            //
+            // A sobreposição é por CAMPO, não por item: quem corrigiu só a alíquota do
+            // ICMS-ST continua tendo base e IPI recalculados normalmente quando o preço muda.
+            aplicarImpostosManuais(item.impostos_manuais, fiscal);
+            // A edição manual fica preservada no JSON, mas não pode criar ST para consumo final
+            // — exceto quando o Editar NF-e mandou CALCULAR o ST; 'remover' zera sempre.
+            if (pedido.st_modo === 'remover' || (pedido.st_modo !== 'calcular'
+                && classificarDestinoIcms({ tipoVenda: pedido.tipo_venda, cfop: item.cfop }).consumidorFinal)) {
+                for (const campo of ['valor_icms_st', 'base_calculo_icms_st', 'aliquota_icms_st',
+                    'valor_fcp_st', 'base_calculo_fcp_st', 'aliquota_fcp_st', 'mva_st']) fiscal[campo] = 0;
+            }
+
+
+            calculados.push({ id: item.id, subtotal, subtotal_fiscal: subtotalFiscal, ...fiscal });
+            await executor.query(
+                `UPDATE pedido_itens SET subtotal = ?, produto_id = COALESCE(?, produto_id),
+                    valor_ipi = ?, valor_icms = ?, valor_icms_st = ?, pis_value = ?,
+                    pis_percent = ?, cofins_value = ?, cofins_percent = ?, base_calculo_icms = ?,
+                    base_calculo_icms_st = ?, aliquota_ipi = ?, aliquota_icms = ?,
+                    aliquota_icms_st = ?, mva_st = ?, mva_ja_ajustada = ?, valor_difal = ?, valor_fcp_destino = ?,
+                    valor_fcp_st = ?, base_calculo_fcp_st = ?, aliquota_fcp_st = ?, cenario_fiscal = ?,
+                    icms_value = ?, icms_percent = ? WHERE id = ? AND pedido_id = ?`,
+                [subtotal, fiscal.produto_id, fiscal.valor_ipi, fiscal.valor_icms, fiscal.valor_icms_st,
+                    fiscal.valor_pis, fiscal.aliquota_pis,
+                    fiscal.valor_cofins, fiscal.aliquota_cofins,
+                    fiscal.base_calculo_icms, fiscal.base_calculo_icms_st, fiscal.aliquota_ipi,
+                    fiscal.aliquota_icms, fiscal.aliquota_icms_st, fiscal.mva_st, fiscal.mva_ja_ajustada || 0, fiscal.valor_difal, fiscal.valor_fcp_destino,
+                    fiscal.valor_fcp_st, fiscal.base_calculo_fcp_st, fiscal.aliquota_fcp_st,
+                    fiscal.cenario_fiscal, fiscal.valor_icms, fiscal.aliquota_icms, item.id, pedidoId]
+            );
+        }
+
+        // NF-e totaliza PIS/COFINS pela soma dos itens, mas o valor econômico esperado
+        // é o arredondamento da soma das parcelas não arredondadas. Sem conciliar o
+        // resíduo, duas linhas de R$ 56,225 e R$ 66,90775 viravam R$ 123,14, enquanto
+        // 0,65% sobre a base total é R$ 123,13. Ajustamos somente o último item tributado
+        // por, no máximo, os centavos acumulados; total e itens continuam idênticos no XML.
+        async function conciliarContribuicao(campoValor, campoBruto, colunaBanco) {
+            const alvo = Math.round(calculados.reduce((s, item) => s + (Number(item[campoBruto]) || 0), 0) * 100) / 100;
+            const atual = Math.round(calculados.reduce((s, item) => s + (Number(item[campoValor]) || 0), 0) * 100) / 100;
+            const residuo = Math.round((alvo - atual) * 100) / 100;
+            if (!residuo) return alvo;
+            const item = [...calculados].reverse().find(linha => Number(linha[campoBruto]) > 0);
+            if (!item) return atual;
+            item[campoValor] = Math.max(0, Math.round((Number(item[campoValor]) + residuo) * 100) / 100);
+            await executor.query(`UPDATE pedido_itens SET \`${colunaBanco}\` = ? WHERE id = ? AND pedido_id = ?`,
+                [item[campoValor], item.id, pedidoId]);
+            return Math.round(calculados.reduce((s, linha) => s + (Number(linha[campoValor]) || 0), 0) * 100) / 100;
+        }
+
+        const totalPISConciliado = await conciliarContribuicao('valor_pis', 'valor_pis_bruto', 'pis_value');
+        const totalCOFINSConciliado = await conciliarContribuicao('valor_cofins', 'valor_cofins_bruto', 'cofins_value');
+
+        const total = Math.max(0, subtotalTotal - descontoGlobal);
+        const totalIPI = calculados.reduce((s, item) => s + item.valor_ipi, 0);
+        const totalICMS = calculados.reduce((s, item) => s + item.valor_icms, 0);
+        const totalST = calculados.reduce((s, item) => s + item.valor_icms_st, 0);
+        const totalDIFAL = calculados.reduce((s, item) => s + item.valor_difal, 0);
+        const totalFCP = calculados.reduce((s, item) => s + item.valor_fcp_destino, 0);
+        const totalPIS = totalPISConciliado;
+        const totalCOFINS = totalCOFINSConciliado;
+        // FCP-ST é somado à parte do FCP destino (DIFAL): são operações diferentes.
+        const totalFcpSt = calculados.reduce((s, item) => s + (item.valor_fcp_st || 0), 0);
+        const baseICMS = calculados.reduce((s, item) => s + item.base_calculo_icms, 0);
+        const baseST = calculados.reduce((s, item) => s + item.base_calculo_icms_st, 0);
+        const valor = Math.round((total + totalIPI + totalST + totalFcpSt + totalDIFAL + totalFCP + frete) * 100) / 100;
+        await executor.query(
+            `UPDATE pedidos SET valor = ?, base_calculo_icms = ?, total_icms = ?,
+                base_calculo_icms_st = ?, total_icms_st = ?, total_ipi = ?,
+                total_pis = ?, total_cofins = ?, total_difal = ?, total_fcp = ?, total_fcp_st = ?, total_impostos = ? WHERE id = ?`,
+            [valor, baseICMS, totalICMS, baseST, totalST, totalIPI, totalPIS, totalCOFINS, totalDIFAL, totalFCP, totalFcpSt,
+                totalICMS + totalST + totalIPI + totalPIS + totalCOFINS + totalDIFAL + totalFCP + totalFcpSt, pedidoId]
+        );
+        return { valor, total_ipi: totalIPI, total_icms: totalICMS, total_icms_st: totalST,
+            total_pis: totalPIS, total_cofins: totalCOFINS, total_fcp_st: totalFcpSt,
+            total_difal: totalDIFAL, total_fcp: totalFCP, base_calculo_icms: baseICMS,
+            base_calculo_icms_st: baseST, cenario: cenarioResolvido, regime: calculados[0]?.regime || null,
+            itens: calculados };
+    }
+
+    // ====================================================
+    // Histórico unificado do cliente: pedidos, eventos comerciais, NF-e, financeiro
+    // e alterações do cadastro em uma única linha do tempo.
+    // ====================================================
+    router.get('/clientes/:clienteId/historico', authenticateToken, async (req, res, next) => {
+        try {
+            const clienteId = Number(req.params.clienteId);
+            const idValido = Number.isSafeInteger(clienteId) && clienteId > 0;
+            const nomeCliente = String(req.query.nome || '').trim().slice(0, 200);
+
+            if (!idValido && !nomeCliente) {
+                return res.status(400).json({ error: 'Cliente inválido.' });
+            }
+
+            const formatarValor = valor => (Number(valor) || 0).toLocaleString('pt-BR', {
+                style: 'currency', currency: 'BRL'
+            });
+            const dataIso = valor => {
+                if (!valor) return null;
+                const data = new Date(valor);
+                return Number.isNaN(data.getTime()) ? null : data.toISOString();
+            };
+
+            // O vendedor sai do JOIN quando o pedido não guardou o nome: `vendedor_nome`
+            // está vazia em 14 de 15 pedidos, então a coluna vinha em branco no histórico.
+            // Mesma ordem do repositório e do endpoint de detalhe (nome gravado primeiro).
             let query = `SELECT p.id, p.cliente, p.cliente_nome, p.status, p.valor,
-                         COALESCE(p.vendedor_nome, '') as vendedor, p.nf, p.parcelas,
+                         COALESCE(
+                             NULLIF(CASE WHEN LOWER(TRIM(COALESCE(p.vendedor_nome, ''))) = 'mel' THEN 'Melissa Navarro' ELSE TRIM(p.vendedor_nome) END, ''),
+                             NULLIF(TRIM(u.nome), ''),
+                             ''
+                         ) as vendedor,
+                         p.nf, p.parcelas,
                          p.created_at as data_criacao, p.updated_at as data_atualizacao, p.desconto_pct,
                          (SELECT COUNT(*) FROM pedido_itens pi WHERE pi.pedido_id = p.id) as total_itens
-                         FROM pedidos p WHERE `;
+                         FROM pedidos p
+                         LEFT JOIN usuarios u ON u.id = p.vendedor_id
+                         WHERE `;
             let params = [];
 
-            if (clienteId && clienteId !== '0' && clienteId !== 'null' && clienteId !== 'undefined') {
+            if (idValido) {
                 query += `p.cliente_id = ? `;
                 params = [clienteId];
-            } else if (nomeCliente) {
+            } else {
                 query += `(p.cliente LIKE ? OR p.cliente_nome LIKE ?) `;
                 params = [`%${nomeCliente}%`, `%${nomeCliente}%`];
-            } else {
-                return res.json({ pedidos: [], total: 0, totalValor: 0 });
             }
 
             query += `ORDER BY p.created_at DESC LIMIT 100`;
 
-            const [pedidos] = await pool.query(query, params);
+            // As consultas são independentes e rodam juntas. Se uma tabela auxiliar
+            // estiver indisponível, os demais blocos continuam preenchendo a timeline.
+            const consultas = await Promise.allSettled([
+                pool.query(query, params),
+                idValido ? pool.query(
+                    `SELECT h.id, h.pedido_id, COALESCE(NULLIF(h.acao, ''), NULLIF(h.action, ''), 'alteracao') AS acao,
+                            h.descricao, h.created_at,
+                            COALESCE(NULLIF(h.usuario_nome, ''), NULLIF(h.user_name, ''), NULLIF(u.nome, ''), 'Sistema') AS usuario
+                       FROM pedido_historico h
+                       JOIN pedidos p ON p.id = h.pedido_id
+                  LEFT JOIN usuarios u ON u.id = COALESCE(h.usuario_id, h.user_id)
+                      WHERE p.cliente_id = ?
+                   ORDER BY h.created_at DESC LIMIT 120`, [clienteId]
+                ) : Promise.resolve([[]]),
+                idValido ? pool.query(
+                    `SELECT id, numero, serie, status, valor_total, pedido_id,
+                            sefaz_codigo_status, sefaz_motivo,
+                            COALESCE(data_autorizacao, data_emissao, created_at) AS data_evento
+                       FROM nfes WHERE cliente_id = ?
+                   ORDER BY COALESCE(data_autorizacao, data_emissao, created_at) DESC LIMIT 100`, [clienteId]
+                ) : Promise.resolve([[]]),
+                idValido ? pool.query(
+                    `SELECT id, pedido_id, nfe_id, descricao, status, valor, valor_recebido,
+                            numero_documento, parcela_numero, total_parcelas, data_vencimento,
+                            COALESCE(data_recebimento, data_criacao, data_emissao) AS data_evento
+                       FROM contas_receber
+                      WHERE cliente_id = ? AND deleted_at IS NULL
+                   ORDER BY COALESCE(data_recebimento, data_criacao, data_emissao) DESC LIMIT 120`, [clienteId]
+                ) : Promise.resolve([[]]),
+                idValido ? pool.query(
+                    `SELECT a.id, COALESCE(NULLIF(a.operacao, ''), NULLIF(a.acao, ''), 'UPDATE') AS operacao,
+                            a.descricao, a.created_at, COALESCE(NULLIF(u.nome, ''), 'Sistema') AS usuario
+                       FROM auditoria_logs a
+                  LEFT JOIN usuarios u ON u.id = a.usuario_id
+                      WHERE a.tabela = 'clientes' AND a.registro_id = ?
+                   ORDER BY a.created_at DESC LIMIT 80`, [clienteId]
+                ) : Promise.resolve([[]]),
+                idValido ? pool.query(
+                    `SELECT id, COALESCE(nome_fantasia, razao_social, nome) AS nome,
+                            COALESCE(data_cadastro, created_at) AS data_cadastro,
+                            COALESCE(data_ultima_alteracao, updated_at) AS data_alteracao
+                       FROM clientes WHERE id = ? LIMIT 1`, [clienteId]
+                ) : Promise.resolve([[]])
+            ]);
+
+            const linhas = indice => consultas[indice].status === 'fulfilled'
+                ? (consultas[indice].value[0] || [])
+                : [];
+            const pedidos = linhas(0);
+            const eventosPedido = linhas(1);
+            const notas = linhas(2);
+            const titulos = linhas(3);
+            const auditorias = linhas(4);
+            const cliente = linhas(5)[0] || null;
 
             // Calcular totais
             const totalValor = pedidos.reduce((sum, p) => sum + (parseFloat(p.valor) || 0), 0);
@@ -4544,20 +9238,108 @@ module.exports = function createVendasRoutes(deps) {
                 statusCount[st] = (statusCount[st] || 0) + 1;
             });
 
-            // Map pedidos to historico format expected by frontend
-            const historico = pedidos.map(p => ({
-                data_alteracao: p.data_criacao,
-                descricao: `Pedido #${p.id} — ${p.status || 'orçamento'} — R$ ${(parseFloat(p.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+            const historico = [];
+            pedidos.forEach(p => historico.push({
+                id: `pedido-${p.id}`,
+                referencia_id: p.id,
+                data_alteracao: dataIso(p.data_criacao),
+                titulo: `Pedido #${p.id}`,
+                descricao: `${p.status || 'orçamento'} · ${formatarValor(p.valor)}`,
                 usuario: p.vendedor || 'Sistema',
-                tipo: 'pedido'
+                tipo: 'pedido',
+                modulo: 'Vendas',
+                status: p.status || '',
+                href: `/Vendas/index.html?pedido=${p.id}`
             }));
+            eventosPedido.forEach(h => historico.push({
+                id: `pedido-evento-${h.id}`,
+                referencia_id: h.pedido_id,
+                data_alteracao: dataIso(h.created_at),
+                titulo: `Pedido #${h.pedido_id} · ${h.acao || 'alteração'}`,
+                descricao: h.descricao || 'Alteração comercial registrada',
+                usuario: h.usuario || 'Sistema',
+                tipo: 'pedido',
+                modulo: 'Vendas',
+                status: h.acao || '',
+                href: `/Vendas/index.html?pedido=${h.pedido_id}`
+            }));
+            notas.forEach(n => {
+                const retorno = n.sefaz_codigo_status || n.sefaz_motivo
+                    ? ` · SEFAZ ${n.sefaz_codigo_status || ''}${n.sefaz_motivo ? `: ${n.sefaz_motivo}` : ''}`
+                    : '';
+                historico.push({
+                    id: `nfe-${n.id}`,
+                    referencia_id: n.id,
+                    data_alteracao: dataIso(n.data_evento),
+                    titulo: `NF-e ${n.numero || n.id}/${n.serie || 1}`,
+                    descricao: `${n.status || 'pendente'} · ${formatarValor(n.valor_total)}${retorno}`,
+                    usuario: 'Faturamento',
+                    tipo: 'nfe',
+                    modulo: 'Faturamento',
+                    status: n.status || '',
+                    href: `/Faturamento/index.html?nfe=${n.id}`
+                });
+            });
+            titulos.forEach(t => {
+                const parcela = t.total_parcelas
+                    ? ` · parcela ${t.parcela_numero || 1}/${t.total_parcelas}`
+                    : '';
+                const vencimento = t.data_vencimento
+                    ? ` · vence ${new Date(t.data_vencimento).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}`
+                    : '';
+                historico.push({
+                    id: `financeiro-${t.id}`,
+                    referencia_id: t.id,
+                    data_alteracao: dataIso(t.data_evento),
+                    titulo: `Título ${t.numero_documento || `#${t.id}`}`,
+                    descricao: `${t.status || 'aberto'} · ${formatarValor(t.valor)}${parcela}${vencimento}`,
+                    usuario: 'Financeiro',
+                    tipo: 'financeiro',
+                    modulo: 'Financeiro',
+                    status: t.status || '',
+                    href: `/Financeiro/contas-receber.html?cliente_id=${clienteId}`
+                });
+            });
+            auditorias.forEach(a => historico.push({
+                id: `cadastro-${a.id}`,
+                referencia_id: clienteId,
+                data_alteracao: dataIso(a.created_at),
+                titulo: `Cadastro · ${a.operacao || 'alteração'}`,
+                descricao: a.descricao || 'Cadastro do cliente atualizado',
+                usuario: a.usuario || 'Sistema',
+                tipo: 'cadastro',
+                modulo: 'Clientes',
+                status: a.operacao || ''
+            }));
+            if (cliente?.data_cadastro) historico.push({
+                id: `cliente-criacao-${cliente.id}`,
+                referencia_id: cliente.id,
+                data_alteracao: dataIso(cliente.data_cadastro),
+                titulo: 'Cliente cadastrado',
+                descricao: cliente.nome || 'Cadastro criado',
+                usuario: 'Sistema',
+                tipo: 'cadastro',
+                modulo: 'Clientes',
+                status: 'criacao'
+            });
+
+            historico.sort((a, b) => (Date.parse(b.data_alteracao) || 0) - (Date.parse(a.data_alteracao) || 0));
+            const historicoLimitado = historico.slice(0, 250);
+            const tipos = historicoLimitado.reduce((acc, item) => {
+                acc[item.tipo] = (acc[item.tipo] || 0) + 1;
+                return acc;
+            }, {});
 
             res.json({
-                historico,
+                historico: historicoLimitado,
                 pedidos,
                 total: pedidos.length,
                 totalValor,
-                statusCount
+                statusCount,
+                tipos,
+                fontes_indisponiveis: consultas
+                    .map((item, indice) => item.status === 'rejected' ? indice : null)
+                    .filter(indice => indice !== null)
             });
         } catch (error) {
             console.error('[VENDAS] Erro ao buscar histórico do cliente:', error);
@@ -4575,12 +9357,14 @@ module.exports = function createVendasRoutes(deps) {
             }
             const [itens] = await pool.query(
                 `SELECT id, pedido_id, codigo, descricao, quantidade, quantidade_parcial, unidade, local_estoque,
-                 preco_unitario, desconto, subtotal, produto_id, valor_ipi, valor_icms_st,
-                 aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, nao_gerar_saida_estoque
+                 preco_unitario, desconto, subtotal, produto_id, valor_ipi, valor_icms, valor_icms_st,
+                 base_calculo_icms, base_calculo_icms_st, aliquota_ipi, aliquota_icms, aliquota_icms_st,
+                 mva_st, cfop, cenario_fiscal, observacoes, embalagem, lances, tabela_preco_id,
+                 numero_pedido_compra, item_pedido_compra, nao_gerar_saida_estoque,
+                 COALESCE(preco_manual, 0) AS preco_manual
                  FROM pedido_itens WHERE pedido_id = ? ORDER BY id ASC`,
                 [id]
             );
-
             // Auto-repair: fill NULL/VLOOKUP codigo/descricao from produto_id or codigo lookup
             for (const item of itens) {
                 const descInvalid = !item.descricao || item.descricao.includes('VLOOKUP') || item.descricao.includes('vlookup');
@@ -4609,6 +9393,22 @@ module.exports = function createVendasRoutes(deps) {
                         }
                     } catch (e) { /* non-blocking */ }
                 }
+
+                // Entrega ao editor os três números que explicam a negociação:
+                // tabela, piso seguro e gordura disponível do vendedor.
+                const politica = await _precoCatalogoProduto(item.produto_id, item.codigo);
+                item.preco_tabela = politica.tabela;
+                item.preco_minimo = politica.minimo > 0
+                    ? Math.max(politica.minimo, politica.tabela * (1 - LIMITE_DESCONTO_LIVRE_PCT / 100))
+                    : (politica.tabela > 0 ? politica.tabela * (1 - LIMITE_DESCONTO_LIVRE_PCT / 100) : 0);
+                item.preco_equilibrio = politica.equilibrio;
+                item.desconto_disponivel_pct = politica.tabela > 0 && item.preco_minimo > 0
+                    ? Math.max(0, (politica.tabela - item.preco_minimo) / politica.tabela * 100)
+                    : 0;
+                const brutoItem = (parseFloat(item.quantidade) || 0) * (parseFloat(item.preco_unitario) || 0);
+                item.desconto_pct = brutoItem > 0
+                    ? Math.max(0, (parseFloat(item.desconto) || 0) / brutoItem * 100)
+                    : 0;
             }
 
             res.json(itens);
@@ -4618,7 +9418,66 @@ module.exports = function createVendasRoutes(deps) {
         }
     });
 
+    // Opções reais do modal de item. Remove listas fixas que não correspondem ao
+    // cadastro de estoque/tabelas da empresa.
+    router.get('/pedidos/item-modal/opcoes', async (_req, res, next) => {
+        try {
+            const [tabelas] = await pool.query(`SELECT id,nome,tipo FROM tabelas_preco
+                WHERE COALESCE(status,'ativo') IN ('ativo','ATIVO','1') ORDER BY nome`);
+            const [locais] = await pool.query(`SELECT id,codigo,almoxarifado,setor,rua,prateleira,posicao
+                FROM estoque_enderecos WHERE COALESCE(ativo,1)=1 ORDER BY almoxarifado,setor,rua,prateleira,posicao`);
+            res.json({ success: true, tabelas, locais: locais.map(l => ({
+                id: l.id, codigo: l.codigo,
+                nome: [l.codigo, l.almoxarifado, l.setor, l.rua, l.prateleira, l.posicao].filter(Boolean).join(' - ')
+            })) });
+        } catch (error) { next(error); }
+    });
+
     // Itens do pedido - Adicionar
+    /**
+     * Trava de venda acima do saldo: quantidade maior que o estoque só passa se o item
+     * for marcado como SOB ENCOMENDA (`nao_gerar_saida_estoque`), que é o que impede a
+     * baixa no faturamento.
+     *
+     * O saldo lido é `produtos.estoque_atual` — o livro que o Vendas escreve. A tabela
+     * `estoque` é do Compras (chaveada por material) e casa com pouquíssimos produtos.
+     *
+     * Devolve `null` quando pode seguir, ou o objeto de erro para o 409.
+     */
+    async function conferirEstoqueOuEncomenda(executor, { produtoId, codigo, quantidade, sobEncomenda }) {
+        if (sobEncomenda) return null;                 // já é encomenda: não baixa estoque, não trava
+        const qtd = parseFloat(quantidade) || 0;
+        if (!(qtd > 0)) return null;
+        try {
+            const [linhas] = await executor.query(
+                `SELECT id, codigo, descricao, COALESCE(controla_estoque, 0) AS controla_estoque,
+                        COALESCE(estoque_atual, 0) AS estoque_atual
+                   FROM produtos
+                  WHERE ${produtoId ? 'id = ?' : 'codigo = ?'} LIMIT 1`,
+                [produtoId || codigo]
+            );
+            const prod = linhas && linhas[0];
+            if (!prod || !Number(prod.controla_estoque)) return null;
+            const saldo = parseFloat(prod.estoque_atual) || 0;
+            if (qtd <= saldo) return null;
+            return {
+                erro: 'ESTOQUE_INSUFICIENTE_SEM_ENCOMENDA',
+                message: `${prod.codigo} tem ${saldo} em estoque e o item pede ${qtd}. `
+                    + 'Marque o item como SOB ENCOMENDA para seguir — assim ele não baixa estoque no faturamento.',
+                produto: prod.codigo,
+                descricao: prod.descricao,
+                disponivel: saldo,
+                solicitado: qtd,
+                faltante: Math.round((qtd - saldo) * 10000) / 10000
+            };
+        } catch (e) {
+            // Falha técnica na consulta não pode travar a venda — mesmo critério dos
+            // demais gates deste arquivo.
+            console.warn('[VENDAS/ESTOQUE] Não foi possível conferir o saldo:', e.message);
+            return null;
+        }
+    }
+
     router.post('/pedidos/:id/itens', async (req, res, next) => {
         try {
             await ensurePedidoItensTable();
@@ -4629,10 +9488,12 @@ module.exports = function createVendasRoutes(deps) {
 
             // Lock: verificar status do pedido antes de permitir adicionar item
             const [[pedidoStatusCheck]] = await pool.query('SELECT status FROM pedidos WHERE id = ?', [parseInt(id)]);
-            if (pedidoStatusCheck && STATUS_BLOQUEADO_EDICAO.includes((pedidoStatusCheck.status || '').toLowerCase())) {
-                const userEmail = (req.user && req.user.email || '').toLowerCase();
-                if (userEmail !== EMAIL_EDICAO_LIBERADO) {
-                    return res.status(403).json({ message: `Pedido com status "${pedidoStatusCheck.status}" não pode ser editado. Somente TI pode adicionar itens neste status.`, code: 'EDIT_LOCKED_BY_STATUS' });
+            if (pedidoStatusCheck && pedidoBloqueadoParaEdicao(pedidoStatusCheck.status)) {
+                return res.status(403).json({ message: `Pedido com status "${pedidoStatusCheck.status}" não pode receber itens — pedido já faturado.`, code: 'EDIT_LOCKED_BY_STATUS' });
+            }
+            if (pedidoStatusCheck && STATUS_ANALISE_CREDITO_BLOQUEADO.includes((pedidoStatusCheck.status || '').toLowerCase())) {
+                if (!contaComEdicaoLiberada(req.user)) {
+                    return res.status(403).json({ message: `Pedido com status "${pedidoStatusCheck.status}" não pode ser editado. Somente TI, Compras ou Logística podem adicionar itens neste status.`, code: 'EDIT_LOCKED_BY_STATUS' });
                 }
             }
 
@@ -4641,33 +9502,67 @@ module.exports = function createVendasRoutes(deps) {
             const codigo = b.codigo || b['código'] || '';
             const descricao = b.descricao || b['descrição'] || '';
             const { quantidade, quantidade_parcial, unidade, local_estoque, preco_unitario, desconto,
-                    produto_id, valor_ipi, valor_icms_st, aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, preco_custo,
+                    produto_id, valor_ipi, valor_icms_st, aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, embalagem, lances, preco_custo,
+                    tabela_preco_id, numero_pedido_compra, item_pedido_compra,
                     nao_gerar_saida_estoque } = b;
 
             if (!codigo || !descricao) {
                 return res.status(400).json({ message: 'Código e descrição são obrigatórios.' });
             }
 
-            const qty = parseFloat(quantidade) || 1;
+            const lancesItem = normalizarLancesPedidoItem(lances);
+            if (!lancesItem.valido) {
+                return res.status(400).json({ message: 'Lance(s) invalido. Use o formato 1x1000, 2x100 ou 1x500,1x250.' });
+            }
+            const qty = lancesItem.totalMetros > 0 ? lancesItem.totalMetros : (parseFloat(quantidade) || 1);
             // BUG-VEND-011: quantidade deve ser > 0 (valor negativo gerava total negativo)
             if (!(qty > 0)) {
                 return res.status(400).json({ message: 'Quantidade do item deve ser maior que zero.' });
             }
             const qtyParcial = parseFloat(quantidade_parcial) || 0;
+
+            const travaEstoque = await conferirEstoqueOuEncomenda(pool, {
+                produtoId: produto_id, codigo, quantidade: qty, sobEncomenda: !!nao_gerar_saida_estoque
+            });
+            if (travaEstoque) return res.status(409).json({ success: false, ...travaEstoque });
+
             const preco = parseFloat(preco_unitario) || 0;
             if (preco < 0) {
                 return res.status(400).json({ message: 'Preço do item não pode ser negativo.' });
             }
-            const desc = parseFloat(desconto) || 0;
+            const descontoPctBody = parseFloat(String(b.desconto_pct ?? '').replace(',', '.'));
+            const desc = Number.isFinite(descontoPctBody) && descontoPctBody > 0
+                ? (qty * preco) * (descontoPctBody / 100)
+                : (parseFloat(desconto) || 0);
+            // O preço e o desconto são editáveis separadamente, mas a margem é
+            // validada sobre o valor líquido combinado dos dois campos.
+            const _ctxMargemItem = {};
+            const _erroPiso = await validarPisoPrecoItem({
+                produtoId: produto_id, codigo, preco, quantidade: qty, desconto: desc,
+                token: b.autorizacao_desconto_token || b.autorizacao_preco_token, pedidoId: id,
+                ctx: _ctxMargemItem
+            });
+            if (_erroPiso) return res.status(_erroPiso.status).json({ success: false, message: _erroPiso.message, code: _erroPiso.code });
             let vIPI = parseFloat(valor_ipi) || 0;
+            let vICMS = parseFloat(b.valor_icms) || 0;
             let vICMSST = parseFloat(valor_icms_st) || 0;
             let aliqIPI = parseFloat(aliquota_ipi) || 0;
             let aliqICMS_local = parseFloat(aliquota_icms) || 0;
             let mvaST_local = parseFloat(mva_st) || 0;
             const total = (qty * preco) - desc;
+            let cenarioFiscalAplicado = false;
+
+            const impostoCenario = await calcularImpostosPorCenarioFiscalItem(cenario_fiscal, total);
+            if (impostoCenario) {
+                cenarioFiscalAplicado = true;
+                if (valor_ipi === undefined || vIPI === 0) vIPI = impostoCenario.valor_ipi;
+                if (valor_icms_st === undefined || vICMSST === 0) vICMSST = impostoCenario.valor_icms_st;
+                if (aliquota_ipi === undefined || aliqIPI === 0) aliqIPI = impostoCenario.aliquota_ipi;
+                if (aliquota_icms === undefined || aliqICMS_local === 0) aliqICMS_local = impostoCenario.aliquota_icms;
+            }
 
             // Sprint 4.6: Auto-calcular impostos a partir dos dados fiscais do produto
-            if (vIPI === 0 && vICMSST === 0 && (produto_id || codigo)) {
+            if (!cenarioFiscalAplicado && vIPI === 0 && vICMSST === 0 && (produto_id || codigo)) {
                 try {
                     let produtoFiscal = null;
                     if (produto_id) {
@@ -4703,30 +9598,342 @@ module.exports = function createVendasRoutes(deps) {
                 }
             }
 
+            const [[pedidoFiscal]] = await pool.query(
+                'SELECT cenario_fiscal, cenario_fiscal_id, estado_destino, empresa_id, data_emissao, created_at FROM pedidos WHERE id = ?', [id]
+            );
+            const cenarioFiscalEfetivo = cenario_fiscal || pedidoFiscal?.cenario_fiscal_id || pedidoFiscal?.cenario_fiscal || null;
+            const fiscalServidor = await calcularImpostosItemVenda({
+                codigo, produtoId: produto_id, subtotal: total, cenarioFiscal: cenarioFiscalEfetivo,
+                estadoDestino: pedidoFiscal?.estado_destino,
+                // CFOP escolhido na tela decide o ST junto com o cadastro do produto.
+                cfop, empresaId: pedidoFiscal?.empresa_id, dataOperacao: pedidoFiscal?.data_emissao || pedidoFiscal?.created_at
+            });
+            if (fiscalServidor.cenario || fiscalServidor.produto) {
+                vIPI = fiscalServidor.valor_ipi;
+                vICMS = fiscalServidor.valor_icms;
+                vICMSST = fiscalServidor.valor_icms_st;
+                aliqIPI = fiscalServidor.aliquota_ipi;
+                aliqICMS_local = fiscalServidor.aliquota_icms;
+                mvaST_local = fiscalServidor.mva_st;
+            }
+
             const [result] = await pool.query(
                 `INSERT INTO pedido_itens (pedido_id, codigo, descricao, quantidade, quantidade_parcial, unidade, local_estoque,
-                 preco_unitario, desconto, subtotal, produto_id, valor_ipi, valor_icms_st, aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, preco_custo, nao_gerar_saida_estoque)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 preco_unitario, desconto, subtotal, produto_id, valor_ipi, valor_icms, valor_icms_st, base_calculo_icms,
+                 base_calculo_icms_st, aliquota_ipi, aliquota_icms, aliquota_icms_st, mva_st, cfop, cenario_fiscal, observacoes, embalagem, lances, preco_custo,
+                 tabela_preco_id, numero_pedido_compra, item_pedido_compra, nao_gerar_saida_estoque)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [id, codigo, descricao, qty, qtyParcial, unidade || 'UN', local_estoque || 'PADRAO - Local de Estoque Padrão',
-                 preco, desc, total, produto_id || null, vIPI, vICMSST,
-                 aliqIPI, aliqICMS_local, mvaST_local,
-                 cfop || null, cenario_fiscal || null, observacoes || null, parseFloat(preco_custo) || 0,
+                 preco, desc, total, fiscalServidor.produto_id, vIPI, vICMS, vICMSST,
+                 fiscalServidor.base_calculo_icms, fiscalServidor.base_calculo_icms_st,
+                 aliqIPI, aliqICMS_local, fiscalServidor.aliquota_icms_st, mvaST_local,
+                 cfop || null, fiscalServidor.cenario_fiscal || cenarioFiscalEfetivo || null, observacoes || null, embalagem || null, lancesItem.valor || null, parseFloat(preco_custo) || 0,
+                 Number(tabela_preco_id) || null, String(numero_pedido_compra || '').trim() || null, String(item_pedido_compra || '').trim() || null,
                  nao_gerar_saida_estoque ? 1 : 0]
             );
 
             // Recalcular totais de impostos e valor do pedido
             const [totaisImpostos] = await pool.query(
-                'SELECT COALESCE(SUM(valor_ipi), 0) as total_ipi, COALESCE(SUM(valor_icms_st), 0) as total_icms_st, COALESCE(SUM(subtotal), 0) as total_subtotais FROM pedido_itens WHERE pedido_id = ?',
+                'SELECT COALESCE(SUM(valor_ipi), 0) as total_ipi, COALESCE(SUM(valor_icms), 0) as total_icms, COALESCE(SUM(valor_icms_st), 0) as total_icms_st, COALESCE(SUM(subtotal), 0) as total_subtotais FROM pedido_itens WHERE pedido_id = ?',
                 [id]
             );
             const [pedidoFrete] = await pool.query('SELECT COALESCE(frete, 0) as frete FROM pedidos WHERE id = ?', [id]);
             const novoValor = parseFloat(totaisImpostos[0].total_subtotais) + parseFloat(totaisImpostos[0].total_ipi) + parseFloat(totaisImpostos[0].total_icms_st) + parseFloat(pedidoFrete[0]?.frete || 0);
-            await pool.query('UPDATE pedidos SET total_ipi = ?, total_icms_st = ?, valor = ? WHERE id = ?',
-                [totaisImpostos[0].total_ipi, totaisImpostos[0].total_icms_st, novoValor, id]);
+            await pool.query('UPDATE pedidos SET total_ipi = ?, total_icms = ?, total_icms_st = ?, valor = ? WHERE id = ?',
+                [totaisImpostos[0].total_ipi, totaisImpostos[0].total_icms, totaisImpostos[0].total_icms_st, novoValor, id]);
+            await recalcularImpostosPedidoVenda(id);
 
             console.log(`📦 Item adicionado ao pedido #${id}. Novo valor: R$${novoValor.toFixed(2)} (subtotais: ${totaisImpostos[0].total_subtotais}, IPI: ${totaisImpostos[0].total_ipi}, ICMS ST: ${totaisImpostos[0].total_icms_st}, frete: ${pedidoFrete[0]?.frete || 0})`);
+            const userAdd = req.user || {};
+            await registrarHistoricoPedido(id, userAdd.id, userAdd.nome || userAdd.email || 'Sistema', 'item_adicionado',
+                `Item adicionado: ${codigo} - ${descricao} (qtd ${qty} x R$${preco.toFixed(2)})`,
+                { item_id: result.insertId, codigo, quantidade: qty, preco_unitario: preco, desconto: desc, subtotal: total, novo_valor_pedido: novoValor });
+            if (_ctxMargemItem.autorizacao) {
+                await _registrarAutorizacaoMargemItem(pool, id, result.insertId, _ctxMargemItem.autorizacao);
+            }
+            await _marcarProcedenciaPreco(pool, result.insertId, b, _ctxMargemItem.autorizacao);
             res.status(201).json({ message: 'Item adicionado com sucesso!', id: result.insertId });
         } catch (error) {
+            next(error);
+        }
+    });
+
+    // ============================================================
+    // DETALHE FISCAL DO ITEM — as abas ICMS / ICMS-ST / IPI / PIS / COFINS
+    // ============================================================
+    // Existe para o modal de item mostrar, por tributo, DE ONDE cada número saiu.
+    // Antes ele exibia só um resumo com IPI e "ICMS ST+FCP ST" somados, e conferir
+    // um imposto errado exigia abrir a nota — tarde demais.
+    //
+    // Os valores calculados (base, alíquota, valor) vivem em `pedido_itens`, gravados
+    // pelo motor `calcularImpostosItemVenda`. Já a CLASSIFICAÇÃO (CST, CEST, origem,
+    // NCM) não é do item: vive em `produtos` e é o que o motor lê para decidir o
+    // cálculo. Por isso a resposta separa `calculado` de `classificacao` — misturar os
+    // dois sugeriria que dá para editar o CST aqui, e editar aqui não recalcularia nada.
+    router.get('/pedidos/:pedidoId/itens/:itemId/fiscal', async (req, res, next) => {
+        try {
+            const pedidoId = parseInt(req.params.pedidoId, 10);
+            const itemId = parseInt(req.params.itemId, 10);
+            if (!Number.isInteger(pedidoId) || !Number.isInteger(itemId)) {
+                return res.status(400).json({ success: false, message: 'Pedido ou item inválido.' });
+            }
+
+            const [[it]] = await pool.query(`
+                SELECT pi.*, p.estado_destino, p.status AS pedido_status,
+                       p.retencoes_json,
+                       COALESCE(NULLIF(TRIM(p.estado_destino), ''), c.estado) AS uf_destino
+                  FROM pedido_itens pi
+                  JOIN pedidos p ON p.id = pi.pedido_id
+             LEFT JOIN clientes c ON c.id = p.cliente_id
+                 WHERE pi.id = ? AND pi.pedido_id = ? LIMIT 1
+            `, [itemId, pedidoId]);
+            if (!it) return res.status(404).json({ success: false, message: 'Item não encontrado neste pedido.' });
+
+            // O cadastro do produto responde pela classificação. Sem ele (item digitado
+            // livre, sem produto vinculado) as abas mostram "—" em vez de inventar CST.
+            const [[prod]] = await pool.query(`
+                SELECT codigo, descricao, ncm, cest, origem, ex_tipi,
+                       cst_icms, csosn_icms, reducao_bc_icms, aliquota_icms AS prod_aliq_icms,
+                       calcular_icms_st, cst_ipi, aliquota_ipi AS prod_aliq_ipi, calcular_ipi,
+                       cst_pis, aliquota_pis AS prod_aliq_pis,
+                       cst_cofins, aliquota_cofins AS prod_aliq_cofins,
+                       cst_reforma, fcp_aliquota
+                  FROM produtos
+                 WHERE (? IS NOT NULL AND id = ?) OR codigo = ? LIMIT 1
+            `, [it.produto_id, it.produto_id, it.codigo || '']);
+
+            const n = (v) => (v === null || v === undefined || v === '') ? null : (parseFloat(v) || 0);
+            const t = (v) => (v === null || v === undefined || String(v).trim() === '') ? null : String(v).trim();
+
+            // Regra do NCM: é a fonte que o usuário pediu ("puxar conforme o NCM").
+            // O NCM é gravado com e sem pontuação conforme a origem do cadastro, então a
+            // comparação tira ponto e hífen dos dois lados — 8544.49.00 e 85444900 são o mesmo.
+            let regraNcm = null;
+            if (prod && prod.ncm) {
+                const [[rn]] = await pool.query(`
+                    SELECT ncm, descricao, cst_icms_padrao, csosn_icms_padrao, aliquota_icms_padrao,
+                           reducao_bc_padrao, cst_ipi_padrao, aliquota_ipi_padrao, mva_st,
+                           ex_tipi, cst_pis_padrao, cst_cofins_padrao, monofasico, cest
+                      FROM regras_fiscais_ncm
+                     WHERE REPLACE(REPLACE(ncm, '.', ''), '-', '') = REPLACE(REPLACE(?, '.', ''), '-', '')
+                       AND ativo = TRUE LIMIT 1
+                `, [prod.ncm]).catch(() => [[null]]);
+                if (rn) {
+                    regraNcm = {
+                        ncm: t(rn.ncm), descricao: t(rn.descricao),
+                        cst_icms: t(rn.cst_icms_padrao), csosn_icms: t(rn.csosn_icms_padrao),
+                        aliquota_icms: n(rn.aliquota_icms_padrao), reducao_bc: n(rn.reducao_bc_padrao),
+                        cst_ipi: t(rn.cst_ipi_padrao), aliquota_ipi: n(rn.aliquota_ipi_padrao),
+                        mva_st: n(rn.mva_st), ex_tipi: t(rn.ex_tipi),
+                        cst_pis: t(rn.cst_pis_padrao), cst_cofins: t(rn.cst_cofins_padrao),
+                        monofasico: rn.monofasico, cest: t(rn.cest)
+                    };
+                }
+            }
+
+            let manuais = it.impostos_manuais;
+            if (typeof manuais === 'string') { try { manuais = JSON.parse(manuais); } catch (_) { manuais = null; } }
+
+            res.json({
+                success: true,
+                regra_ncm: regraNcm,
+                impostos_manuais: manuais && Object.keys(manuais).length ? manuais : null,
+                item: {
+                    id: it.id, codigo: it.codigo, descricao: it.descricao,
+                    quantidade: n(it.quantidade), unidade: it.unidade,
+                    preco_unitario: n(it.preco_unitario), subtotal: n(it.subtotal),
+                    cfop: t(it.cfop), cenario_fiscal: t(it.cenario_fiscal),
+                    uf_destino: t(it.uf_destino), pedido_status: it.pedido_status
+                },
+                classificacao: prod ? {
+                    ncm: t(prod.ncm), cest: t(prod.cest), origem: t(prod.origem), ex_tipi: t(prod.ex_tipi),
+                    cst_icms: t(prod.cst_icms), csosn_icms: t(prod.csosn_icms),
+                    reducao_bc_icms: n(prod.reducao_bc_icms),
+                    cst_ipi: t(prod.cst_ipi), cst_pis: t(prod.cst_pis), cst_cofins: t(prod.cst_cofins),
+                    cst_reforma: t(prod.cst_reforma),
+                    calcular_icms_st: prod.calcular_icms_st, calcular_ipi: prod.calcular_ipi,
+                    fcp_aliquota: n(prod.fcp_aliquota)
+                } : null,
+                calculado: {
+                    icms: {
+                        base: n(it.base_calculo_icms),
+                        // Dois pares para o mesmo dado conforme a origem do pedido (nativo x
+                        // importação Omie): o item preenche um ou outro, nunca os dois.
+                        aliquota: n(it.aliquota_icms) ?? n(it.icms_percent),
+                        valor: n(it.valor_icms) ?? n(it.icms_value)
+                    },
+                    icms_st: {
+                        base: n(it.base_calculo_icms_st), aliquota: n(it.aliquota_icms_st),
+                        mva: n(it.mva_st), valor: n(it.valor_icms_st)
+                    },
+                    fcp_st: {
+                        base: n(it.base_calculo_fcp_st), aliquota: n(it.aliquota_fcp_st),
+                        valor: n(it.valor_fcp_st), valor_fcp_destino: n(it.valor_fcp_destino)
+                    },
+                    ipi: { base: n(it.subtotal), aliquota: n(it.aliquota_ipi), valor: n(it.valor_ipi) },
+                    pis: { base: n(it.subtotal), aliquota: n(it.pis_percent), valor: n(it.pis_value) },
+                    cofins: { base: n(it.subtotal), aliquota: n(it.cofins_percent), valor: n(it.cofins_value) },
+                    reforma: {
+                        cst: t(it.cst_reforma), base: n(it.base_cbs_ibs),
+                        cbs_aliquota: n(it.cbs_aliquota), cbs_valor: n(it.cbs_valor),
+                        ibs_aliquota: n(it.ibs_aliquota), ibs_valor: n(it.ibs_valor),
+                        is_aliquota: n(it.is_aliquota),
+                        classe_cbs: t(it.cclasstrib_cbs), classe_ibs: t(it.cclasstrib_ibs),
+                        classe_is: t(it.cclasstrib_is)
+                    },
+                    // "Lançamentos de ajuste de ICMS" no vocabulário desta base: DIFAL e FCP
+                    // do destino. São os dois ajustes que o motor calcula por fora da
+                    // operação própria — não há outra tabela de ajuste de ICMS aqui.
+                    ajuste_icms: {
+                        valor_difal: n(it.valor_difal), valor_fcp_destino: n(it.valor_fcp_destino)
+                    }
+                },
+                observacoes: t(it.observacoes),
+                informacoes_adicionais: {
+                    local_estoque: t(it.local_estoque), embalagem: t(it.embalagem), lances: t(it.lances),
+                    nao_gerar_saida_estoque: it.nao_gerar_saida_estoque
+                },
+                // Lote/validade e do ITEM; retencao e da NOTA — os dois niveis que o XSD
+                // exige. Vao juntos na resposta porque a tela que edita os dois e a mesma.
+                rastro: lerJsonFiscal(it.rastro_json) || [],
+                retencoes: lerJsonFiscal(it.retencoes_json) || null
+            });
+        } catch (error) {
+            console.error('[VENDAS/ITEM-FISCAL] Erro:', error.message);
+            next(error);
+        }
+    });
+
+    // ============================================================
+    // GRAVAR AJUSTE MANUAL DE IMPOSTO DO ITEM
+    // ============================================================
+    // Só ti@, logistica@ e admin. É a mesma porta pela qual o valor entra no pedido,
+    // na DANFE e na NF-e — todos leem `pedido_itens` —, então o que passa aqui sai
+    // impresso no documento fiscal.
+    router.put('/pedidos/:pedidoId/itens/:itemId/fiscal', async (req, res, next) => {
+        try {
+            const u = req.user || {};
+            const ehAdmin = u.is_admin === true || u.is_admin === 1
+                || String(u.role || '').toLowerCase() === 'admin';
+            if (!ehAdmin && !contaComEdicaoLiberada(u)) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Apenas TI, Compras, Logística ou administradores podem ajustar impostos do item.',
+                    code: 'FISCAL_SEM_PERMISSAO'
+                });
+            }
+
+            const pedidoId = parseInt(req.params.pedidoId, 10);
+            const itemId = parseInt(req.params.itemId, 10);
+            if (!Number.isInteger(pedidoId) || !Number.isInteger(itemId)) {
+                return res.status(400).json({ success: false, message: 'Pedido ou item inválido.' });
+            }
+
+            const [[item]] = await pool.query(
+                'SELECT id, impostos_manuais FROM pedido_itens WHERE id = ? AND pedido_id = ? LIMIT 1',
+                [itemId, pedidoId]);
+            if (!item) return res.status(404).json({ success: false, message: 'Item não encontrado neste pedido.' });
+
+            // Nota já emitida não se reescreve por aqui: o documento fiscal está
+            // autorizado na SEFAZ e mudar o pedido não muda o XML transmitido.
+            const [[ped]] = await pool.query(
+                'SELECT status, nfe_chave FROM pedidos WHERE id = ? LIMIT 1', [pedidoId]);
+            if (ped && ped.nfe_chave) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'Pedido já tem NF-e emitida — o imposto do item não pode mais ser alterado aqui.',
+                    code: 'NFE_JA_EMITIDA'
+                });
+            }
+
+            // ── Lote/validade (por ITEM) e retencoes (por NOTA) ──────────────
+            // Chegam pelo mesmo PUT porque a tela que edita os tres e a mesma e a
+            // permissao e identica; gravar em rotas separadas so multiplicaria a
+            // checagem de acesso, que e onde erro de permissao costuma nascer.
+            const XmlNFe = require('../modules/Faturamento/services/xml-nfe.service');
+
+            if (Object.prototype.hasOwnProperty.call(req.body || {}, 'rastro')) {
+                // Valida com a MESMA funcao que monta o XML: se ela descarta a linha,
+                // a linha nao serve para nota nenhuma e nao deve ser gravada.
+                const limpo = XmlNFe.lerRastro(req.body.rastro);
+                const enviados = Array.isArray(req.body.rastro) ? req.body.rastro.length : (req.body.rastro ? 1 : 0);
+                if (enviados > 0 && limpo.length === 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Lote invalido: informe numero do lote, quantidade e data de fabricacao (AAAA-MM-DD).',
+                        code: 'RASTRO_INVALIDO'
+                    });
+                }
+                await pool.query('UPDATE pedido_itens SET rastro_json = ? WHERE id = ?',
+                    [limpo.length ? JSON.stringify(limpo) : null, itemId]);
+            }
+
+            if (Object.prototype.hasOwnProperty.call(req.body || {}, 'retencoes')) {
+                const ret = XmlNFe.lerRetencoes(req.body.retencoes);
+                // Retencao e do PEDIDO: o grupo retTrib vive em <total>, nao em <det>.
+                await pool.query('UPDATE pedidos SET retencoes_json = ? WHERE id = ?',
+                    [ret ? JSON.stringify(ret) : null, pedidoId]);
+            }
+
+            const entrada = req.body && typeof req.body.impostos === 'object' ? req.body.impostos : null;
+            // Requisicao que so mexeu em lote/retencao nao precisa mandar impostos.
+            if (!entrada) {
+                if (Object.prototype.hasOwnProperty.call(req.body || {}, 'rastro')
+                    || Object.prototype.hasOwnProperty.call(req.body || {}, 'retencoes')) {
+                    clearPedidosCache();
+                    return res.json({ success: true, message: 'Dados gravados.' });
+                }
+                return res.status(400).json({ success: false, message: 'Envie o objeto "impostos".' });
+            }
+
+            // Campo vazio/null = "volta a ser calculado pelo motor". É como se desfaz
+            // um ajuste, sem precisar de uma ação separada de "destravar".
+            const manuais = {};
+            const ignorados = [];
+            for (const campo of Object.keys(entrada)) {
+                if (!CAMPOS_IMPOSTO_MANUAL.has(campo)) { ignorados.push(campo); continue; }
+                const cru = entrada[campo];
+                if (cru === null || cru === undefined || cru === '') continue;
+                const v = Number(cru);
+                if (!Number.isFinite(v) || v < 0) {
+                    return res.status(400).json({ success: false, message: `Valor inválido para ${campo}.` });
+                }
+                manuais[campo] = Math.round(v * 100) / 100;
+            }
+
+            const temAlgum = Object.keys(manuais).length > 0;
+            await pool.query('UPDATE pedido_itens SET impostos_manuais = ? WHERE id = ?',
+                [temAlgum ? JSON.stringify(manuais) : null, itemId]);
+
+            // Recalcula o pedido inteiro: os totais do cabeçalho (total_icms_st, valor…)
+            // são somas dos itens, e deixar só a linha ajustada tornaria o pedido
+            // inconsistente consigo mesmo.
+            let totais = null;
+            try {
+                totais = await recalcularImpostosPedidoVenda(pedidoId);
+            } catch (e) {
+                console.error('[VENDAS/ITEM-FISCAL] recálculo falhou:', e.message);
+            }
+
+            await pool.query(
+                `INSERT INTO pedido_historico (pedido_id, descricao, acao, meta, usuario_id, usuario_nome, created_at)
+                 VALUES (?, ?, 'ajuste-imposto-item', ?, ?, ?, NOW())`,
+                [pedidoId,
+                    temAlgum ? `Imposto do item #${itemId} ajustado manualmente` : `Ajuste manual do item #${itemId} removido`,
+                    JSON.stringify({ item_id: itemId, impostos: manuais }),
+                    u.id || null, u.nome || u.email || null]
+            ).catch((e) => console.error('[VENDAS/ITEM-FISCAL] histórico:', e.message));
+
+            clearPedidosCache();
+            res.json({
+                success: true,
+                message: temAlgum ? 'Imposto ajustado e pedido recalculado.' : 'Ajuste removido; o motor voltou a calcular.',
+                impostos_manuais: temAlgum ? manuais : null,
+                ignorados: ignorados.length ? ignorados : undefined,
+                totais
+            });
+        } catch (error) {
+            console.error('[VENDAS/ITEM-FISCAL] Erro ao gravar:', error.message);
             next(error);
         }
     });
@@ -4745,16 +9952,19 @@ module.exports = function createVendasRoutes(deps) {
 
             // Lock: verificar status do pedido antes de permitir edição de item
             const [[pedidoStatusCheck]] = await pool.query('SELECT status FROM pedidos WHERE id = ?', [parseInt(pedidoId)]);
-            if (pedidoStatusCheck && STATUS_BLOQUEADO_EDICAO.includes((pedidoStatusCheck.status || '').toLowerCase())) {
-                const userEmail = (req.user && req.user.email || '').toLowerCase();
-                if (userEmail !== EMAIL_EDICAO_LIBERADO) {
-                    return res.status(403).json({ message: `Pedido com status "${pedidoStatusCheck.status}" não pode ser editado. Somente TI pode editar itens neste status.`, code: 'EDIT_LOCKED_BY_STATUS' });
+            if (pedidoStatusCheck && pedidoBloqueadoParaEdicao(pedidoStatusCheck.status)) {
+                return res.status(403).json({ message: `Pedido com status "${pedidoStatusCheck.status}" não pode ter itens editados — pedido já faturado.`, code: 'EDIT_LOCKED_BY_STATUS' });
+            }
+            if (pedidoStatusCheck && STATUS_ANALISE_CREDITO_BLOQUEADO.includes((pedidoStatusCheck.status || '').toLowerCase())) {
+                if (!contaComEdicaoLiberada(req.user)) {
+                    return res.status(403).json({ message: `Pedido com status "${pedidoStatusCheck.status}" não pode ser editado. Somente TI, Compras ou Logística podem editar itens neste status.`, code: 'EDIT_LOCKED_BY_STATUS' });
                 }
             }
 
             // AUDIT-FIX R3: Ownership check — vendedor só edita itens de seus próprios pedidos
             const user = req.user || {};
-            const isAdmin = user.is_admin === true || user.is_admin === 1 || (user.role && user.role.toString().toLowerCase() === 'admin');
+            // PCP opera pedidos de toda a equipe (não é dono de nenhum) — liberado em 25/09/2026.
+            const isAdmin = user.is_admin === true || user.is_admin === 1 || (user.role && user.role.toString().toLowerCase() === 'admin') || isPcpUser(user);
             if (!isAdmin) {
                 const [ownerCheck] = await pool.query('SELECT vendedor_id FROM pedidos WHERE id = ?', [pedidoId]);
                 if (!ownerCheck.length) return res.status(404).json({ error: 'Pedido não encontrado' });
@@ -4766,46 +9976,120 @@ module.exports = function createVendasRoutes(deps) {
             const codigo = b.codigo || b['código'] || '';
             const descricao = b.descricao || b['descrição'] || '';
             const { quantidade, quantidade_parcial, unidade, local_estoque, preco_unitario, desconto,
-                    produto_id, valor_ipi, valor_icms_st, aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, preco_custo,
+                    produto_id, valor_ipi, valor_icms_st, aliquota_ipi, aliquota_icms, mva_st, cfop, cenario_fiscal, observacoes, embalagem, lances, preco_custo,
+                    tabela_preco_id, numero_pedido_compra, item_pedido_compra,
                     nao_gerar_saida_estoque } = b;
 
-            const qty = parseFloat(quantidade) || 1;
+            const lancesItem = normalizarLancesPedidoItem(lances);
+            if (!lancesItem.valido) {
+                return res.status(400).json({ message: 'Lance(s) invalido. Use o formato 1x1000, 2x100 ou 1x500,1x250.' });
+            }
+            const qty = lancesItem.totalMetros > 0 ? lancesItem.totalMetros : (parseFloat(quantidade) || 1);
             // BUG-VEND-011: quantidade deve ser > 0 (valor negativo gerava total negativo)
             if (!(qty > 0)) {
                 return res.status(400).json({ message: 'Quantidade do item deve ser maior que zero.' });
             }
             const qtyParcial = parseFloat(quantidade_parcial) || 0;
+
+            const travaEstoque = await conferirEstoqueOuEncomenda(pool, {
+                produtoId: produto_id, codigo, quantidade: qty, sobEncomenda: !!nao_gerar_saida_estoque
+            });
+            if (travaEstoque) return res.status(409).json({ success: false, ...travaEstoque });
+
             const preco = parseFloat(preco_unitario) || 0;
             if (preco < 0) {
                 return res.status(400).json({ message: 'Preço do item não pode ser negativo.' });
             }
-            const desc = parseFloat(desconto) || 0;
-            const vIPI = parseFloat(valor_ipi) || 0;
-            const vICMSST = parseFloat(valor_icms_st) || 0;
+            const descontoPctBody = parseFloat(String(b.desconto_pct ?? '').replace(',', '.'));
+            const desc = Number.isFinite(descontoPctBody) && descontoPctBody > 0
+                ? (qty * preco) * (descontoPctBody / 100)
+                : (parseFloat(desconto) || 0);
+            const _ctxMargemItem = {};
+            const _erroPiso = await validarPisoPrecoItem({
+                produtoId: produto_id, codigo, preco, quantidade: qty, desconto: desc,
+                token: b.autorizacao_desconto_token || b.autorizacao_preco_token, pedidoId,
+                ctx: _ctxMargemItem
+            });
+            if (_erroPiso) return res.status(_erroPiso.status).json({ success: false, message: _erroPiso.message, code: _erroPiso.code });
+            let vIPI = parseFloat(valor_ipi) || 0;
+            let vICMS = parseFloat(b.valor_icms) || 0;
+            let vICMSST = parseFloat(valor_icms_st) || 0;
+            let aliqIPI = parseFloat(aliquota_ipi) || 0;
+            let aliqICMS_local = parseFloat(aliquota_icms) || 0;
+            let mvaST_local = parseFloat(mva_st) || 0;
             const total = (qty * preco) - desc;
+            const impostoCenario = await calcularImpostosPorCenarioFiscalItem(cenario_fiscal, total);
+            if (impostoCenario) {
+                if (valor_ipi === undefined || vIPI === 0) vIPI = impostoCenario.valor_ipi;
+                if (valor_icms_st === undefined || vICMSST === 0) vICMSST = impostoCenario.valor_icms_st;
+                if (aliquota_ipi === undefined || aliqIPI === 0) aliqIPI = impostoCenario.aliquota_ipi;
+                if (aliquota_icms === undefined || aliqICMS_local === 0) aliqICMS_local = impostoCenario.aliquota_icms;
+            }
+
+            const [[pedidoFiscal]] = await pool.query(
+                'SELECT cenario_fiscal, cenario_fiscal_id, estado_destino, empresa_id, data_emissao, created_at FROM pedidos WHERE id = ?', [pedidoId]
+            );
+            const cenarioFiscalEfetivo = cenario_fiscal || pedidoFiscal?.cenario_fiscal_id || pedidoFiscal?.cenario_fiscal || null;
+            const fiscalServidor = await calcularImpostosItemVenda({
+                codigo, produtoId: produto_id, subtotal: total, cenarioFiscal: cenarioFiscalEfetivo,
+                estadoDestino: pedidoFiscal?.estado_destino,
+                // CFOP escolhido na tela decide o ST junto com o cadastro do produto.
+                cfop, empresaId: pedidoFiscal?.empresa_id, dataOperacao: pedidoFiscal?.data_emissao || pedidoFiscal?.created_at
+            });
+            if (fiscalServidor.cenario || fiscalServidor.produto) {
+                vIPI = fiscalServidor.valor_ipi;
+                vICMS = fiscalServidor.valor_icms;
+                vICMSST = fiscalServidor.valor_icms_st;
+                aliqIPI = fiscalServidor.aliquota_ipi;
+                aliqICMS_local = fiscalServidor.aliquota_icms;
+                mvaST_local = fiscalServidor.mva_st;
+            }
+
+            const [[itemAnterior]] = await pool.query(
+                'SELECT codigo, quantidade, preco_unitario, desconto, subtotal FROM pedido_itens WHERE id = ? AND pedido_id = ?',
+                [itemId, pedidoId]
+            );
 
             await pool.query(
                 `UPDATE pedido_itens SET codigo = ?, descricao = ?, quantidade = ?, quantidade_parcial = ?, unidade = ?,
                  local_estoque = ?, preco_unitario = ?, desconto = ?, subtotal = ?,
-                 produto_id = ?, valor_ipi = ?, valor_icms_st = ?, aliquota_ipi = ?, aliquota_icms = ?, mva_st = ?,
-                 cfop = ?, cenario_fiscal = ?, observacoes = ?, preco_custo = ?, nao_gerar_saida_estoque = ? WHERE id = ? AND pedido_id = ?`,
+                 produto_id = ?, valor_ipi = ?, valor_icms = ?, valor_icms_st = ?, base_calculo_icms = ?, base_calculo_icms_st = ?,
+                 aliquota_ipi = ?, aliquota_icms = ?, aliquota_icms_st = ?, mva_st = ?,
+                 cfop = ?, cenario_fiscal = ?, observacoes = ?, embalagem = ?, lances = ?, preco_custo = ?,
+                 tabela_preco_id = ?, numero_pedido_compra = ?, item_pedido_compra = ?, nao_gerar_saida_estoque = ? WHERE id = ? AND pedido_id = ?`,
                 [codigo, descricao, qty, qtyParcial, unidade, local_estoque, preco, desc, total,
-                 produto_id || null, vIPI, vICMSST, parseFloat(aliquota_ipi) || 0, parseFloat(aliquota_icms) || 0, parseFloat(mva_st) || 0,
-                 cfop || null, cenario_fiscal || null, observacoes || null, parseFloat(preco_custo) || 0,
+                 fiscalServidor.produto_id, vIPI, vICMS, vICMSST, fiscalServidor.base_calculo_icms, fiscalServidor.base_calculo_icms_st,
+                 aliqIPI, aliqICMS_local, fiscalServidor.aliquota_icms_st, mvaST_local,
+                 cfop || null, fiscalServidor.cenario_fiscal || cenarioFiscalEfetivo || null, observacoes || null, embalagem || null, lancesItem.valor || null, parseFloat(preco_custo) || 0,
+                 Number(tabela_preco_id) || null, String(numero_pedido_compra || '').trim() || null, String(item_pedido_compra || '').trim() || null,
                  nao_gerar_saida_estoque ? 1 : 0, itemId, pedidoId]
             );
 
             // Recalcular totais de impostos e valor do pedido
             const [totaisImpostos] = await pool.query(
-                'SELECT COALESCE(SUM(valor_ipi), 0) as total_ipi, COALESCE(SUM(valor_icms_st), 0) as total_icms_st, COALESCE(SUM(subtotal), 0) as total_subtotais FROM pedido_itens WHERE pedido_id = ?',
+                'SELECT COALESCE(SUM(valor_ipi), 0) as total_ipi, COALESCE(SUM(valor_icms), 0) as total_icms, COALESCE(SUM(valor_icms_st), 0) as total_icms_st, COALESCE(SUM(subtotal), 0) as total_subtotais FROM pedido_itens WHERE pedido_id = ?',
                 [pedidoId]
             );
             const [pedidoFrete] = await pool.query('SELECT COALESCE(frete, 0) as frete FROM pedidos WHERE id = ?', [pedidoId]);
             const novoValor = parseFloat(totaisImpostos[0].total_subtotais) + parseFloat(totaisImpostos[0].total_ipi) + parseFloat(totaisImpostos[0].total_icms_st) + parseFloat(pedidoFrete[0]?.frete || 0);
-            await pool.query('UPDATE pedidos SET total_ipi = ?, total_icms_st = ?, valor = ? WHERE id = ?',
-                [totaisImpostos[0].total_ipi, totaisImpostos[0].total_icms_st, novoValor, pedidoId]);
+            await pool.query('UPDATE pedidos SET total_ipi = ?, total_icms = ?, total_icms_st = ?, valor = ? WHERE id = ?',
+                [totaisImpostos[0].total_ipi, totaisImpostos[0].total_icms, totaisImpostos[0].total_icms_st, novoValor, pedidoId]);
+            await recalcularImpostosPedidoVenda(pedidoId);
 
             console.log(`📝 Item atualizado no pedido #${pedidoId}. Novo valor: R$${novoValor.toFixed(2)}`);
+            const deltaItem = itemAnterior ? {
+                quantidade: { anterior: itemAnterior.quantidade, novo: qty },
+                preco_unitario: { anterior: itemAnterior.preco_unitario, novo: preco },
+                desconto: { anterior: itemAnterior.desconto, novo: desc },
+                subtotal: { anterior: itemAnterior.subtotal, novo: total }
+            } : null;
+            await registrarHistoricoPedido(pedidoId, user.id, user.nome || user.email || 'Sistema', 'item_editado',
+                `Item editado: ${codigo} - ${descricao} (qtd ${qty} x R$${preco.toFixed(2)})`,
+                { item_id: parseInt(itemId), codigo, delta: deltaItem, novo_valor_pedido: novoValor });
+            await _marcarProcedenciaPreco(pool, itemId, b, _ctxMargemItem.autorizacao);
+            if (_ctxMargemItem.autorizacao) {
+                await _registrarAutorizacaoMargemItem(pool, pedidoId, itemId, _ctxMargemItem.autorizacao);
+            }
             res.json({ message: 'Item atualizado com sucesso!' });
         } catch (error) {
             next(error);
@@ -4848,22 +10132,36 @@ module.exports = function createVendasRoutes(deps) {
 
             // AUDIT-FIX R3: Ownership check — vendedor só exclui itens de seus próprios pedidos
             const user = req.user || {};
-            const isAdmin = user.is_admin === true || user.is_admin === 1 || (user.role && user.role.toString().toLowerCase() === 'admin');
+            // PCP opera pedidos de toda a equipe (não é dono de nenhum) — liberado em 25/09/2026.
+            const isAdmin = user.is_admin === true || user.is_admin === 1 || (user.role && user.role.toString().toLowerCase() === 'admin') || isPcpUser(user);
 
             // Lock: verificar status do pedido antes de permitir exclusão de item
             const [[pedidoStatusDel]] = await pool.query('SELECT status FROM pedidos WHERE id = ?', [parseInt(pedidoId)]);
-            if (pedidoStatusDel && STATUS_BLOQUEADO_EDICAO.includes((pedidoStatusDel.status || '').toLowerCase())) {
-                const userEmail = (user.email || '').toLowerCase();
-                if (userEmail !== EMAIL_EDICAO_LIBERADO) {
+            const statusPedido = String(pedidoStatusDel?.status || '').toLowerCase().trim();
+            const isOrcamento = statusPedido === 'orcamento' || statusPedido === 'orçamento';
+            if (pedidoStatusDel && pedidoBloqueadoParaEdicao(pedidoStatusDel.status)) {
+                connection.release();
+                return res.status(403).json({ message: `Pedido com status "${pedidoStatusDel.status}" não pode ter itens excluídos — pedido já faturado.`, code: 'EDIT_LOCKED_BY_STATUS' });
+            }
+            if (pedidoStatusDel && STATUS_ANALISE_CREDITO_BLOQUEADO.includes((pedidoStatusDel.status || '').toLowerCase())) {
+                if (!contaComEdicaoLiberada(req.user)) {
                     connection.release();
-                    return res.status(403).json({ message: `Pedido com status "${pedidoStatusDel.status}" não pode ser editado. Somente TI pode excluir itens neste status.`, code: 'EDIT_LOCKED_BY_STATUS' });
+                    return res.status(403).json({ message: `Pedido com status "${pedidoStatusDel.status}" não pode ser editado. Somente TI, Compras ou Logística podem excluir itens neste status.`, code: 'EDIT_LOCKED_BY_STATUS' });
                 }
             }
 
-            if (!isAdmin) {
+            // Enquanto está em orçamento, a equipe com acesso de escrita em Vendas pode
+            // ajustar os itens mesmo quando outro vendedor criou o registro. O writeGuard
+            // aplicado ao router continua impedindo perfis somente-leitura.
+            if (!isAdmin && !isOrcamento) {
                 const [ownerCheck] = await pool.query('SELECT vendedor_id FROM pedidos WHERE id = ?', [pedidoId]);
                 if (!ownerCheck.length) { connection.release(); return res.status(404).json({ error: 'Pedido não encontrado' }); }
-                if (ownerCheck[0].vendedor_id !== user.id) { connection.release(); return res.status(403).json({ error: 'Acesso negado' }); }
+                // O MySQL retorna vendedor_id como number, enquanto o JWT pode trazer user.id
+                // como string. A comparação estrita bloqueava o próprio vendedor (ex.: 12 !==
+                // "12"), inclusive quando o pedido ainda estava em orçamento.
+                if (Number(ownerCheck[0].vendedor_id) !== Number(user.id)) {
+                    return res.status(403).json({ error: 'Acesso negado' });
+                }
             }
 
             await connection.beginTransaction();
@@ -4880,6 +10178,11 @@ module.exports = function createVendasRoutes(deps) {
                     code: 'ITEM_DELETE_BLOCKED_BY_STATUS'
                 });
             }
+
+            const [[itemDel]] = await connection.query(
+                'SELECT codigo, descricao, quantidade, subtotal FROM pedido_itens WHERE id = ? AND pedido_id = ?',
+                [itemId, pedidoId]
+            );
 
             // Delete the item
             const [deleteResult] = await connection.query(
@@ -4912,9 +10215,19 @@ module.exports = function createVendasRoutes(deps) {
                 [novoTotal, totalIPI, totalICMSST, pedidoId]
             );
 
+            // BUG-VEND-DEL-ICMS (corrigido em 15/09/2026): ao contrário de adicionar/editar
+            // item, esta rota nunca recalculava total_icms/total_pis/total_cofins/
+            // base_calculo_icms — eles ficavam com a contribuição do item excluído somada
+            // indefinidamente, e a tela de faturamento (espelho-nfe-edit) exibe esse
+            // cabeçalho como veio do servidor até alguém clicar em "Recalcular pelos itens".
+            await recalcularImpostosPedidoVenda(pedidoId, connection);
+
             await connection.commit();
 
             console.log(`🗑️ Item #${itemId} excluído do pedido #${pedidoId}. Novo total: R$${novoTotal.toFixed(2)} (subtotais: ${totalSubtotais}, IPI: ${totalIPI}, ICMS ST: ${totalICMSST}, frete: ${frete})`);
+            await registrarHistoricoPedido(pedidoId, user.id, user.nome || user.email || 'Sistema', 'item_removido',
+                `Item removido: ${itemDel ? `${itemDel.codigo} - ${itemDel.descricao}` : `#${itemId}`}`,
+                { item_id: parseInt(itemId), codigo: itemDel ? itemDel.codigo : null, quantidade: itemDel ? itemDel.quantidade : null, subtotal: itemDel ? itemDel.subtotal : null, novo_valor_pedido: novoTotal });
             res.json({ message: 'Item excluído com sucesso!', novo_total: novoTotal });
         } catch (error) {
             await connection.rollback();
@@ -4931,13 +10244,25 @@ module.exports = function createVendasRoutes(deps) {
         try {
             const termo = req.params.termo || req.query.termo || req.query.q || '_';
             const limit = parseInt(req.query.limit) || 30;
+            const colunasProduto = await getTableColumns('produtos');
+            const selectPrecoMinimo = colunasProduto.has('preco_minimo')
+                ? 'COALESCE(preco_minimo, 0) as preco_minimo'
+                : '0 as preco_minimo';
+            const selectPrecoEquilibrio = colunasProduto.has('preco_equilibrio')
+                ? 'COALESCE(preco_equilibrio, 0) as preco_equilibrio'
+                : '0 as preco_equilibrio';
 
             const [rows] = await pool.query(
                 `SELECT id, codigo,
                         COALESCE(NULLIF(TRIM(descricao),''), nome, codigo) as descricao,
                         COALESCE(nome, descricao, codigo) as nome,
                         COALESCE(unidade_medida, '') as unidade,
-                        COALESCE(NULLIF(preco_venda, 0), NULLIF(preco, 0), preco_custo, 0) as preco_venda,
+                        -- preco_custo NÃO entra aqui: com o produto sem preço de venda, o
+                        -- vendedor recebia o CUSTO como se fosse preço e fechava pedido no
+                        -- prejuízo sem perceber. Sem preço de venda, devolve 0.
+                        COALESCE(NULLIF(preco_venda, 0), NULLIF(preco, 0), 0) as preco_venda,
+                        ${selectPrecoMinimo},
+                        ${selectPrecoEquilibrio},
                         COALESCE(preco_custo, 0) as preco_custo,
                         COALESCE(estoque_atual, 0) as estoque_atual,
                         COALESCE(localizacao, '') as local_estoque,
@@ -4947,7 +10272,9 @@ module.exports = function createVendasRoutes(deps) {
                         COALESCE(aliquota_icms, 0) as aliquota_icms,
                         COALESCE(calcular_icms_st, 0) as calcular_icms_st,
                         COALESCE(mva_st, 0) as mva_st,
-                        COALESCE(ncm, '') as ncm
+                        COALESCE(ncm, '') as ncm,
+                        COALESCE(cfop_saida_interna, '') as cfop,
+                        COALESCE(embalagem, '') as embalagem
                  FROM produtos
                  WHERE (codigo LIKE ? OR COALESCE(descricao,'') LIKE ? OR COALESCE(nome,'') LIKE ? OR COALESCE(gtin,'') LIKE ?)
                  ORDER BY
@@ -5014,125 +10341,919 @@ module.exports = function createVendasRoutes(deps) {
     });
 
     // Atualizar impostos de todos os itens de um pedido
-    router.post('/pedidos/:id/atualizar-impostos', async (req, res, next) => {
+    // ============================================================
+    // POST /pedidos/:id/impostos — grava o quadro fiscal montado na tela
+    // ============================================================
+    //
+    // A aba "Impostos" do orçamento calcula ICMS, ICMS-ST (incl. o MVA por UF),
+    // IPI, PIS, COFINS e ISS no navegador e faz POST deste endpoint logo depois
+    // de criar o orçamento. Ele NÃO EXISTIA: o fetch tomava 404, o catch em volta
+    // engolia ("Impostos salvos localmente, tabela não disponível") e o orçamento
+    // nascia com ICMS-ST/DIFAL zerados. O POST /pedidos também não aceita esses
+    // campos — mesmo enviados no corpo, não são desestruturados.
+    //
+    // É diferente do /atualizar-impostos logo abaixo: aquele RECALCULA a partir do
+    // cadastro do produto (aliquota_ipi, mva_st) e sobrescreve o que a tela montou;
+    // este PERSISTE o que o usuário configurou. Os dois fecham `valor` pela mesma
+    // regra — Σ subtotais + IPI + ICMS-ST — para não divergirem.
+    router.post('/pedidos/:id/impostos', async (req, res, next) => {
         try {
-            const { id } = req.params;
-            const { cenario_fiscal } = req.body;
-
-            // Buscar itens do pedido
-            const [itens] = await pool.query(
-                'SELECT id, codigo, produto_id, quantidade, preco_unitario, desconto FROM pedido_itens WHERE pedido_id = ?',
-                [id]
-            );
-
-            if (itens.length === 0) return res.json({ message: 'Nenhum item para atualizar', itens: [] });
-
-            let totalIPI = 0;
-            let totalICMSST = 0;
-            const itensAtualizados = [];
-
-            for (const item of itens) {
-                // Buscar dados fiscais do produto pelo código ou produto_id
-                let produto = null;
-                if (item.produto_id) {
-                    const [prods] = await pool.query(
-                        'SELECT aliquota_ipi, calcular_ipi, aliquota_icms, calcular_icms_st, mva_st FROM produtos WHERE id = ?',
-                        [item.produto_id]
-                    );
-                    if (prods.length > 0) produto = prods[0];
-                }
-                if (!produto && item.codigo) {
-                    const [prods] = await pool.query(
-                        'SELECT id, aliquota_ipi, calcular_ipi, aliquota_icms, calcular_icms_st, mva_st FROM produtos WHERE codigo = ?',
-                        [item.codigo]
-                    );
-                    if (prods.length > 0) produto = prods[0];
-                }
-
-                const subtotal = (parseFloat(item.quantidade) * parseFloat(item.preco_unitario)) - parseFloat(item.desconto || 0);
-                let valorIPI = 0;
-                let valorICMSST = 0;
-
-                if (produto) {
-                    // Calcular IPI
-                    const aliqIPI = parseFloat(produto.aliquota_ipi) || 0;
-                    if (aliqIPI > 0) {
-                        valorIPI = subtotal * (aliqIPI / 100);
-                    }
-
-                    // Calcular ICMS ST (se calcular_icms_st = 1)
-                    const calcST = parseInt(produto.calcular_icms_st) || 0;
-                    const mvaST = parseFloat(produto.mva_st) || 0;
-                    const aliqICMS = parseFloat(produto.aliquota_icms) || 0;
-                    if (calcST && mvaST > 0 && aliqICMS > 0) {
-                        const baseICMSST = subtotal * (1 + mvaST / 100);
-                        const icmsST = (baseICMSST * aliqICMS / 100) - (subtotal * aliqICMS / 100);
-                        valorICMSST = Math.max(0, icmsST);
-                    }
-                }
-
-                totalIPI += valorIPI;
-                totalICMSST += valorICMSST;
-
-                itensAtualizados.push({
-                    id: item.id,
-                    valor_ipi: valorIPI,
-                    valor_icms_st: valorICMSST,
-                    aliquota_ipi: produto ? parseFloat(produto.aliquota_ipi) || 0 : 0,
-                    produto_id: produto ? produto.id || item.produto_id : item.produto_id
-                });
+            const id = parseInt(req.params.id, 10);
+            if (!Number.isInteger(id) || id <= 0) {
+                return res.status(400).json({ success: false, message: 'ID de pedido inválido' });
             }
 
-            // Salvar valores de impostos em cada item do pedido
-            for (const itemCalc of itensAtualizados) {
-                await pool.query(
-                    'UPDATE pedido_itens SET valor_ipi = ?, valor_icms_st = ?, aliquota_ipi = ?, produto_id = COALESCE(?, produto_id) WHERE id = ?',
-                    [itemCalc.valor_ipi, itemCalc.valor_icms_st, itemCalc.aliquota_ipi, itemCalc.produto_id, itemCalc.id]
-                );
+            const [pedidoRows] = await pool.query('SELECT id FROM pedidos WHERE id = ?', [id]);
+            if (pedidoRows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
             }
 
-            // Atualizar totais no pedido
-            await pool.query(
-                'UPDATE pedidos SET total_ipi = ?, total_icms_st = ? WHERE id = ?',
-                [totalIPI, totalICMSST, id]
+            const corpo = req.body || {};
+            const imp = corpo.impostos && typeof corpo.impostos === 'object' ? corpo.impostos : corpo;
+            const bases = imp.bases || {};
+            const valores = imp.valores || {};
+            const totais = imp.totais || {};
+            const num = (v) => {
+                const n = parseFloat(v);
+                return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+            };
+
+            // Só grava colunas que existem nesta base — o schema de `pedidos`
+            // diverge entre as instâncias.
+            const [colRows] = await pool.query('SHOW COLUMNS FROM pedidos');
+            const cols = new Set(colRows.map(r => r.Field));
+
+            const sets = [];
+            const params = [];
+            const gravar = (coluna, valorCampo) => {
+                if (cols.has(coluna)) { sets.push(`\`${coluna}\` = ?`); params.push(valorCampo); }
+            };
+
+            gravar('base_calculo_icms', num(bases.icms));
+            gravar('total_icms', num(valores.icms));
+            gravar('base_calculo_icms_st', num(bases.icms_st));
+            gravar('total_icms_st', num(valores.icms_st));
+            gravar('total_ipi', num(valores.ipi));
+            gravar('total_pis', num(valores.pis));
+            gravar('total_cofins', num(valores.cofins));
+            gravar('total_impostos', num(totais.impostos));
+
+            const cenario = corpo.cenario_codigo || imp.cenario_codigo || null;
+            if (cenario) gravar('cenario_fiscal', String(cenario).slice(0, 60));
+
+            if (!sets.length) {
+                return res.status(500).json({ success: false, message: 'Tabela pedidos sem colunas de impostos' });
+            }
+
+            // `valor` = mercadoria líquida de desconto + IPI + ICMS-ST. A soma dos
+            // itens vem do banco (e não do corpo) para o total do pedido não depender
+            // de o navegador ter mandado o mesmo que gravou nos itens.
+            const [[somaItens]] = await pool.query(
+                'SELECT COALESCE(SUM(subtotal), 0) AS total FROM pedido_itens WHERE pedido_id = ?', [id]
             );
+            const mercadoria = parseFloat(somaItens.total) || num(totais.produtos) - num(totais.desconto);
+            if (mercadoria > 0 && cols.has('valor')) {
+                const valorPedido = Math.round((mercadoria + num(valores.ipi) + num(valores.icms_st)) * 100) / 100;
+                sets.push('`valor` = ?');
+                params.push(valorPedido);
+            }
+
+            params.push(id);
+            await pool.query(`UPDATE pedidos SET ${sets.join(', ')} WHERE id = ?`, params);
+            // Recalcula e rateia também nos itens. Sem isso o próximo PATCH (que fecha
+            // o pedido pela soma dos itens) apagava os impostos acabados de gravar.
+            const resultadoFiscal = await recalcularImpostosPedidoVenda(id, pool, cenario || null);
+            if (typeof clearPedidosCache === 'function') clearPedidosCache();
+
+            console.log(`[Vendas] Impostos do pedido #${id} gravados — ICMS-ST R$ ${num(valores.icms_st)}, IPI R$ ${num(valores.ipi)}, cenário ${cenario || '—'}`);
 
             res.json({
-                message: 'Impostos atualizados com sucesso!',
-                total_ipi: totalIPI,
-                total_icms_st: totalICMSST,
-                itens: itensAtualizados
+                success: true,
+                message: 'Impostos do pedido gravados',
+                pedido_id: id,
+                cenario_fiscal: cenario || null,
+                total_icms: resultadoFiscal ? resultadoFiscal.total_icms : num(valores.icms),
+                total_icms_st: resultadoFiscal ? resultadoFiscal.total_icms_st : num(valores.icms_st),
+                total_ipi: resultadoFiscal ? resultadoFiscal.total_ipi : num(valores.ipi),
+                total_difal: resultadoFiscal ? resultadoFiscal.total_difal : num(valores.difal),
+                total_fcp: resultadoFiscal ? resultadoFiscal.total_fcp : num(valores.fcp_destino),
+                total_impostos: resultadoFiscal ? resultadoFiscal.total_icms + resultadoFiscal.total_icms_st + resultadoFiscal.total_ipi + resultadoFiscal.total_difal + resultadoFiscal.total_fcp : num(totais.impostos),
+                valor: resultadoFiscal ? resultadoFiscal.valor : undefined
             });
         } catch (error) {
-            console.error('[Vendas] Erro ao atualizar impostos:', error);
+            console.error('[Vendas] Erro ao gravar impostos do pedido:', error);
             next(error);
         }
     });
 
-    // GET /transportadoras - Buscar transportadoras para o módulo de vendas
+    // ============================================================
+    // GET /st/parametros?uf=XX&com_ipi=1&pedido_id=123 — parâmetros REAIS de ICMS ST
+    // ============================================================
+    //
+    // A aba "ICMS ST" do pedido não deve pedir MVA e alíquota digitadas: os números
+    // existem no banco. Este endpoint junta as três fontes que a base tem e diz qual
+    // vale, para a tela só preencher:
+    //
+    //   1. `st_aliquotas_fornecedor` — alíquota ST DIRETA sobre a mercadoria, por
+    //      (fornecedor, uf_destino, regime). É a tabela que a operação mantém
+    //      ("ST Revenda"); quando existe, vence, porque já é o percentual fechado.
+    //      O regime com IPI (`lucro_presumido_ipi`) é escolhido quando o pedido tem IPI.
+    //   2. `aliquotas_icms_uf` — alíquota interna do destino e a interestadual da
+    //      origem, para o cálculo clássico por MVA.
+    //   3. MVA já praticada nos itens desta UF (`pedido_itens.mva_st`), como sugestão —
+    //      `produtos.mva_st` está zerado em todas as bases, então o histórico é o único
+    //      dado real de MVA que existe.
+    //
+    // `aplica_st` responde a pergunta que a tela precisa fazer antes de tudo: esta UF
+    // tem regra de ST? Fora da lista, o ST não é calculado.
+    router.get('/st/parametros', async (req, res, next) => {
+        try {
+            const uf = String(req.query.uf || '').trim().toUpperCase();
+            const comIpi = String(req.query.com_ipi || '') === '1';
+            const pedidoId = parseInt(req.query.pedido_id, 10);
+            // Cenário Fiscal selecionado na tela mas ainda não salvo no pedido (o usuário
+            // troca o combo e só grava no Salvar). Sem este override a aba ICMS ST ficava
+            // bloqueada até salvar e reabrir o orçamento, porque a consulta abaixo lia só o
+            // que já estava no banco — mesmo com o cenário certo já escolhido na tela.
+            const cenarioFiscalIdOverride = parseInt(req.query.cenario_fiscal_id, 10);
+            const usarCenarioOverride = Number.isInteger(cenarioFiscalIdOverride) && cenarioFiscalIdOverride > 0;
+            if (!/^[A-Z]{2}$/.test(uf)) {
+                return res.status(400).json({ success: false, message: 'UF de destino inválida' });
+            }
+
+            const resposta = {
+                success: true,
+                uf,
+                aplica_st: UFS_COM_ICMS_ST.includes(uf),
+                ufs_com_st: UFS_COM_ICMS_ST,
+                regime: null,
+                uf_origem: 'SP',
+                aliquota_st_direta: 0,
+                fornecedor: null,
+                aliquota_interna: 0,
+                aliquota_interestadual: 0,
+                // Alíquota que incide na venda: interna quando o destino é o próprio estado
+                // da empresa, interestadual quando sai do estado. É o ICMS PRÓPRIO, que já
+                // está DENTRO do preço — não soma ao total do pedido, só é destacado.
+                aliquota_icms_operacao: 0,
+                mva_sugerida: 0,
+                fonte: 'sem_dados'
+            };
+
+            const consultar = async (sql, params) => {
+                try { const [linhas] = await pool.query(sql, params); return linhas; }
+                catch (_) { return []; }   // base sem a tabela: segue com o que der
+            };
+
+            const empresa = await regimeTributarioDaEmpresaVenda(consultar);
+            resposta.regime = empresa.regime;
+            resposta.uf_origem = String(empresa.ufOrigem || 'SP').toUpperCase();
+
+            // A alíquota de ICMS vale para toda venda, tenha ST ou não — por isso é
+            // resolvida ANTES do desvio das UFs sem ST.
+            const [icmsUf] = await consultar(
+                'SELECT aliquota_interna, aliquota_interestadual FROM aliquotas_icms_uf WHERE uf_origem = ? AND uf_destino = ? LIMIT 1',
+                [resposta.uf_origem, uf]
+            );
+            if (icmsUf) {
+                resposta.aliquota_interna = parseFloat(icmsUf.aliquota_interna) || 0;
+                resposta.aliquota_interestadual = parseFloat(icmsUf.aliquota_interestadual) || 0;
+                resposta.aliquota_icms_operacao = uf === resposta.uf_origem
+                    ? resposta.aliquota_interna
+                    : resposta.aliquota_interestadual;
+            }
+
+            // A tabela genérica por UF/regime é somente um percentual auxiliar. Ela não
+            // estabelece incidência. No orçamento, quem autoriza ST é o Cenário de
+            // Impostos selecionado, combinado com itens classificados com CEST.
+            if (Number.isInteger(pedidoId) && pedidoId > 0) {
+                const joinCenario = usarCenarioOverride
+                    ? 'cf.ativo=1 AND cf.id=?'
+                    : `cf.ativo=1 AND (cf.id=p.cenario_fiscal_id OR (p.cenario_fiscal_id IS NULL AND
+                             (LOWER(cf.codigo) COLLATE utf8mb4_general_ci=LOWER(p.cenario_fiscal) COLLATE utf8mb4_general_ci OR LOWER(cf.nome) COLLATE utf8mb4_general_ci=LOWER(p.cenario_fiscal) COLLATE utf8mb4_general_ci)))`;
+                const [pedidoSt] = await consultar(
+                    `SELECT p.tipo_venda,
+                            ${usarCenarioOverride ? '?' : 'p.cenario_fiscal_id'} AS cenario_fiscal_id, p.cenario_fiscal,
+                            cf.calcula_icms_st,cf.icms_st_aliquota,cf.icms_st_mva,
+                            COUNT(pi.id) AS itens,
+                            SUM(CASE WHEN NULLIF(REGEXP_REPLACE(COALESCE(pr.cest,''),'[^0-9]',''),'') IS NOT NULL THEN 1 ELSE 0 END) AS itens_com_cest
+                       FROM pedidos p
+                  LEFT JOIN cenarios_fiscais cf ON ${joinCenario}
+                  LEFT JOIN pedido_itens pi ON pi.pedido_id=p.id
+                  LEFT JOIN produtos pr ON pr.id=pi.produto_id
+                      WHERE p.id=? GROUP BY p.id,cf.id LIMIT 1`,
+                    usarCenarioOverride ? [cenarioFiscalIdOverride, cenarioFiscalIdOverride, pedidoId] : [pedidoId]
+                );
+                const revenda = !vendaEhConsumidorFinal(pedidoSt?.tipo_venda);
+                const cenarioSt = Number(pedidoSt?.calcula_icms_st) === 1;
+                const todosComCest = Number(pedidoSt?.itens) > 0
+                    && Number(pedidoSt?.itens_com_cest) === Number(pedidoSt?.itens);
+                resposta.cenario_fiscal = pedidoSt?.cenario_fiscal || null;
+                resposta.aplica_st = Boolean(revenda && cenarioSt && todosComCest);
+                resposta.motivo_nao_aplica = !pedidoSt?.cenario_fiscal_id && !pedidoSt?.cenario_fiscal
+                    ? 'Selecione um Cenário de Impostos antes de calcular ST.'
+                    : (!revenda ? 'Pedido classificado como consumidor final: ICMS-ST não se aplica.'
+                        : (!cenarioSt ? 'O Cenário de Impostos selecionado não destaca ICMS-ST.'
+                            : (!todosComCest ? 'Há produto sem CEST; ICMS-ST não pode ser calculado.' : null)));
+                if (!resposta.aplica_st) return res.json(resposta);
+                // Os valores do cenário vencem a tabela auxiliar e o histórico.
+                resposta.aliquota_st_direta = parseFloat(pedidoSt.icms_st_aliquota) || 0;
+                resposta.mva_sugerida = parseFloat(pedidoSt.icms_st_mva) || 0;
+                resposta.fonte = 'cenario_fiscal';
+            } else {
+                // Sem pedido não há cenário nem classificação de itens para provar ST.
+                resposta.aplica_st = false;
+                resposta.motivo_nao_aplica = 'Pedido e Cenário de Impostos são obrigatórios para calcular ST.';
+                return res.json(resposta);
+            }
+
+            if (!resposta.aplica_st) return res.json(resposta);
+
+            // 1. Alíquota ST direta. Com IPI no pedido, o regime "..._ipi" é o correto —
+            // ele já embute o IPI na base do ST, por isso a alíquota é maior.
+            const regimeBase = resposta.regime;
+            const regimes = comIpi ? [`${regimeBase}_ipi`, regimeBase] : [regimeBase];
+            for (const regime of regimes) {
+                if (resposta.fonte === 'cenario_fiscal') break;
+                const [linha] = await consultar(
+                    'SELECT fornecedor, aliquota_st FROM st_aliquotas_fornecedor WHERE uf_destino = ? AND regime_tributario = ? AND ativo = 1 ORDER BY id LIMIT 1',
+                    [uf, regime]
+                );
+                if (linha && parseFloat(linha.aliquota_st) > 0) {
+                    resposta.aliquota_st_direta = parseFloat(linha.aliquota_st);
+                    resposta.fornecedor = linha.fornecedor;
+                    resposta.regime_aplicado = regime;
+                    resposta.fonte = 'st_aliquotas_fornecedor';
+                    break;
+                }
+            }
+
+            // 3. MVA já praticada nesta UF (as alíquotas de ICMS já foram lidas acima)
+            const [mva] = resposta.fonte === 'cenario_fiscal' ? [] : await consultar(
+                `SELECT i.mva_st, COUNT(*) itens
+                 FROM pedido_itens i
+                 JOIN pedidos p ON p.id = i.pedido_id
+                 LEFT JOIN clientes c ON p.cliente_id = c.id
+                 WHERE COALESCE(i.mva_st, 0) > 0
+                   AND UPPER(TRIM(COALESCE(NULLIF(p.estado_destino, ''), c.estado, ''))) = ?
+                 GROUP BY i.mva_st ORDER BY itens DESC LIMIT 1`,
+                [uf]
+            );
+            if (mva) resposta.mva_sugerida = parseFloat(mva.mva_st) || 0;
+
+            if (resposta.fonte === 'sem_dados' && resposta.mva_sugerida > 0 && resposta.aliquota_interna > 0) {
+                resposta.fonte = 'mva_historico';
+            }
+
+            res.json(resposta);
+        } catch (error) {
+            next(error);
+        }
+    });
+
+    // ============================================================
+    // POST /pedidos/:id/icms-st — grava o ICMS ST calculado na aba "ICMS ST"
+    // ============================================================
+    //
+    // O ST do pedido não tem onde morar no cabeçalho: todo PATCH com campo financeiro
+    // recalcula `pedidos.total_icms_st` a partir de SUM(pedido_itens.valor_icms_st)
+    // (Sprint 4.3, no PATCH acima), e o mesmo vale para POST/PUT de item. Gravar só em
+    // `pedidos` seria apagado no Salvar seguinte, em silêncio.
+    //
+    // Por isso o valor informado na tela é RATEADO entre os itens, proporcionalmente ao
+    // subtotal de cada um — que também é como o ST precisa sair na NF-e, item a item.
+    // O resíduo de centavos fica no último item para a soma bater com o valor digitado.
+    //
+    // Diferente de /impostos (que persiste o quadro fiscal inteiro montado na tela) e de
+    // /atualizar-impostos (que RECALCULA tudo a partir do cadastro do produto): aqui só o
+    // ICMS ST é tocado, porque é só ele que a aba calcula.
+    router.post('/pedidos/:id/icms-st', async (req, res, next) => {
+        try {
+            const id = parseInt(req.params.id, 10);
+            if (!Number.isInteger(id) || id <= 0) {
+                return res.status(400).json({ success: false, message: 'ID de pedido inválido' });
+            }
+
+            const num = (v) => {
+                const n = parseFloat(v);
+                return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0;
+            };
+            const stSolicitado = num(req.body && req.body.valor_icms_st);
+            const mvaSt = num(req.body && req.body.mva_st);
+            const aliquotaIcms = num(req.body && req.body.aliquota_icms);
+            // Alíquota da tabela de ST (quando o cálculo veio dela) — não tem coluna
+            // própria no item; fica no histórico do pedido para auditoria do número.
+            const aliquotaStTabela = num(req.body && req.body.aliquota_st);
+            // ICMS próprio: destacado no documento, mas JÁ EMBUTIDO no preço — não entra
+            // no `valor` do pedido. Vem junto do ST porque é a mesma tela que apura os dois.
+            const temIcms = req.body && req.body.valor_icms !== undefined;
+            const valorIcms = num(req.body && req.body.valor_icms);
+            const aliquotaIcmsOperacao = num(req.body && req.body.aliquota_icms_operacao);
+
+            const [pedidoRows] = await pool.query(
+                `SELECT p.id,p.tipo_venda,p.cenario_fiscal_id,p.cenario_fiscal,
+                        cf.calcula_icms_st,COUNT(pi.id) AS itens,
+                        SUM(CASE WHEN NULLIF(REGEXP_REPLACE(COALESCE(pr.cest,''),'[^0-9]',''),'') IS NOT NULL THEN 1 ELSE 0 END) AS itens_com_cest,
+                        COALESCE(p.frete,0) AS frete
+                   FROM pedidos p
+              LEFT JOIN cenarios_fiscais cf ON cf.ativo=1 AND
+                        (cf.id=p.cenario_fiscal_id OR (p.cenario_fiscal_id IS NULL AND
+                         (LOWER(cf.codigo) COLLATE utf8mb4_general_ci=LOWER(p.cenario_fiscal) COLLATE utf8mb4_general_ci OR LOWER(cf.nome) COLLATE utf8mb4_general_ci=LOWER(p.cenario_fiscal) COLLATE utf8mb4_general_ci)))
+              LEFT JOIN pedido_itens pi ON pi.pedido_id=p.id
+              LEFT JOIN produtos pr ON pr.id=pi.produto_id
+                  WHERE p.id=? GROUP BY p.id,cf.id LIMIT 1`, [id]
+            );
+            if (pedidoRows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
+            }
+            const consumidorFinal = vendaEhConsumidorFinal(pedidoRows[0].tipo_venda);
+            const cenarioSt = Number(pedidoRows[0].calcula_icms_st) === 1;
+            const todosComCest = Number(pedidoRows[0].itens) > 0
+                && Number(pedidoRows[0].itens_com_cest) === Number(pedidoRows[0].itens);
+            if (stSolicitado > 0 && (consumidorFinal || !cenarioSt || !todosComCest)) {
+                return res.status(422).json({ success: false,
+                    message: consumidorFinal
+                        ? 'ICMS-ST não pode ser destacado em pedido de consumidor final.'
+                        : (!cenarioSt ? 'O Cenário de Impostos do pedido não autoriza ICMS-ST.'
+                            : 'ICMS-ST bloqueado: há produto sem CEST no pedido.') });
+            }
+            const stTotal = consumidorFinal ? 0 : stSolicitado;
+
+            const [itens] = await pool.query(
+                'SELECT id, COALESCE(subtotal, 0) AS subtotal FROM pedido_itens WHERE pedido_id = ? ORDER BY id', [id]
+            );
+            if (itens.length === 0) {
+                return res.status(400).json({ success: false, message: 'Pedido sem itens — não há onde ratear o ICMS ST.' });
+            }
+
+            const somaSubtotais = itens.reduce((soma, item) => soma + (parseFloat(item.subtotal) || 0), 0);
+            let distribuido = 0;
+            const rateio = itens.map((item, indice) => {
+                let valor;
+                if (indice === itens.length - 1) {
+                    valor = Math.round((stTotal - distribuido) * 100) / 100;
+                } else {
+                    const proporcao = somaSubtotais > 0
+                        ? (parseFloat(item.subtotal) || 0) / somaSubtotais
+                        : 1 / itens.length;
+                    valor = Math.round(stTotal * proporcao * 100) / 100;
+                    distribuido = Math.round((distribuido + valor) * 100) / 100;
+                }
+                return { item_id: item.id, valor_icms_st: Math.max(0, valor) };
+            });
+
+            // Rateio do ICMS pelo mesmo critério (proporcional ao subtotal do item).
+            let icmsDistribuido = 0;
+            const rateioIcms = temIcms ? itens.map((item, indice) => {
+                let valor;
+                if (indice === itens.length - 1) {
+                    valor = Math.round((valorIcms - icmsDistribuido) * 100) / 100;
+                } else {
+                    const proporcao = somaSubtotais > 0
+                        ? (parseFloat(item.subtotal) || 0) / somaSubtotais
+                        : 1 / itens.length;
+                    valor = Math.round(valorIcms * proporcao * 100) / 100;
+                    icmsDistribuido = Math.round((icmsDistribuido + valor) * 100) / 100;
+                }
+                return { item_id: item.id, icms_value: Math.max(0, valor) };
+            }) : [];
+
+            // mva_st e aliquota_icms só são sobrescritas quando vieram informadas — zerar
+            // apagaria o que o cadastro do produto já tinha gravado no item.
+            const camposExtra = [];
+            const valoresExtra = [];
+            if (mvaSt > 0) { camposExtra.push('mva_st = ?'); valoresExtra.push(mvaSt); }
+            if (aliquotaIcms > 0) { camposExtra.push('aliquota_icms = ?'); valoresExtra.push(aliquotaIcms); }
+            const sufixo = camposExtra.length ? ', ' + camposExtra.join(', ') : '';
+
+            for (const linha of rateio) {
+                await pool.query(
+                    `UPDATE pedido_itens SET valor_icms_st = ?${sufixo} WHERE id = ? AND pedido_id = ?`,
+                    [linha.valor_icms_st, ...valoresExtra, linha.item_id, id]
+                );
+            }
+
+            for (const linha of rateioIcms) {
+                try {
+                    await pool.query(
+                        'UPDATE pedido_itens SET icms_value = ?, icms_percent = ? WHERE id = ? AND pedido_id = ?',
+                        [linha.icms_value, aliquotaIcmsOperacao, linha.item_id, id]
+                    );
+                } catch (_) { /* base sem as colunas de ICMS no item */ }
+            }
+
+            // Mesma regra de fechamento de valor das rotas de item: subtotais + IPI + ST + frete.
+            const [[totais]] = await pool.query(
+                `SELECT COALESCE(SUM(subtotal), 0) AS total_subtotais,
+                        COALESCE(SUM(valor_ipi), 0) AS total_ipi,
+                        COALESCE(SUM(valor_icms_st), 0) AS total_icms_st
+                 FROM pedido_itens WHERE pedido_id = ?`, [id]
+            );
+            const frete = parseFloat(pedidoRows[0].frete) || 0;
+            const novoValor = Math.round(
+                (parseFloat(totais.total_subtotais) + parseFloat(totais.total_ipi) + parseFloat(totais.total_icms_st) + frete) * 100
+            ) / 100;
+            await pool.query('UPDATE pedidos SET total_icms_st = ?, total_ipi = ?, valor = ? WHERE id = ?',
+                [totais.total_icms_st, totais.total_ipi, novoValor, id]);
+            if (temIcms) {
+                // `valor` NÃO muda: o ICMS próprio já está dentro do preço da mercadoria.
+                try {
+                    await pool.query('UPDATE pedidos SET total_icms = ?, base_calculo_icms = ? WHERE id = ?',
+                        [valorIcms, parseFloat(totais.total_subtotais) || 0, id]);
+                } catch (_) { /* base sem as colunas de ICMS no cabeçalho */ }
+            }
+            if (typeof clearPedidosCache === 'function') clearPedidosCache();
+
+            const usuario = req.user || {};
+            try {
+                await registrarHistoricoPedido(id, usuario.id, usuario.nome || usuario.email || 'Sistema', 'icms_st_atualizado',
+                    `ICMS ST do pedido definido em R$ ${stTotal.toFixed(2)} (rateado entre ${rateio.length} item(ns))`,
+                    { valor_icms_st: stTotal, mva_st: mvaSt, aliquota_icms: aliquotaIcms, aliquota_st: aliquotaStTabela, rateio, novo_valor_pedido: novoValor });
+            } catch (histErro) {
+                console.warn('[Vendas] Histórico do ICMS ST não registrado:', histErro.message);
+            }
+
+            console.log(`[Vendas] ICMS ST do pedido #${id}: R$ ${stTotal.toFixed(2)} rateado em ${rateio.length} item(ns). Novo valor: R$ ${novoValor.toFixed(2)}`);
+
+            // A aba de ST tambem envia o ICMS proprio. Para consumidor final, refazer
+            // pelo motor fiscal do servidor evita que a aliquota interna do destino
+            // (ex.: 19,5% do PR) sobrescreva a interestadual da operacao (12%).
+            const fiscalCanonico = consumidorFinal
+                ? await recalcularImpostosPedidoVenda(id)
+                : null;
+
+            res.json({
+                success: true,
+                message: 'ICMS ST gravado no pedido',
+                pedido_id: id,
+                total_icms_st: fiscalCanonico ? fiscalCanonico.total_icms_st : parseFloat(totais.total_icms_st),
+                total_icms: fiscalCanonico ? fiscalCanonico.total_icms : (temIcms ? valorIcms : undefined),
+                valor: fiscalCanonico ? fiscalCanonico.valor : novoValor,
+                itens_atualizados: rateio.length,
+                rateio
+            });
+        } catch (error) {
+            console.error('[Vendas] Erro ao gravar ICMS ST do pedido:', error);
+            next(error);
+        }
+    });
+
+    // ── Validação do XML da NF-e ANTES de emitir (prévia, sem gravar nada) ──────
+    // Gera o XML exatamente como a emissão faria (mesmo emissor), mas dentro de UMA
+    // transação que sempre sofre ROLLBACK: nenhum número é reservado, nenhuma nota ou
+    // item fica gravado. O XML é assinado com o certificado e validado no schema oficial
+    // da SEFAZ (enviNFe 4.00), e passa pelo mesmo preflight de transporte da transmissão.
+    // Com ?sefaz=1, consulta também o cadastro (IE) de emitente/destinatário/transportadora
+    // na SEFAZ — é a validação online que roda antes de transmitir.
+    // Pega o que o checklist do pedido não vê: limites do leiaute (natOp 60…), grupos
+    // obrigatórios, CST × grupo ICMS, totais, IE bloqueada (301/302) etc.
+    router.get('/pedidos/:id/validar-xml', async (req, res) => {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isInteger(id)) return res.status(400).json({ message: 'Pedido inválido.' });
+        const erros = [], avisos = [];
+        let xml = null;
+        // O emissor exige o certificado em memória. Se o servidor ainda não o carregou
+        // (carga preguiçosa em algumas instâncias), carrega o configurado no .env — o mesmo
+        // que o server.js faz na inicialização. Sem certificado configurado, não há emissão.
+        const certSvc = require('../modules/Faturamento/services/certificado.service');
+        if (!certSvc.certificadoCarregado) {
+            if (process.env.NFE_CERT_PATH && process.env.NFE_CERT_SENHA) {
+                await certSvc.carregarCertificadoA1(require('path').resolve(process.env.NFE_CERT_PATH), process.env.NFE_CERT_SENHA)
+                    .catch(e => avisos.push('Certificado configurado não pôde ser carregado: ' + e.message));
+            }
+            if (!certSvc.certificadoCarregado) {
+                return res.json({ ok: false, semCertificado: true, erros: [], resumo: null,
+                    avisos: avisos.concat('Esta empresa não tem certificado digital carregado neste servidor — a prévia do XML (e a emissão) dependem dele.') });
+            }
+        }
+        const conn = await pool.getConnection();
+        try {
+            await conn.beginTransaction();
+            const nada = async () => {};
+            const connPrevia = { query: (...a) => conn.query(...a), execute: (...a) => conn.execute(...a),
+                beginTransaction: nada, commit: nada, rollback: nada, release: () => {} };
+            const poolPrevia = { query: (...a) => conn.query(...a), execute: (...a) => conn.execute(...a),
+                getConnection: async () => connPrevia };
+            const [itens] = await conn.query(
+                'SELECT produto_id, quantidade, preco_unitario, cfop, mva_st FROM pedido_itens WHERE pedido_id = ? ORDER BY id', [id]);
+            const itensEmitir = itens.map(it => ({
+                produto_id: Number(it.produto_id), quantidade: Number(it.quantidade),
+                valor_unitario: Number(it.preco_unitario) || 0, cfop: it.cfop || null, mva_st: it.mva_st ?? null
+            })).filter(it => it.produto_id > 0 && it.quantidade > 0 && it.valor_unitario > 0);
+            if (!itensEmitir.length) {
+                erros.push({ etapa: 'itens', mensagem: 'Nenhum item com produto cadastrado, quantidade e preço — a nota não pode ser gerada.' });
+            } else {
+                const { emitirNFePedido } = require('../services/nfe-emitter.service');
+                const previa = await emitirNFePedido(poolPrevia, {
+                    pedidoId: id, itens: itensEmitir, usuarioId: req.user?.id || null, transmitir: false
+                });
+                const [[linha]] = await conn.query('SELECT xml_nfe FROM nfes WHERE id = ?', [previa.nfeId]);
+                xml = linha ? String(linha.xml_nfe || '') : null;
+            }
+        } catch (err) {
+            erros.push({ etapa: 'geração do XML', codigo: err.code || null, mensagem: err.message });
+        } finally {
+            await conn.rollback().catch(() => {});
+            conn.release();
+        }
+
+        let resumo = null;
+        if (xml) {
+            const tag = (t, fonte = xml) => (fonte.match(new RegExp('<' + t + '>([^<]*)</' + t + '>')) || [])[1] || null;
+            const todos = t => [...new Set((xml.match(new RegExp('<' + t + '>([^<]*)</' + t + '>', 'g')) || []).map(s => s.replace(/<[^>]+>/g, '')))];
+            // Totais do grupo ICMSTot (os primeiros <vProd>/<vST> do XML são do 1º item).
+            const tot = (xml.match(/<ICMSTot>[\s\S]*?<\/ICMSTot>/) || [''])[0];
+            // CST só dos grupos <ICMS> — o XML também tem CST de PIS/COFINS/IPI.
+            const icmsXml = (xml.match(/<ICMS>[\s\S]*?<\/ICMS>/g) || []).join('');
+            const cstIcms = [...new Set((icmsXml.match(/<CST>([^<]*)<\/CST>/g) || []).map(s => s.replace(/<[^>]+>/g, '')))];
+            resumo = { natOp: tag('natOp'), cfops: todos('CFOP'), cst: cstIcms, csosn: todos('CSOSN'),
+                vProd: tag('vProd', tot), vST: tag('vST', tot), vIPI: tag('vIPI', tot), vNF: tag('vNF', tot), indIEDest: tag('indIEDest') };
+            // Dados para a tela "Conferir" (estilo Omie): totais completos, duplicatas e cabeçalho.
+            const bloco = t => (xml.match(new RegExp('<' + t + '>[\\s\\S]*?</' + t + '>')) || [''])[0];
+            ['vBC', 'vICMS', 'vBCST', 'vPIS', 'vCOFINS', 'vFrete', 'vSeg', 'vDesc', 'vOutro', 'vFCP', 'vFCPST', 'vICMSUFDest', 'vTotTrib']
+                .forEach(t => { resumo[t] = tag(t, tot); });
+            resumo.tpAmb = tag('tpAmb'); resumo.idDest = tag('idDest'); resumo.modFrete = tag('modFrete');
+            resumo.ufEmit = tag('UF', bloco('emit')); resumo.ufDest = tag('UF', bloco('dest'));
+            resumo.xNomeDest = tag('xNome', bloco('dest'));
+            resumo.nItens = (xml.match(/<det nItem=/g) || []).length;
+            resumo.dup = (xml.match(/<dup>[\s\S]*?<\/dup>/g) || [])
+                .map(d => ({ nDup: tag('nDup', d), dVenc: tag('dVenc', d), vDup: tag('vDup', d) }));
+            // Conferência XML × pedido: o que a SEFAZ não rejeita mas sai com valor errado.
+            try {
+                const [[ped]] = await pool.query('SELECT valor, total_icms_st, total_ipi FROM pedidos WHERE id = ?', [id]);
+                const n = v => Math.round((Number(v) || 0) * 100) / 100;
+                const conf = [];
+                if (ped && Math.abs(n(resumo.vNF) - n(ped.valor)) > 0.05)
+                    conf.push({ campo: 'total', mensagem: `Total da nota (R$ ${n(resumo.vNF).toFixed(2)}) difere do total do pedido (R$ ${n(ped.valor).toFixed(2)}).` });
+                if (ped && ped.total_icms_st !== null && Math.abs(n(resumo.vST) - n(ped.total_icms_st)) > 0.05)
+                    conf.push({ campo: 'st', mensagem: `ICMS-ST da nota (R$ ${n(resumo.vST).toFixed(2)}) difere do pedido (R$ ${n(ped.total_icms_st).toFixed(2)}).` });
+                if (ped && ped.total_ipi !== null && Math.abs(n(resumo.vIPI) - n(ped.total_ipi)) > 0.05)
+                    conf.push({ campo: 'ipi', mensagem: `IPI da nota (R$ ${n(resumo.vIPI).toFixed(2)}) difere do pedido (R$ ${n(ped.total_ipi).toFixed(2)}).` });
+                const somaDup = n(resumo.dup.reduce((s, d) => s + n(d.vDup), 0));
+                if (resumo.dup.length && Math.abs(somaDup - n(resumo.vNF)) > 0.05)
+                    conf.push({ campo: 'parcelas', mensagem: `Soma das parcelas (R$ ${somaDup.toFixed(2)}) difere do total da nota (R$ ${n(resumo.vNF).toFixed(2)}).` });
+                const hoje = new Date().toISOString().slice(0, 10);
+                const vencidas = resumo.dup.filter(d => d.dVenc && d.dVenc < hoje);
+                if (vencidas.length) conf.push({ campo: 'parcelas', mensagem: `${vencidas.length} parcela(s) com vencimento anterior a hoje (${vencidas.map(d => d.dVenc.split('-').reverse().join('/')).join(', ')}) — a SEFAZ pode rejeitar.` });
+                resumo.conferencia = conf;
+                // ── Conferência tributária item a item, sobre o XML que vai à SEFAZ ──
+                // Cada regra gera ✓ (ok), ! (atenção) ou ✖ (bloqueia) — a tela mostra também o
+                // que foi conferido e passou, não só o que falhou.
+                const chk = [];
+                const ok = (texto) => chk.push({ nivel: 'ok', texto });
+                const at = (texto) => chk.push({ nivel: 'atencao', texto });
+                const bl = (texto) => chk.push({ nivel: 'bloqueia', texto });
+                const crt = tag('CRT', bloco('emit'));
+                const simples = crt === '1' || crt === '2';
+                const interest = resumo.idDest === '2';
+                const naoContrib = resumo.indIEDest === '9';
+                const [linhasPed] = await pool.query(
+                    'SELECT codigo, icms_value, valor_icms_st, valor_ipi, aliquota_icms, icms_percent FROM pedido_itens WHERE pedido_id = ? ORDER BY id', [id]).catch(() => [[]]);
+                const CFOP_ST = ['5401', '5402', '5403', '5405', '6401', '6402', '6403', '6404'];
+                const soma = { vBC: 0, vICMS: 0, vBCST: 0, vST: 0, vIPI: 0, vPIS: 0, vCOFINS: 0, vProd: 0, vDesc: 0 };
+                const erroConta = [], alqInter = [], cfopCst = [], stSemCest = [], ncmRuim = [], divPed = [], pisCof = new Set(), cstZerado = [];
+                resumo.itens = (xml.match(/<det nItem="\d+">[\s\S]*?<\/det>/g) || []).map((d, i) => {
+                    const g = t => { const b = (d.match(new RegExp('<' + t + '\\d*>[\\s\\S]*?</' + t + '\\d*>')) || [''])[0]; return b; };
+                    const icms = (d.match(/<ICMS>[\s\S]*?<\/ICMS>/) || [''])[0];
+                    const ipi = g('IPI'), pis = g('PIS'), cof = g('COFINS');
+                    const v = (t, f) => n(tag(t, f));
+                    const it = {
+                        n: i + 1, codigo: tag('cProd', d), descricao: tag('xProd', d), ncm: tag('NCM', d), cest: tag('CEST', d), cfop: tag('CFOP', d),
+                        cst: tag('CST', icms) || tag('CSOSN', icms), vProd: v('vProd', d), vDesc: v('vDesc', d),
+                        vBC: v('vBC', icms), pICMS: v('pICMS', icms), vICMS: v('vICMS', icms),
+                        vBCST: v('vBCST', icms), pMVAST: v('pMVAST', icms), pICMSST: v('pICMSST', icms), vICMSST: v('vICMSST', icms),
+                        pIPI: v('pIPI', ipi), vIPI: v('vIPI', ipi),
+                        cstPIS: tag('CST', pis), pPIS: v('pPIS', pis), vPIS: v('vPIS', pis), vBCPIS: v('vBC', pis),
+                        cstCOFINS: tag('CST', cof), pCOFINS: v('pCOFINS', cof), vCOFINS: v('vCOFINS', cof), vBCCOFINS: v('vBC', cof)
+                    };
+                    Object.keys(soma).forEach(k => { soma[k] += k === 'vST' ? it.vICMSST : (it[k] || 0); });
+                    const rot = `item ${it.n} (${it.codigo})`;
+                    const perto = (a, b) => Math.abs(n(a) - n(b)) <= 0.02;
+                    if (it.pICMS > 0 && !perto(it.vICMS, it.vBC * it.pICMS / 100)) erroConta.push(`${rot} ICMS ${it.vICMS.toFixed(2)} ≠ ${it.vBC.toFixed(2)} × ${it.pICMS}%`);
+                    if (it.pPIS > 0 && !perto(it.vPIS, it.vBCPIS * it.pPIS / 100)) erroConta.push(`${rot} PIS ${it.vPIS.toFixed(2)} ≠ base × ${it.pPIS}%`);
+                    if (it.pCOFINS > 0 && !perto(it.vCOFINS, it.vBCCOFINS * it.pCOFINS / 100)) erroConta.push(`${rot} COFINS ${it.vCOFINS.toFixed(2)} ≠ base × ${it.pCOFINS}%`);
+                    if (it.pICMSST > 0 && !simples && !perto(it.vICMSST, Math.max(0, it.vBCST * it.pICMSST / 100 - it.vICMS)))
+                        erroConta.push(`${rot} ICMS-ST ${it.vICMSST.toFixed(2)} ≠ ${it.vBCST.toFixed(2)} × ${it.pICMSST}% − ICMS próprio ${it.vICMS.toFixed(2)}`);
+                    if (!simples && it.pICMS > 0) {
+                        if (interest && ![4, 7, 12].includes(it.pICMS)) alqInter.push(`${rot} ${it.pICMS}% em venda interestadual (esperado 4%, 7% ou 12%)`);
+                        if (!interest && [4, 7, 12].includes(it.pICMS)) alqInter.push(`${rot} ${it.pICMS}% em venda interna (alíquota interestadual)`);
+                    }
+                    const temST = it.vICMSST > 0, cstST = ['10', '30', '70', '201', '202', '203'].includes(it.cst);
+                    if (CFOP_ST.includes(it.cfop) && !temST && it.cst !== '60' && it.cst !== '500') cfopCst.push(`${rot} CFOP ${it.cfop} (com ST) sem ICMS-ST`);
+                    if (temST && !cstST) cfopCst.push(`${rot} ICMS-ST com CST/CSOSN ${it.cst}`);
+                    if (cstST && !temST) cfopCst.push(`${rot} CST/CSOSN ${it.cst} de ST sem valor de ST`);
+                    if (temST && !String(it.cest || '').replace(/\D/g, '')) stSemCest.push(rot);
+                    if (String(it.ncm || '').replace(/\D/g, '').length !== 8) ncmRuim.push(`${rot} NCM "${it.ncm || ''}"`);
+                    if (['00', '10', '20'].includes(it.cst) && !(it.pICMS > 0)) cstZerado.push(`${rot} CST ${it.cst} sem alíquota de ICMS`);
+                    if (['40', '41', '50'].includes(it.cst) && it.vICMS > 0) cstZerado.push(`${rot} CST ${it.cst} (isento/não tributado) com ICMS ${it.vICMS.toFixed(2)}`);
+                    if (it.cstPIS) pisCof.add(`${it.cstPIS}:${it.pPIS}/${it.pCOFINS}`);
+                    const lp = linhasPed.find(l => String(l.codigo || '').trim() === String(it.codigo || '').trim());
+                    if (lp) {
+                        if (lp.valor_icms_st !== null && Math.abs(n(lp.valor_icms_st) - it.vICMSST) > 0.05)
+                            divPed.push(`${rot} ICMS-ST nota ${it.vICMSST.toFixed(2)} × pedido ${n(lp.valor_icms_st).toFixed(2)}`);
+                        if (lp.icms_value !== null && n(lp.icms_value) > 0 && Math.abs(n(lp.icms_value) - it.vICMS) > 0.05)
+                            divPed.push(`${rot} ICMS nota ${it.vICMS.toFixed(2)} × pedido ${n(lp.icms_value).toFixed(2)}`);
+                    }
+                    return it;
+                });
+                const lista = (arr, max = 4) => arr.slice(0, max).join('; ') + (arr.length > max ? ` (+${arr.length - max})` : '');
+                const qtd = resumo.itens.length;
+                // 1) Aritmética base × alíquota
+                if (erroConta.length) bl('Conta do imposto não fecha: ' + lista(erroConta)); else ok(`Base × alíquota confere em ICMS, ICMS-ST, PIS e COFINS dos ${qtd} item(ns)`);
+                // 2) Soma dos itens = totais (rejeições 531–535, 564, 600–602)
+                const campos = [['vBC', 'Base ICMS'], ['vICMS', 'ICMS'], ['vBCST', 'Base ST'], ['vST', 'ICMS-ST'], ['vIPI', 'IPI'], ['vPIS', 'PIS'], ['vCOFINS', 'COFINS'], ['vProd', 'Produtos'], ['vDesc', 'Desconto']];
+                const difTot = campos.filter(([k]) => Math.abs(n(soma[k]) - n(resumo[k])) > 0.02).map(([k, r]) => `${r}: itens ${n(soma[k]).toFixed(2)} × total ${n(resumo[k]).toFixed(2)}`);
+                if (difTot.length) bl('Soma dos itens difere do total da nota (rejeição 531–535): ' + difTot.join('; '));
+                else ok('Soma dos itens = totais da nota (ICMS, ST, IPI, PIS, COFINS, produtos e desconto)');
+                // 3) vNF = vProd − vDesc + vST + vFrete + vSeg + vOutro + vIPI + vFCPST (rejeição 610)
+                const vnfCalc = n(n(resumo.vProd) - n(resumo.vDesc) + n(resumo.vST) + n(resumo.vFrete) + n(resumo.vSeg) + n(resumo.vOutro) + n(resumo.vIPI) + n(resumo.vFCPST));
+                if (Math.abs(vnfCalc - n(resumo.vNF)) > 0.02) bl(`Total da nota ${n(resumo.vNF).toFixed(2)} ≠ produtos − desconto + ST + frete + seguro + outras + IPI (${vnfCalc.toFixed(2)}) — rejeição 610`);
+                else ok('Total da NF-e = produtos − desconto + ST + frete + seguro + outras + IPI');
+                // 4) Alíquota de ICMS × destino
+                if (!simples) { if (alqInter.length) bl('Alíquota de ICMS incompatível com o destino: ' + lista(alqInter)); else ok(`Alíquota de ICMS compatível com venda ${interest ? 'interestadual' : 'interna'}`); }
+                else ok('Simples Nacional: ICMS próprio não destacado (CSOSN)');
+                // 5) CFOP × CST × ST
+                if (cfopCst.length) bl('CFOP/CST incoerente com o ICMS-ST: ' + lista(cfopCst)); else ok('CFOP, CST/CSOSN e ICMS-ST coerentes entre si');
+                if (cstZerado.length) bl('CST incoerente com o ICMS: ' + lista(cstZerado));
+                if (stSemCest.length) bl('ICMS-ST sem CEST: ' + lista(stSemCest));
+                if (ncmRuim.length) bl('NCM inválido: ' + lista(ncmRuim)); else ok('NCM com 8 dígitos em todos os itens');
+                // 6) DIFAL: interestadual para não contribuinte exige partilha (EC 87/2015)
+                if (interest && naoContrib && !simples) {
+                    if (!(n(resumo.vICMSUFDest) > 0)) bl('Venda interestadual para não contribuinte sem DIFAL (ICMSUFDest) — rejeição 694/695');
+                    else ok(`DIFAL destacado: R$ ${n(resumo.vICMSUFDest).toFixed(2)}`);
+                }
+                // 7) PIS/COFINS homogêneos
+                if (!simples) {
+                    const regs = [...pisCof];
+                    if (regs.length > 1) at('PIS/COFINS com CST/alíquotas diferentes entre itens: ' + regs.join(', ') + ' — confira se é intencional');
+                    else if (regs.length) {
+                        const [cstP, alqs] = regs[0].split(':');
+                        const [pp, pc] = alqs.split('/').map(Number);
+                        const regime = pp === 0.65 && pc === 3 ? 'cumulativo (0,65% / 3%)' : pp === 1.65 && pc === 7.6 ? 'não cumulativo (1,65% / 7,6%)' : `${pp}% / ${pc}%`;
+                        if (['01', '02'].includes(cstP) && !(pp > 0)) bl(`PIS/COFINS CST ${cstP} (tributado) com alíquota zero`);
+                        else ok(`PIS/COFINS CST ${cstP}, regime ${regime}`);
+                    }
+                }
+                // 8) Nota × pedido, item a item
+                if (divPed.length) bl('Imposto do item difere do gravado no pedido: ' + lista(divPed)); else if (linhasPed.length) ok('ICMS e ICMS-ST de cada item batem com o pedido');
+                // 9) Lei da Transparência
+                if (!(n(resumo.vTotTrib) > 0)) at('Valor aproximado dos tributos (Lei 12.741) não informado'); else ok(`Tributos aproximados (Lei 12.741): R$ ${n(resumo.vTotTrib).toFixed(2)}`);
+                resumo.tributos = chk;
+                resumo.crt = crt;
+            } catch (_) { resumo.conferencia = []; }
+            const cert = require('../modules/Faturamento/services/certificado.service');
+            if (!cert.certificadoCarregado) {
+                avisos.push('Certificado digital não carregado neste servidor: a validação de schema (que exige o XML assinado) não pôde rodar.');
+            } else {
+                try {
+                    const assinado = await cert.assinarXML(xml, 'infNFe');
+                    const env = '<enviNFe xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00"><idLote>1</idLote><indSinc>1</indSinc>'
+                        + String(assinado).replace(/^<\?xml[^>]*>\s*/, '') + '</enviNFe>';
+                    const v = await require('../services/nfe-schema-validator').validarXml(env, 'enviNFe');
+                    if (v.pulado) avisos.push('Validador de schema indisponível no servidor (' + (v.motivo || 'sem detalhes') + ').');
+                    (v.erros || []).forEach(e => erros.push({ etapa: 'schema SEFAZ', mensagem: String(e)
+                        .replace(/Schemas validity error : /, '').replace(/\{http:\/\/www\.portalfiscal\.inf\.br\/nfe\}/g, '') }));
+                } catch (err) {
+                    avisos.push('Não foi possível assinar o XML para validar o schema: ' + err.message);
+                }
+            }
+            try {
+                const pre = require('../services/nfe-cadastro-preflight');
+                if (req.query.sefaz === '1' && cert.certificadoCarregado) {
+                    const w = await pre.validarAntesTransmissao(xml, { pemCert: cert.getCertificadoPEM(), pemKey: cert.getChavePrivadaPEM() }, {});
+                    (w || []).forEach(x => avisos.push(String(x)));
+                } else {
+                    pre.validarTransporte(pre.lerXML(xml).transporte);
+                }
+            } catch (err) {
+                erros.push({ etapa: req.query.sefaz === '1' ? 'cadastro na SEFAZ' : 'transporte', mensagem: err.message });
+            }
+        }
+        res.json({ ok: !erros.length, erros, avisos, resumo, consultouSefaz: req.query.sefaz === '1' });
+    });
+
+    // ── Próximo número de NF-e (SÓ CONSULTA — não reserva) ────────────────────
+    // Mesma regra da reserva (faturamento-shared.gerarProximoNumeroNFe): o maior entre a
+    // sequência, a última inutilização homologada, empresa_config e nfe_configuracoes, +1.
+    // Usado no modal de confirmação "Enviar ao SEFAZ" para dizer QUAL nota será emitida.
+    router.get('/nfe/proximo-numero', async (req, res) => {
+        try {
+            const cfg = await faturamentoShared.getConfig();
+            const serie = Number(req.query.serie || cfg.serie_padrao || 1) || 1;
+            const um = async (sql, p) => { try { const [[r]] = await pool.query(sql, p); return Number(r?.n || 0); } catch (_) { return 0; } };
+            const maior = Math.max(
+                await um('SELECT current_value AS n FROM nfe_sequences WHERE serie = ?', [serie]),
+                await um("SELECT COALESCE(MAX(numero_final),0) AS n FROM nfe_inutilizacoes WHERE serie = ? AND status = 'processado'", [serie]),
+                await um('SELECT COALESCE(MAX(nfe_proximo_numero),0) - 1 AS n FROM empresa_config WHERE COALESCE(nfe_serie,1) = ?', [serie]),
+                await um('SELECT COALESCE(MAX(ultimo_numero),0) AS n FROM nfe_configuracoes WHERE serie = ?', [serie])
+            );
+            res.json({ serie, numero: maior + 1, previsto: true });
+        } catch (error) {
+            res.status(500).json({ message: 'Não foi possível prever o número da NF-e.' });
+        }
+    });
+
+    // ── Calcular / remover ICMS-ST pelo Editar NF-e ───────────────────────────
+    // Grava pedidos.st_modo ('calcular' | 'remover' | NULL = automático), troca o CFOP
+    // dos itens para o par coerente (5101⇄5401, 5102⇄5403, 6101⇄6401, 6102⇄6403),
+    // recalcula o pedido pelo motor e regera o XML da NF-e ainda não autorizada — sem
+    // transmitir. O emissor (services/nfe-emitter.service.js) lê o mesmo campo.
+    const CFOP_SEM_ST = { 5401: '5101', 5402: '5101', 5403: '5102', 6401: '6101', 6402: '6101', 6403: '6102' };
+    const CFOP_COM_ST = { 5101: '5401', 5102: '5403', 6101: '6401', 6102: '6403' };
+    router.post('/pedidos/:id/st-modo', async (req, res, next) => {
+        try {
+            const id = parseInt(req.params.id, 10);
+            const bruto = String(req.body?.modo || '').trim().toLowerCase();
+            const modo = bruto === 'calcular' || bruto === 'remover' ? bruto : (bruto === 'auto' ? null : undefined);
+            if (!Number.isInteger(id) || modo === undefined) {
+                return res.status(400).json({ message: "Informe modo 'calcular', 'remover' ou 'auto'." });
+            }
+            const [[ped]] = await pool.query('SELECT id, status FROM pedidos WHERE id = ?', [id]);
+            if (!ped) return res.status(404).json({ message: 'Pedido não encontrado.' });
+            // Nota cancelada/inutilizada guarda o protocolo de autorização, mas não trava o
+            // pedido: é justamente o caso "cancelar e reemitir sem ST".
+            const [[autorizada]] = await pool.query(
+                `SELECT numero FROM nfes WHERE pedido_id = ?
+                    AND LOWER(COALESCE(status,'')) NOT IN ('cancelada','inutilizada','denegada')
+                    AND (status = 'autorizada' OR protocolo_autorizacao IS NOT NULL)
+                  ORDER BY id DESC LIMIT 1`, [id]
+            ).catch(() => [[null]]);
+            if (autorizada) {
+                return res.status(409).json({ message: `A NF-e ${autorizada?.numero || ''} deste pedido já foi autorizada: o ST dela não pode mais ser alterado. Cancele a nota antes.` });
+            }
+            const [colSt] = await pool.query("SHOW COLUMNS FROM pedidos LIKE 'st_modo'");
+            if (!colSt.length) await pool.query("ALTER TABLE pedidos ADD COLUMN st_modo VARCHAR(10) NULL");
+            await pool.query('UPDATE pedidos SET st_modo = ? WHERE id = ?', [modo, id]);
+
+            const mapa = modo === 'remover' ? CFOP_SEM_ST : modo === 'calcular' ? CFOP_COM_ST : null;
+            if (mapa) {
+                const [linhas] = await pool.query('SELECT id, cfop FROM pedido_itens WHERE pedido_id = ?', [id]);
+                for (const l of linhas) {
+                    const novo = mapa[String(l.cfop || '').replace(/\D/g, '')];
+                    if (novo) await pool.query('UPDATE pedido_itens SET cfop = ? WHERE id = ?', [novo, l.id]);
+                }
+            }
+            const resultado = await recalcularImpostosPedidoVenda(id);
+            if (typeof clearPedidosCache === 'function') clearPedidosCache();
+
+            // NF-e já numerada e não autorizada: regera o XML com o novo ST (não transmite).
+            let nfeAtualizada = null;
+            const [[nfeRegeravel]] = await pool.query(
+                `SELECT id, numero FROM nfes WHERE pedido_id = ? AND protocolo_autorizacao IS NULL
+                   AND LOWER(COALESCE(status,'')) IN ('pendente','rejeitada','erro','processando')
+                 ORDER BY id DESC LIMIT 1`, [id]
+            ).catch(() => [[null]]);
+            if (nfeRegeravel) {
+                const [itensNfe] = await pool.query(
+                    'SELECT produto_id, quantidade, valor_unitario, cfop FROM nfe_itens WHERE nfe_id = ? ORDER BY id', [nfeRegeravel.id]);
+                const { emitirNFePedido } = require('../services/nfe-emitter.service');
+                const regerada = await emitirNFePedido(pool, {
+                    pedidoId: id, usuarioId: req.user?.id || null, transmitir: false, regerarNfeId: nfeRegeravel.id,
+                    itens: itensNfe.map(it => ({
+                        produto_id: Number(it.produto_id), quantidade: Number(it.quantidade), valor_unitario: Number(it.valor_unitario),
+                        cfop: (mapa && mapa[String(it.cfop || '').replace(/\D/g, '')]) || it.cfop || null
+                    })).filter(it => it.produto_id > 0 && it.quantidade > 0 && it.valor_unitario > 0)
+                });
+                nfeAtualizada = { id: regerada.nfeId, numero: regerada.numero, status: regerada.status };
+            }
+            const [cfops] = await pool.query('SELECT id, cfop FROM pedido_itens WHERE pedido_id = ?', [id]);
+            res.json({
+                message: modo === 'remover' ? 'ICMS-ST removido deste pedido.'
+                    : modo === 'calcular' ? (resultado?.total_icms_st > 0 ? 'ICMS-ST calculado.' : 'Modo "calcular ST" gravado, mas nenhum item tem CEST e MVA/alíquota de ST para calcular.')
+                    : 'ST voltou para o cálculo automático.',
+                modo, total_icms_st: resultado?.total_icms_st || 0, valor: resultado?.valor,
+                itens: resultado?.itens || [], cfops, nfe_atualizada: nfeAtualizada
+            });
+        } catch (error) {
+            console.error('[Vendas] Erro ao alterar modo de ST:', error);
+            next(error);
+        }
+    });
+
+    router.post('/pedidos/:id/atualizar-impostos', async (req, res, next) => {
+        let connection;
+        try {
+            const { id } = req.params;
+            connection = await pool.getConnection();
+            await connection.beginTransaction();
+            const resultado = await recalcularImpostosPedidoVenda(
+                id, connection, req.body?.cenario_fiscal || null,
+                { reaplicarCenario: req.body?.reaplicar_cenario === true }
+            );
+            if (!resultado) {
+                await connection.rollback();
+                return res.status(404).json({ message: 'Pedido não encontrado', itens: [] });
+            }
+            await connection.commit();
+            if (typeof clearPedidosCache === 'function') clearPedidosCache();
+
+            res.json({
+                message: 'Impostos atualizados com sucesso!',
+                total_ipi: resultado.total_ipi,
+                total_icms: resultado.total_icms,
+                total_icms_st: resultado.total_icms_st,
+                total_pis: resultado.total_pis,
+                total_cofins: resultado.total_cofins,
+                base_calculo_icms: resultado.base_calculo_icms,
+                base_calculo_icms_st: resultado.base_calculo_icms_st,
+                valor: resultado.valor,
+                cenario: resultado.cenario ? {
+                    id: resultado.cenario.id,
+                    codigo: resultado.cenario.codigo,
+                    nome: resultado.cenario.nome,
+                    icms_aliquota: numeroFiscalItem(resultado.cenario.icms_aliquota),
+                    icms_st_aliquota: numeroFiscalItem(resultado.cenario.icms_st_aliquota),
+                    icms_st_mva: numeroFiscalItem(resultado.cenario.icms_st_mva),
+                    ipi_aliquota: numeroFiscalItem(resultado.cenario.ipi_aliquota),
+                    pis_aliquota: numeroFiscalItem(resultado.cenario.pis_aliquota),
+                    cofins_aliquota: numeroFiscalItem(resultado.cenario.cofins_aliquota)
+                } : null,
+                regime: resultado.regime,
+                itens: resultado.itens
+            });
+        } catch (error) {
+            if (connection) await connection.rollback();
+            console.error('[Vendas] Erro ao atualizar impostos:', error);
+            next(error);
+        } finally {
+            if (connection) connection.release();
+        }
+    });
+
+    // Colunas lidas/devolvidas pelo autocomplete e pelo cadastro rápido de
+    // transportadora. É o mesmo conjunto que o /danfe pega no JOIN — o espelho da
+    // NF-e precisa de CNPJ, IE, endereço, município e UF do transportador, não só
+    // do nome.
+    const TRANSPORTADORA_COLS = `id, razao_social, nome_fantasia, cnpj_cpf, inscricao_estadual,
+                                 telefone, email, contato, endereco, numero, complemento, bairro, cidade, estado, cep,
+                                 codigo_ibge, fiscal_situacao, fiscal_fonte, fiscal_consultado_em`;
+    // O cnpj_cpf está gravado ora com máscara ("81.560.047/0007-05"), ora só com
+    // dígitos, dependendo de por onde a transportadora entrou. Comparar sempre por
+    // dígitos dos dois lados, senão a busca por documento só acha metade da base.
+    const SQL_CNPJ_DIGITOS = `REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cnpj_cpf,''),'.',''),'/',''),'-',''),' ','')`;
+
+    function mapTransportadora(r) {
+        const _dec = lgpdCrypto ? lgpdCrypto.decryptPII : (v => v);
+        const cnpj = _dec(r.cnpj_cpf || '') || '';
+        return {
+            id: r.id,
+            nome: r.nome_fantasia || r.razao_social || '',
+            razao_social: r.razao_social || '',
+            nome_fantasia: r.nome_fantasia || '',
+            cnpj,
+            cnpj_cpf: cnpj,
+            inscricao_estadual: _dec(r.inscricao_estadual || '') || '',
+            telefone: r.telefone || '',
+            email: r.email || '',
+            contato: r.contato || '',
+            endereco: r.endereco || '',
+            numero: r.numero || '',
+            complemento: r.complemento || '',
+            codigo_ibge: r.codigo_ibge || '',
+            fiscal_situacao: r.fiscal_situacao || '',
+            bairro: r.bairro || '',
+            cidade: r.cidade || '',
+            estado: r.estado || '',
+            uf: r.estado || '',
+            cep: r.cep || ''
+        };
+    }
+
+    // GET /transportadoras - Autocomplete do módulo de Vendas (usado pelo editor de
+    // NF-e). Sem ?termo devolve o começo da lista, para o campo já abrir com opções.
     router.get('/transportadoras', async (req, res, next) => {
         try {
-            const _dec = lgpdCrypto ? lgpdCrypto.decryptPII : (v => v);
-            const [rows] = await pool.query(`
-                SELECT id, nome_fantasia, razao_social, cnpj_cpf, inscricao_estadual, telefone, email, cidade, estado, cep
-                FROM transportadoras
-                ORDER BY COALESCE(nome_fantasia, razao_social)
-                LIMIT 100
-            `);
-            const resultado = rows.map(r => ({
-                id: r.id,
-                nome: r.nome_fantasia || r.razao_social || '',
-                razao_social: r.razao_social || '',
-                nome_fantasia: r.nome_fantasia || '',
-                cnpj: _dec(r.cnpj_cpf || ''),
-                inscricao_estadual: _dec(r.inscricao_estadual || ''),
-                telefone: r.telefone || '',
-                email: r.email || '',
-                cidade: r.cidade || '',
-                uf: r.estado || '',
-                cep: r.cep || ''
-            }));
-            res.json(resultado);
+            const termo = String(req.query.termo || req.query.q || '').trim();
+            const limite = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 100);
+            const digitos = onlyDigits(termo);
+
+            const filtros = [];
+            const params = [];
+            if (termo) {
+                filtros.push('(razao_social LIKE ? OR nome_fantasia LIKE ? OR contato LIKE ?)');
+                params.push(`%${termo}%`, `%${termo}%`, `%${termo}%`);
+                if (digitos.length >= 3) {
+                    filtros.push(`${SQL_CNPJ_DIGITOS} LIKE ?`);
+                    params.push(`%${digitos}%`);
+                }
+            }
+            const where = filtros.length ? `WHERE ${filtros.join(' OR ')}` : '';
+
+            // Quem COMEÇA com o termo vem antes de quem apenas o contém — digitar
+            // "RAP" tem que trazer "RAPIDO FIGUEIREDO" no topo, não no meio da lista.
+            let ordem = 'ORDER BY COALESCE(nome_fantasia, razao_social)';
+            if (termo) {
+                ordem = `ORDER BY (COALESCE(nome_fantasia, razao_social) LIKE ?) DESC,
+                                  COALESCE(nome_fantasia, razao_social)`;
+                params.push(`${termo}%`);
+            }
+            params.push(limite);
+
+            const [rows] = await pool.query(
+                `SELECT ${TRANSPORTADORA_COLS} FROM transportadoras ${where} ${ordem} LIMIT ?`,
+                params
+            );
+            res.json(rows.map(mapTransportadora));
         } catch (error) {
             if (error.code === 'ER_NO_SUCH_TABLE') {
                 return res.json([]);
@@ -5142,29 +11263,249 @@ module.exports = function createVendasRoutes(deps) {
         }
     });
 
-    // POST /transportadoras - Criar nova transportadora
+    // Busca enxuta de CADASTROS para o autocomplete do LOCAL DE ENTREGA do editor de NF-e.
+    // Rota própria (e não a `/clientes`, que é paginada, cacheada e devolve o cadastro
+    // inteiro) porque aqui o payload é digitado a cada tecla: só os campos do quadro da
+    // DANFE, já com o PII decifrado — `cnpj`/`cpf`/`inscricao_estadual` vêm criptografados
+    // do banco e sairiam ilegíveis para a tela.
+    //
+    // Procura em CLIENTES, TRANSPORTADORAS e FORNECEDORES: a mercadoria tanto é entregue no
+    // cliente quanto numa transportadora (redespacho) ou no endereço de um fornecedor, e
+    // limitar a busca a uma dessas bases obrigava a redigitar à mão um endereço que já
+    // estava cadastrado.
+    const _colunasPorTabela = {};
+    async function colunasDaTabela(tabela) {
+        if (_colunasPorTabela[tabela]) return _colunasPorTabela[tabela];
+        let cols = new Set();
+        try {
+            const [rows] = await pool.query(`SHOW COLUMNS FROM \`${tabela}\``);
+            cols = new Set(rows.map(r => r.Field));
+        } catch (_) {
+            // Tabela ausente nesta instância: a fonte simplesmente não entra na busca.
+        }
+        _colunasPorTabela[tabela] = cols;
+        return cols;
+    }
+
+    // Cada cadastro nomeia as colunas do seu jeito (`cidade`/`municipio`, `estado`/`uf`,
+    // `cnpj_cpf`/`cnpj`, `endereco`/`logradouro`) e as três tabelas não têm o mesmo
+    // conjunto. Em vez de três SELECTs chumbados que quebram na instância onde faltar uma
+    // coluna, o SELECT é montado a partir do que a tabela realmente tem.
+    async function buscarCadastroParaEntrega(tabela, tipo, termo, limite) {
+        const cols = await colunasDaTabela(tabela);
+        if (!cols.size) return [];
+        const primeira = (...nomes) => nomes.find(n => cols.has(n)) || null;
+        const coalesce = (nomes) => {
+            const existentes = nomes.filter(n => cols.has(n));
+            return existentes.length
+                ? `COALESCE(${existentes.map(n => `NULLIF(\`${n}\`,'')`).join(', ')})`
+                : 'NULL';
+        };
+
+        // `clientes` tem DUAS colunas de UF (`uf` e `estado`): medido, 128 cadastros têm só
+        // `estado`, nenhum tem só `uf` e nenhum diverge — ler apenas `uf` devolveria UF vazia
+        // para esses 128 (a CLR do pedido 3429 é um deles). Em `transportadoras` a coluna é
+        // `estado`. O COALESCE abaixo resolve os dois casos com a mesma expressão.
+        const nomeCols = ['razao_social', 'nome', 'nome_fantasia'].filter(n => cols.has(n));
+        if (!nomeCols.length) return [];
+        const nomeExpr = coalesce(nomeCols);
+        const docExpr = coalesce(['cnpj_cpf', 'cnpj', 'cpf']);
+        const docCol = primeira('cnpj_cpf', 'cnpj', 'cpf');
+
+        const filtros = ['(' + nomeCols.map(n => `\`${n}\` LIKE ?`).join(' OR ') + ')'];
+        const params = nomeCols.map(() => `%${termo}%`);
+        const digitos = onlyDigits(termo);
+        if (digitos.length >= 3 && docCol) {
+            filtros.push(`REPLACE(REPLACE(REPLACE(COALESCE(\`${docCol}\`,''),'.',''),'/',''),'-','') LIKE ?`);
+            params.push(`%${digitos}%`);
+        }
+        // Quem COMEÇA com o termo vem antes de quem só o contém.
+        params.push(`${termo}%`, limite);
+
+        const sql = `SELECT id,
+                            ${nomeExpr} AS nome,
+                            ${coalesce(['nome_fantasia'])} AS fantasia,
+                            ${docExpr} AS doc,
+                            ${coalesce(['inscricao_estadual', 'ie'])} AS ie,
+                            ${coalesce(['endereco', 'logradouro'])} AS endereco,
+                            ${coalesce(['bairro'])} AS bairro,
+                            ${coalesce(['cidade', 'municipio'])} AS municipio,
+                            ${coalesce(['uf', 'estado'])} AS uf,
+                            ${coalesce(['cep'])} AS cep,
+                            ${coalesce(['telefone', 'fone', 'celular'])} AS fone
+                       FROM \`${tabela}\`
+                      WHERE ${filtros.join(' OR ')}
+                      ORDER BY (${nomeExpr} LIKE ?) DESC, ${nomeExpr}
+                      LIMIT ?`;
+
+        const [rows] = await pool.query(sql, params);
+        const _dec = (lgpdCrypto && lgpdCrypto.decryptPII) ? lgpdCrypto.decryptPII : (v => v);
+        return rows.map(r => ({
+            id: r.id,
+            tipo,
+            nome: r.nome || r.fantasia || '',
+            fantasia: r.fantasia || '',
+            // decryptPII devolve o texto intacto quando o valor não está cifrado, então
+            // serve para as três tabelas (fornecedores guarda o CNPJ em claro).
+            cnpj_cpf: _dec(r.doc || '') || '',
+            ie: _dec(r.ie || '') || '',
+            endereco: r.endereco || '',
+            bairro: r.bairro || '',
+            municipio: r.municipio || '',
+            uf: (r.uf || '').toString().toUpperCase().slice(0, 2),
+            cep: r.cep || '',
+            fone: r.fone || ''
+        }));
+    }
+
+    router.get('/clientes-busca-entrega', async (req, res, next) => {
+        try {
+            const termo = String(req.query.termo || req.query.q || '').trim();
+            const limite = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 50);
+            if (termo.length < 2) return res.json([]);
+
+            // Uma fonte fora do ar não pode derrubar as outras: cada busca falha sozinha.
+            const [clientes, transportadoras, fornecedores] = await Promise.all([
+                buscarCadastroParaEntrega('clientes', 'cliente', termo, limite).catch(() => []),
+                buscarCadastroParaEntrega('transportadoras', 'transportadora', termo, limite).catch(() => []),
+                buscarCadastroParaEntrega('fornecedores', 'fornecedor', termo, limite).catch(() => [])
+            ]);
+
+            // Cliente primeiro (destino da maioria das entregas), depois transportadora
+            // (redespacho) e fornecedor. A mesma empresa cadastrada em duas bases aparece
+            // uma vez só, pelo documento — duas linhas idênticas só confundem quem escolhe.
+            //
+            // ⚠️ Cada fonte tem uma COTA antes do preenchimento livre. Sem isso, concatenar as
+            // três listas fazia os clientes (128 cadastros contra 3 transportadoras) ocuparem
+            // as 20 vagas sozinhos: medido com o termo "com", nenhum fornecedor aparecia,
+            // ainda que houvesse correspondência exata na base.
+            const vistos = new Set();
+            const lista = [];
+            const incluir = (item) => {
+                if (lista.length >= limite) return;
+                const chave = item.cnpj_cpf
+                    ? 'doc:' + onlyDigits(item.cnpj_cpf)
+                    : 'nome:' + String(item.nome || '').toLowerCase();
+                if (vistos.has(chave)) return;
+                vistos.add(chave);
+                lista.push(item);
+            };
+            const fontes = [clientes, transportadoras, fornecedores];
+            const cota = Math.max(3, Math.floor(limite / fontes.length));
+            for (const fonte of fontes) fonte.slice(0, cota).forEach(incluir);
+            // Sobrou espaço (fonte vazia ou com poucos resultados): completa na ordem normal.
+            for (const fonte of fontes) fonte.slice(cota).forEach(incluir);
+            res.json(lista);
+        } catch (error) {
+            if (error.code === 'ER_NO_SUCH_TABLE') return res.json([]);
+            console.error('❌ Erro na busca de cadastros para entrega:', error);
+            next(error);
+        }
+    });
+
+    router.post('/transportadoras/consultar-fiscal', async (req, res, next) => {
+        try {
+            const resultado = await transportadoraFiscal.consultarTransportadora(pool, req.body || {}, { empresaId: req.user.empresa_id });
+            res.status(resultado.success ? 200 : 422).json(resultado);
+        } catch (error) { next(error); }
+    });
+    router.post('/transportadoras/:id/atualizar-fiscal', async (req, res, next) => {
+        try {
+            const id = Number(req.params.id);
+            if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'ID inválido' });
+            const resultado = await transportadoraFiscal.atualizarTransportadora(pool, id, { empresaId: req.user.empresa_id, usuarioId: req.user.id });
+            res.status(resultado.success ? 200 : 422).json(resultado);
+        } catch (error) { next(error); }
+    });
+
+    // GET /transportadoras/:id - Uma transportadora (prefill do editor de NF-e)
+    router.get('/transportadoras/:id', async (req, res, next) => {
+        try {
+            const id = parseInt(req.params.id, 10);
+            if (!id) return res.status(400).json({ error: 'ID inválido' });
+            const [[row]] = await pool.query(
+                `SELECT ${TRANSPORTADORA_COLS} FROM transportadoras WHERE id = ? LIMIT 1`, [id]
+            );
+            if (!row) return res.status(404).json({ error: 'Transportadora não encontrada' });
+            res.json(mapTransportadora(row));
+        } catch (error) {
+            if (error.code === 'ER_NO_SUCH_TABLE') return res.status(404).json({ error: 'Transportadora não encontrada' });
+            console.error('❌ Erro ao buscar transportadora:', error);
+            next(error);
+        }
+    });
+
+    // POST /transportadoras - Cadastro de transportadora (usado pelo cadastro rápido
+    // do editor de NF-e e por qualquer tela de Vendas).
     router.post('/transportadoras', async (req, res, next) => {
         try {
-            const { razao_social, nome_fantasia, cnpj_cpf, inscricao_estadual, telefone, email, cidade, estado, cep } = req.body;
-            if (!razao_social || !razao_social.trim()) {
+            const b = req.body || {};
+            // Aceita os dois vocabulários que já circulam no sistema: o de Vendas
+            // (cnpj_cpf/nome_fantasia) e o da Logística (cnpj/fantasia).
+            const razao_social = String(b.razao_social || '').trim();
+            const nome_fantasia = String(b.nome_fantasia || b.fantasia || '').trim();
+            const documento = String(b.cnpj_cpf || b.cnpj || '').trim();
+            const inscricao_estadual = String(b.inscricao_estadual || b.ie || '').trim();
+            const telefone = String(b.telefone || '').trim();
+            const email = String(b.email || '').trim();
+            const contato = String(b.contato || '').trim();
+            const endereco = String(b.endereco || '').trim();
+            const bairro = String(b.bairro || '').trim();
+            const cidade = String(b.cidade || '').trim();
+            const estado = String(b.estado || b.uf || '').trim().toUpperCase().slice(0, 2);
+            const cep = String(b.cep || '').trim();
+
+            if (!razao_social) {
                 return res.status(400).json({ error: 'Razão Social é obrigatória' });
             }
+
+            const errosCadastro = transportadoraFiscal.validarCadastro({ cnpj_cpf: documento, inscricao_estadual, estado, codigo_ibge: b.codigo_ibge });
+            if (errosCadastro.length) return res.status(422).json({ error: errosCadastro.join('; ') });
+
+            // O documento é opcional (transportadora pode entrar só com o nome), mas
+            // se vier tem que ser válido: CNPJ inválido é rejeição 225 na SEFAZ.
+            const digitos = onlyDigits(documento);
+            if (digitos) {
+                const valido = digitos.length > 11 ? isValidCNPJ(digitos) : isValidCPF(digitos);
+                if (!valido) {
+                    return res.status(400).json({ error: 'CNPJ/CPF inválido — confira os dígitos.' });
+                }
+                // Já cadastrada com o mesmo documento: devolve a existente em vez de
+                // duplicar. O front seleciona essa e avisa que já existia.
+                const [[jaExiste]] = await pool.query(
+                    `SELECT ${TRANSPORTADORA_COLS} FROM transportadoras WHERE ${SQL_CNPJ_DIGITOS} = ? LIMIT 1`,
+                    [digitos]
+                );
+                if (jaExiste) {
+                    return res.json({
+                        success: true, ja_existia: true, id: jaExiste.id,
+                        transportadora: mapTransportadora(jaExiste),
+                        message: 'Transportadora já cadastrada com este CNPJ/CPF — vinculada à nota.'
+                    });
+                }
+            }
+
             const _enc = lgpdCrypto ? lgpdCrypto.encryptPII : (v => v);
             const [result] = await pool.query(`
-                INSERT INTO transportadoras (razao_social, nome_fantasia, cnpj_cpf, inscricao_estadual, telefone, email, cidade, estado, cep)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO transportadoras
+                    (razao_social, nome_fantasia, cnpj_cpf, inscricao_estadual, telefone, email,
+                     contato, endereco, bairro, cidade, estado, cep, numero, complemento, codigo_ibge, cnpj_cpf_hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
-                razao_social.trim(),
-                (nome_fantasia || '').trim(),
-                _enc((cnpj_cpf || '').replace(/\D/g, '')),
-                _enc((inscricao_estadual || '').trim()),
-                (telefone || '').trim(),
-                (email || '').trim(),
-                (cidade || '').trim(),
-                (estado || '').trim(),
-                (cep || '').trim()
+                razao_social, nome_fantasia, _enc(digitos), _enc(inscricao_estadual),
+                telefone, email, contato, endereco, bairro, cidade, estado, cep,
+                String(b.numero || '').trim(), String(b.complemento || '').trim(), b.codigo_ibge || null,
+                require('../src/blind-index-search').blindHash(digitos)
             ]);
-            res.json({ success: true, id: result.insertId, message: 'Transportadora cadastrada com sucesso' });
+
+            const [[novo]] = await pool.query(
+                `SELECT ${TRANSPORTADORA_COLS} FROM transportadoras WHERE id = ? LIMIT 1`, [result.insertId]
+            );
+            res.json({
+                success: true, id: result.insertId,
+                transportadora: novo ? mapTransportadora(novo) : null,
+                message: 'Transportadora cadastrada com sucesso'
+            });
         } catch (error) {
             if (error.code === 'ER_DUP_ENTRY') {
                 return res.status(409).json({ error: 'Transportadora já cadastrada com este CNPJ' });
@@ -5193,11 +11534,16 @@ module.exports = function createVendasRoutes(deps) {
                 ])
             ];
 
-            const activeChecks = [];
-            if (columns.has('ativo')) activeChecks.push('(u.ativo = 1 OR u.ativo IS NULL)');
-            if (columns.has('status')) activeChecks.push("(u.status IS NULL OR LOWER(u.status) NOT IN ('inativo','bloqueado','desativado','excluido'))");
-            if (columns.has('deleted_at')) activeChecks.push('u.deleted_at IS NULL');
-            activeChecks.push("NOT EXISTS (SELECT 1 FROM funcionarios f WHERE f.email = u.email AND (LOWER(f.status) = 'demitido' OR f.ativo = 0 OR f.data_demissao IS NOT NULL))");
+            // Ativo NO ERP: é o `usuarios` que o admin mantém, e é o que decide acesso.
+            const ativoNoErp = [];
+            if (columns.has('ativo')) ativoNoErp.push('(u.ativo = 1 OR u.ativo IS NULL)');
+            if (columns.has('status')) ativoNoErp.push("(u.status IS NULL OR LOWER(u.status) NOT IN ('inativo','bloqueado','desativado','excluido'))");
+            if (columns.has('deleted_at')) ativoNoErp.push('u.deleted_at IS NULL');
+
+            // Desligamento pelo RH — rede de segurança para não oferecer ex-funcionário.
+            const naoDemitidoNoRh = "NOT EXISTS (SELECT 1 FROM funcionarios f WHERE f.email = u.email AND (LOWER(f.status) = 'demitido' OR f.ativo = 0 OR f.data_demissao IS NOT NULL))";
+
+            const activeChecks = [...ativoNoErp, naoDemitidoNoRh];
 
             const vendedorChecks = [];
             if (columns.has('role')) vendedorChecks.push("LOWER(COALESCE(u.role,'')) IN ('comercial','vendedor','sales')");
@@ -5205,27 +11551,75 @@ module.exports = function createVendasRoutes(deps) {
             if (columns.has('cargo')) vendedorChecks.push("LOWER(COALESCE(u.cargo,'')) LIKE '%vendedor%' OR LOWER(COALESCE(u.cargo,'')) LIKE '%consultor%' OR LOWER(COALESCE(u.cargo,'')) LIKE '%comercial%'");
             if (columns.has('setor')) vendedorChecks.push("LOWER(COALESCE(u.setor,'')) LIKE '%comercial%' OR LOWER(COALESCE(u.setor,'')) LIKE '%vendas%'");
             if (columns.has('perfil')) vendedorChecks.push("LOWER(COALESCE(u.perfil,'')) LIKE '%vendedor%' OR LOWER(COALESCE(u.perfil,'')) LIKE '%comercial%'");
-            vendedorChecks.push("LOWER(COALESCE(u.nome,'')) LIKE '%melissa%navarro%'");
+            // Cadastro de vendedores ligado ao usuário: é o registro FORMAL de quem vende,
+            // e vale mais do que adivinhar por `role`/`departamento`. Foi o que faltava
+            // para a Andreia (role=admin, dep=Diretoria) aparecer — ela é vendedora no
+            // Omie, só não casava com nenhuma heurística.
+            vendedorChecks.push('EXISTS (SELECT 1 FROM vendedores v WHERE v.usuario_id = u.id)');
+            // ⚠️ Saíram daqui dois nomes CHUMBADOS ('lorena silva', 'melissa navarro'):
+            // remendo que só resolvia para quem já tinha reclamado e não previa o próximo
+            // caso — foi exatamente assim que Andreia e Renata ficaram de fora. Melissa
+            // continua aparecendo por `role='comercial'`; Lorena está inativa no ERP e não
+            // deve mesmo aparecer ([[transferência de carteira para a Márcia]]).
 
+            const ativoNoErpWhere = ativoNoErp.length ? ativoNoErp.join(' AND ') : '1=1';
             const activeWhere = activeChecks.length ? activeChecks.join(' AND ') : '1=1';
             const vendedorWhere = vendedorChecks.length ? vendedorChecks.map(c => `(${c})`).join(' OR ') : '1=1';
+
+            // Quem JÁ TEM pedido no sistema continua selecionável mesmo que o RH o marque
+            // como desligado. Sem isso o vendedor some do filtro e não dá para editar nem
+            // reatribuir os pedidos dele — foi o caso da Renata: `funcionarios` diz
+            // "Demitido" (com `data_demissao` NULL, registro incompleto) enquanto ela tem
+            // 458 pedidos e criou um HOJE. Continua exigindo usuário ativo no ERP, então
+            // desligado de verdade (inativo no `usuarios`) segue fora: dos 14 usuários
+            // ativos marcados como demitidos no RH, só a Renata tem pedido — os outros 13
+            // têm zero e permanecem ocultos.
+            const temPedidos = `EXISTS (SELECT 1 FROM pedidos p WHERE p.vendedor_id = u.id AND p.deleted_at IS NULL)`;
+
+            // Duas contas com o MESMO nome (uma ativa com pedidos, outra legado sem) já
+            // apareceram várias vezes neste filtro — ver os casos de Márcia/Lorena,
+            // Andreia e Renata nos comentários acima: cada um exigiu um remendo pontual
+            // (chumbar/destravar um nome específico) que resolvia só até o PRÓXIMO caso
+            // igual. `dedupPorNome` fecha a classe inteira do problema: se sobrar mais de
+            // uma conta com o mesmo nome no resultado, fica só UMA — a que tem pedidos
+            // vence (é a que faz sentido reatribuir/filtrar), e sem pedidos em nenhuma das
+            // duas fica a de menor id (conta mais antiga, convenção já usada nas outras
+            // resoluções de identidade deste módulo).
+            const dedupPorNome = (linhas) => {
+                const porNome = new Map();
+                for (const linha of linhas) {
+                    const chave = String(linha.nome || '').trim().toLowerCase()
+                        .normalize('NFD').replace(/[̀-ͯ]/g, '');
+                    const atual = porNome.get(chave);
+                    if (!atual) { porNome.set(chave, linha); continue; }
+                    const atualTemPedidos = !!atual.tem_pedidos;
+                    const linhaTemPedidos = !!linha.tem_pedidos;
+                    if (linhaTemPedidos && !atualTemPedidos) porNome.set(chave, linha);
+                    else if (linhaTemPedidos === atualTemPedidos && Number(linha.id) < Number(atual.id)) porNome.set(chave, linha);
+                }
+                return [...porNome.values()]
+                    .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
+                    .map(({ tem_pedidos, ...resto }) => resto);
+            };
+
             const [rows] = await pool.query(`
-                SELECT DISTINCT ${selectCols.join(', ')}
+                SELECT DISTINCT ${selectCols.join(', ')}, ${temPedidos} AS tem_pedidos
                 FROM usuarios u
-                WHERE ${activeWhere} AND (${vendedorWhere})
+                WHERE (${activeWhere} AND (${vendedorWhere}))
+                   OR (${ativoNoErpWhere} AND ${temPedidos})
                 ORDER BY u.nome ASC
             `);
 
-            if (rows.length > 0) return res.json(rows);
+            if (rows.length > 0) return res.json(dedupPorNome(rows));
 
             const [fallback] = await pool.query(`
-                SELECT DISTINCT ${selectCols.join(', ')}
+                SELECT DISTINCT ${selectCols.join(', ')}, 0 AS tem_pedidos
                 FROM usuarios u
                 WHERE ${activeWhere}
                 ORDER BY u.nome ASC
                 LIMIT 50
             `);
-            res.json(fallback);
+            res.json(dedupPorNome(fallback));
         } catch (error) {
             console.error('❌ Erro ao buscar vendedores:', error);
             // Fallback em caso de erro
@@ -5317,11 +11711,76 @@ module.exports = function createVendasRoutes(deps) {
             const data = req.body;
             const vendedor_id = req.user?.id || null;
 
+            const cnpjLimpo = onlyDigits(data.cnpj);
+            if (cnpjLimpo) {
+                // O Radar só trabalha empresas ainda não cadastradas. Esta segunda barreira
+                // fecha a janela entre exibir o resultado e o clique do usuário.
+                if (data.origem === 'radar_clientes') {
+                    const documentoClienteSql = campo =>
+                        `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(${campo}, ''), '.', ''), '/', ''), '-', ''), '(', ''), ')', ''), ' ', '')`;
+                    const [clientes] = await pool.query(
+                        `SELECT id, COALESCE(nome_fantasia, razao_social, nome) AS nome
+                           FROM clientes
+                          WHERE ${documentoClienteSql('cnpj_cpf')} = ?
+                             OR ${documentoClienteSql('cnpj')} = ?
+                             OR ${documentoClienteSql('cpf')} = ?
+                          LIMIT 1`,
+                        [cnpjLimpo, cnpjLimpo, cnpjLimpo]
+                    );
+                    if (clientes.length) {
+                        return res.status(409).json({
+                            success: false,
+                            code: 'CLIENTE_JA_CADASTRADO',
+                            cliente_id: clientes[0].id,
+                            message: `${clientes[0].nome || 'Esta empresa'} já está cadastrada como cliente.`
+                        });
+                    }
+                }
+
+                // Um CNPJ representa um único lead. Reutilizar o registro existente evita
+                // duplicar cartões no kanban e permite que o Radar abra a prospecção correta.
+                const [existentes] = await pool.query(
+                    `SELECT id FROM leads_prospeccao
+                      WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cnpj, ''), '.', ''), '/', ''), '-', ''), ' ', '') = ?
+                      ORDER BY id DESC LIMIT 1`,
+                    [cnpjLimpo]
+                );
+                if (existentes.length) {
+                    const leadId = existentes[0].id;
+                    await pool.query(
+                        `UPDATE leads_prospeccao SET
+                            razao_social = COALESCE(NULLIF(?, ''), razao_social),
+                            nome_fantasia = COALESCE(NULLIF(?, ''), nome_fantasia),
+                            telefone = COALESCE(NULLIF(?, ''), telefone),
+                            email = COALESCE(NULLIF(?, ''), email),
+                            cidade = COALESCE(NULLIF(?, ''), cidade),
+                            uf = COALESCE(NULLIF(?, ''), uf),
+                            endereco = COALESCE(NULLIF(?, ''), endereco),
+                            segmento = COALESCE(NULLIF(?, ''), segmento),
+                            porte = COALESCE(NULLIF(?, ''), porte),
+                            contato = COALESCE(NULLIF(?, ''), contato),
+                            cargo = COALESCE(NULLIF(?, ''), cargo),
+                            observacoes = COALESCE(NULLIF(?, ''), observacoes),
+                            origem = COALESCE(NULLIF(?, ''), origem),
+                            vendedor_id = COALESCE(vendedor_id, ?),
+                            status = CASE WHEN status IN ('excluido', 'perdido') THEN 'novo' ELSE COALESCE(status, 'novo') END,
+                            updated_at = NOW()
+                          WHERE id = ?`,
+                        [data.razao_social, data.nome_fantasia, data.telefone, data.email,
+                         data.cidade, data.uf, data.endereco, data.segmento, data.porte,
+                         data.contato, data.cargo, data.observacoes, data.origem,
+                         vendedor_id, leadId]
+                    );
+                    return res.json({ success: true, id: leadId, lead_id: leadId, existente: true, message: 'Lead já existente; dados atualizados.' });
+                }
+            }
+
             const [result] = await pool.query(`
                 INSERT INTO leads_prospeccao (
                     razao_social, nome_fantasia, cnpj, telefone, email,
-                    cidade, uf, endereco, status, origem, vendedor_id, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    cidade, uf, endereco, segmento, porte, contato, cargo, observacoes,
+                    status, origem, vendedor_id, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             `, [
                 data.razao_social,
                 data.nome_fantasia || null,
@@ -5331,12 +11790,17 @@ module.exports = function createVendasRoutes(deps) {
                 data.cidade || null,
                 data.uf || null,
                 data.endereco || null,
+                data.segmento || null,
+                data.porte || null,
+                data.contato || null,
+                data.cargo || null,
+                data.observacoes || null,
                 data.status || 'novo',
                 data.origem || 'manual',
                 vendedor_id
             ]);
 
-            res.status(201).json({ id: result.insertId, message: 'Lead criado com sucesso' });
+            res.status(201).json({ success: true, id: result.insertId, lead_id: result.insertId, message: 'Lead criado com sucesso' });
         } catch (error) {
             console.error('❌ Erro ao criar lead:', error);
             next(error);
@@ -5414,7 +11878,12 @@ module.exports = function createVendasRoutes(deps) {
     // ======================================================
     // REGIÕES DE VENDA - CRUD de configurações comerciais
     // ======================================================
+    let ensureRegioesVendaPromise = null;
     async function ensureRegioesVendaTable() {
+        // Várias chamadas simultâneas à tela não podem executar o mesmo ALTER
+        // em paralelo, pois a segunda tentativa gerava ER_DUP_FIELDNAME.
+        if (ensureRegioesVendaPromise) return ensureRegioesVendaPromise;
+        ensureRegioesVendaPromise = (async () => {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS vendas_regioes (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -5427,6 +11896,36 @@ module.exports = function createVendasRoutes(deps) {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         `);
+
+        // Instâncias antigas usam criado_em/atualizado_em e não possuem o
+        // responsável. Completar o schema de forma idempotente mantém os dados.
+        const [columnRows] = await pool.query(`
+            SELECT column_name FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'vendas_regioes'
+        `);
+        // mysql2 preserva o alias da coluna conforme a versão/configuração do
+        // servidor. Em algumas instâncias ela chega como COLUMN_NAME; sem
+        // esta normalização o Set ficava com "undefined" e o ALTER abaixo
+        // tentava recriar colunas já existentes a cada abertura do modal.
+        const columns = new Set(columnRows.map(row => String(row.column_name || row.COLUMN_NAME || '').toLowerCase()));
+        const alters = [];
+        if (!columns.has('vendedor_responsavel')) alters.push('ADD COLUMN vendedor_responsavel VARCHAR(255) NULL AFTER descricao');
+        if (!columns.has('created_at')) alters.push('ADD COLUMN created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP');
+        if (!columns.has('updated_at')) alters.push('ADD COLUMN updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+        if (alters.length) await pool.query(`ALTER TABLE vendas_regioes ${alters.join(', ')}`);
+
+        if (columns.has('criado_em')) {
+            await pool.query('UPDATE vendas_regioes SET created_at = COALESCE(created_at, criado_em) WHERE created_at IS NULL');
+        }
+        if (columns.has('atualizado_em')) {
+            await pool.query('UPDATE vendas_regioes SET updated_at = COALESCE(updated_at, atualizado_em) WHERE updated_at IS NULL');
+        }
+        })();
+        try {
+            return await ensureRegioesVendaPromise;
+        } finally {
+            ensureRegioesVendaPromise = null;
+        }
     }
 
     router.get('/regioes', async (req, res, next) => {
@@ -5506,13 +12005,42 @@ module.exports = function createVendasRoutes(deps) {
         }
     });
 
+    // O modal "Nova Condição de Pagamento" do módulo Vendas pede Quantidade de Parcelas e
+    // Tipo de Documento Padrão. `parcelas` já existe na tabela (as 3 instâncias antigas têm),
+    // `tipo_documento` não — daí o ALTER abaixo. Roda uma vez por processo: repetir a cada
+    // request custaria dois round-trips só para não fazer nada.
+    let colunasCondicoesPagamentoOk = false;
+    async function garantirColunasCondicoesPagamento() {
+        if (colunasCondicoesPagamentoOk) return;
+        await pool.query(`ALTER TABLE condicoes_pagamento ADD COLUMN parcelas INT DEFAULT 1`).catch(() => {});
+        await pool.query(`ALTER TABLE condicoes_pagamento ADD COLUMN tipo_documento VARCHAR(30) DEFAULT NULL`).catch(() => {});
+        colunasCondicoesPagamentoOk = true;
+    }
+
+    // Os valores vêm do <select> do modal; qualquer coisa fora da lista vira NULL em vez de
+    // sujar a coluna.
+    const TIPOS_DOCUMENTO_CONDICAO = ['boleto', 'duplicata', 'cheque', 'dinheiro', 'cartao_credito', 'cartao_debito', 'pix', 'transferencia'];
+    const normalizarTipoDocumentoCondicao = (valor) => {
+        const t = String(valor || '').trim().toLowerCase();
+        return TIPOS_DOCUMENTO_CONDICAO.includes(t) ? t : null;
+    };
+    // A verdade sobre quantas parcelas a condição tem está em `dias` (um vencimento por item).
+    // O campo digitado no modal só prevalece quando é um inteiro >= 1.
+    const normalizarParcelasCondicao = (valor, dias) => {
+        const n = parseInt(valor, 10);
+        if (Number.isFinite(n) && n >= 1) return n;
+        const itens = String(dias || '').split(',').map(s => s.trim()).filter(Boolean);
+        return itens.length || 1;
+    };
+
     // GET /condicoes-pagamento - Listar condições de pagamento
     router.get('/condicoes-pagamento', async (req, res, next) => {
         try {
             // Tentar buscar da tabela condicoes_pagamento
             try {
+                await garantirColunasCondicoesPagamento();
                 const [rows] = await pool.query(`
-                    SELECT id, nome, dias, descricao, ativo
+                    SELECT id, nome, dias, descricao, ativo, parcelas, tipo_documento
                     FROM condicoes_pagamento
                     WHERE ativo = 1 OR ativo IS NULL
                     ORDER BY nome
@@ -5542,7 +12070,7 @@ module.exports = function createVendasRoutes(deps) {
     // POST /condicoes-pagamento - Criar nova condição de pagamento
     router.post('/condicoes-pagamento', async (req, res, next) => {
         try {
-            const { nome, dias, descricao } = req.body;
+            const { nome, dias, descricao, parcelas, tipo_documento } = req.body;
             if (!nome) {
                 return res.status(400).json({ message: 'Nome da condição é obrigatório' });
             }
@@ -5556,21 +12084,30 @@ module.exports = function createVendasRoutes(deps) {
                         dias VARCHAR(100) DEFAULT '0',
                         descricao VARCHAR(255) DEFAULT '',
                         ativo TINYINT(1) DEFAULT 1,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        parcelas INT DEFAULT 1,
+                        tipo_documento VARCHAR(30) DEFAULT NULL
                     )
                 `);
             } catch (e) { /* tabela já existe */ }
+            await garantirColunasCondicoesPagamento();
+
+            const diasFinal = dias || '0';
+            const parcelasFinal = normalizarParcelasCondicao(parcelas, diasFinal);
+            const tipoDocFinal = normalizarTipoDocumentoCondicao(tipo_documento);
 
             const [result] = await pool.query(
-                'INSERT INTO condicoes_pagamento (nome, dias, descricao) VALUES (?, ?, ?)',
-                [nome, dias || '0', descricao || '']
+                'INSERT INTO condicoes_pagamento (nome, dias, descricao, parcelas, tipo_documento) VALUES (?, ?, ?, ?, ?)',
+                [nome, diasFinal, descricao || '', parcelasFinal, tipoDocFinal]
             );
 
             res.status(201).json({
                 id: result.insertId,
                 nome,
-                dias: dias || '0',
+                dias: diasFinal,
                 descricao: descricao || '',
+                parcelas: parcelasFinal,
+                tipo_documento: tipoDocFinal,
                 message: 'Condição de pagamento criada com sucesso'
             });
         } catch (error) {
@@ -5583,22 +12120,36 @@ module.exports = function createVendasRoutes(deps) {
     router.put('/condicoes-pagamento/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
-            const { nome, dias, descricao, ativo } = req.body;
+            const { nome, dias, descricao, ativo, parcelas, tipo_documento } = req.body;
             if (!id || !Number.isFinite(Number(id))) {
                 return res.status(400).json({ message: 'ID da condição é obrigatório' });
             }
             if (!nome) {
                 return res.status(400).json({ message: 'Nome da condição é obrigatório' });
             }
+            await garantirColunasCondicoesPagamento();
+
+            const diasFinal = dias || '0';
+            // `parcelas` e `tipo_documento` omitidos no corpo preservam o que já está gravado —
+            // a edição pelo modal do Vendas só manda nome/dias/descrição.
+            const parcelasFinal = parcelas === undefined ? null : normalizarParcelasCondicao(parcelas, diasFinal);
+            const tipoDocFinal = tipo_documento === undefined ? undefined : normalizarTipoDocumentoCondicao(tipo_documento);
 
             const [result] = await pool.query(
-                'UPDATE condicoes_pagamento SET nome = ?, dias = ?, descricao = ?, ativo = COALESCE(?, ativo) WHERE id = ?',
-                [nome, dias || '0', descricao || '', ativo === undefined ? null : (ativo ? 1 : 0), id]
+                `UPDATE condicoes_pagamento
+                    SET nome = ?, dias = ?, descricao = ?,
+                        ativo = COALESCE(?, ativo),
+                        parcelas = COALESCE(?, parcelas),
+                        tipo_documento = ${tipoDocFinal === undefined ? 'tipo_documento' : '?'}
+                  WHERE id = ?`,
+                tipoDocFinal === undefined
+                    ? [nome, diasFinal, descricao || '', ativo === undefined ? null : (ativo ? 1 : 0), parcelasFinal, id]
+                    : [nome, diasFinal, descricao || '', ativo === undefined ? null : (ativo ? 1 : 0), parcelasFinal, tipoDocFinal, id]
             );
             if (result.affectedRows === 0) {
                 return res.status(404).json({ message: 'Condição de pagamento não encontrada' });
             }
-            res.json({ id: Number(id), nome, dias: dias || '0', descricao: descricao || '', ativo: ativo === undefined ? 1 : (ativo ? 1 : 0), message: 'Condição de pagamento atualizada com sucesso' });
+            res.json({ id: Number(id), nome, dias: diasFinal, descricao: descricao || '', ativo: ativo === undefined ? 1 : (ativo ? 1 : 0), message: 'Condição de pagamento atualizada com sucesso' });
         } catch (error) {
             console.error('❌ Erro ao editar condição de pagamento:', error);
             next(error);
@@ -5764,6 +12315,291 @@ module.exports = function createVendasRoutes(deps) {
     });
     router.post('/pedidos/:id/faturamento-parcial', faturamentoParcialHandlers.faturar);
     router.post('/pedidos/:id/remessa-entrega', faturamentoParcialHandlers.remessa);
+    // Reemite a NF-e de um faturamento parcial/remessa cuja emissão falhou (a Listagem de
+    // NF-e do Faturamento chama esta rota nas linhas de origem 'faturamento').
+    router.post('/pedidos/:id/faturamentos/:fatId/emitir-nfe', faturamentoParcialHandlers.emitirNFe);
+
+    // Catálogo para o seletor de CFOP do item de venda. A tabela fiscal é
+    // preferida quando existir; os CFOPs de venda usuais garantem que a busca
+    // continue funcional nas instâncias que ainda não possuem a referência.
+    router.get('/cfops', async (req, res) => {
+        const catalogoPadrao = [
+            ['5101', 'Venda de produção do estabelecimento'],
+            ['5102', 'Venda de mercadoria adquirida ou recebida de terceiros'],
+            ['5103', 'Venda de produção do estabelecimento efetuada fora do estabelecimento'],
+            ['5105', 'Venda de produção do estabelecimento que não deva por ele transitar'],
+            ['5106', 'Venda de mercadoria adquirida ou recebida de terceiros que não deva por ele transitar'],
+            ['5117', 'Venda de produção do estabelecimento, originada de encomenda para entrega futura'],
+            ['5922', 'Lançamento efetuado a título de simples faturamento decorrente de venda para entrega futura'],
+            ['6101', 'Venda de produção do estabelecimento para fora do estado'],
+            ['6102', 'Venda de mercadoria adquirida ou recebida de terceiros para fora do estado'],
+            ['6117', 'Venda de produção do estabelecimento, originada de encomenda para entrega futura, fora do estado'],
+            ['6922', 'Simples faturamento decorrente de venda para entrega futura, fora do estado'],
+            ['7102', 'Venda de mercadoria para o exterior']
+        ].map(([cfop, descricao]) => ({ cfop, descricao, origem: 'padrão' }));
+        const busca = String(req.query.busca || '').trim().toLowerCase();
+        let catalogo = [];
+        try {
+            const [rows] = await pool.query('SELECT * FROM cfop_referencia WHERE ativo = 1 ORDER BY cfop LIMIT 500');
+            catalogo = rows.map((row) => ({
+                cfop: String(row.cfop || row.codigo || '').replace(/\D/g, '').slice(0, 4),
+                descricao: row.descricao || row.nome || row.descricao_cfop || '',
+                tipo: row.tipo || row.grupo || '',
+                origem: 'fiscal'
+            })).filter((row) => row.cfop);
+        } catch (_) { /* referência fiscal opcional */ }
+        const unicos = new Map();
+        [...catalogo, ...catalogoPadrao].forEach((row) => {
+            if (!unicos.has(row.cfop)) unicos.set(row.cfop, row);
+        });
+        const resultado = [...unicos.values()].filter((row) => {
+            if (!busca) return true;
+            return `${row.cfop} ${row.descricao} ${row.tipo || ''}`.toLowerCase().includes(busca);
+        });
+        return res.json(resultado.slice(0, 100));
+    });
+
+    // Catálogo para o seletor de CST do ICMS (item de venda / classificação fiscal por
+    // NCM). Não existia NENHUMA lista estruturada antes — só uma coluna de texto livre
+    // em várias tabelas — então a tabela é criada aqui mesmo (lazy, como o resto do
+    // catálogo fiscal) em vez de depender de uma migração à parte.
+    const CST_ICMS_PADRAO = [
+        ['00', 'Tributada integralmente'],
+        ['02', 'Tributação monofásica própria sobre combustíveis'],
+        ['10', 'Tributada e com cobrança do ICMS por substituição tributária'],
+        ['15', 'Tributação monofásica própria e com responsabilidade pela retenção sobre combustíveis'],
+        ['20', 'Com redução de base de cálculo'],
+        ['30', 'Isenta ou não tributada e com cobrança do ICMS por substituição tributária'],
+        ['40', 'Isenta'],
+        ['41', 'Não tributada'],
+        ['50', 'Suspensão'],
+        ['51', 'Diferimento'],
+        ['53', 'Tributação monofásica sobre combustíveis com recolhimento diferido'],
+        ['60', 'ICMS cobrado anteriormente por substituição tributária'],
+        ['61', 'Tributação monofásica sobre combustíveis cobrada anteriormente'],
+        ['70', 'Com redução de base de cálculo e cobrança do ICMS por substituição tributária'],
+        ['90', 'Outros']
+    ];
+    async function ensureCstIcmsReferencia() {
+        await pool.query(`CREATE TABLE IF NOT EXISTS cst_icms_referencia (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            cst CHAR(2) NOT NULL,
+            descricao VARCHAR(255) NOT NULL,
+            ativo TINYINT(1) DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_cst_icms (cst)
+        )`);
+        for (const [cst, descricao] of CST_ICMS_PADRAO) {
+            await pool.query('INSERT IGNORE INTO cst_icms_referencia (cst, descricao) VALUES (?, ?)', [cst, descricao]);
+        }
+    }
+    router.get('/csticms', async (req, res) => {
+        const busca = String(req.query.busca || '').trim().toLowerCase();
+        let catalogo = [];
+        try {
+            await ensureCstIcmsReferencia();
+            const [rows] = await pool.query('SELECT cst, descricao FROM cst_icms_referencia WHERE ativo = 1 ORDER BY cst');
+            catalogo = rows;
+        } catch (_) { /* fallback abaixo garante a tela funcional mesmo sem a tabela */ }
+        if (!catalogo.length) catalogo = CST_ICMS_PADRAO.map(([cst, descricao]) => ({ cst, descricao }));
+        const resultado = catalogo.filter((row) => !busca || `${row.cst} ${row.descricao}`.toLowerCase().includes(busca));
+        return res.json(resultado);
+    });
+
+    // Catálogo para o seletor de CST do IPI — mesmo padrão do CST ICMS acima. Os 14 códigos
+    // já existiam (sem uso real) em modules/Faturamento/config/tributacao.config.js:cstIPI;
+    // aqui só viram tabela consultável em vez de dicionário morto.
+    const CST_IPI_PADRAO = [
+        ['00', 'Entrada com recuperação de crédito'],
+        ['01', 'Entrada tributada com alíquota zero'],
+        ['02', 'Entrada isenta'],
+        ['03', 'Entrada não-tributada'],
+        ['04', 'Entrada imune'],
+        ['05', 'Entrada com suspensão'],
+        ['49', 'Outras entradas'],
+        ['50', 'Saída tributada'],
+        ['51', 'Saída tributada com alíquota zero'],
+        ['52', 'Saída isenta'],
+        ['53', 'Saída não-tributada'],
+        ['54', 'Saída imune'],
+        ['55', 'Saída com suspensão'],
+        ['99', 'Outras saídas']
+    ];
+    async function ensureCstIpiReferencia() {
+        await pool.query(`CREATE TABLE IF NOT EXISTS cst_ipi_referencia (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            cst CHAR(2) NOT NULL,
+            descricao VARCHAR(255) NOT NULL,
+            ativo TINYINT(1) DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_cst_ipi (cst)
+        )`);
+        for (const [cst, descricao] of CST_IPI_PADRAO) {
+            await pool.query('INSERT IGNORE INTO cst_ipi_referencia (cst, descricao) VALUES (?, ?)', [cst, descricao]);
+        }
+    }
+    router.get('/cstipi', async (req, res) => {
+        const busca = String(req.query.busca || '').trim().toLowerCase();
+        let catalogo = [];
+        try {
+            await ensureCstIpiReferencia();
+            const [rows] = await pool.query('SELECT cst, descricao FROM cst_ipi_referencia WHERE ativo = 1 ORDER BY cst');
+            catalogo = rows;
+        } catch (_) { /* fallback abaixo garante a tela funcional mesmo sem a tabela */ }
+        if (!catalogo.length) catalogo = CST_IPI_PADRAO.map(([cst, descricao]) => ({ cst, descricao }));
+        const resultado = catalogo.filter((row) => !busca || `${row.cst} ${row.descricao}`.toLowerCase().includes(busca));
+        return res.json(resultado);
+    });
+
+    // Catálogo para os seletores de CST do PIS e da COFINS — mesmo padrão do CST ICMS/IPI
+    // acima. PIS e COFINS usam a MESMA tabela oficial de CST (Ato Declaratório Executivo
+    // Cofis nº 63/2007 e alterações) — por isso as duas listas são idênticas, exceto que a
+    // lista de PIS enviada pelo usuário pulou o '55'; completado aqui com o mesmo texto do
+    // '55' de COFINS, já que não são duas tabelas independentes.
+    const CST_PIS_COFINS_PADRAO = [
+        ['01', 'Operação Tributável (Base de Cálculo = Valor da Operação Alíquota Normal (Cumulativo/Não Cumulativo))'],
+        ['02', 'Operação Tributável (Base de Cálculo = Valor da Operação (Alíquota Diferenciada))'],
+        ['03', 'Operação Tributável (Base de Cálculo = Quantidade Vendida x Alíquota por Unidade de Produto)'],
+        ['04', 'Operação Tributável (Tributação Monofásica (Alíquota Zero))'],
+        ['05', 'Operação Tributável (Substituição Tributária)'],
+        ['06', 'Operação Tributável (Alíquota Zero)'],
+        ['07', 'Operação Isenta da Contribuição'],
+        ['08', 'Operação Sem Incidência da Contribuição'],
+        ['09', 'Operação com Suspensão da Contribuição'],
+        ['49', 'Outras Operações de Saída'],
+        ['50', 'Operação com Direito a Crédito - Vinculada Exclusivamente a Receita Tributada no Mercado Interno'],
+        ['51', 'Operação com Direito a Crédito - Vinculada Exclusivamente a Receita Não Tributada no Mercado Interno'],
+        ['52', 'Operação com Direito a Crédito - Vinculada Exclusivamente a Receita de Exportação'],
+        ['53', 'Operação com Direito a Crédito - Vinculada a Receitas Tributadas e Não-Tributadas no Mercado Interno'],
+        ['54', 'Operação com Direito a Crédito - Vinculada a Receitas Tributadas no Mercado Interno e de Exportação'],
+        ['55', 'Operação com Direito a Crédito - Vinculada a Receitas Não-Tributadas no Mercado Interno e de Exportação'],
+        ['56', 'Operação com Direito a Crédito - Vinculada a Receitas Tributadas e Não-Tributadas no Mercado Interno e de Exportação'],
+        ['60', 'Crédito Presumido - Operação de Aquisição Vinculada Exclusivamente a Receita Tributada no Mercado Interno'],
+        ['61', 'Crédito Presumido - Operação de Aquisição Vinculada Exclusivamente a Receita Não-Tributada no Mercado Interno'],
+        ['62', 'Crédito Presumido - Operação de Aquisição Vinculada Exclusivamente a Receita de Exportação'],
+        ['63', 'Crédito Presumido - Operação de Aquisição Vinculada a Receitas Tributadas e Não-Tributadas no Mercado Interno'],
+        ['64', 'Crédito Presumido - Operação de Aquisição Vinculada a Receitas Tributadas no Mercado Interno e de Exportação'],
+        ['65', 'Crédito Presumido - Operação de Aquisição Vinculada a Receitas Não-Tributadas no Mercado Interno e de Exportação'],
+        ['66', 'Crédito Presumido - Operação de Aquisição Vinculada a Receitas Tributadas e Não-Tributadas no Mercado Interno e de Exportação'],
+        ['67', 'Crédito Presumido - Outras Operações'],
+        ['70', 'Operação de Aquisição sem Direito a Crédito'],
+        ['71', 'Operação de Aquisição com Isenção'],
+        ['72', 'Operação de Aquisição com Suspensão'],
+        ['73', 'Operação de Aquisição a Alíquota Zero'],
+        ['74', 'Operação de Aquisição sem Incidência da Contribuição'],
+        ['75', 'Operação de Aquisição por Substituição Tributária'],
+        ['98', 'Outras Operações de Entrada'],
+        ['99', 'Outras Operações']
+    ];
+    async function ensureCstPisCofinsReferencia(tabela) {
+        await pool.query(`CREATE TABLE IF NOT EXISTS ${tabela} (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            cst CHAR(2) NOT NULL,
+            descricao VARCHAR(255) NOT NULL,
+            ativo TINYINT(1) DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_cst (cst)
+        )`);
+        for (const [cst, descricao] of CST_PIS_COFINS_PADRAO) {
+            await pool.query(`INSERT IGNORE INTO ${tabela} (cst, descricao) VALUES (?, ?)`, [cst, descricao]);
+        }
+    }
+    function registrarCatalogoCstContribuicao(caminho, tabela) {
+        router.get(caminho, async (req, res) => {
+            const busca = String(req.query.busca || '').trim().toLowerCase();
+            let catalogo = [];
+            try {
+                await ensureCstPisCofinsReferencia(tabela);
+                const [rows] = await pool.query(`SELECT cst, descricao FROM ${tabela} WHERE ativo = 1 ORDER BY cst`);
+                catalogo = rows;
+            } catch (_) { /* fallback abaixo garante a tela funcional mesmo sem a tabela */ }
+            if (!catalogo.length) catalogo = CST_PIS_COFINS_PADRAO.map(([cst, descricao]) => ({ cst, descricao }));
+            const resultado = catalogo.filter((row) => !busca || `${row.cst} ${row.descricao}`.toLowerCase().includes(busca));
+            return res.json(resultado);
+        });
+    }
+    // uk_cst da tabela é local ao nome (cst_pis_referencia / cst_cofins_referencia), então
+    // não precisa de tabela por nome de tributo na coluna — são tabelas físicas separadas.
+    registrarCatalogoCstContribuicao('/cstpis', 'cst_pis_referencia');
+    registrarCatalogoCstContribuicao('/cstcofins', 'cst_cofins_referencia');
+
+    // Catálogo para o seletor de Enquadramento Legal do IPI (campo "cEnq" da NF-e).
+    // AUDIT-FIX/ENQUADRAMENTO-IPI 15/09/2026: a lista original tinha ~100 códigos, mas
+    // cerca de 60 vieram com a descrição cortada no meio (ex.: "...atividade…", "...material
+    // de embalagem (ME) impor…") — citação de artigo de decreto truncada não é dado
+    // confiável, então só os que terminam em frase completa entraram aqui. Os cortados
+    // ficam de fora até a lista completa ser reenviada.
+    const ENQUADRAMENTO_IPI_PADRAO = [
+        ['001', 'Livros, jornais, periódicos e o papel destinado à sua impressão - Art. 18 Inciso I do Decreto 7.212/2010'],
+        ['002', 'Produtos industrializados destinados ao exterior - Art. 18 Inciso II do Decreto 7.212/2010'],
+        ['003', 'Ouro, definido em lei como ativo financeiro ou instrumento cambial - Art. 18 Inciso III do Decreto 7.212/2010'],
+        ['004', 'Energia elétrica, derivados de petróleo, combustíveis e minerais do País - Art. 18 Inciso IV do Decreto 7.212/2010'],
+        ['101', 'Óleo de menta em bruto, produzido por lavradores - Art. 43 Inciso I do Decreto 7.212/2010'],
+        ['102', 'Produtos remetidos à exposição em feiras de amostras e promoções semelhantes - Art. 43 Inciso II do Decreto 7.212/2010'],
+        ['113', 'Bens do ativo permanente remetidos a outro estabelecimento da mesma firma, para serem utilizados no processo industrial'],
+        ['115', 'Partes e peças destinadas ao reparo de produtos com defeito de fabricação, quando a operação for executada gratuitamente'],
+        ['118', 'Bebidas alcoólicas e demais produtos de produção nacional acondicionados em recipientes de capacidade superior ao limite'],
+        ['127', 'Desembaraço de produtos de procedência estrangeira importados por lojas francas - Art. 48 Inciso I do Decreto 7.212/2010'],
+        ['132', 'Remessa de produtos para a ZFM destinados à exportação - Art. 85 Inciso I do Decreto 7.212/2010'],
+        ['141', 'Remessa para Zona de Processamento de Exportação - ZPE - Art. 121 do Decreto 7.212/2010'],
+        ['160', 'Suspensão Regime Especial de Admissão Temporária nos Termos do Art. 2o da IN 1361/2013'],
+        ['161', 'Suspensão Regime Especial de Admissão Temporária nos termos do art. 5o da IN 1361/2013'],
+        ['162', 'Suspensão Regime Especial de Admissão Temporária nos termos do art. 7o da IN 1361/2013'],
+        ['163', 'REPETRO-Industrialização Venda no mercado interno de matérias-primas, produtos intermediários e materiais de embalagem'],
+        ['304', 'Amostras de tecidos sem valor comercial - Art. 54 Inciso IV do Decreto 7.212/2010'],
+        ['305', 'Pés isolados de calçados - Art. 54 Inciso V do Decreto 7.212/2010'],
+        ['306', 'Aeronaves de uso militar e suas partes e peças, vendidas a União - Art. 54 Inciso VI do Decreto 7.212/2010'],
+        ['307', 'Caixões funerários - Art. 54 Inciso VII do Decreto 7.212/2010'],
+        ['308', 'Papel destinado à impressão de músicas - Art. 54 Inciso VIII do Decreto 7.212/2010'],
+        ['310', 'Chapéus, roupas e proteção, de couro, próprios para tropeiros - Art. 54 Inciso X do Decreto 7.212/2010'],
+        ['311', 'Material bélico, de uso privativo das Forças Armadas, vendido à União - Art. 54 Inciso XI do Decreto 7.212/2010'],
+        ['314', 'Produtos nacionais saídos diretamente para Lojas Francas - Art. 54 Inciso XIV do Decreto 7.212/2010'],
+        ['315', 'Materiais e equipamentos destinados a Itaipu Binacional - Art. 54 Inciso XV do Decreto 7.212/2010'],
+        ['317', 'Bagagem de passageiros desembaraçada com Isenção do II. - Art. 54 Inciso XVII do Decreto 7.212/2010'],
+        ['318', 'Bagagem de passageiros desembaraçada com pagamento do II. - Art. 54 Inciso XVIII do Decreto 7.212/2010'],
+        ['319', 'Remessas postais internacionais sujeitas a tributação simplificada - Art. 54 Inciso XIX do Decreto 7.212/2010'],
+        ['320', 'Máquinas e outros destinados à pesquisa científica e tecnológica - Art. 54 Inciso XX do Decreto 7.212/2010'],
+        ['321', 'Produtos de procedência estrangeira, isentos do II conforme Lei nº 8032/1990 - Art. 54 Inciso XXI do Decreto 7.212/2010'],
+        ['322', 'Produtos de procedência estrangeira utilizados em eventos esportivos - Art. 54 Inciso XXII do Decreto 7.212/2010'],
+        ['324', 'Produtos importados para consumo em congressos, feiras e exposições - Art. 54 Inciso XXIV do Decreto 7.212/2010'],
+        ['335', 'Produtos industrializados na ZFM, por estabelecimentos com projetos aprovados pela SUFRAMA, destinados a comercialização'],
+        ['337', 'Produtos industrializados por estabelecimentos com projetos aprovados pela SUFRAMA, consumidos ou utilizados na Amazônia'],
+        ['340', 'Produtos industrializados em Área de Livre Comércio - Art. 105 do Decreto 7.212/2010'],
+        ['342', 'Produtos nacionais ou nacionalizados, destinados à entrada na Área de Livre Comércio de Guajará-Mirim - ALCGM - Art. 110'],
+        ['348', 'Rio 2016 - Suspensão convertida em Isenção - Lei nº 12.780/2013, Art. 6º, I'],
+        ['349', 'Rio 2016 - Empresas vinculadas ao CIO - Lei nº 12.780/2013, Art. 9º, I, d'],
+        ['350', 'Rio 2016 - Saída de produtos importados pelo RIO 2016 - Lei nº 12.780/2013, Art. 10, I, d'],
+        ['601', 'Equipamentos e outros destinados à pesquisa e ao desenvolvimento tecnológico - Art. 72 do Decreto 7.212/2010'],
+        ['606', 'Bens de informática não incluídos no art. 142 do Decreto 7.212/2010 - Art. 143, II do Decreto 7.212/2010'],
+        ['607', 'Padis - Art. 150 do Decreto 7.212/2010'],
+        ['608', 'Patvd - Art. 158 do Decreto 7.212/2010'],
+        ['999', 'Tributação normal IPI; Outros']
+    ];
+    async function ensureEnquadramentoIpiReferencia() {
+        await pool.query(`CREATE TABLE IF NOT EXISTS enquadramento_ipi_referencia (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            codigo VARCHAR(3) NOT NULL,
+            descricao VARCHAR(500) NOT NULL,
+            ativo TINYINT(1) DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_enquadramento_ipi (codigo)
+        )`);
+        for (const [codigo, descricao] of ENQUADRAMENTO_IPI_PADRAO) {
+            await pool.query('INSERT IGNORE INTO enquadramento_ipi_referencia (codigo, descricao) VALUES (?, ?)', [codigo, descricao]);
+        }
+    }
+    router.get('/enquadramentoipi', async (req, res) => {
+        const busca = String(req.query.busca || '').trim().toLowerCase();
+        let catalogo = [];
+        try {
+            await ensureEnquadramentoIpiReferencia();
+            const [rows] = await pool.query('SELECT codigo, descricao FROM enquadramento_ipi_referencia WHERE ativo = 1 ORDER BY codigo');
+            catalogo = rows;
+        } catch (_) { /* fallback abaixo garante a tela funcional mesmo sem a tabela */ }
+        if (!catalogo.length) catalogo = ENQUADRAMENTO_IPI_PADRAO.map(([codigo, descricao]) => ({ codigo, descricao }));
+        const resultado = catalogo.filter((row) => !busca || `${row.codigo} ${row.descricao}`.toLowerCase().includes(busca));
+        return res.json(resultado.slice(0, 100));
+    });
 
     router.get('/faturamento/cfops', async (req, res, next) => {
         try {
@@ -5819,6 +12655,9 @@ module.exports = function createVendasRoutes(deps) {
 
             for (const item of itens) {
                 if (!item.produto_id || !item.quantidade) continue;
+                // Item SOB ENCOMENDA nao baixa estoque nem na baixa manual — e a mesma
+                // regra da baixa automatica e do validador do faturamento.
+                if (Number(item.nao_gerar_saida_estoque)) continue;
 
                 try {
                     await connection.query(
@@ -5863,7 +12702,544 @@ module.exports = function createVendasRoutes(deps) {
 
     // =============================================================
     // ESPELHO da NF-e a partir do PEDIDO (prévia, ANTES do envio ao SEFAZ)
-    // GET /api/vendas/pedidos/:id/espelho-nfe?tipo=normal|parcial&pct=NN
+    // Marca do título gerado a partir do saldo de um faturamento parcial. Serve de trava de
+    // idempotência (um saldo, um título) e de rastro para separar do que veio da planilha
+    // (`importacao_excel_cr_2026`) e do faturamento normal (`faturamento`).
+    const ORIGEM_SALDO_CR = 'saldo_faturamento_parcial';
+
+    // Parcelas do saldo, seguindo a CONDIÇÃO DE PAGAMENTO do pedido: "30/60/90" vira 3
+    // parcelas, "a_vista" vira 1. Os prazos saem de `faturamentoShared.extrairParcelas`, a
+    // MESMA função do faturamento normal — o saldo passa a ter o mesmo calendário do resto do
+    // pedido, em vez de um vencimento solto.
+    //
+    // Formatos que a base usa hoje e que a função absorve: "28 / 35 / 42 / 49 dias",
+    // "21/28/35", "30/45/60", "a_vista".
+    // Vencimentos DA NOTA emitida. O XML da NF-e carrega `<cobr><dup><dVenc>` — é o calendário
+    // que o cliente já recebeu em mãos, e por isso a fonte mais fiel para cobrar o saldo.
+    // Recontar os prazos "a partir de hoje" empurraria as datas para a frente e faria a cobrança
+    // do saldo desencontrar da nota.
+    const vencimentosDaNota = async (pedidoId, numeroNota) => {
+        const num = String(numeroNota || '').replace(/\D/g, '');
+        if (!num) return null;
+        const [[nf]] = await pool.query(
+            `SELECT xml_assinado, xml_nfe, data_emissao FROM nfes
+              WHERE pedido_id = ? AND CAST(numero AS UNSIGNED) = CAST(? AS UNSIGNED)
+              ORDER BY id DESC LIMIT 1`, [pedidoId, num]).catch(() => [[null]]);
+        if (!nf) return null;
+        const xml = String(nf.xml_assinado || nf.xml_nfe || '');
+        const datas = [...xml.matchAll(/<dVenc>(\d{4}-\d{2}-\d{2})<\/dVenc>/g)].map(m => m[1]);
+        const emissao = nf.data_emissao instanceof Date
+            ? nf.data_emissao.toISOString().slice(0, 10)
+            : String(nf.data_emissao || '').slice(0, 10);
+        return { datas, emissao: /^\d{4}-\d{2}-\d{2}$/.test(emissao) ? emissao : null };
+    };
+
+    // Parcelas do saldo. Prioridade das DATAS:
+    //   1. duplicatas da nota emitida (`<dVenc>`) — o cliente já tem esse calendário;
+    //   2. data de emissão da nota + prazos da condição de pagamento;
+    //   3. `data_base` informada (ou hoje) + prazos da condição.
+    // A QUANTIDADE de parcelas segue a mesma fonte das datas.
+    const parcelasDoSaldo = (pedido, valorSaldo, dataBase, daNota) => {
+        const cent = v => Math.round((Number(v) || 0) * 100) / 100;
+        let vencs = null, origem = null, prazos = null;
+
+        if (daNota && daNota.datas && daNota.datas.length) {
+            vencs = daNota.datas.slice();
+            origem = 'duplicatas da nota';
+        } else {
+            try { prazos = faturamentoShared.extrairParcelas(pedido); } catch (_) { prazos = null; }
+            // Sem condição de pagamento legível, uma parcela em 30 dias — mesmo default do
+            // faturamento (`prazo_vencimento_padrao`).
+            if (!prazos || !prazos.length) prazos = [30];
+            const ancora = (daNota && daNota.emissao) ? daNota.emissao
+                : (/^\d{4}-\d{2}-\d{2}$/.test(String(dataBase || '')) ? String(dataBase) : null);
+            const base = ancora ? new Date(ancora + 'T12:00:00') : new Date();
+            base.setHours(12, 0, 0, 0);
+            origem = (daNota && daNota.emissao) ? 'emissão da nota + condição de pagamento'
+                : (ancora ? 'data informada + condição de pagamento' : 'hoje + condição de pagamento');
+            vencs = prazos.map(dias => {
+                const d = new Date(base.getTime());
+                d.setDate(d.getDate() + (Number(dias) || 0));
+                return d.toISOString().slice(0, 10);
+            });
+        }
+
+        const total = vencs.length;
+        const parcela = cent(valorSaldo / total);
+        return {
+            origem,
+            parcelas: vencs.map((venc, i) => ({
+                numero: i + 1, total,
+                dias: prazos ? (Number(prazos[i]) || 0) : null,
+                vencimento: venc,
+                // A ÚLTIMA absorve o resto da divisão: sem isso a soma das parcelas não fecha
+                // com o saldo (3 x 33,33 = 99,99 para 100,00).
+                valor: (i === total - 1) ? cent(valorSaldo - parcela * (total - 1)) : parcela
+            }))
+        };
+    };
+
+    // "F9 50% - 4302 - Cliente" e, com mais de uma parcela, "... (1/3)".
+    // O percentual é o da NOTA referenciada — é o que identifica qual meia nota gerou este saldo.
+    const pctTexto = v => {
+        const n = Math.round((Number(v) || 0) * 100) / 100;
+        return (n % 1 === 0 ? String(n) : n.toFixed(2).replace('.', ',')) + '%';
+    };
+    const descricaoSaldo = (tipoRef, pctNota, nota, cliente, numero, total) => {
+        const cabeca = tipoRef + (Number(pctNota) > 0 ? ' ' + pctTexto(pctNota) : '');
+        return [cabeca, nota || null, cliente].filter(Boolean).join(' - ')
+            + (total > 1 ? ` (${numero}/${total})` : '');
+    };
+
+    // A empresa canônica vem da BASE, não da coluna — em labor_energy_vendas convivem
+    // 'ENERGY' e 'LABOR ENERGY' e agrupar pela coluna mostra 4 empresas para 3.
+    const empresaCanonica = () => {
+        const db = String((pool && pool.config && pool.config.connectionConfig
+            && pool.config.connectionConfig.database) || process.env.VENDAS_DB_NAME || process.env.DB_NAME || '');
+        if (/labor_energy/i.test(db)) return 'ENERGY';
+        if (/labor_eletric/i.test(db)) return 'LABOR';
+        if (/cobal/i.test(db)) return 'COBAL';
+        if (/aluforce/i.test(db)) return 'ALUFORCE';
+        return null;
+    };
+
+    // =============================================================
+    // GET /api/vendas/pedidos/:id/faturamentos
+    // Histórico de faturamentos do pedido + o SALDO que ainda falta cobrar.
+    //
+    // A conta é a MESMA de `calcularTotais` em services/faturamento-parcial.service.js:
+    // soma percentual/valor dos lançamentos `tipo='faturamento'` cuja NF-e não está
+    // cancelada, e leva em conta o que já está gravado no próprio pedido. Reimplementar
+    // com outra regra faria a tela mostrar um saldo que o serviço recusaria faturar.
+    // =============================================================
+    // ============================================================
+    // GET /pedidos/:id/saldo-itens — quanto de cada item ainda falta faturar
+    // ============================================================
+    //
+    // O motor de faturamento parcial POR QUANTIDADE já existia
+    // (`services/faturamento-parcial.service.js`, modo `itens_faturar`), com controle de
+    // saldo em `pedido_faturamento_itens` — mas NENHUMA tela usava: o front só sabia
+    // faturar por percentual (a meia nota / F9). O resultado prático era o vendedor abrir
+    // um pedido novo por entrega ("2000/1", "2000/2"), quebrando o pedido original.
+    //
+    // Este endpoint é o que faltava para a tela: devolve, item a item, quanto foi pedido,
+    // quanto já saiu em NF-e e quanto ainda pode ser faturado. A conta do valor unitário é
+    // a MESMA do serviço (subtotal / quantidade, líquido de desconto) — divergir faria a
+    // tela oferecer um valor que o POST recusaria.
+    router.get('/pedidos/:id/saldo-itens', authenticateToken, async (req, res, next) => {
+        try {
+            const pedidoId = parseInt(req.params.id, 10);
+            if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+                return res.status(400).json({ success: false, message: 'Pedido inválido' });
+            }
+
+            const [[pedido]] = await pool.query(
+                `SELECT p.id, p.numero_pedido, p.status, COALESCE(p.valor, 0) AS valor,
+                        COALESCE(p.percentual_faturado, 0) AS percentual_faturado,
+                        COALESCE(p.valor_faturado, 0) AS valor_faturado,
+                        COALESCE(c.razao_social, c.nome_fantasia, c.nome, p.cliente_nome) AS cliente_nome
+                   FROM pedidos p
+                   LEFT JOIN clientes c ON c.id = p.cliente_id
+                  WHERE p.id = ? LIMIT 1`, [pedidoId]);
+            if (!pedido) return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
+
+            const [itens] = await pool.query(
+                `SELECT pi.id AS pedido_item_id, pi.produto_id, pi.codigo, pi.descricao,
+                        COALESCE(pi.unidade, 'UN') AS unidade,
+                        COALESCE(pi.quantidade, 0) AS quantidade,
+                        COALESCE(pi.preco_unitario, 0) AS preco_unitario,
+                        COALESCE(pi.desconto, 0) AS desconto,
+                        COALESCE(pi.subtotal, 0) AS subtotal
+                   FROM pedido_itens pi
+                  WHERE pi.pedido_id = ?
+                  ORDER BY pi.id`, [pedidoId]);
+
+            let faturadoPorProduto = new Map();
+            try {
+                const [linhas] = await pool.query(
+                    `SELECT pfi.produto_id, COALESCE(SUM(pfi.quantidade), 0) AS quantidade
+                       FROM pedido_faturamento_itens pfi
+                       INNER JOIN pedido_faturamentos pf ON pf.id = pfi.pedido_faturamento_id
+                      WHERE pfi.pedido_id = ?
+                        AND pf.tipo = 'faturamento'
+                        AND COALESCE(pf.nfe_status, 'pendente') <> 'cancelada'
+                      GROUP BY pfi.produto_id`, [pedidoId]);
+                faturadoPorProduto = new Map(linhas.map(l => [Number(l.produto_id), Number(l.quantidade) || 0]));
+            } catch (_) { /* tabela criada sob demanda pelo serviço */ }
+
+            const q4 = (v) => Math.round((Number(v) || 0) * 10000) / 10000;
+            const n2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+
+            let valorSaldoItens = 0;
+            const saldoItens = itens.map(item => {
+                const quantidade = q4(item.quantidade);
+                const subtotal = Number(item.subtotal);
+                const valorLiquido = Number.isFinite(subtotal) && subtotal > 0
+                    ? subtotal
+                    : Math.max(0, quantidade * Number(item.preco_unitario) - Number(item.desconto));
+                const unitarioLiquido = quantidade > 0 ? valorLiquido / quantidade : Number(item.preco_unitario);
+                const faturada = q4(faturadoPorProduto.get(Number(item.produto_id)) || 0);
+                const saldo = q4(Math.max(0, quantidade - faturada));
+                const valorSaldo = n2(saldo * unitarioLiquido);
+                valorSaldoItens += valorSaldo;
+                // Item sem produto_id não passa pelo INNER JOIN produtos do serviço: só dá
+                // para faturá-lo por percentual. A tela precisa dizer isso, não sumir com ele.
+                const faturavel = Number.isInteger(Number(item.produto_id)) && Number(item.produto_id) > 0;
+                return {
+                    pedido_item_id: item.pedido_item_id,
+                    produto_id: item.produto_id,
+                    codigo: item.codigo,
+                    descricao: item.descricao,
+                    unidade: item.unidade,
+                    quantidade,
+                    quantidade_faturada: faturada,
+                    quantidade_saldo: saldo,
+                    // 6 casas: e a precisao que o servico usa para fechar o valor da
+                    // entrega (pedido_faturamento_itens.valor_unitario e DECIMAL(15,6)).
+                    // Arredondar para 2 aqui faria a previa da tela divergir do que e gravado.
+                    valor_unitario: Math.round(unitarioLiquido * 1000000) / 1000000,
+                    valor_total_item: n2(valorLiquido),
+                    valor_saldo: valorSaldo,
+                    faturavel,
+                    motivo_nao_faturavel: faturavel ? null : 'Item sem produto vinculado — fature por percentual.'
+                };
+            });
+
+            let faturamentos = [];
+            try {
+                const [hist] = await pool.query(
+                    `SELECT id, sequencia, tipo, modo, percentual, valor, nfe_numero, nfe_status,
+                            data_faturamento, created_at, usuario_nome, observacoes
+                       FROM pedido_faturamentos
+                      WHERE pedido_id = ? ORDER BY sequencia, id`, [pedidoId]);
+                faturamentos = hist;
+            } catch (_) { /* idem */ }
+
+            const contam = faturamentos.filter(f =>
+                f.tipo === 'faturamento' && String(f.nfe_status || 'pendente') !== 'cancelada');
+            const valorTotal = n2(pedido.valor);
+            const valorFaturado = n2(Math.max(
+                contam.reduce((s, f) => s + (parseFloat(f.valor) || 0), 0),
+                Number(pedido.valor_faturado) || 0
+            ));
+
+            res.json({
+                success: true,
+                pedido_id: pedido.id,
+                numero_pedido: pedido.numero_pedido,
+                status: pedido.status,
+                cliente_nome: pedido.cliente_nome,
+                valor_total: valorTotal,
+                valor_faturado: Math.min(valorTotal, valorFaturado),
+                valor_saldo: n2(Math.max(0, valorTotal - valorFaturado)),
+                percentual_faturado: valorTotal > 0 ? n2(Math.min(100, valorFaturado / valorTotal * 100)) : 0,
+                // Soma dos saldos dos ITENS. Pode diferir do saldo pelo valor do pedido quando
+                // o pedido tem frete/ST no cabeçalho — a tela mostra os dois de propósito.
+                valor_saldo_itens: n2(valorSaldoItens),
+                itens: saldoItens,
+                faturamentos
+            });
+        } catch (error) {
+            next(error);
+        }
+    });
+
+    router.get('/pedidos/:id/faturamentos', authenticateToken, async (req, res, next) => {
+        try {
+            const pedidoId = parseInt(req.params.id, 10);
+            if (!pedidoId) return res.status(400).json({ success: false, message: 'Pedido inválido' });
+
+            const [[ped]] = await pool.query(
+                `SELECT p.id, p.numero_pedido, p.valor, p.percentual_faturado, p.valor_faturado,
+                        p.nf, p.numero_nf, p.condicao_pagamento,
+                        COALESCE(c.razao_social, c.nome_fantasia, c.nome, p.cliente_nome, p.cliente) AS cliente_nome
+                   FROM pedidos p
+                   LEFT JOIN clientes c ON c.id = p.cliente_id
+                  WHERE p.id = ? LIMIT 1`, [pedidoId]);
+            if (!ped) return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
+
+            const [hist] = await pool.query(
+                `SELECT id, sequencia, tipo, modo, percentual, valor, nfe_numero, nfe_chave,
+                        nfe_status, nfe_emitida, COALESCE(cfop, nfe_cfop) AS cfop,
+                        conta_receber_id, data_faturamento, usuario_nome, observacoes
+                   FROM pedido_faturamentos
+                  WHERE pedido_id = ? ORDER BY sequencia, id`, [pedidoId]).catch(() => [[]]);
+
+            const n2 = v => Math.round((parseFloat(v) || 0) * 100) / 100;
+            const contam = (hist || []).filter(f =>
+                f.tipo === 'faturamento' && String(f.nfe_status || 'pendente') !== 'cancelada');
+
+            const valorTotal = n2(ped.valor);
+            const pctFaturado = Math.min(100, Math.max(
+                contam.reduce((s, f) => s + (parseFloat(f.percentual) || 0), 0),
+                parseFloat(ped.percentual_faturado) || 0));
+            const valorFaturado = Math.min(valorTotal, n2(Math.max(
+                contam.reduce((s, f) => s + (parseFloat(f.valor) || 0), 0),
+                parseFloat(ped.valor_faturado) || 0,
+                valorTotal * pctFaturado / 100)));
+            const pctRestante = n2(Math.max(0, 100 - pctFaturado));
+
+            // O saldo já foi mandado para o Contas a Receber? A tela precisa saber para não
+            // oferecer o botão duas vezes e para mostrar o título que existe.
+            // O saldo vira N títulos (um por parcela da condição de pagamento), então aqui é
+            // uma LISTA, não um único registro.
+            const [enviados] = await pool.query(
+                `SELECT id, descricao, valor, data_vencimento, status, nf_referencia, nota_fiscal,
+                        parcela_info, parcela_numero, total_parcelas
+                   FROM contas_receber
+                  WHERE pedido_id = ? AND origem_integracao = ?
+                    AND COALESCE(status, '') <> 'cancelada' AND deleted_at IS NULL
+                  ORDER BY COALESCE(parcela_numero, 1), id`,
+                [pedidoId, ORIGEM_SALDO_CR]).catch(() => [[]]);
+
+            // O que o POST /saldo-contas-receber vai gravar, montado aqui para a tela mostrar a
+            // descrição EXATA antes de enviar — sem a pessoa ter de adivinhar o formato.
+            // A nota de referência é a ÚLTIMA parcial emitida; o percentual DELA é o que entra
+            // na descrição ("F9 50% - 4302 - Cliente") e identifica qual meia nota gerou o saldo.
+            const fatDaNota = [...contam].reverse().find(f => f.nfe_numero) || null;
+            // Sem os zeros à esquerda: `pedido_faturamentos.nfe_numero` guarda a NF zero-padded
+            // ("000000010") e a descrição pedida usa o número limpo.
+            const notaSugerida = String((fatDaNota && fatDaNota.nfe_numero) || ped.nf || ped.numero_nf || '')
+                .trim().replace(/^0+(?=\d)/, '');
+            const pctNota = fatDaNota ? (parseFloat(fatDaNota.percentual) || 0) : pctFaturado;
+            const clienteNome = String(ped.cliente_nome || 'Cliente').trim();
+
+            const valorSaldo = n2(Math.max(0, valorTotal - valorFaturado));
+            const daNota = pctRestante > 0.009 ? await vencimentosDaNota(pedidoId, notaSugerida) : null;
+            const previa = pctRestante > 0.009
+                ? parcelasDoSaldo(ped, valorSaldo, null, daNota) : { origem: null, parcelas: [] };
+
+            res.json({
+                success: true,
+                pedido_id: ped.id,
+                numero_pedido: ped.numero_pedido || String(ped.id),
+                cliente_nome: clienteNome,
+                condicao_pagamento: ped.condicao_pagamento || null,
+                saldo_sugestao: pctRestante > 0.009 ? {
+                    nf_referencia: 'F9',
+                    nota_fiscal: notaSugerida || null,
+                    percentual_nota: pctNota,
+                    cliente: clienteNome,
+                    descricao: descricaoSaldo('F9', pctNota, notaSugerida, clienteNome, 1, previa.parcelas.length),
+                    total_parcelas: previa.parcelas.length,
+                    // De onde saíram as datas — a tela mostra para a pessoa saber o que está vendo.
+                    origem_vencimentos: previa.origem,
+                    // Prévia exata do que o POST vai gravar, para conferir antes de enviar.
+                    parcelas: previa.parcelas.map(p => Object.assign({}, p, {
+                        descricao: descricaoSaldo('F9', pctNota, notaSugerida, clienteNome, p.numero, p.total)
+                    }))
+                } : null,
+                saldo_contas_receber: (enviados && enviados.length) ? {
+                    total_parcelas: enviados.length,
+                    valor_total: n2(enviados.reduce((s, t) => s + (parseFloat(t.valor) || 0), 0)),
+                    titulos: enviados.map(t => ({
+                        id: t.id,
+                        descricao: t.descricao,
+                        valor: n2(t.valor),
+                        vencimento: t.data_vencimento,
+                        status: t.status,
+                        parcela: t.parcela_numero || t.parcela_info || null,
+                        nf_referencia: t.nf_referencia,
+                        nota_fiscal: t.nota_fiscal
+                    }))
+                } : null,
+                valor_total: valorTotal,
+                valor_faturado: valorFaturado,
+                valor_restante: n2(Math.max(0, valorTotal - valorFaturado)),
+                percentual_faturado: pctFaturado,
+                percentual_restante: pctRestante,
+                totalmente_faturado: pctRestante <= 0.009,
+                // Papel de cobrança do remanescente. Nulo quando não há o que cobrar.
+                espelho_saldo_url: pctRestante > 0.009
+                    ? `/api/vendas/pedidos/${ped.id}/espelho-nfe?tipo=saldo` : null,
+                faturamentos: (hist || []).map(f => ({
+                    id: f.id,
+                    sequencia: f.sequencia,
+                    tipo: f.tipo,
+                    modo: f.modo,
+                    percentual: parseFloat(f.percentual) || 0,
+                    valor: n2(f.valor),
+                    nfe_numero: f.nfe_numero || null,
+                    nfe_chave: f.nfe_chave || null,
+                    nfe_status: f.nfe_status || null,
+                    nfe_emitida: !!f.nfe_emitida,
+                    cfop: f.cfop || null,
+                    conta_receber_id: f.conta_receber_id || null,
+                    data: f.data_faturamento,
+                    usuario: f.usuario_nome || null,
+                    observacoes: f.observacoes || null,
+                    // Cancelada não entra no cômputo do saldo — a tela precisa dizer por quê.
+                    conta_no_saldo: f.tipo === 'faturamento'
+                        && String(f.nfe_status || 'pendente') !== 'cancelada'
+                }))
+            });
+        } catch (err) { next(err); }
+    });
+
+    // =============================================================
+    // POST /api/vendas/pedidos/:id/saldo-contas-receber
+    // Manda o SALDO de um faturamento parcial para o Contas a Receber, como UM título.
+    //
+    // A descrição segue o padrão da planilha do CR: `<tipo> - <nota fiscal> - <cliente>`,
+    // ex. "F9 - 4300 - Energy Comercio EPP". `nf_referencia` guarda o tipo (F9/NF/CH) e
+    // `nota_fiscal` o número — é assim que os 699 títulos F9 já importados estão gravados,
+    // e é o que faz o título aparecer nos recortes por tipo do Financeiro.
+    // =============================================================
+    router.post('/pedidos/:id/saldo-contas-receber', authenticateToken, async (req, res, next) => {
+        try {
+            if (!PERMITIR_SALDO_NAO_FATURADO_NO_CR) {
+                return res.status(409).json({
+                    success: false,
+                    code: 'SALDO_NAO_FATURADO',
+                    message: 'O saldo permanece no pedido para produção, faturamento e entrega. Somente valores faturados podem ir ao Contas a Receber.'
+                });
+            }
+            const pedidoId = parseInt(req.params.id, 10);
+            if (!pedidoId) return res.status(400).json({ success: false, message: 'Pedido inválido' });
+
+            const corpo = req.body || {};
+            const [[ped]] = await pool.query(
+                `SELECT p.id, p.numero_pedido, p.valor, p.percentual_faturado, p.valor_faturado,
+                        p.cliente_id, p.nf, p.numero_nf, p.condicao_pagamento, p.vendedor_id,
+                        COALESCE(c.razao_social, c.nome_fantasia, c.nome, p.cliente_nome, p.cliente) AS cliente_nome,
+                        COALESCE(c.cnpj, c.cnpj_cpf, c.cpf) AS cliente_doc,
+                        COALESCE(u.nome, '') AS vendedor_nome
+                   FROM pedidos p
+                   LEFT JOIN clientes c ON c.id = p.cliente_id
+                   LEFT JOIN usuarios u ON u.id = p.vendedor_id
+                  WHERE p.id = ? LIMIT 1`, [pedidoId]);
+            if (!ped) return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
+
+            // Um saldo, um conjunto de parcelas. Reenviar não pode duplicar a cobrança.
+            const [jaExiste] = await pool.query(
+                `SELECT id, descricao FROM contas_receber
+                  WHERE pedido_id = ? AND origem_integracao = ?
+                    AND COALESCE(status, '') <> 'cancelada' AND deleted_at IS NULL
+                  ORDER BY id`, [pedidoId, ORIGEM_SALDO_CR]).catch(() => [[]]);
+            if (jaExiste && jaExiste.length) {
+                return res.status(409).json({
+                    success: false, code: 'SALDO_JA_ENVIADO',
+                    message: `O saldo deste pedido já foi enviado ao Contas a Receber (${jaExiste.length} `
+                        + `${jaExiste.length === 1 ? 'título' : 'parcelas'}: #${jaExiste.map(t => t.id).join(', #')}).`,
+                    conta_receber_ids: jaExiste.map(t => t.id),
+                    descricao: jaExiste[0].descricao
+                });
+            }
+
+            // Mesmo cálculo do GET /faturamentos e de calcularTotais no serviço do parcial.
+            const [hist] = await pool.query(
+                `SELECT percentual, valor, nfe_numero, nfe_status, tipo
+                   FROM pedido_faturamentos WHERE pedido_id = ? ORDER BY sequencia, id`,
+                [pedidoId]).catch(() => [[]]);
+            const n2 = v => Math.round((parseFloat(v) || 0) * 100) / 100;
+            const contam = (hist || []).filter(f =>
+                f.tipo === 'faturamento' && String(f.nfe_status || 'pendente') !== 'cancelada');
+
+            const valorTotal = n2(ped.valor);
+            const pctFaturado = Math.min(100, Math.max(
+                contam.reduce((s, f) => s + (parseFloat(f.percentual) || 0), 0),
+                parseFloat(ped.percentual_faturado) || 0));
+            const valorFaturado = Math.min(valorTotal, n2(Math.max(
+                contam.reduce((s, f) => s + (parseFloat(f.valor) || 0), 0),
+                parseFloat(ped.valor_faturado) || 0,
+                valorTotal * pctFaturado / 100)));
+            const valorSaldo = n2(Math.max(0, valorTotal - valorFaturado));
+            const pctRestante = n2(Math.max(0, 100 - pctFaturado));
+
+            if (valorSaldo <= 0.009) {
+                return res.status(400).json({
+                    success: false, code: 'SEM_SALDO',
+                    message: 'O pedido já está 100% faturado — não há saldo para cobrar à parte.'
+                });
+            }
+
+            // Número da nota: o da parcial emitida. Quem cobra o saldo precisa conseguir
+            // amarrar a cobrança à nota que saiu.
+            const fatDaNota = [...contam].reverse().find(f => f.nfe_numero) || null;
+            // Sem os zeros à esquerda — ver a mesma normalização no GET /faturamentos.
+            const notaFiscal = String(corpo.nota_fiscal || (fatDaNota && fatDaNota.nfe_numero) || ped.nf || ped.numero_nf || '')
+                .trim().replace(/^0+(?=\d)/, '');
+            // Percentual DA NOTA referenciada — é o que vai para a descrição.
+            const pctNota = corpo.percentual_nota != null
+                ? (parseFloat(corpo.percentual_nota) || 0)
+                : (fatDaNota ? (parseFloat(fatDaNota.percentual) || 0) : pctFaturado);
+            const tipoRef = String(corpo.tipo_referencia || 'F9').trim().toUpperCase();
+            const cliente = String(ped.cliente_nome || 'Cliente').trim();
+
+            // As parcelas seguem a condição de pagamento do pedido. `data_base` é a data a
+            // partir da qual os prazos contam (default: hoje). `vencimento`, do formato antigo
+            // de uma parcela só, continua aceito e vira a data da única parcela.
+            // `ignorar_nota: true` força recontar pela condição de pagamento em vez de usar as
+            // duplicatas — serve para quando a nota saiu com um calendário que não vale mais.
+            const daNota = corpo.ignorar_nota ? null : await vencimentosDaNota(pedidoId, notaFiscal);
+            const plano = parcelasDoSaldo(ped, valorSaldo, corpo.data_base, daNota);
+            let parcelas = plano.parcelas;
+            const vencUnico = String(corpo.vencimento || '').trim();
+            if (parcelas.length === 1 && /^\d{4}-\d{2}-\d{2}$/.test(vencUnico)) {
+                parcelas = [Object.assign({}, parcelas[0], { vencimento: vencUnico })];
+            }
+
+            const situacao = String(corpo.situacao || 'CARTEIRA').trim().toUpperCase();
+            const hoje = new Date().toISOString().slice(0, 10);
+            const obsBase = String(corpo.observacoes
+                || `Saldo de ${pctRestante}% do pedido #${ped.numero_pedido || pedidoId} — cobrança à parte do faturamento parcial.`
+                + (ped.condicao_pagamento ? ` Condição: ${ped.condicao_pagamento}.` : '')).slice(0, 5000);
+
+            const criados = [];
+            for (const p of parcelas) {
+                const descricao = descricaoSaldo(tipoRef, pctNota, notaFiscal, cliente, p.numero, p.total);
+                const [ins] = await pool.query(
+                    `INSERT INTO contas_receber (
+                        pedido_id, cliente_id, cliente_nome, cnpj_cliente, descricao,
+                        valor, valor_liquido, a_receber, valor_recebido,
+                        data_vencimento, vencimento, data_emissao, data_criacao,
+                        numero_pedido, nota_fiscal, nf_referencia, situacao, empresa,
+                        vendedor, observacoes, status,
+                        parcela_info, parcela_numero, total_parcelas,
+                        origem_integracao, criado_por
+                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, 'a_vencer', ?, ?, ?, ?, ?)`,
+                    [
+                        pedidoId, ped.cliente_id || null, cliente, ped.cliente_doc || null, descricao,
+                        p.valor, p.valor, p.valor,
+                        p.vencimento, p.vencimento, hoje,
+                        ped.numero_pedido || String(pedidoId), notaFiscal || null, tipoRef, situacao,
+                        empresaCanonica(), ped.vendedor_nome || null, obsBase,
+                        // `parcela_info` guarda só o número, como os títulos vindos da planilha.
+                        String(p.numero), p.numero, p.total,
+                        ORIGEM_SALDO_CR, (req.user && req.user.id) || null
+                    ]);
+                criados.push({ id: ins.insertId, parcela: p.numero, total: p.total,
+                    valor: p.valor, vencimento: p.vencimento, dias: p.dias, descricao });
+            }
+
+            const somaParcelas = Math.round(criados.reduce((s, t) => s + t.valor, 0) * 100) / 100;
+            console.log(`[SALDO-CR] Pedido #${pedidoId}: ${criados.length} parcela(s) — `
+                + `R$ ${somaParcelas} (saldo ${valorSaldo}) — vencimentos por ${plano.origem} — `
+                + criados.map(t => `#${t.id} ${t.vencimento} ${t.valor}`).join(' | '));
+
+            res.json({
+                success: true,
+                message: `Saldo de ${pctRestante}% enviado ao Contas a Receber em `
+                    + `${criados.length} ${criados.length === 1 ? 'parcela' : 'parcelas'}.`,
+                conta_receber_ids: criados.map(t => t.id),
+                // Mantido no singular para a tela antiga que lia um id só.
+                conta_receber_id: criados[0] ? criados[0].id : null,
+                descricao: criados[0] ? criados[0].descricao : null,
+                valor: somaParcelas,
+                percentual: pctRestante,
+                percentual_nota: pctNota,
+                condicao_pagamento: ped.condicao_pagamento || null,
+                origem_vencimentos: plano.origem,
+                total_parcelas: criados.length,
+                parcelas: criados,
+                nota_fiscal: notaFiscal || null,
+                nf_referencia: tipoRef,
+                situacao
+            });
+        } catch (err) { next(err); }
+    });
+
+    // GET /api/vendas/pedidos/:id/espelho-nfe?tipo=normal|parcial|saldo&pct=NN
     // Render HTML (DANFE marca d'água) p/ conferência no modal de faturamento.
     // Fica no router de Vendas (área 'vendas') p/ ser acessível a quem fatura no Kanban,
     // sem depender da área 'nfe'. Não transmite nem persiste nada.
@@ -5893,13 +13269,28 @@ module.exports = function createVendasRoutes(deps) {
                        c.cep AS cliente_cep,
                        t.razao_social AS transportadora_razao_social,
                        t.nome_fantasia AS transportadora_nome_fantasia,
-                       t.cnpj_cpf AS transportadora_cnpj_cpf
+                       t.cnpj_cpf AS transportadora_cnpj_cpf,
+                       t.inscricao_estadual AS transportadora_inscricao_estadual,
+                       -- Rua E numero: a tabela transportadoras guarda os dois separados, e o alias
+                       -- so trazia a rua. A DANFE le este campo direto (danfe-renderer, xEnder),
+                       -- entao o endereco da transportadora saia impresso sem o numero.
+                       NULLIF(CONCAT_WS(', ', NULLIF(TRIM(t.endereco), ''), NULLIF(TRIM(t.numero), '')), '') AS transportadora_endereco,
+                       t.cidade AS transportadora_cidade,
+                       t.estado AS transportadora_estado
                 FROM pedidos p
                 LEFT JOIN clientes c ON p.cliente_id = c.id
                 LEFT JOIN transportadoras t ON p.transportadora_id = t.id
                 WHERE p.id = ? LIMIT 1
             `, [pedidoId]);
             if (!ped) return res.status(404).send('<html><body style="font-family:sans-serif;padding:40px;"><h2 style="color:#ef4444;">Pedido não encontrado</h2></body></html>');
+
+            // CNPJ/IE do transportador saíam do JOIN sem passar pelo decryptPII: as
+            // linhas legadas gravadas como "ENC:..." apareciam cruas no quadro
+            // TRANSPORTADOR da DANFE.
+            if (lgpdCrypto && lgpdCrypto.decryptPII) {
+                ped.transportadora_cnpj_cpf = lgpdCrypto.decryptPII(ped.transportadora_cnpj_cpf || '') || '';
+                ped.transportadora_inscricao_estadual = lgpdCrypto.decryptPII(ped.transportadora_inscricao_estadual || '') || '';
+            }
 
             // Se cliente_id NULL mas temos cliente_nome (caso dos pedidos de teste), tentar
             // resolver o destinatário completo (endereço/CNPJ/IE) pelo nome.
@@ -5954,9 +13345,11 @@ module.exports = function createVendasRoutes(deps) {
                 SELECT pi.codigo, pi.descricao, pi.quantidade, pi.unidade, pi.preco_unitario,
                        pi.desconto, pi.subtotal, pi.produto_id,
                        pi.icms_percent, pi.icms_value, pi.aliquota_icms, pi.aliquota_ipi,
-                       pi.valor_ipi, pi.valor_icms_st, pi.cfop,
+                       pi.valor_ipi, pi.valor_icms_st, pi.base_calculo_icms_st,
+                       pi.aliquota_icms_st, pi.mva_st, pi.cfop,
                        pi.pis_percent, pi.pis_value, pi.cofins_percent, pi.cofins_value,
                        COALESCE(pr_id.ncm, pr_cod.ncm) AS ncm,
+                       COALESCE(pr_id.cest, pr_cod.cest) AS produto_cest,
                        COALESCE(pr_id.cfop_saida_interna, pr_cod.cfop_saida_interna) AS produto_cfop,
                        COALESCE(pr_id.cst_icms, pr_cod.cst_icms) AS produto_cst_icms,
                        COALESCE(pr_id.csosn_icms, pr_cod.csosn_icms) AS produto_csosn_icms,
@@ -5970,22 +13363,138 @@ module.exports = function createVendasRoutes(deps) {
                 WHERE pi.pedido_id = ? ORDER BY pi.id ASC
             `, [pedidoId]).catch(() => [[]]);
 
-            // Fator de meia-nota (faturamento parcial): escala valores monetários do item,
-            // mantendo quantidade/preço unitário reais (mesmo comportamento de antes).
+            // Fator de meia-nota (faturamento parcial): escala os valores monetários do item —
+            // inclusive o PREÇO UNITÁRIO, que é o que a DANFE imprime e o que a NF-e leva em
+            // <vUnCom>. Mantendo o unitário cheio, o espelho mostrava 10 x R$ 100,00 = R$ 500,00
+            // (a conta da linha não fechava) e divergia da nota transmitida. A quantidade
+            // continua integral: em meia nota a mercadoria sai inteira, só o valor é parcial —
+            // mesma regra aplicada na emissão (services/faturamento-parcial.service.js).
             const tipo = String(req.query.tipo || 'normal').toLowerCase();
-            const pct = Math.max(1, Math.min(100, parseFloat(req.query.pct) || 100));
-            const fator = (tipo === 'parcial' || tipo === 'meianota' || tipo === 'meia-nota') ? (pct / 100) : 1;
-            const itens = (itensRaw || []).map(it => ({
+            const ehParcial = (tipo === 'parcial' || tipo === 'meianota' || tipo === 'meia-nota');
+            const ehParcialItens = tipo === 'itens';
+            const ehSaldo = (tipo === 'saldo');
+            let pct = Math.max(1, Math.min(100, parseFloat(req.query.pct) || 100));
+
+            // Parcial por quantidade: o navegador envia somente produto:quantidade. O
+            // servidor cruza isso com o pedido; descrição, preço e impostos nunca são
+            // aceitos da URL. Assim o espelho representa exatamente a entrega escolhida.
+            const quantidadesSelecionadas = new Map();
+            if (ehParcialItens) {
+                String(req.query.itens || '').split(',').forEach(par => {
+                    const [produto, quantidade] = par.split(':');
+                    const produtoId = Number(produto), qtd = Number(quantidade);
+                    if (Number.isInteger(produtoId) && produtoId > 0 && Number.isFinite(qtd) && qtd > 0) {
+                        quantidadesSelecionadas.set(produtoId, qtd);
+                    }
+                });
+                if (!quantidadesSelecionadas.size) {
+                    return res.status(400).send('<html><body style="font-family:sans-serif;padding:40px"><h2>Seleção parcial inválida</h2></body></html>');
+                }
+            }
+
+            // ── Espelho do SALDO ────────────────────────────────────────────────
+            // O que sobrou para cobrar depois de uma ou mais meias notas. Aqui o percentual
+            // NÃO vem da URL: sai do histórico de `pedido_faturamentos`, a mesma fonte que
+            // `services/faturamento-parcial.service.js` usa para travar novo faturamento —
+            // deixar a tela mandar o número abriria caminho para cobrar saldo que não existe.
+            // Faturamento com NF-e cancelada não conta, igual ao serviço.
+            if (ehSaldo) {
+                const [[hist]] = await pool.query(
+                    `SELECT COALESCE(SUM(CASE WHEN tipo = 'faturamento'
+                                AND COALESCE(nfe_status, 'pendente') <> 'cancelada'
+                              THEN percentual ELSE 0 END), 0) AS pct
+                       FROM pedido_faturamentos WHERE pedido_id = ?`, [pedidoId]
+                ).catch(() => [[{ pct: 0 }]]);
+                const jaFaturado = Math.max(
+                    parseFloat(hist && hist.pct) || 0,
+                    parseFloat(ped.percentual_faturado) || 0
+                );
+                pct = Math.round(Math.max(0, 100 - jaFaturado) * 100) / 100;
+                if (pct <= 0.009) {
+                    return res.send('<html><body style="font-family:sans-serif;padding:40px;">'
+                        + '<h2>Sem saldo a faturar</h2><p>O pedido #' + pedidoId
+                        + ' já está 100% faturado — não há remanescente para cobrar à parte.</p></body></html>');
+                }
+            }
+
+            const fator = (ehParcial || ehSaldo) ? (pct / 100) : 1;
+
+            // No espelho do saldo os impostos vão ZERADOS. A parcial já destacou o tributo da
+            // operação; este papel é de COBRANÇA do remanescente, não um segundo documento
+            // fiscal. Repetir o imposto aqui faria a soma dos dois passar do devido.
+            const zeraImposto = (v) => ehSaldo ? 0 : v;
+            // Nota cheia continua passando o item intocado — escalar por 1 transformaria
+            // colunas nulas (desconto, tributos) em 0,00 na DANFE.
+            const escalar = (v) => (v === null || v === undefined) ? v : (parseFloat(v) || 0) * fator;
+            let itensBase = itensRaw || [];
+            if (ehParcialItens) {
+                itensBase = itensBase.filter(it => quantidadesSelecionadas.has(Number(it.produto_id))).map(it => {
+                    const quantidadeOriginal = Number(it.quantidade) || 0;
+                    const quantidade = Math.min(quantidadesSelecionadas.get(Number(it.produto_id)) || 0, quantidadeOriginal);
+                    const proporcao = quantidadeOriginal > 0 ? quantidade / quantidadeOriginal : 0;
+                    const copia = { ...it, quantidade };
+                    ['desconto', 'subtotal', 'icms_value', 'valor_ipi', 'valor_icms_st',
+                        'base_calculo_icms_st', 'pis_value', 'cofins_value'].forEach(campo => {
+                        if (it[campo] !== null && it[campo] !== undefined) copia[campo] = (parseFloat(it[campo]) || 0) * proporcao;
+                    });
+                    return copia;
+                });
+                const totalOriginal = (itensRaw || []).reduce((s, it) => s + (parseFloat(it.subtotal) || 0), 0);
+                const totalSelecionado = itensBase.reduce((s, it) => s + (parseFloat(it.subtotal) || 0), 0);
+                const proporcaoPedido = totalOriginal > 0 ? totalSelecionado / totalOriginal : 0;
+                ['valor', 'valor_total', 'base_calculo_icms', 'base_calculo_icms_st', 'total_icms',
+                    'total_icms_st', 'total_ipi', 'total_pis', 'total_cofins', 'total_fcp', 'total_impostos'].forEach(coluna => {
+                    if (ped[coluna] !== null && ped[coluna] !== undefined) ped[coluna] = (parseFloat(ped[coluna]) || 0) * proporcaoPedido;
+                });
+                const { resolverNaturezaOperacao } = require('../services/cfop-operacao.service');
+                ped.natureza_operacao = resolverNaturezaOperacao(
+                    itensBase.map(it => it.cfop || it.produto_cfop), ped.natureza_operacao || 'Venda de Produtos'
+                );
+            }
+            const itens = (fator === 1 && !ehSaldo) ? itensBase : itensBase.map(it => ({
                 ...it,
-                subtotal: (parseFloat(it.subtotal) || 0) * fator,
-                icms_value: it.icms_value != null ? (parseFloat(it.icms_value) || 0) * fator : it.icms_value,
-                valor_ipi: it.valor_ipi != null ? (parseFloat(it.valor_ipi) || 0) * fator : it.valor_ipi,
-                pis_value: it.pis_value != null ? (parseFloat(it.pis_value) || 0) * fator : it.pis_value,
-                cofins_value: it.cofins_value != null ? (parseFloat(it.cofins_value) || 0) * fator : it.cofins_value
+                preco_unitario: escalar(it.preco_unitario),
+                desconto: escalar(it.desconto),
+                subtotal: escalar(it.subtotal),
+                icms_value: zeraImposto(escalar(it.icms_value)),
+                valor_ipi: zeraImposto(escalar(it.valor_ipi)),
+                valor_icms_st: zeraImposto(escalar(it.valor_icms_st)),
+                base_calculo_icms_st: zeraImposto(escalar(it.base_calculo_icms_st)),
+                pis_value: zeraImposto(escalar(it.pis_value)),
+                cofins_value: zeraImposto(escalar(it.cofins_value)),
+                // As ALÍQUOTAS também vão a zero: sem isso o renderizador cai no padrão fiscal
+                // da empresa e recalcula o imposto que acabamos de zerar
+                // (firstPositiveOrLast em routes/danfe-renderer.js).
+                aliquota_icms: zeraImposto(it.aliquota_icms),
+                icms_percent: zeraImposto(it.icms_percent),
+                aliquota_ipi: zeraImposto(it.aliquota_ipi),
+                produto_aliquota_icms: zeraImposto(it.produto_aliquota_icms),
+                produto_aliquota_ipi: zeraImposto(it.produto_aliquota_ipi),
+                pis_percent: zeraImposto(it.pis_percent),
+                cofins_percent: zeraImposto(it.cofins_percent),
+                produto_aliquota_pis: zeraImposto(it.produto_aliquota_pis),
+                produto_aliquota_cofins: zeraImposto(it.produto_aliquota_cofins)
             }));
             if (fator < 1) {
-                ped.valor_total = (parseFloat(ped.valor_total) || 0) * fator;
-                ped.valor = ped.valor_total;
+                // O DANFE prioriza os totais fiscais persistidos no pedido quando eles
+                // existem. Portanto, reduzir apenas itens/valor_total fazia uma parcial de
+                // 50% exibir vProd pela metade, mas vBC/vICMS integrais. Escalar todos os
+                // totais monetários mantém cabeçalho, itens e quadro de impostos coerentes.
+                const totaisEscalaveis = ['valor', 'valor_total', 'base_calculo_icms',
+                    'base_calculo_icms_st', 'total_icms', 'total_icms_st', 'total_ipi',
+                    'total_pis', 'total_cofins', 'total_fcp', 'total_impostos'];
+                for (const coluna of totaisEscalaveis) {
+                    if (ped[coluna] !== null && ped[coluna] !== undefined) {
+                        ped[coluna] = escalar(ped[coluna]);
+                    }
+                }
+            }
+            if (ehSaldo) {
+                // Os totais do quadro de imposto também nascem do pedido — zerar aqui para o
+                // rodapé não mostrar ICMS/IPI que este documento não cobra.
+                for (const col of ['base_calculo_icms', 'total_icms', 'base_calculo_icms_st',
+                    'total_icms_st', 'total_ipi', 'total_pis', 'total_cofins', 'total_fcp',
+                    'total_impostos']) ped[col] = 0;
             }
 
             // Logo da empresa como data-URI (mesmo resolvedor do /danfe oficial)
@@ -6004,8 +13513,54 @@ module.exports = function createVendasRoutes(deps) {
             }
 
             const { renderDanfe, buildDanfeCtx } = require('./danfe-renderer');
-            const ctx = buildDanfeCtx(ped, itens, { preview: true, cfgFiscal, logoDataUri });
-            if (fator < 1) ctx.avisoTopo += ' — MEIA NOTA (' + pct + '%)';
+            // Zerar as alíquotas do ITEM não basta: `firstPositiveOrLast` devolve o ÚLTIMO
+            // candidato quando todos são zero, e o último é o padrão fiscal da empresa —
+            // o mesmo caminho que fazia a DANFE imprimir IPI fantasma. Para o espelho do
+            // saldo o padrão também tem de ir zerado.
+            const cfgEspelho = ehSaldo
+                ? Object.assign({}, cfgFiscal, {
+                    icms_padrao: 0, ipi_padrao: 0, pis_padrao: 0, cofins_padrao: 0
+                })
+                : cfgFiscal;
+            // `semImpostos` faz o corte dentro do renderizador — é o que zera também a BC do
+            // ICMS por item, que terminava em `|| subtotal` e imprimia a base cheia.
+            const ctx = buildDanfeCtx(ped, itens, {
+                preview: true, cfgFiscal: cfgEspelho, logoDataUri, semImpostos: ehSaldo
+            });
+            if (ehSaldo) {
+                ctx.avisoTopo += ` — ESPELHO DO SALDO A FATURAR (${pct}%) — COBRANÇA, SEM IMPOSTOS E SEM VALOR FISCAL`;
+            } else if (fator < 1) {
+                ctx.avisoTopo += ' — MEIA NOTA (' + pct + '%)';
+            } else if (ehParcialItens) {
+                ctx.avisoTopo += ' — FATURAMENTO PARCIAL POR QUANTIDADE';
+            }
+
+            // Pedido já FATURADO: o espelho tem de ser o documento real, não uma
+            // projeção. Sem isto os impostos vinham recalculados das colunas do pedido
+            // e divergiam do que a SEFAZ autorizou.
+            //
+            // Só vale para o espelho CHEIO: parcial/saldo projetam o que ainda não foi
+            // transmitido, e aplicar o XML autorizado ali mostraria a nota errada.
+            if (!ehSaldo && fator >= 1) {
+                try {
+                    // CANCELADA entra: ela FOI autorizada e transmitida, e seu XML é o
+                    // documento real — melhor mostrar a nota que existiu (marcada como
+                    // cancelada) do que uma projeção recalculada. REJEITADA fica de fora:
+                    // aquele XML a SEFAZ recusou, nunca virou documento.
+                    const [[_nfeAut]] = await pool.query(
+                        `SELECT xml_assinado, xml_nfe, status FROM nfes
+                          WHERE pedido_id = ? AND LOWER(COALESCE(status, '')) IN ('autorizada', 'cancelada')
+                          ORDER BY (LOWER(COALESCE(status, '')) = 'autorizada') DESC, id DESC LIMIT 1`, [pedidoId]);
+                    if (_nfeAut) {
+                        const { aplicarXmlAutorizadoNoCtx } = require('./danfe-renderer');
+                        // xml_protocolo fica FORA: é o envelope SOAP da autorização, sem infNFe.
+                        aplicarXmlAutorizadoNoCtx(ctx, _nfeAut.xml_assinado, _nfeAut.xml_nfe);
+                        const _canc = String(_nfeAut.status || '').toLowerCase() === 'cancelada';
+                        ctx.avisoTopo = (ctx.avisoTopo || '') +
+                            (_canc ? ' — DADOS DO XML TRANSMITIDO (NF-e CANCELADA)' : ' — DADOS DO XML AUTORIZADO');
+                    }
+                } catch (_) { /* sem XML legível: segue com o espelho montado do pedido */ }
+            }
 
             const html = renderDanfe(ctx);
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -6028,46 +13583,637 @@ module.exports = function createVendasRoutes(deps) {
             const pedidoId = parseInt(req.params.id, 10);
             if (!pedidoId) return res.status(400).send('<p style="color:red">Pedido inválido</p>');
 
-            const [[ped]] = await pool.query(
-                `SELECT p.*, c.nome AS cli_nome, c.razao_social AS cli_razao,
-                        c.cnpj AS cli_cnpj, c.inscricao_estadual AS cli_ie
-                 FROM pedidos p LEFT JOIN clientes c ON c.id = p.cliente_id
-                 WHERE p.id = ? LIMIT 1`, [pedidoId]
-            );
+            // O JOIN com transportadoras é o que permite ao campo abrir já vinculado
+            // ao cadastro (e não só com o nome solto gravado em pedidos). O bloco do
+            // cliente traz o destinatário INTEIRO porque a DANFE imprime endereço,
+            // bairro, CEP, município, fone e indicador de IE — não só o nome.
+            const [[ped]] = await pool.query({
+                timeout: 15000,
+                sql: `SELECT p.*, c.nome AS cli_nome, c.razao_social AS cli_razao,
+                        c.cnpj AS cli_cnpj, c.cpf AS cli_cpf,
+                        c.inscricao_estadual AS cli_ie, c.fiscal_contribuinte_icms AS cli_contribuinte_icms,
+                        COALESCE(NULLIF(c.uf,''), c.estado) AS cli_uf, c.codigo_ibge AS cli_ibge,
+                        c.endereco AS cli_endereco, c.bairro AS cli_bairro,
+                        c.cidade AS cli_cidade, c.cep AS cli_cep,
+                        c.telefone AS cli_telefone, c.email AS cli_email,
+                        t.id AS transp_id, t.razao_social AS transp_razao,
+                        t.nome_fantasia AS transp_fantasia, t.cnpj_cpf AS transp_cnpj,
+                        t.inscricao_estadual AS transp_ie, t.endereco AS transp_endereco,
+                        t.cidade AS transp_cidade, t.estado AS transp_uf, t.fiscal_situacao AS transp_situacao
+                 FROM pedidos p
+                 LEFT JOIN clientes c ON c.id = p.cliente_id
+                 LEFT JOIN transportadoras t ON t.id = p.transportadora_id
+                 WHERE p.id = ? LIMIT 1`
+            }, [pedidoId]);
             if (!ped) return res.status(404).send('<p style="color:red">Pedido não encontrado</p>');
+            if (lgpdCrypto && lgpdCrypto.decryptPII) {
+                ped.transp_cnpj = lgpdCrypto.decryptPII(ped.transp_cnpj || '') || '';
+                ped.transp_ie = lgpdCrypto.decryptPII(ped.transp_ie || '') || '';
+                ped.cli_cnpj = lgpdCrypto.decryptPII(ped.cli_cnpj || '') || '';
+                ped.cli_cpf = lgpdCrypto.decryptPII(ped.cli_cpf || '') || '';
+                ped.cli_ie = lgpdCrypto.decryptPII(ped.cli_ie || '') || '';
+            }
 
-            const [itens] = await pool.query(
-                `SELECT i.id, i.codigo, i.descricao, i.quantidade, i.preco_unitario, i.subtotal, i.cfop,
-                        COALESCE(p.ncm,'') AS ncm, COALESCE(p.nome, i.descricao) AS produto_nome
+            // Emitente: `configuracoes_empresa` é a MESMA fonte que o espelho usa para o
+            // quadro do emitente, e `empresa_config` guarda CRT, série e inscrição
+            // municipal. As duas tabelas existem nas 3 instâncias e não são a mesma coisa.
+            // Estas configurações são independentes. Consultá-las em paralelo reduz três
+            // viagens ao banco para uma espera só, perceptível ao abrir o editor pela VPS.
+            const [cfgEmpresaResult, empCfgResult, cfgFiscalResult] = await Promise.all([
+                pool.query({ sql: 'SELECT * FROM configuracoes_empresa LIMIT 1', timeout: 10000 }).catch(() => [[]]),
+                pool.query({ sql: 'SELECT * FROM empresa_config LIMIT 1', timeout: 10000 }).catch(() => [[]]),
+                pool.query({ sql: 'SELECT * FROM config_fiscal_empresa LIMIT 1', timeout: 10000 }).catch(() => [[]])
+            ]);
+            const cfgEmpresaRow = cfgEmpresaResult[0] && cfgEmpresaResult[0][0];
+            const empCfgRow = empCfgResult[0] && empCfgResult[0][0];
+            const cfgFiscalRow = cfgFiscalResult[0] && cfgFiscalResult[0][0];
+            const cfgEmpresa = cfgEmpresaRow || {};
+            const empCfg = empCfgRow || {};
+            const cfgFiscal = cfgFiscalRow || {};
+
+            // CFOP padrão: sai do cadastro fiscal da empresa (5102/6102 nas 3 hoje), não de
+            // um 5101/6101 fixo — o espelho lê `cfop_venda_estado` e divergir daqui faria a
+            // tela sugerir um CFOP e a DANFE imprimir outro. A UF do emitente decide qual dos
+            // dois vale, e cada instância é uma empresa diferente.
+            const ufEmitente = String(cfgEmpresa.estado || empCfg.estado || 'SP').trim().toUpperCase();
+            const ufCliente = String(ped.cli_uf || '').trim().toUpperCase();
+            const interestadual = !!ufCliente && ufCliente !== ufEmitente;
+            const cfopPadrao = String(
+                (interestadual ? cfgFiscal.cfop_venda_fora_estado : cfgFiscal.cfop_venda_estado) ||
+                (interestadual ? '6102' : '5102')
+            ).trim();
+
+            // Regime e alíquotas padrão — mesma resolução do danfe-renderer, para a tela
+            // sugerir exatamente o que o espelho vai calcular.
+            const regime = String(cfgFiscal.regime_tributario || '').toLowerCase();
+            const simplesNacional = regime === 'simples_nacional';
+            const cstPadrao = simplesNacional ? '102' : '00';
+            // Emitente do Simples não destaca ICMS, IPI, PIS nem COFINS — vai tudo no DAS, e
+            // é o que o XML já transmite (CSOSN + CST 49). Antes só o ICMS era zerado aqui,
+            // então o espelho sugeria PIS/COFINS de lucro presumido em nota do Simples.
+            const aliqIcmsPadrao = simplesNacional ? 0 : (parseFloat(cfgFiscal.icms_padrao) || 0);
+            const aliqIpiPadrao = simplesNacional ? 0 : (parseFloat(cfgFiscal.ipi_padrao) || 0);
+            const aliqPisPadrao = simplesNacional ? 0 : (parseFloat(cfgFiscal.pis_padrao) || 0);
+            const aliqCofinsPadrao = simplesNacional ? 0 : (parseFloat(cfgFiscal.cofins_padrao) || 0);
+
+            const [itens] = await pool.query({
+                timeout: 15000,
+                sql: `SELECT i.id, i.codigo, i.descricao, i.quantidade, i.unidade, i.preco_unitario,
+                        i.subtotal, i.desconto, i.cfop, i.produto_id,
+                        i.aliquota_icms, i.icms_percent, i.icms_value,
+                        i.aliquota_ipi, i.valor_ipi, i.valor_icms_st, i.mva_st,
+                        i.base_calculo_icms, i.base_calculo_icms_st,
+                        i.pis_percent, i.pis_value, i.cofins_percent, i.cofins_value,
+                        i.valor_difal, i.valor_fcp_destino, i.valor_fcp_st,
+                        COALESCE(pr.ncm,'') AS ncm,
+                        COALESCE(pr.origem,'') AS produto_origem,
+                        COALESCE(pr.cst_icms,'') AS produto_cst,
+                        COALESCE(pr.csosn_icms,'') AS produto_csosn,
+                        pr.aliquota_icms AS produto_aliq_icms,
+                        pr.aliquota_ipi  AS produto_aliq_ipi,
+                        pr.aliquota_pis  AS produto_aliq_pis,
+                        pr.aliquota_cofins AS produto_aliq_cofins,
+                        pr.cest AS produto_cest,
+                        COALESCE(pr.nome, i.descricao) AS produto_nome
                  FROM pedido_itens i
-                 LEFT JOIN produtos p ON p.id = i.produto_id
-                 WHERE i.pedido_id = ? ORDER BY i.id ASC`, [pedidoId]
-            ).catch(() => [[]]);
+                 LEFT JOIN produtos pr ON pr.id = i.produto_id
+                 WHERE i.pedido_id = ? ORDER BY i.id ASC`
+            }, [pedidoId]).catch(() => [[]]);
 
-            const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            const fmtV = v => (parseFloat(v)||0).toFixed(2);
+            const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            // Colunas de valor são apenas exibição (não são inputs do form), então podem ir
+            // formatadas em pt-BR sem afetar o que o POST /espelho-nfe-patch recebe.
+            const fmtDin = v => (parseFloat(v)||0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            // Espelho e DANFE mostram a quantidade igual: sem separador de milhar.
+            const fmtQtd = v => (parseFloat(v)||0).toLocaleString('pt-BR', { useGrouping: false, minimumFractionDigits: 0, maximumFractionDigits: 4 });
+            // Valor DE INPUT: pt-BR também (o usuário digita vírgula), e o parser do PATCH
+            // aceita os dois formatos. Zero vira campo vazio de propósito — "0,00" pré-digitado
+            // em 12 campos é ruído visual, e vazio já significa "usar o cálculo".
+            const fmtInput = (v, casas = 2) => {
+                const n = parseFloat(v);
+                if (!isFinite(n) || n === 0) return '';
+                return n.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+            };
+            const fmtData = d => {
+                if (!d) return '';
+                const dt = new Date(d);
+                return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('pt-BR');
+            };
 
-            const itensRows = (itens||[]).map((it, i) => `
-                <tr>
-                    <td style="padding:6px 4px;font-size:11px;color:#64748b;">${i+1}</td>
-                    <td style="padding:6px 4px;">
+            // ── Faturamento parcial (meia nota) ──────────────────────────────
+            // Mesma regra do espelho (GET /pedidos/:id/espelho-nfe): a quantidade continua
+            // INTEGRAL e o percentual vai nos VALORES. Sem isto o editor abria com o valor
+            // cheio no meio de uma meia nota — divergindo do espelho ao lado e da nota que
+            // seria transmitida, que é o sintoma relatado.
+            //
+            // O fator viaja escondido no formulário porque o PATCH precisa DESFAZER a escala
+            // antes de gravar: `pedido_itens` e `pedidos` guardam o pedido INTEIRO, não a nota
+            // parcial. Salvar os valores da tela direto reduziria o pedido de forma permanente.
+            const tipoFat = String(req.query.tipo || 'normal').toLowerCase();
+            const pctFat = Math.max(1, Math.min(100, parseFloat(req.query.pct) || 100));
+            const fatorFat = (tipoFat === 'parcial' || tipoFat === 'meianota' || tipoFat === 'meia-nota')
+                ? (pctFat / 100) : 1;
+            // Só valores monetários escalam. Alíquota é percentual: 18% de meia nota continua 18%.
+            const CAMPOS_ESCALAVEIS = ['preco_unitario', 'subtotal', 'desconto', 'icms_value',
+                'valor_ipi', 'valor_icms_st', 'pis_value', 'cofins_value',
+                'base_calculo_icms', 'base_calculo_icms_st',
+                'valor_difal', 'valor_fcp_destino', 'valor_fcp_st'];
+            const TOTAIS_ESCALAVEIS = ['valor', 'valor_total', 'base_calculo_icms',
+                'base_calculo_icms_st', 'total_icms', 'total_icms_st', 'total_ipi',
+                'total_pis', 'total_cofins', 'total_fcp_st', 'total_difal', 'total_fcp',
+                'total_impostos'];
+            // Nota cheia passa o item intocado — escalar por 1 transformaria coluna NULA
+            // (desconto, tributos nunca preenchidos) em 0,00, mesma armadilha do espelho.
+            const escalarFat = v => (v === null || v === undefined) ? v : (parseFloat(v) || 0) * fatorFat;
+
+            let itensDoEditor = itens || [];
+            if (tipoFat === 'itens') {
+                const selecionados = new Map();
+                String(req.query.itens || '').split(',').forEach(par => {
+                    const [produto, quantidade] = par.split(':');
+                    const produtoId = Number(produto), qtd = Number(quantidade);
+                    if (Number.isInteger(produtoId) && produtoId > 0 && Number.isFinite(qtd) && qtd > 0) selecionados.set(produtoId, qtd);
+                });
+                itensDoEditor = itensDoEditor.filter(it => selecionados.has(Number(it.produto_id))).map(it => {
+                    const original = Number(it.quantidade) || 0;
+                    const quantidade = Math.min(selecionados.get(Number(it.produto_id)) || 0, original);
+                    const proporcao = original > 0 ? quantidade / original : 0;
+                    const copia = Object.assign({}, it, { quantidade: quantidade });
+                    CAMPOS_ESCALAVEIS.filter(campo => campo !== 'preco_unitario').forEach(campo => {
+                        if (it[campo] !== null && it[campo] !== undefined) copia[campo] = (parseFloat(it[campo]) || 0) * proporcao;
+                    });
+                    return copia;
+                });
+            }
+            const listaItens = fatorFat === 1 ? itensDoEditor : itensDoEditor.map(it => {
+                const copia = Object.assign({}, it);
+                for (const campo of CAMPOS_ESCALAVEIS) copia[campo] = escalarFat(it[campo]);
+                return copia;
+            });
+            if (fatorFat < 1) {
+                for (const coluna of TOTAIS_ESCALAVEIS) {
+                    if (ped[coluna] !== null && ped[coluna] !== undefined) ped[coluna] = escalarFat(ped[coluna]);
+                }
+            }
+
+            const totalQtd = listaItens.reduce((s, it) => s + (parseFloat(it.quantidade) || 0), 0);
+            const totalGeral = listaItens.reduce((s, it) => s + (parseFloat(it.subtotal) || 0), 0);
+            // NCM em branco é rejeição certa na SEFAZ — sinalizar antes do envio.
+            const semNcm = listaItens.filter(it => !String(it.ncm || '').trim()).length;
+            // O CFOP entra preenchido com o padrão da UF, então só sobra vazio se o padrão
+            // não pôde ser determinado. Contamos quantos herdaram o padrão para avisar na tela.
+            const cfopEfetivo = it => String(it.cfop || '').trim() || cfopPadrao;
+            const herdaramCfop = listaItens.filter(it => !String(it.cfop || '').trim()).length;
+            const semCfop = listaItens.filter(it => !cfopEfetivo(it)).length;
+            const { resolverNaturezaOperacao } = require('../services/cfop-operacao.service');
+            ped.natureza_operacao = resolverNaturezaOperacao(
+                listaItens.map(it => cfopEfetivo(it)), ped.natureza_operacao || 'Venda de Mercadoria'
+            );
+
+            // Resolução item a item, na MESMA ordem de precedência do danfe-renderer
+            // (firstPositiveOrLast): o zero de uma coluna nunca preenchida não pode barrar o
+            // padrão fiscal da empresa, então só o último candidato pode valer 0.
+            const primeiroPositivoOuUltimo = (...vals) => {
+                for (let i = 0; i < vals.length; i++) {
+                    const n = parseFloat(vals[i]);
+                    if (!isNaN(n) && (n > 0 || i === vals.length - 1)) return n;
+                }
+                return 0;
+            };
+            const dadosItem = it => {
+                const subtotal = parseFloat(it.subtotal) || 0;
+                // No Simples a alíquota do item/produto não pode ressuscitar o tributo próprio:
+                // o cadastro das duas bases do Simples (Energy e Cobal) ainda carrega a
+                // fiscalidade de regime normal herdada da Aluforce (ICMS 18 %, IPI 5 %,
+                // PIS 0,65 %, COFINS 3 %), e `primeiroPositivoOuUltimo` pegava esses valores
+                // antes de chegar no padrão já zerado acima.
+                const aliqIcms = simplesNacional ? 0
+                    : primeiroPositivoOuUltimo(it.aliquota_icms, it.icms_percent, it.produto_aliq_icms, aliqIcmsPadrao);
+                const aliqIpi = simplesNacional ? 0
+                    : primeiroPositivoOuUltimo(it.aliquota_ipi, it.produto_aliq_ipi, aliqIpiPadrao);
+                const vIcms = simplesNacional ? 0 : primeiroPositivoOuUltimo(it.icms_value, subtotal * aliqIcms / 100);
+                const vIpi = simplesNacional ? 0 : primeiroPositivoOuUltimo(it.valor_ipi, subtotal * aliqIpi / 100);
+                const vSt = parseFloat(it.valor_icms_st) || 0;
+                const bcIcmsGravada = parseFloat(it.base_calculo_icms) || 0;
+                const bcIcms = bcIcmsGravada > 0
+                    ? bcIcmsGravada
+                    : (aliqIcms > 0 ? (vIcms > 0 ? vIcms / (aliqIcms / 100) : subtotal) : 0);
+                const bcSt = parseFloat(it.base_calculo_icms_st) || 0;
+                return {
+                    subtotal, aliqIcms, aliqIpi, vIcms, vIpi, vSt, bcIcms, bcSt,
+                    // CST tem 2 dígitos e CSOSN 3 — é o que separa os dois no cadastro do
+                    // produto, e é assim que o PATCH decide em qual coluna gravar de volta.
+                    // No Simples quem vale é o CSOSN: o cadastro guarda `cst_icms = '00'` ao
+                    // lado do `csosn_icms = '102'` e é o CRT que decide — a ordem antiga
+                    // sugeria o CST 00 do regime normal.
+                    cst: (simplesNacional
+                        ? String(it.produto_csosn || it.produto_cst || cstPadrao)
+                        : String(it.produto_cst || it.produto_csosn || cstPadrao)).trim() || cstPadrao,
+                    origem: String(it.produto_origem == null ? '' : it.produto_origem).replace(/\D/g, '').slice(0, 1),
+                    aliqPis: simplesNacional ? 0 : primeiroPositivoOuUltimo(it.pis_percent, it.produto_aliq_pis, aliqPisPadrao),
+                    aliqCofins: simplesNacional ? 0 : primeiroPositivoOuUltimo(it.cofins_percent, it.produto_aliq_cofins, aliqCofinsPadrao)
+                };
+            };
+
+            const itensRows = listaItens.map((it, i) => {
+                const d = dadosItem(it);
+                const ncmVazio = !String(it.ncm || '').trim();
+                const cfopVazio = !cfopEfetivo(it);
+                return `
+                <tr data-item="${it.id}" data-subtotal="${d.subtotal}" data-bc-st="${d.bcSt}"
+                    data-bc-icms="${d.bcIcms}" data-bc-ipi="${d.aliqIpi > 0 && d.vIpi > 0 ? d.vIpi / (d.aliqIpi / 100) : d.subtotal}"
+                    data-aliq-pis="${d.aliqPis}" data-aliq-cofins="${d.aliqCofins}"
+                    data-difal="${parseFloat(it.valor_difal) || 0}" data-fcp="${parseFloat(it.valor_fcp_destino) || 0}"
+                    data-fcp-st="${parseFloat(it.valor_fcp_st) || 0}">
+                    <td class="c-num">${i+1}</td>
+                    <td class="c-cod mono" title="${esc(it.codigo)}">${esc(it.codigo || String(i+1).padStart(3,'0'))}</td>
+                    <td>
                         <input name="item_${it.id}_descricao" value="${esc(it.descricao||it.produto_nome)}"
-                            style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;font-size:12px;" />
+                            class="cell-input" title="${esc(it.descricao||it.produto_nome)}" />
                     </td>
-                    <td style="padding:6px 4px;">
+                    <td>
                         <input name="item_${it.id}_ncm" value="${esc(it.ncm)}" maxlength="8"
-                            placeholder="00000000"
-                            style="width:90px;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;font-size:12px;" />
+                            placeholder="00000000" inputmode="numeric"
+                            class="cell-input mono${ncmVazio ? ' warn' : ''}" />
                     </td>
-                    <td style="padding:6px 4px;">
-                        <input name="item_${it.id}_cfop" value="${esc(it.cfop)}" maxlength="4"
-                            placeholder="5102"
-                            style="width:70px;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;font-size:12px;" />
+                    <td>
+                        <select name="item_${it.id}_origem" class="cell-input mono"
+                                aria-label="Origem fiscal do item ${i + 1}">
+                          <option value=""${d.origem === '' ? ' selected' : ''}>—</option>
+                          ${['0','1','2','3','4','5','6','7','8'].map(o => `<option value="${o}"${d.origem === o ? ' selected' : ''}>${o}</option>`).join('')}
+                        </select>
                     </td>
-                    <td style="padding:6px 4px;text-align:right;font-size:12px;color:#334155;">${fmtV(it.quantidade)}</td>
-                    <td style="padding:6px 4px;text-align:right;font-size:12px;color:#334155;">${fmtV(it.preco_unitario)}</td>
-                    <td style="padding:6px 4px;text-align:right;font-size:12px;font-weight:600;color:#1e40af;">${fmtV(it.subtotal)}</td>
-                </tr>`).join('');
+                    <td>
+                        <input name="item_${it.id}_cst" value="${esc(d.cst)}" maxlength="3"
+                            placeholder="${cstPadrao}" inputmode="numeric" class="cell-input mono" />
+                    </td>
+                    <td>
+                        <input name="item_${it.id}_cfop" value="${esc(cfopEfetivo(it))}" maxlength="4"
+                            placeholder="${cfopPadrao}" inputmode="numeric"
+                            class="cell-input mono${cfopVazio ? ' warn' : ''}" />
+                    </td>
+                    <td>
+                        <input name="item_${it.id}_unidade" value="${esc(it.unidade || 'UN')}" maxlength="6"
+                            placeholder="UN" class="cell-input mono" />
+                    </td>
+                    <td class="c-qtd">${fmtQtd(it.quantidade)}</td>
+                    <td class="c-val">${fmtDin(it.preco_unitario)}</td>
+                    <td class="c-tot">${fmtDin(it.subtotal)}</td>
+                    <td class="c-calc" data-bc>${fmtDin(d.bcIcms)}</td>
+                    <td><input name="item_${it.id}_icms_value" value="${fmtInput(d.vIcms)}" data-num data-imposto
+                            inputmode="decimal" placeholder="0,00" class="cell-input num" /></td>
+                    <td><input name="item_${it.id}_aliquota_icms" value="${fmtInput(d.aliqIcms)}" data-num data-imposto
+                            inputmode="decimal" placeholder="0,00" class="cell-input num" /></td>
+                    <td><input name="item_${it.id}_valor_ipi" value="${fmtInput(d.vIpi)}" data-num data-imposto
+                            inputmode="decimal" placeholder="0,00" class="cell-input num" /></td>
+                    <td><input name="item_${it.id}_aliquota_ipi" value="${fmtInput(d.aliqIpi)}" data-num data-imposto
+                            inputmode="decimal" placeholder="0,00" class="cell-input num" /></td>
+                    <td><input name="item_${it.id}_valor_icms_st" value="${fmtInput(d.vSt)}" data-num data-imposto
+                            inputmode="decimal" placeholder="0,00" class="cell-input num" /></td>
+                </tr>`;
+            }).join('');
+
+            const avisoFiscal = (semNcm || semCfop)
+                ? `<p class="aviso"><strong>Atenção:</strong> ${semNcm ? semNcm + ' item(ns) sem NCM' : ''}${semNcm && semCfop ? ' e ' : ''}${semCfop ? semCfop + ' item(ns) sem CFOP' : ''}. A SEFAZ rejeita a nota nessa condição — preencha os campos destacados antes de enviar.</p>`
+                : '';
+
+            // Nota informativa (não é erro): explica de onde veio o CFOP já preenchido.
+            const notaCfop = herdaramCfop
+                ? `<p class="nota"><strong>CFOP ${cfopPadrao}</strong> aplicado a ${herdaramCfop} ${herdaramCfop === 1 ? 'item' : 'itens'} —
+                   venda ${interestadual ? 'interestadual' : 'dentro do estado'} (${ufEmitente}${ufCliente ? ' &rarr; ' + ufCliente : ''}),
+                   conforme o cadastro fiscal da empresa.
+                   Ajuste manualmente se a operação for outra; o valor só é gravado ao salvar.</p>`
+                : '';
+
+            // Deixa explícito por que os valores estão menores que os do pedido — sem isso a
+            // tela parece simplesmente errada.
+            const avisoMeiaNota = fatorFat < 1
+                ? `<p class="nota"><strong>Meia nota — ${fmtQtd(pctFat)}%.</strong> Os valores abaixo já estão
+                   proporcionais, iguais aos do espelho e aos que serão transmitidos. A quantidade permanece
+                   integral: em meia nota a mercadoria sai inteira, só o valor é parcial.
+                   O que você salvar aqui é gravado no pedido em valor CHEIO.</p>`
+                : '';
+
+            // Transportadora: o campo abre com o vínculo do cadastro quando existe
+            // (transportadora_id) e cai no nome solto de `pedidos` quando o pedido é
+            // antigo e nunca foi vinculado.
+            const transpNome = ped.transp_razao || ped.transp_fantasia || ped.transportadora_nome || '';
+            const transpDetalhe = [
+                ped.transp_cnpj ? 'CNPJ ' + ped.transp_cnpj : '',
+                [ped.transp_cidade, ped.transp_uf].filter(Boolean).join('/')
+            ].filter(Boolean).join(' · ');
+
+            // ── Mapa de impostos ─────────────────────────────────────────────────
+            // Os valores de partida são os MESMOS que o espelho imprimiria hoje: coluna do
+            // pedido quando positiva, cálculo pelos itens quando não. Assim o quadro abre
+            // conferindo com a DANFE, e o que a pessoa gravar passa a mandar.
+            const somaItens = fn => listaItens.reduce((s, it) => s + (fn(dadosItem(it), it) || 0), 0);
+            const calc = {
+                bcIcms: somaItens(d => d.bcIcms),
+                vIcms: somaItens(d => d.vIcms),
+                vIpi: somaItens(d => d.vIpi),
+                vSt: somaItens(d => d.vSt),
+                vPis: somaItens(d => primeiroPositivoOuUltimo(0, d.subtotal * d.aliqPis / 100)),
+                vCofins: somaItens(d => primeiroPositivoOuUltimo(0, d.subtotal * d.aliqCofins / 100))
+            };
+            // Os grupos ICMSSN emitidos para empresas do Simples não carregam vBC/vICMS
+            // próprio. Mostrar o override salvo no pedido fazia o modal prometer um valor
+            // que o item CSOSN (ex.: 102) jamais poderia levar ao XML/DANFE.
+            const permiteIcmsProprioManual = !simplesNacional;
+            // As DUAS regras do danfe-renderer, replicadas aqui para a tela abrir com
+            // exatamente o número que o espelho vai imprimir. `informado`: NULL é "ninguém
+            // preencheu" e 0 é isenção declarada. `derivado`: vale para total_ipi e
+            // total_icms_st, reescritas sozinhas por SUM(itens) a cada mudança de item, onde
+            // um 0 quase sempre é da rotina e não uma declaração — ali só positivo manda.
+            const informado = (v, calculado) => {
+                if (v === null || v === undefined || v === '') return calculado;
+                const n = parseFloat(v);
+                return isFinite(n) ? n : calculado;
+            };
+            const derivado = (v, calculado) => {
+                const n = parseFloat(v);
+                return (isFinite(n) && n > 0) ? n : calculado;
+            };
+            const mapa = {
+                vBC: permiteIcmsProprioManual ? informado(ped.base_calculo_icms, calc.bcIcms) : calc.bcIcms,
+                vICMS: permiteIcmsProprioManual ? informado(ped.total_icms, calc.vIcms) : calc.vIcms,
+                vBCST: informado(ped.base_calculo_icms_st, 0),
+                vST: derivado(ped.total_icms_st, calc.vSt),
+                vIPI: derivado(ped.total_ipi, calc.vIpi),
+                vPIS: informado(ped.total_pis, calc.vPis),
+                vCOFINS: informado(ped.total_cofins, calc.vCofins),
+                vFCPST: informado(ped.total_fcp_st, 0),
+                // DIFAL e FCP de partilha (grupo ICMSUFDest do XML): recalculados a partir
+                // dos itens pela mesma rotina que recalcula IPI/ICMS-ST — ver
+                // recalcularImpostosPedidoVenda. Faltavam neste mapa (e por consequência no
+                // quadro fiscal. Pela regra da NF-e, porém, eles NÃO compõem o vNF.
+                vDIFAL: derivado(ped.total_difal, 0),
+                vFCPDest: derivado(ped.total_fcp, 0),
+                vFrete: parseFloat(ped.frete) || 0,
+                vSeg: parseFloat(ped.valor_seguro) || 0,
+                vDesc: parseFloat(ped.desconto) || 0,
+                vOutro: parseFloat(ped.outras_despesas) || 0
+            };
+            mapa.vTotTrib = informado(ped.total_impostos, mapa.vICMS + mapa.vIPI + mapa.vPIS + mapa.vCOFINS);
+            mapa.vProd = totalGeral;
+            mapa.vNF = mapa.vProd + mapa.vIPI + mapa.vST + mapa.vFCPST
+                + mapa.vFrete + mapa.vSeg + mapa.vOutro - mapa.vDesc;
+
+            // Texto de cada campo do mapa. Campo VAZIO significa "não informado, use o
+            // cálculo" — então um zero vindo do cálculo aparece vazio. Já um zero DECLARADO
+            // na coluna tem que aparecer como "0,00": exibi-lo vazio faria o próximo
+            // salvamento gravar NULL e a isenção se desfaria sozinha, sem ninguém mexer.
+            const declarado = v => !(v === null || v === undefined || v === '');
+            const fmtMapa = (valor, bruto) => declarado(bruto) ? fmtInput(valor) || '0,00' : fmtInput(valor);
+            const mapaTxt = {
+                vBC: permiteIcmsProprioManual ? fmtMapa(mapa.vBC, ped.base_calculo_icms) : '0,00',
+                vICMS: permiteIcmsProprioManual ? fmtMapa(mapa.vICMS, ped.total_icms) : '0,00',
+                vBCST: fmtMapa(mapa.vBCST, ped.base_calculo_icms_st),
+                vPIS: fmtMapa(mapa.vPIS, ped.total_pis),
+                vCOFINS: fmtMapa(mapa.vCOFINS, ped.total_cofins),
+                vFCPST: fmtMapa(mapa.vFCPST, ped.total_fcp_st),
+                vTotTrib: fmtMapa(mapa.vTotTrib, ped.total_impostos),
+                // Derivadas: 0 não é declaração de isenção, é a rotina de recálculo. Vazio.
+                vST: fmtInput(mapa.vST),
+                vIPI: fmtInput(mapa.vIPI),
+                vDIFAL: fmtInput(mapa.vDIFAL),
+                vFCPDest: fmtInput(mapa.vFCPDest)
+            };
+
+            // Duplicatas: mesma fonte única do espelho, do XML e — desde 09/09/2026 — dos
+            // títulos do Contas a Receber. São EDITÁVEIS aqui porque é este quadro que
+            // define quando e quanto o cliente paga; o que sair daqui é o que o financeiro
+            // gera no faturamento (grava em `pedidos.parcelas_conta_receber`).
+            let duplicatas = [];
+            let isoDeData = v => (v ? String(v).slice(0, 10) : '');
+            try {
+                const dupSvc = require('../modules/_shared/services/duplicatas-pedido.service');
+                if (dupSvc.isoDe) isoDeData = v => dupSvc.isoDe(v) || '';
+                duplicatas = dupSvc.duplicatasDoPedido(ped, mapa.vNF) || [];
+            } catch (dupErr) {
+                console.warn('[Vendas/EspelhoEdit] Duplicatas indisponíveis:', dupErr.message);
+            }
+            // Previsão de faturamento: a data-base dos vencimentos. `data_previsao` é
+            // DATETIME e chega como objeto Date — o input[type=date] só aceita AAAA-MM-DD e
+            // ignora em silêncio qualquer outro formato.
+            const previsaoIso = isoDeData(ped.data_previsao);
+            // Prazos da condição ("21/28/35" → [21,28,35]), usados pelo botão "Recalcular
+            // pelos prazos da condição" da tela.
+            const prazosCondicao = (String(ped.condicao_pagamento || '').match(/[0-9]+/g) || [])
+                .map(n => parseInt(n, 10)).filter(n => isFinite(n) && n >= 0).slice(0, 24);
+            const duplicatasRows = duplicatas.map((d, i) => `<tr data-dup>
+                    <td class="mono"><span class="dup-num">${esc(String(i + 1).padStart(3, '0'))}</span></td>
+                    <td><input type="date" data-dup-venc name="dup_${i + 1}_vencimento" value="${esc(d.vencimento || '')}" /></td>
+                    <td><input data-num data-dup-valor name="dup_${i + 1}_valor" value="${fmtInput(d.valor)}" style="text-align:right" /></td>
+                    <td class="dup-acao"><button type="button" class="dup-x" title="Remover parcela" aria-label="Remover parcela">&times;</button></td>
+                  </tr>`).join('');
+
+            const enderecoEmitente = [
+                [cfgEmpresa.endereco, cfgEmpresa.numero].filter(Boolean).join(', '),
+                cfgEmpresa.bairro, cfgEmpresa.cidade, cfgEmpresa.estado,
+                cfgEmpresa.cep ? 'CEP ' + cfgEmpresa.cep : ''
+            ].filter(Boolean).join(' - ');
+            const enderecoDestinatario = [
+                ped.cli_endereco, ped.cli_bairro, ped.cli_cidade, ped.cli_uf,
+                ped.cli_cep ? 'CEP ' + ped.cli_cep : ''
+            ].filter(Boolean).join(' - ');
+            const serieNF = String(ped.serie_nf || empCfg.nfe_serie || '1');
+            const numeroNF = String(ped.nf || ped.numero_nf || '') ||
+                (empCfg.nfe_proximo_numero ? String(empCfg.nfe_proximo_numero) + ' (próximo da série)' : 'a definir na emissão');
+            // Pedido ainda não emitido abre sempre com o dia corrente. Antes o espelho
+            // herdava `created_at` e o editor deixava o input vazio, portanto os dois
+            // mostravam datas diferentes (e frequentemente antigas). O valor continua
+            // editável e, depois de salvo, `ped.data_emissao` permanece prioritário.
+            const hojeEmSaoPauloIso = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
+            }).format(new Date());
+            const dataEmissaoIso = isoDeData(ped.data_emissao) || hojeEmSaoPauloIso;
+            const dataEmissao = fmtData(`${dataEmissaoIso}T12:00:00`);
+            // Sem saída gravada, a saída acompanha a EMISSÃO (é o que o XML faz). Antes caía em
+            // data_faturamento/created_at: pedido criado em 2025 mostrava "saída em 29/04/2025",
+            // anterior à emissão — data que a própria regra (rejeição 506) descartava na emissão.
+            const saidaGravadaIso = isoDeData(ped.data_saida);
+            const dataSaida = saidaGravadaIso && saidaGravadaIso >= dataEmissaoIso
+                ? fmtData(`${saidaGravadaIso}T12:00:00`)
+                : dataEmissao;
+            // Valores dos inputs de data/hora do quadro de identificação. A emissão sugere
+            // hoje, mas segue livre para alteração; o POST abaixo grava a escolha no pedido.
+            const dataSaidaIso = isoDeData(ped.data_saida);
+            const horaSaidaHm = (() => {
+                const d = ped.data_saida ? new Date(ped.data_saida) : null;
+                if (!d || isNaN(d.getTime())) return '';
+                const hh = String(d.getHours()).padStart(2, '0');
+                const mm = String(d.getMinutes()).padStart(2, '0');
+                // Meia-noite é o que sobra de uma data sem hora — não é hora informada.
+                return (hh === '00' && mm === '00') ? '' : `${hh}:${mm}`;
+            })();
+            // Campo 61 da NF-e. Desde 19/08/2026 NÃO existe mais prefixo automático
+            // (`Pedido Nº <id> | Condição: <cond>`): o infCpl é exatamente o que estiver
+            // neste textarea — que é a mesma coluna da aba "Informações Adicionais" do pedido.
+            const infoComplementar = ped.info_complementar || ped.dados_adicionais_nf || ped.campos_obs_nfe || '';
+
+            // ── Cenário fiscal ────────────────────────────────────────────────
+            // Sem ele o faturamento é recusado (CV-005), e até 13/08/2026 nenhuma tela
+            // oferecia o campo. Quando o pedido não tem, sugerimos pelo destino — mesma
+            // regra que decide o CFOP — mas a escolha só vale depois de salva.
+            let cenariosFiscais = [];
+            try {
+                const [linhas] = await pool.query(
+                    "SELECT id, codigo, nome, tipo_operacao FROM cenarios_fiscais WHERE ativo = 1 ORDER BY id ASC"
+                );
+                cenariosFiscais = linhas || [];
+            } catch (cenErr) {
+                console.warn('[Vendas/EspelhoEdit] cenarios_fiscais indisponível:', cenErr.message);
+            }
+            // Pedidos antigos gravaram só o TEXTO ("Venda Normal"), sem id — casar pelo nome
+            // recupera esses casos em vez de a tela abrir como se não houvesse cenário.
+            // `cenarioGravadoId` é o que o pedido REALMENTE tem; `cenarioSelecionadoId` é o que a
+            // tela deixa marcado. Separar os dois é o que permite pré-selecionar uma sugestão
+            // sem apagar o aviso de que nada foi gravado ainda — o faturamento continua
+            // bloqueado até alguém salvar.
+            let cenarioGravadoId = ped.cenario_fiscal_id || null;
+            if (!cenarioGravadoId && String(ped.cenario_fiscal || '').trim()) {
+                const alvo = String(ped.cenario_fiscal).trim().toLowerCase();
+                const achado = cenariosFiscais.find(c => String(c.nome || '').toLowerCase() === alvo)
+                    || cenariosFiscais.find(c => String(c.codigo || '').toLowerCase() === alvo)
+                    || cenariosFiscais.find(c => String(c.nome || '').toLowerCase().startsWith(alvo));
+                if (achado) cenarioGravadoId = achado.id;
+            }
+            const sugestaoCenario = cenarioGravadoId
+                ? null
+                : cenariosFiscais.find(c => String(c.tipo_operacao || '') === (interestadual ? 'fora_estado' : 'dentro_estado')) || null;
+            const cenarioSelecionadoId = cenarioGravadoId || (sugestaoCenario ? sugestaoCenario.id : null);
+
+            // ── Checklist de emissão ────────────────────────────────────────────────
+            // Resume, no topo da primeira aba, o que ainda impede ou compromete a emissão —
+            // antes era preciso percorrer as 5 abas para descobrir (ex.: pedido #35 com CFOP
+            // 5101 e ICMS-ST calculado, sem cenário gravado e sem volumes). Cada item leva à
+            // aba certa; quando dá, corrige num clique. 'bloqueia' = rejeição/recusa certa.
+            const checklist = [];
+            const addCheck = (nivel, texto, aba, acao) => checklist.push({ nivel, texto, aba, acao });
+            if (!cenarioGravadoId) addCheck('bloqueia', sugestaoCenario
+                ? `Cenário fiscal não salvo (sugerido: ${esc(sugestaoCenario.nome)}) — salve para aplicar.`
+                : 'Pedido sem cenário fiscal: escolha um e salve.', 'dados',
+                sugestaoCenario ? '<button type="button" class="btn-mini" data-fix="cenario">Aplicar sugerido e salvar</button>' : '<button type="button" class="btn-mini" data-fix-foco="[name=cenario_fiscal_id]" data-fix-aba="dados">Escolher cenário</button>');
+            const CFOP_SEM_ST_CHK = ['5101', '5102', '6101', '6102'];
+            const CFOP_COM_ST_CHK = ['5401', '5402', '5403', '6401', '6402', '6403'];
+            const itensStSemCfop = [], itensCfopStSemSt = [];
+            listaItens.forEach((it, i) => {
+                const d = dadosItem(it);
+                const cf = String(cfopEfetivo(it) || '').replace(/\D/g, '');
+                if (d.vSt > 0 && CFOP_SEM_ST_CHK.includes(cf)) itensStSemCfop.push(`item ${i + 1} (${esc(it.codigo)}) CFOP ${cf}`);
+                if (!(d.vSt > 0) && CFOP_COM_ST_CHK.includes(cf)) itensCfopStSemSt.push(`item ${i + 1} (${esc(it.codigo)}) CFOP ${cf}`);
+            });
+            if (itensStSemCfop.length) addCheck('bloqueia',
+                `ICMS-ST calculado com CFOP de venda <strong>sem</strong> ST — ${itensStSemCfop.join(', ')}. CFOP e CST ficam incoerentes na nota.`,
+                'impostos', '<button type="button" class="btn-mini" data-check-st="calcular">Manter ST e usar 5401/6401</button> <button type="button" class="btn-mini" data-check-st="remover">Remover o ST</button>');
+            if (itensCfopStSemSt.length) addCheck('bloqueia',
+                `CFOP de substituição tributária sem ICMS-ST calculado — ${itensCfopStSemSt.join(', ')}.`,
+                'impostos', '<button type="button" class="btn-mini" data-check-st="calcular">Calcular o ST</button> <button type="button" class="btn-mini" data-check-st="remover">Usar CFOP sem ST</button>');
+            if (semNcm) addCheck('bloqueia', `${semNcm} item(ns) sem NCM.`, 'itens', '<button type="button" class="btn-mini" data-fix-foco="input[name$=_ncm].warn" data-fix-aba="itens">Preencher NCM</button>');
+            if (semCfop) addCheck('bloqueia', `${semCfop} item(ns) sem CFOP.`, 'itens', '<button type="button" class="btn-mini" data-fix-foco="input[name$=_cfop].warn" data-fix-aba="itens">Preencher CFOP</button>');
+            const docCliente = String(ped.cli_cnpj || ped.cli_cpf || '').replace(/\D/g, '');
+            if (!docCliente) addCheck('bloqueia', 'Destinatário sem CNPJ/CPF no cadastro.', 'dados');
+            if (docCliente.length === 14 && !String(ped.cli_ie || '').trim())
+                addCheck('atencao', 'Cliente com CNPJ e sem IE (nem "ISENTO"): a nota sai como não contribuinte — confira o cadastro.', 'dados');
+            if (!String(ped.cli_uf || '').trim() || !String(ped.cli_cep || '').replace(/\D/g, '') || !String(ped.cli_cidade || '').trim())
+                addCheck('bloqueia', 'Endereço do destinatário incompleto (UF, cidade ou CEP).', 'dados');
+            const modFrete = String(ped.tipo_frete ?? '').trim();
+            if (modFrete !== '9') {
+                if (!ped.transportadora_id && !String(ped.transportadora_nome || '').trim() && ['0', '1', '2'].includes(modFrete))
+                    addCheck('atencao', 'Frete por conta de terceiro/remetente sem transportadora informada.', 'transporte', '<button type="button" class="btn-mini" data-fix-foco="#transp-busca" data-fix-aba="transporte">Informar transportadora</button>');
+                if (!(parseFloat(ped.qtd_volumes) > 0) || !(parseFloat(ped.peso_bruto) > 0))
+                    addCheck('atencao', 'Volumes e/ou peso bruto zerados — o quadro de volumes da DANFE sai em branco.', 'transporte', '<button type="button" class="btn-mini" data-fix-foco="[name=qtd_volumes]" data-fix-aba="transporte">Preencher volumes e peso</button>');
+            }
+            // ── Regras que a SEFAZ rejeita (mesmas do emissor/preflight), conferidas antes ──
+            // CFOP × destino: operação interna usa 5xxx, interestadual 6xxx (idDest × CFOP).
+            const cfopUfErrado = [];
+            listaItens.forEach((it, i) => {
+                const cf = String(cfopEfetivo(it) || '').replace(/\D/g, '');
+                if (!ufCliente || cf.length !== 4) return;
+                if (interestadual && cf[0] === '5') cfopUfErrado.push({ i, cf, novo: '6' + cf.slice(1) });
+                if (!interestadual && cf[0] === '6') cfopUfErrado.push({ i, cf, novo: '5' + cf.slice(1) });
+            });
+            if (cfopUfErrado.length) addCheck('bloqueia',
+                `CFOP ${interestadual ? 'de operação interna (5xxx) em venda para ' + esc(ufCliente) : 'interestadual (6xxx) em venda dentro de ' + esc(ufEmitente)} — `
+                + cfopUfErrado.map(x => `item ${x.i + 1} CFOP ${x.cf}`).join(', ') + '. A SEFAZ rejeita CFOP incompatível com o destino.',
+                'itens', `<button type="button" class="btn-mini" data-fix="cfop-uf" data-para="${interestadual ? '6' : '5'}">Trocar para ${interestadual ? '6xxx' : '5xxx'}</button>`);
+            // ST sem CEST: o emissor aborta (CEST_OBRIGATORIO_ST).
+            const stSemCest = listaItens.filter(it => dadosItem(it).vSt > 0 && !String(it.produto_cest || '').replace(/\D/g, ''))
+                .map(it => esc(it.codigo));
+            if (stSemCest.length) addCheck('bloqueia', `Item com ICMS-ST sem CEST no cadastro do produto (${stSemCest.join(', ')}): a emissão é recusada.`, 'itens');
+            // CST × regime: Simples usa CSOSN (3 dígitos); regime normal usa CST (2 dígitos).
+            const cstErrado = listaItens.map((it, i) => ({ i, c: String(dadosItem(it).cst || '').replace(/\D/g, '') }))
+                .filter(x => x.c && (simplesNacional ? x.c.length !== 3 : x.c.length !== 2));
+            if (cstErrado.length) addCheck('bloqueia',
+                `${simplesNacional ? 'Empresa do Simples com CST (deve ser CSOSN, 3 dígitos)' : 'Regime normal com CSOSN (deve ser CST, 2 dígitos)'} — `
+                + cstErrado.map(x => `item ${x.i + 1} (${x.c})`).join(', ') + '.',
+                'itens', '<button type="button" class="btn-mini" data-fix-foco="input[name$=_cst]" data-fix-aba="itens">Corrigir CST</button>');
+            // NCM que não existe na TIPI (rejeição 778) — 7614.90.00 já derrubou a NF-e da IM.
+            const NCM_INEXISTENTES = ['76149000'];
+            const ncmRuim = listaItens.filter(it => NCM_INEXISTENTES.includes(String(it.ncm || '').replace(/\D/g, ''))).map(it => esc(it.codigo));
+            if (ncmRuim.length) addCheck('bloqueia', `NCM 7614.90.00 não existe na TIPI (rejeição 778) — ${ncmRuim.join(', ')}. Corrija o NCM no item ou no cadastro do produto.`,
+                'itens', '<button type="button" class="btn-mini" data-fix-foco="input[name$=_ncm]" data-fix-aba="itens">Corrigir NCM</button>');
+            // IE de SP do destinatário: dígito verificador (mesma conta do preflight).
+            const ieCli = String(ped.cli_ie || '').replace(/\D/g, '');
+            if (ufCliente === 'SP' && ieCli && !/isento/i.test(String(ped.cli_ie))) {
+                const n = [...ieCli].map(Number);
+                const d1 = n.length === 12 ? [1, 3, 4, 5, 6, 7, 8, 10].reduce((s, w, k) => s + w * n[k], 0) % 11 % 10 : -1;
+                const d2 = n.length === 12 ? [3, 2, 10, 9, 8, 7, 6, 5, 4, 3, 2].reduce((s, w, k) => s + w * n[k], 0) % 11 % 10 : -1;
+                if (d1 !== n[8] || d2 !== n[11]) addCheck('bloqueia', `IE do destinatário (${esc(ped.cli_ie)}) com dígito verificador inválido para SP — a SEFAZ rejeita. Corrija o cadastro do cliente.`, 'dados');
+            }
+            // Município do destinatário × tabela IBGE (código de município inválido é rejeição certa).
+            try {
+                const [[qtdMun]] = await pool.query('SELECT COUNT(*) AS n FROM municipios_ibge');
+                if (Number(qtdMun?.n) > 0 && ufCliente && String(ped.cli_cidade || '').trim()) {
+                    const norm = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+                    const [munsUf] = await pool.query('SELECT codigo, nome FROM municipios_ibge WHERE UPPER(uf) = ?', [ufCliente]);
+                    const achado = munsUf.find(m => norm(m.nome) === norm(ped.cli_cidade));
+                    const codCli = String(ped.cli_ibge || '').replace(/\D/g, '');
+                    if (!achado) addCheck('bloqueia', `Município do destinatário ("${esc(ped.cli_cidade)}"/${esc(ufCliente)}) não encontrado na tabela do IBGE — corrija o cadastro do cliente.`, 'dados');
+                    else if (codCli && codCli !== String(achado.codigo)) addCheck('atencao', `Código IBGE do cliente (${esc(codCli)}) difere do município ${esc(achado.nome)} (${achado.codigo}); na emissão vale o da cidade.`, 'dados');
+                }
+            } catch (_) { /* tabela ausente: sem verificação */ }
+            // Situação fiscal da transportadora: o mapeador da NF-e (nfe-pedido.mapper) recusa a
+            // emissão nestas situações — antes só aparecia como erro na hora de faturar.
+            const SITUACOES_TRANSP_BLOQUEIO = { documento_invalido: 'CNPJ/CPF inválido', divergencia_identidade: 'dados divergentes da Receita',
+                nao_habilitado: 'IE não habilitada na SEFAZ', ie_ambigua: 'IE ambígua' };
+            if (ped.transp_id && SITUACOES_TRANSP_BLOQUEIO[ped.transp_situacao]) addCheck('bloqueia',
+                `Transportadora ${esc(ped.transp_razao || ped.transp_fantasia || '')} com pendência fiscal: ${SITUACOES_TRANSP_BLOQUEIO[ped.transp_situacao]}. A emissão é recusada — troque a transportadora ou corrija o cadastro dela.`,
+                'transporte', '<button type="button" class="btn-mini" data-fix-foco="#transp-busca" data-fix-aba="transporte">Trocar transportadora</button>');
+            // Transportadora/veículo: exatamente a validação que roda antes de transmitir.
+            try {
+                const { validarTransporte } = require('../services/nfe-cadastro-preflight');
+                const docT = String(ped.transp_cnpj || '').replace(/\D/g, '');
+                const transp = ped.transp_id ? {
+                    nome: ped.transp_razao, endereco: ped.transp_endereco, municipio: ped.transp_cidade, uf: ped.transp_uf, ie: ped.transp_ie,
+                    cnpj: docT.length === 14 ? ped.transp_cnpj : null, cpf: docT.length === 11 ? ped.transp_cnpj : null
+                } : null;
+                validarTransporte({ transportadora: transp, veiculo: { placa: ped.placa_veiculo, uf: ped.veiculo_uf } });
+            } catch (errTransp) {
+                if (errTransp && errTransp.code === 'CADASTRO_FISCAL_INVALIDO') addCheck('bloqueia', esc(errTransp.message), 'transporte',
+                    '<button type="button" class="btn-mini" data-fix-foco="#transp-busca" data-fix-aba="transporte">Corrigir transporte</button>');
+            }
+            if (!(totalGeral > 0)) addCheck('bloqueia', 'Nota sem valor de produtos.', 'itens');
+            // O que impede a emissão vem antes dos avisos.
+            checklist.sort((a, b) => (a.nivel === 'bloqueia' ? 0 : 1) - (b.nivel === 'bloqueia' ? 0 : 1));
+            const nBloqueia = checklist.filter(c => c.nivel === 'bloqueia').length;
+            const checklistHtml = checklist.length
+                ? `<div class="checklist ${nBloqueia ? 'tem-bloqueio' : 'so-atencao'}" id="checklist-emissao">
+                     <div class="checklist-tit"><strong>${checklist.length} ${checklist.length === 1 ? 'pendência' : 'pendências'} antes de emitir</strong>
+                       ${nBloqueia ? `<span>${nBloqueia} impede${nBloqueia === 1 ? '' : 'm'} a emissão ou gera${nBloqueia === 1 ? '' : 'm'} rejeição</span>` : '<span>nenhuma bloqueia a emissão</span>'}</div>
+                     <ul>${checklist.map(c => `<li class="${c.nivel}"><span class="ic">${c.nivel === 'bloqueia' ? '✖' : '!'}</span>
+                       <span class="tx">${c.texto}</span>
+                       <span class="ac">${c.acao || ''}<button type="button" class="btn-link" data-ir-aba="${c.aba}">ir para ${{ dados: 'Dados da NF-e', itens: 'Itens', transporte: 'Transporte', impostos: 'Impostos e Totais' }[c.aba] || c.aba} →</button></span></li>`).join('')}</ul>
+                   </div>`
+                : `<div class="checklist ok" id="checklist-emissao"><strong>✓ Nenhuma pendência encontrada</strong> — confira o espelho e emita.</div>`;
+
+            // Dados que o recálculo client-side precisa. JSON.stringify + escape do "<"
+            // porque a string vive dentro de um <script> gerado no servidor.
+            const dadosJs = JSON.stringify({
+                itens: listaItens.map(it => ({ id: it.id, subtotal: parseFloat(it.subtotal) || 0 })),
+                aliqPisPadrao, aliqCofinsPadrao
+            }).replace(/</g, '\\u003c');
 
             const html = `<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -6075,119 +14221,1853 @@ module.exports = function createVendasRoutes(deps) {
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#1e293b;font-size:13px}
-.header{background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10}
+/* Desde 13/08/2026 o editor abre em janela PRÓPRIA, ocupando quase toda a tela
+   (public/js/editor-nfe-modal.js) — não mais espremido dentro do modal do Faturamento.
+   O limite de 1040px vinha de lá e, na janela cheia, deixaria o conteúdo como uma coluna
+   estreita no meio do branco. 1500px usa o espaço sem esticar campo de formulário até virar
+   uma linha ilegível de ponta a ponta; a aba Itens solta esse limite logo abaixo, porque a
+   grade fiscal de 16 colunas se beneficia de cada pixel. */
+.wrap{max-width:1500px;margin:0 auto;padding:0 22px}
+.header{background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff;padding:13px 0;position:sticky;top:0;z-index:10;box-shadow:0 2px 10px rgba(30,64,175,.18)}
+.header .wrap{display:flex;align-items:center;gap:12px}
 .header h2{font-size:15px;font-weight:700;margin:0}
-.header small{font-size:11px;opacity:0.75}
-.body{padding:16px 20px 80px}
+.header small{font-size:11px;opacity:0.78}
+.body{padding:16px 0 88px}
 .section{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:14px}
-.section h3{font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #f1f5f9}
+.section h3{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #f1f5f9}
+.section h3 .resumo{font-size:11px;font-weight:600;color:#64748b;text-transform:none;letter-spacing:0}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.span2{grid-column:span 2}
 label{display:block;font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px}
-input,select,textarea{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:13px;color:#1e293b;background:#fff;outline:none;transition:border .15s}
+input,select,textarea{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:13px;color:#1e293b;background:#fff;outline:none;transition:border .15s,box-shadow .15s}
 input:focus,select:focus,textarea:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
 textarea{resize:vertical;min-height:70px}
-table{width:100%;border-collapse:collapse}
-th{padding:8px 4px;font-size:11px;font-weight:700;color:#475569;text-align:left;background:#f8fafc;border-bottom:2px solid #e2e8f0}
-tr:hover td{background:#f8fafc}
-.footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;box-shadow:0 -4px 20px rgba(0,0,0,.06)}
+/* table-layout:fixed para as larguras dos <col> valerem de verdade */
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th{padding:8px 8px;font-size:10.5px;font-weight:700;color:#475569;text-align:left;background:#f8fafc;border-bottom:2px solid #e2e8f0;text-transform:uppercase;letter-spacing:.04em}
+td{padding:5px 8px;vertical-align:middle}
+tbody tr:hover td{background:#f8fafc}
+.cell-input{width:100%;padding:6px 8px;font-size:12px;border-radius:6px}
+.mono{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;letter-spacing:.02em}
+.warn{border-color:#f59e0b;background:#fffbeb}
+.warn:focus{border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.18)}
+.c-num{font-size:11px;color:#94a3b8;text-align:center}
+.c-qtd{text-align:right;font-size:12px;color:#334155;font-variant-numeric:tabular-nums}
+.c-val{text-align:right;font-size:12px;color:#334155;font-variant-numeric:tabular-nums}
+.c-tot{text-align:right;font-size:12px;font-weight:600;color:#1e40af;font-variant-numeric:tabular-nums}
+tfoot td{background:#f8fafc;border-top:2px solid #e2e8f0;font-weight:700;padding:9px 8px}
+tfoot .rot{text-align:right;color:#475569;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}
+tfoot .tot{text-align:right;color:#047857;font-size:13px;font-variant-numeric:tabular-nums}
+.aviso{margin-top:10px;padding:9px 12px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:11.5px;line-height:1.5}
+.checklist{margin-bottom:12px;border-radius:10px;padding:12px 14px;font-size:12px;border:1px solid #e5e7eb;background:#fff}
+.checklist.tem-bloqueio{border-color:#fecaca;background:#fef2f2}
+.checklist.so-atencao{border-color:#fde68a;background:#fffbeb}
+.checklist.ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
+.checklist-tit{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px;color:#0f172a}
+.checklist-tit span{color:#64748b;font-size:11.5px}
+.checklist ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+.checklist li{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;background:#fff;border:1px solid #f1f5f9;border-radius:8px;padding:7px 10px}
+.checklist li .ic{font-weight:700;width:16px;flex:0 0 auto}
+.checklist li.bloqueia .ic{color:#dc2626}
+.checklist li.atencao .ic{color:#d97706}
+.checklist li .tx{flex:1 1 320px;color:#1f2937;line-height:1.45}
+.checklist li .ac{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.btn-link{background:none;border:0;color:#1d4ed8;font-weight:600;font-size:11.5px;cursor:pointer;padding:2px 4px}
+.btn-link:hover{text-decoration:underline}
+.vx-resumo{margin-top:8px;font-size:11.5px;color:#334155;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;line-height:1.55}
+.nota{margin-top:10px;padding:9px 12px;border-radius:8px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:11.5px;line-height:1.5}
+.dica{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;background:#cbd5e1;color:#475569;font-size:9px;font-weight:700;cursor:help;margin-left:3px}
+.footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;padding:12px 0;box-shadow:0 -4px 20px rgba(0,0,0,.06);z-index:10}
+.footer .wrap{display:flex;gap:10px;justify-content:flex-end;align-items:center}
+.footer .hint{margin-right:auto;font-size:11px;color:#94a3b8}
 .btn{padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
 .btn-primary{background:#1e40af;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-primary:disabled{opacity:.6;cursor:default}
 .btn-secondary{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}.btn-secondary:hover{background:#e2e8f0}
 .alert{padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:12px;display:none}
 .alert-success{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
 .alert-error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.item-add{margin-bottom:12px;padding:12px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff}
+.item-add[hidden]{display:none}.item-add-grid{display:grid;grid-template-columns:minmax(260px,2fr) 120px 140px auto;gap:10px;align-items:end}
+.item-busca{position:relative}.item-opcoes{position:absolute;z-index:40;left:0;right:0;top:calc(100% + 4px);max-height:260px;overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 12px 28px rgba(15,23,42,.18)}
+.item-opcoes[hidden]{display:none}.item-opcao{display:block;width:100%;border:0;border-bottom:1px solid #f1f5f9;background:#fff;padding:9px 10px;text-align:left;cursor:pointer;color:#1e293b}.item-opcao:hover,.item-opcao:focus{background:#eff6ff;outline:none}.item-opcao small{display:block;color:#64748b;margin-top:2px}
+.item-add-msg{margin-top:8px;font-size:12px;color:#475569}.item-add-msg.erro{color:#b91c1c}.item-add-msg.ok{color:#047857}
+@media(max-width:850px){.item-add-grid{grid-template-columns:1fr 1fr}.item-busca{grid-column:1/-1}}
+/* Abas — a barra acompanha o header fixo no topo */
+.tabbar{background:#fff;border-bottom:1px solid #e2e8f0;position:sticky;top:60px;z-index:9}
+.tabbar .wrap{display:flex;gap:2px}
+.tab{position:relative;appearance:none;background:none;border:none;border-bottom:2px solid transparent;padding:12px 16px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;display:flex;align-items:center;gap:7px;transition:color .15s,border-color .15s;white-space:nowrap}
+.tab:hover{color:#1e40af}
+.tab[aria-selected="true"]{color:#1e40af;border-bottom-color:#1e40af}
+.tab:focus-visible{outline:2px solid #3b82f6;outline-offset:-2px;border-radius:4px}
+.tab .cont{background:#e2e8f0;color:#475569;border-radius:999px;font-size:10.5px;font-weight:700;padding:1px 7px;line-height:1.6}
+.tab[aria-selected="true"] .cont{background:#dbeafe;color:#1e40af}
+.tab .alerta{width:7px;height:7px;border-radius:50%;background:#f59e0b;flex-shrink:0}
+.tab .alerta.oculto{display:none}
+.painel[hidden]{display:none}
+.painel .section{margin-bottom:0}
+/* ===== Combobox de transportadora ===== */
+/* O .section tem overflow visível por padrão, então a lista pode passar da caixa. */
+.combo{position:relative}
+.combo-campo{position:relative}
+.combo-campo input{padding-right:30px}
+.combo-x{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:20px;height:20px;border:none;background:#e2e8f0;color:#475569;border-radius:50%;font-size:13px;line-height:1;cursor:pointer;padding:0;display:none}
+.combo-x:hover{background:#cbd5e1}
+.combo.tem-sel .combo-x{display:block}
+/* Ancorada pela DIREITA: o campo fica na 3ª coluna do grid e é estreito demais
+   para razão social + CNPJ, então a lista precisa crescer para a esquerda —
+   com left:0 ela vazaria para fora do cartão. */
+.combo-lista{position:absolute;z-index:30;right:0;left:auto;min-width:max(100%,340px);top:calc(100% + 4px);background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.14);max-height:270px;overflow-y:auto;padding:4px}
+.combo-lista[hidden]{display:none}
+@media (max-width:860px){.combo-lista{left:0;min-width:0}}
+.combo-op{padding:7px 9px;border-radius:7px;cursor:pointer;display:block}
+.combo-op:hover,.combo-op.ativo{background:#eff6ff}
+.combo-op .l1{font-size:12.5px;color:#1e293b;font-weight:600;line-height:1.3}
+.combo-op .l2{font-size:11px;color:#64748b;margin-top:1px}
+.combo-op mark{background:#fde68a;color:inherit;border-radius:2px;padding:0 1px}
+.combo-novo{border-top:1px solid #f1f5f9;margin-top:4px;padding-top:8px}
+.combo-novo .l1{color:#1e40af}
+.combo-vazio{padding:9px;font-size:11.5px;color:#94a3b8}
+.combo-sel{margin-top:5px;font-size:11px;color:#047857;display:flex;align-items:center;gap:5px}
+.combo-sel[hidden]{display:none}
+.combo-livre{margin-top:5px;font-size:11px;color:#b45309}
+.combo-livre[hidden]{display:none}
+/* Cadastro rápido — fora do <form>, os inputs não têm name para não entrar no patch */
+#painel-nova-transp{margin-top:12px;border:1px solid #bfdbfe;background:#f8fbff;border-radius:10px;padding:14px}
+#painel-nova-transp[hidden]{display:none}
+#painel-nova-transp h4{font-size:11.5px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+#painel-nova-transp .acoes{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+#painel-nova-transp .erro{margin-top:8px;font-size:11.5px;color:#991b1b;display:none}
+.req::after{content:' *';color:#dc2626}
+/* ===== Campos numéricos, somente-leitura e quadros da DANFE ===== */
+input.num{text-align:right;font-variant-numeric:tabular-nums;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace}
+input[readonly],.ro{background:#f8fafc;color:#64748b;cursor:default}
+input[readonly]:focus{border-color:#e2e8f0;box-shadow:none}
+/* Quadro só-leitura no formato dos boxes da DANFE (rótulo miúdo + valor). */
+.quadro{display:grid;gap:1px;background:#e2e8f0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}
+.quadro .cel{background:#fff;padding:7px 10px;min-width:0}
+.quadro .cel .rot{display:block;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#94a3b8;margin-bottom:2px}
+.quadro .cel .val{display:block;font-size:12px;color:#334155;line-height:1.35;word-break:break-word}
+.quadro .cel .val.forte{font-weight:700;color:#1e293b}
+.q4{grid-template-columns:repeat(4,1fr)}
+.q3{grid-template-columns:repeat(3,1fr)}
+.cel-2{grid-column:span 2}
+.cel-3{grid-column:span 3}
+.cel-4{grid-column:span 4}
+/* ===== Mapa de impostos ===== */
+.mapa{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.mapa .campo{min-width:0}
+.mapa .campo.destaque input{border-color:#bbf7d0;background:#f0fdf4;font-weight:700;color:#047857}
+.mapa .campo.calculado input{background:#f8fafc}
+label .un{font-weight:400;color:#94a3b8;text-transform:none}
+.linha-acoes{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.linha-acoes .cresce{margin-right:auto;font-size:11.5px;color:#64748b;line-height:1.45}
+.btn-mini{padding:7px 13px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af}
+.btn-mini:hover{background:#dbeafe}
+.btn-mini.ativo{background:#1e40af;color:#fff;border-color:#1e40af}
+.st-modo{margin-top:6px}
+.c-cod{font-size:11px;color:#64748b}
+.c-calc{text-align:right;font-size:12px;color:#64748b;font-variant-numeric:tabular-nums;background:#f8fafc}
+.c-vazio{text-align:center;color:#94a3b8;font-size:11.5px;padding:12px}
+.conferencia{margin-top:12px;padding:10px 13px;border-radius:9px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;font-size:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.conferencia .val{font-weight:700;font-variant-numeric:tabular-nums}
+.conferencia.divergente{background:#fffbeb;border-color:#fde68a;color:#92400e}
+/* A grade de itens tem as 14 colunas da DANFE + ICMS ST. Espremidas em 1040px sobrariam
+   ~4 caracteres por campo, e rolagem horizontal numa tabela de conferência fiscal esconde
+   justamente as colunas de imposto. Na aba de itens o conteúdo usa a largura toda do
+   iframe (header e abas junto, para não desalinhar); nas outras abas o limite de leitura
+   continua valendo. */
+.tabela-itens{min-width:1180px}
+body[data-aba="painel-itens"] .wrap{max-width:none}
+@media (max-width:1100px){ .mapa{grid-template-columns:repeat(3,1fr)} }
+@media (max-width:860px){
+  .grid2,.grid3{grid-template-columns:1fr}
+  .span2{grid-column:span 1}
+  .mapa{grid-template-columns:repeat(2,1fr)}
+  .quadro.q4,.quadro.q3{grid-template-columns:repeat(2,1fr)}
+  .cel-2,.cel-3,.cel-4{grid-column:span 2}
+  table{table-layout:auto;min-width:720px}
+  .tabela-scroll{overflow-x:auto}
+  .tabbar .wrap{overflow-x:auto}
+  .tab{padding:12px 11px;font-size:12px}
+}
+.tabela-scroll{overflow-x:auto}
 </style></head><body>
 <div class="header">
-  <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;">
-    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+  <div class="wrap">
+    <div style="width:34px;height:34px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </div>
+    <div>
+      <h2>Editar NF-e — Pedido #${pedidoId}${fatorFat < 1 ? ' — F9 (' + fmtQtd(pctFat) + '%)' : ''}</h2>
+      <small>Ajuste as informações fiscais antes de enviar ao SEFAZ</small>
+    </div>
   </div>
-  <div>
-    <h2>Editar NF-e — Pedido #${pedidoId}</h2>
-    <small>Ajuste as informações fiscais antes de enviar ao SEFAZ</small>
+</div>
+<div class="tabbar">
+  <div class="wrap" role="tablist" aria-label="Seções da NF-e">
+    <button type="button" class="tab" id="tab-dados" role="tab" aria-selected="true" aria-controls="painel-dados" data-painel="painel-dados">
+      Dados da NF-e
+    </button>
+    <button type="button" class="tab" id="tab-itens" role="tab" aria-selected="false" aria-controls="painel-itens" data-painel="painel-itens" tabindex="-1">
+      Itens
+      <span class="cont">${listaItens.length}</span>
+      <span class="alerta${(semNcm || semCfop) ? '' : ' oculto'}" id="tab-itens-alerta" title="Há itens sem NCM ou CFOP"></span>
+    </button>
+    <button type="button" class="tab" id="tab-transporte" role="tab" aria-selected="false" aria-controls="painel-transporte" data-painel="painel-transporte" tabindex="-1">
+      Transporte e Volumes
+    </button>
+    <button type="button" class="tab" id="tab-impostos" role="tab" aria-selected="false" aria-controls="painel-impostos" data-painel="painel-impostos" tabindex="-1">
+      Impostos e Totais
+    </button>
+    <button type="button" class="tab" id="tab-adicionais" role="tab" aria-selected="false" aria-controls="painel-adicionais" data-painel="painel-adicionais" tabindex="-1">
+      Informações Adicionais
+    </button>
   </div>
 </div>
 <div class="body">
-  <div id="msg-success" class="alert alert-success">✓ Dados salvos! O espelho será atualizado.</div>
-  <div id="msg-error" class="alert alert-error">Erro ao salvar. Tente novamente.</div>
+  <div class="wrap">
+    <div id="msg-success" class="alert alert-success" role="status" aria-live="polite">Dados salvos. Espelho atualizado.</div>
+    <div id="msg-error" class="alert alert-error" role="alert" aria-live="assertive">Não foi possível salvar. Tente novamente.</div>
 
-  <form id="form-nfe-edit">
-    <input type="hidden" name="pedido_id" value="${pedidoId}" />
+    <!-- Os painéis inativos ficam com [hidden] (display:none), nunca com disabled —
+         campo desabilitado sai do FormData e o patch perderia o valor. -->
+    <form id="form-nfe-edit">
+      <input type="hidden" name="pedido_id" value="${pedidoId}" />
 
-    <div class="section">
-      <h3>Dados da NF-e</h3>
-      <div class="grid2">
-        <div>
-          <label>Natureza da Operação</label>
-          <input name="natureza_operacao" value="${esc(ped.natureza_operacao||'Venda de Mercadoria')}" placeholder="Venda de Mercadoria" />
+      <div class="painel" id="painel-dados" role="tabpanel" aria-labelledby="tab-dados">
+        ${checklistHtml}
+        <div class="checklist validacao-xml" id="validacao-xml" aria-live="polite">
+          <div class="checklist-tit"><strong>Prévia do XML (validação SEFAZ)</strong>
+            <span id="vx-status">gerando o XML desta nota e validando no schema oficial…</span>
+            <button type="button" class="btn-link" id="vx-sefaz" title="Consulta a situação cadastral (IE) de emitente, destinatário e transportadora na SEFAZ">Consultar cadastro na SEFAZ</button>
+            <button type="button" class="btn-link" id="vx-refazer">Validar de novo</button>
+          </div>
+          <div id="vx-corpo"></div>
         </div>
-        <div>
-          <label>Tipo de Frete</label>
-          <select name="tipo_frete">
-            <option value="CIF" ${(ped.tipo_frete||'')=='CIF'?'selected':''}>CIF — Por conta do Emitente</option>
-            <option value="FOB" ${(ped.tipo_frete||'')=='FOB'?'selected':''}>FOB — Por conta do Destinatário</option>
-            <option value="3" ${(ped.tipo_frete||'')=='3'?'selected':''}>3 — Por conta de Terceiros</option>
-            <option value="9" ${(ped.tipo_frete||'')=='9'?'selected':''}>9 — Sem Frete</option>
-          </select>
+        <div class="section">
+          <h3>Identificação da NF-e <span class="resumo">Modelo 55</span></h3>
+          <div class="grid3">
+            <div class="span2">
+              <label>Natureza da Operação</label>
+              <input name="natureza_operacao" value="${esc(ped.natureza_operacao||'Venda de Mercadoria')}" placeholder="Venda de Mercadoria" />
+            </div>
+            <div>
+              <label>Tipo de Operação</label>
+              <input value="1 — Saída" readonly />
+            </div>
+            <!-- Cenário fiscal: o faturamento é BLOQUEADO sem ele (CV-005). Aparece aqui, junto
+                 da natureza da operação, porque é a mesma decisão — que tributação esta nota
+                 segue — e é a última tela antes do envio ao SEFAZ. -->
+            <div class="span2">
+              <label>Cenário Fiscal ${cenarioGravadoId ? '' : '<span style="color:#dc2626">*</span>'}</label>
+              <select name="cenario_fiscal_id"${cenariosFiscais.length ? '' : ' disabled'}>
+                ${cenariosFiscais.length
+                    ? '<option value="">Selecione o cenário fiscal...</option>' + cenariosFiscais.map(c =>
+                        `<option value="${c.id}" ${String(c.id) === String(cenarioSelecionadoId) ? 'selected' : ''}>${esc(c.nome || c.codigo)}</option>`).join('')
+                    : '<option value="">Nenhum cenário fiscal cadastrado</option>'}
+              </select>
+            </div>
+          </div>
+          ${cenarioGravadoId
+            ? ''
+            : `<p class="aviso" id="aviso-cenario" style="margin-top:10px">${sugestaoCenario
+                ? `<strong>Cenário sugerido, ainda não salvo.</strong> O pedido não tem cenário fiscal gravado;
+                   o campo acima já vem com <strong>${esc(sugestaoCenario.nome)}</strong> (pelo destino da venda).
+                   Confira e clique em <strong>Salvar e Atualizar Espelho</strong> para aplicar — sem salvar, o faturamento é recusado.`
+                : `<strong>Sem cenário fiscal.</strong> Escolha o cenário acima e salve — o faturamento é recusado
+                   enquanto o pedido não tiver um cenário, porque ele define a tributação da nota.`}</p>`}
+          <div class="aviso" style="margin-top:10px;border-color:#93c5fd;background:#eff6ff;color:#1e3a8a">
+            <input type="hidden" name="uso_consumo" value="0" />
+            <label for="uso_consumo" style="display:flex;align-items:flex-start;gap:9px;cursor:pointer;margin:0">
+              <input type="checkbox" name="uso_consumo" id="uso_consumo" value="1"
+                     ${String(ped.tipo_venda || '').toLowerCase() === 'uso_consumo' ? 'checked' : ''}
+                     style="width:18px;height:18px;margin-top:1px;flex:0 0 auto" />
+              <span><strong>Mercadoria para uso e consumo (DIFAL-ST)</strong><br />
+                Marque somente quando o destinatário for consumidor final contribuinte e a mercadoria estiver
+                sujeita à substituição tributária no destino. O sistema mantém <strong>indFinal=1</strong> e permite
+                calcular ST com a base, MVA, alíquota interna, CEST e CFOP configurados no item/cenário.
+              </span>
+            </label>
+          </div>
+          <!-- Número e série continuam só leitura: saem da numeração sequencial atômica no
+               momento da emissão, e escolher um aqui daria um documento diferente do que
+               será transmitido. As DATAS, não: a DANFE tem célula própria para emissão,
+               saída e hora da saída, e a mercadoria costuma sair em dia diferente. -->
+          <div class="quadro q4" style="margin-top:12px">
+            <div class="cel cel-2"><span class="rot">Número da NF-e</span><span class="val forte">${esc(numeroNF)}</span></div>
+            <div class="cel cel-2"><span class="rot">Série</span><span class="val">${esc(serieNF)}</span></div>
+          </div>
+          <div class="grid3" style="margin-top:10px">
+            <div>
+              <label for="nfe_data_emissao">Data de emissão</label>
+              <input type="date" name="nfe_data_emissao" id="nfe_data_emissao" value="${esc(dataEmissaoIso)}" />
+            </div>
+            <div>
+              <label for="nfe_data_saida">Data de saída / entrada</label>
+              <input type="date" name="nfe_data_saida" id="nfe_data_saida" value="${esc(dataSaidaIso)}" />
+            </div>
+            <div>
+              <label for="nfe_hora_saida">Hora da saída</label>
+              <input type="time" name="nfe_hora_saida" id="nfe_hora_saida" value="${esc(horaSaidaHm)}" />
+            </div>
+          </div>
+          <p class="nota">A <strong>emissão</strong> inicia com a data de hoje e pode ser alterada antes de salvar.
+             Em branco, ela usa a data e a hora do envio à SEFAZ; a <strong>saída</strong> acompanha a emissão.
+             Esta nota mostraria emissão em <strong>${esc(dataEmissao || '—')}</strong> e saída em
+             <strong>${esc(dataSaida || '—')}</strong>.
+             A SEFAZ recusa emissão <strong>no futuro</strong> (rejeição 703) ou com mais de
+             <strong>30 dias</strong> (rejeição 228), e saída <strong>anterior à emissão</strong>
+             (rejeição 506): uma data fora dessas regras é ignorada na hora de emitir e a nota sai com a
+             data do envio. Em nota já autorizada quem manda é o XML transmitido.</p>
         </div>
-        <div>
-          <label>Transportadora</label>
-          <input name="transportadora_nome" value="${esc(ped.transportadora_nome)}" placeholder="Nome da transportadora" />
+
+        <div class="section">
+          <h3>Emitente <span class="resumo">Cadastro da empresa</span></h3>
+          <div class="quadro q4">
+            <div class="cel cel-2"><span class="rot">Nome / Razão Social</span><span class="val forte">${esc(cfgEmpresa.razao_social || empCfg.razao_social)}</span></div>
+            <div class="cel"><span class="rot">CNPJ</span><span class="val">${esc(cfgEmpresa.cnpj || empCfg.cnpj)}</span></div>
+            <div class="cel"><span class="rot">Inscrição Estadual</span><span class="val">${esc(cfgEmpresa.inscricao_estadual || empCfg.inscricao_estadual)}</span></div>
+            <div class="cel cel-2"><span class="rot">Endereço</span><span class="val">${esc(enderecoEmitente || '—')}</span></div>
+            <div class="cel"><span class="rot">Inscrição Municipal</span><span class="val">${esc(cfgEmpresa.inscricao_municipal || empCfg.inscricao_municipal || 'não possui')}</span></div>
+            <div class="cel"><span class="rot">Código de Regime Tributário</span><span class="val">${esc(empCfg.crt || (simplesNacional ? 1 : 3))}${simplesNacional ? ' — Simples Nacional' : ' — Regime Normal'}</span></div>
+          </div>
         </div>
-        <div>
-          <label>Destinatário (Cliente)</label>
-          <input value="${esc(ped.cli_razao||ped.cli_nome||ped.cliente_nome)}" readonly style="background:#f8fafc;color:#64748b" />
+
+        <div class="section">
+          <h3>Destinatário / Remetente <span class="resumo">Cadastro do cliente</span></h3>
+          <!-- Editavel desde 09/09/2026. Grava na FICHA DO CLIENTE (tabela clientes), que e de
+               onde o espelho, a DANFE e o XML leem o destinatario, entao a alteracao vale para
+               as proximas notas desse cliente, nao so para este pedido.
+               ATENCAO: nada de CRASE neste comentario. Ele vive dentro de um template literal
+               do Node e uma crase fecharia a string, quebrando o arquivo inteiro. -->
+          <div class="grid3">
+            <div class="span2">
+              <label for="dest_razao_social">Nome / Razão Social</label>
+              <input name="dest_razao_social" id="dest_razao_social" maxlength="60"
+                     value="${esc(ped.cli_razao||ped.cli_nome||ped.cliente_nome||'')}"
+                     placeholder="Razão social como consta no CNPJ" />
+            </div>
+            <div>
+              <label for="dest_cnpj_cpf">CNPJ / CPF</label>
+              <input name="dest_cnpj_cpf" id="dest_cnpj_cpf" inputmode="numeric" maxlength="18"
+                     value="${esc(ped.cli_cnpj || ped.cli_cpf || '')}" placeholder="00.000.000/0000-00" />
+            </div>
+            <div>
+              <label for="dest_ie">Inscrição Estadual</label>
+              <input name="dest_ie" id="dest_ie" maxlength="20"
+                     value="${esc(ped.cli_ie || '')}" placeholder="ISENTO quando não contribuinte" />
+            </div>
+            <div>
+              <label for="dest_ind_ie">Indicador de IE</label>
+              <select name="dest_ind_ie" id="dest_ind_ie">
+                ${[['1', '1 — Contribuinte'], ['2', '2 — Isento'], ['9', '9 — Não contribuinte']].map(function (o) {
+        const atual = String(stateRegistrationIndicator(ped.cli_ie, ped.cli_contribuinte_icms == null ? null : !!ped.cli_contribuinte_icms) || '').trim().charAt(0);
+        return `<option value="${o[0]}"${atual === o[0] ? ' selected' : ''}>${esc(o[1])}</option>`;
+    }).join('')}
+              </select>
+            </div>
+            <div class="span2">
+              <label for="dest_endereco">Endereço</label>
+              <input name="dest_endereco" id="dest_endereco" maxlength="120"
+                     value="${esc(ped.cli_endereco || '')}" placeholder="Rua, número e complemento" />
+            </div>
+            <div>
+              <label for="dest_bairro">Bairro</label>
+              <input name="dest_bairro" id="dest_bairro" maxlength="60" value="${esc(ped.cli_bairro || '')}" />
+            </div>
+            <div>
+              <label for="dest_cidade">Município</label>
+              <input name="dest_cidade" id="dest_cidade" maxlength="60" value="${esc(ped.cli_cidade || '')}" />
+            </div>
+            <div>
+              <label for="dest_uf">UF</label>
+              <input name="dest_uf" id="dest_uf" maxlength="2" value="${esc(ped.cli_uf || '')}" placeholder="SP" />
+            </div>
+            <div>
+              <label for="dest_cep">CEP</label>
+              <input name="dest_cep" id="dest_cep" maxlength="9" inputmode="numeric"
+                     value="${esc(ped.cli_cep || '')}" placeholder="00000-000" />
+            </div>
+            <div>
+              <label for="dest_telefone">Fone / Fax</label>
+              <input name="dest_telefone" id="dest_telefone" maxlength="20" value="${esc(ped.cli_telefone || '')}" />
+            </div>
+            <div class="span2">
+              <label for="dest_email">E-mail</label>
+              <input name="dest_email" id="dest_email" type="email" maxlength="120"
+                     value="${esc(ped.cli_email || ped.email_cliente || '')}" />
+            </div>
+          </div>
+          <p class="nota">Estes campos gravam na <strong>ficha do cliente</strong> e passam a valer para as
+             próximas notas dele. O <strong>emitente</strong> continua vindo das Configurações da Empresa.
+             Indicador <strong>2 — Isento</strong> grava a IE como o texto exato <code>ISENTO</code>, que é o
+             que a SEFAZ exige para esse código.</p>
+        </div>
+
+        <div class="section">
+          <h3>Informações do local de entrega <span class="resumo">Opcional — só sai na DANFE se preenchido</span></h3>
+          <div class="grid3">
+            <div class="span2 combo-wrap" style="position:relative">
+              <label for="entrega_nome">Nome / Razão Social</label>
+              <input name="entrega_nome" id="entrega_nome" maxlength="120" value="${esc(ped.entrega_nome || '')}"
+                     placeholder="Digite para buscar em clientes, transportadoras e fornecedores, ou escreva livremente"
+                     autocomplete="off" spellcheck="false" role="combobox"
+                     aria-expanded="false" aria-autocomplete="list" aria-controls="entrega-lista" />
+              <div class="combo-lista" id="entrega-lista" role="listbox" hidden></div>
+            </div>
+            <div class="combo-wrap" style="position:relative">
+              <label for="entrega_cnpj_cpf">CNPJ / CPF</label>
+              <input name="entrega_cnpj_cpf" id="entrega_cnpj_cpf" maxlength="20" inputmode="numeric"
+                     value="${esc(ped.entrega_cnpj_cpf || '')}" autocomplete="off" role="combobox"
+                     aria-expanded="false" aria-autocomplete="list" aria-controls="entrega-doc-lista" />
+              <div class="combo-lista" id="entrega-doc-lista" role="listbox" hidden></div>
+            </div>
+            <div>
+              <label for="entrega_ie">Inscrição Estadual</label>
+              <input name="entrega_ie" id="entrega_ie" maxlength="20" value="${esc(ped.entrega_ie || '')}" />
+            </div>
+            <div class="span2">
+              <label for="entrega_endereco">Endereço</label>
+              <input name="entrega_endereco" id="entrega_endereco" maxlength="160" value="${esc(ped.entrega_endereco || '')}"
+                     placeholder="Rua, numero e complemento do local de entrega" />
+            </div>
+            <div>
+              <label for="entrega_bairro">Bairro / Distrito</label>
+              <input name="entrega_bairro" id="entrega_bairro" maxlength="60" value="${esc(ped.entrega_bairro || '')}" />
+            </div>
+            <div>
+              <label for="entrega_cep">CEP</label>
+              <input name="entrega_cep" id="entrega_cep" maxlength="9" inputmode="numeric" placeholder="00000-000" value="${esc(ped.entrega_cep || '')}" />
+            </div>
+            <div>
+              <label for="entrega_municipio">Município</label>
+              <input name="entrega_municipio" id="entrega_municipio" maxlength="60" value="${esc(ped.entrega_municipio || '')}" />
+            </div>
+            <div>
+              <label for="entrega_uf">UF</label>
+              <input name="entrega_uf" id="entrega_uf" maxlength="2" placeholder="PE" value="${esc(ped.entrega_uf || '')}" />
+            </div>
+            <div>
+              <label for="entrega_fone">Fone / Fax</label>
+              <input name="entrega_fone" id="entrega_fone" maxlength="20" value="${esc(ped.entrega_fone || '')}" />
+            </div>
+          </div>
+          <p class="nota">Preencha só quando a mercadoria for entregue em endereço diferente do destinatario.
+             Deixando tudo em branco, o quadro <strong>nao aparece</strong> na DANFE.</p>
+        </div>
+
+        <div class="section">
+          <h3>Conta a receber <span class="resumo">Quando o título passa a valer</span></h3>
+          <div class="grid3">
+            <div>
+              <label for="previsao_faturamento">Previsão de faturamento <span class="dica" title="Data-base dos vencimentos: cada parcela vence nessa data mais o prazo da condição de pagamento">?</span></label>
+              <input type="date" name="previsao_faturamento" id="previsao_faturamento"
+                     value="${esc(previsaoIso)}" />
+            </div>
+            <div>
+              <label for="cr_gerar_em">Gerar conta a receber a partir de</label>
+              <input type="date" name="cr_gerar_em" id="cr_gerar_em"
+                     value="${esc(ped.cr_gerar_em ? String(ped.cr_gerar_em).slice(0, 10) : '')}" />
+            </div>
+            <div>
+              <label>Condição de pagamento</label>
+              <input value="${esc(ped.condicao_pagamento || 'à vista')}" readonly disabled />
+            </div>
+          </div>
+          <p class="nota"><strong>Previsão de faturamento</strong> é de onde saem os vencimentos das parcelas:
+             o prazo combinado conta da nota que vai sair, não do dia em que o título é gerado. Em branco,
+             o vencimento volta a contar de hoje. As parcelas ficam na aba
+             <strong>Impostos e Totais → Fatura / Duplicatas</strong>, uma a uma, e podem ser ajustadas lá.</p>
+          <p class="nota"><strong>Gerar conta a receber a partir de</strong> em branco: o título nasce no faturamento com a data de hoje, como sempre.
+             Com data preenchida, o título nasce com <strong>competencia nessa data</strong> — ou seja,
+             só entra nos relatorios e no fluxo de caixa a partir dela. E se a data chegar e o pedido
+             ainda nao tiver sido faturado, o titulo e criado assim mesmo.</p>
         </div>
       </div>
-    </div>
 
-    <div class="section">
-      <h3>Itens da NF-e</h3>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr>
-            <th style="width:30px">#</th>
-            <th>Descrição</th>
-            <th>NCM</th>
-            <th>CFOP</th>
-            <th style="text-align:right">Qtd</th>
-            <th style="text-align:right">V.Unit</th>
-            <th style="text-align:right">Total</th>
-          </tr></thead>
-          <tbody>${itensRows}</tbody>
-        </table>
+      <div class="painel" id="painel-itens" role="tabpanel" aria-labelledby="tab-itens" hidden>
+        <div class="section">
+          <h3>Dados dos produtos / serviços <span class="resumo">As colunas do quadro de itens da DANFE &nbsp; <button type="button" class="btn btn-primary" id="btn-item-novo" style="padding:6px 11px;font-size:11px;text-transform:none">+ Adicionar produto</button></span></h3>
+          <div class="item-add" id="item-add" hidden>
+            <div class="item-add-grid">
+              <div class="item-busca">
+                <label for="item-add-produto">Produto cadastrado</label>
+                <input id="item-add-produto" autocomplete="off" placeholder="Digite código, descrição ou EAN" aria-autocomplete="list" aria-controls="item-add-opcoes" />
+                <div class="item-opcoes" id="item-add-opcoes" role="listbox" hidden></div>
+              </div>
+              <div><label for="item-add-qtd">Quantidade</label><input id="item-add-qtd" inputmode="decimal" value="1" /></div>
+              <div><label for="item-add-preco">Valor unitário</label><input id="item-add-preco" inputmode="decimal" placeholder="0,00" /></div>
+              <div style="display:flex;gap:7px"><button type="button" class="btn btn-primary" id="item-add-confirmar" disabled>Adicionar</button><button type="button" class="btn btn-secondary" id="item-add-cancelar">Cancelar</button></div>
+            </div>
+            <div class="item-add-msg" id="item-add-msg">Selecione um produto do cadastro. O item será gravado no pedido e recalculado antes de atualizar o espelho.</div>
+          </div>
+          <div class="tabela-scroll">
+            <table class="tabela-itens">
+              <colgroup>
+                <col style="width:30px"><col style="width:74px"><col style="width:200px">
+                <col style="width:92px"><col style="width:58px"><col style="width:58px"><col style="width:64px"><col style="width:52px">
+                <col style="width:78px"><col style="width:88px"><col style="width:92px">
+                <col style="width:88px"><col style="width:82px"><col style="width:66px">
+                <col style="width:82px"><col style="width:66px"><col style="width:82px">
+              </colgroup>
+              <thead><tr>
+                <th style="text-align:center">#</th>
+                <th>Cód.</th>
+                <th>Descrição do produto / serviço</th>
+                <th title="Gravado no cadastro do produto — vale para as próximas notas dessa mercadoria">NCM/SH <span class="dica">?</span></th>
+                <th title="Origem fiscal da mercadoria (0 a 8). Gravada no cadastro do produto.">Orig. <span class="dica">?</span></th>
+                <th title="CST (2 dígitos) no regime normal, CSOSN (3 dígitos) no Simples. Também é gravado no cadastro do produto.">CST <span class="dica">?</span></th>
+                <th>CFOP</th>
+                <th>UN</th>
+                <th style="text-align:right">Qtde.</th>
+                <th style="text-align:right">Vlr. unit.</th>
+                <th style="text-align:right">Vlr. total</th>
+                <th style="text-align:right" title="Calculado a partir do valor e da alíquota de ICMS">BC ICMS</th>
+                <th style="text-align:right">Vlr. ICMS</th>
+                <th style="text-align:right">Alíq. ICMS</th>
+                <th style="text-align:right">Vlr. IPI</th>
+                <th style="text-align:right">Alíq. IPI</th>
+                <th style="text-align:right" title="Entra no total de ICMS ST do quadro de impostos">Vlr. ICMS ST</th>
+              </tr></thead>
+              <tbody>${itensRows}</tbody>
+              <tfoot><tr>
+                <td colspan="8" class="rot">Total geral</td>
+                <td class="rot" style="text-align:right">${fmtQtd(totalQtd)}</td>
+                <td></td>
+                <td class="tot">${fmtDin(totalGeral)}</td>
+                <td colspan="6"></td>
+              </tr></tfoot>
+            </table>
+          </div>
+          ${avisoMeiaNota}
+          ${avisoFiscal}
+          ${notaCfop}
+          <p class="nota">Quantidade e valor unitário vêm dos itens do pedido — para alterá-los, edite o pedido.
+             NCM, origem e CST são gravados no <strong>cadastro do produto</strong> e valem para as próximas notas;
+             o resto vale só para esta nota.</p>
+        </div>
       </div>
-    </div>
 
-    <div class="section">
-      <h3>Informações Adicionais</h3>
-      <label>Informações Complementares (campo 61 da NF-e)</label>
-      <textarea name="campos_obs_nfe" rows="4" placeholder="Observações que constarão na NF-e...">${esc(ped.campos_obs_nfe)}</textarea>
-    </div>
-  </form>
+      <div class="painel" id="painel-transporte" role="tabpanel" aria-labelledby="tab-transporte" hidden>
+        <div class="section">
+          <h3>Transportador <span class="resumo">Quadro "Transportador / Volumes transportados"</span></h3>
+          <div class="grid3">
+            <div class="combo${ped.transp_id ? ' tem-sel' : ''}" id="combo-transp">
+              <label for="transp-busca">Transportadora</label>
+              <div class="combo-campo">
+                <input id="transp-busca" name="transportadora_nome" value="${esc(transpNome)}"
+                       placeholder="Digite o nome ou CNPJ..." autocomplete="off" spellcheck="false"
+                       role="combobox" aria-expanded="false" aria-autocomplete="list"
+                       aria-controls="transp-lista" />
+                <button type="button" class="combo-x" id="transp-x" title="Limpar transportadora" aria-label="Limpar transportadora">&times;</button>
+              </div>
+              <input type="hidden" name="transportadora_id" id="transp-id" value="${ped.transp_id || ''}" />
+              <div class="combo-lista" id="transp-lista" role="listbox" aria-label="Transportadoras" hidden></div>
+              <p class="combo-sel" id="transp-sel" ${ped.transp_id ? '' : 'hidden'}>✓ <span id="transp-sel-txt">${esc(transpDetalhe || 'Vinculada ao cadastro')}</span></p>
+              <p class="combo-livre" id="transp-livre" hidden>Nome digitado sem vínculo — a NF-e sairá sem CNPJ/IE do transportador.</p>
+              <button type="button" class="btn btn-secondary" id="transp-atualizar-fiscal">Atualizar SEFAZ/IBGE</button>
+              <p id="transp-fiscal-feedback" role="status" aria-live="polite"></p>
+            </div>
+            <div>
+              <label>Frete por conta</label>
+              <select name="tipo_frete">
+                <option value="0" ${['0','CIF'].includes(String(ped.tipo_frete||''))?'selected':''}>0 — Contratação por conta do Remetente (CIF)</option>
+                <option value="1" ${['1','FOB'].includes(String(ped.tipo_frete||''))?'selected':''}>1 — Contratação por conta do Destinatário (FOB)</option>
+                <option value="2" ${String(ped.tipo_frete||'')=='2'?'selected':''}>2 — Contratação por conta de Terceiros</option>
+                <option value="3" ${String(ped.tipo_frete||'')=='3'?'selected':''}>3 — Transporte Próprio por conta do Remetente</option>
+              <option value="4" ${String(ped.tipo_frete||'')=='4'?'selected':''}>4 — Transporte Próprio por conta do Destinatário</option>
+              <option value="5" ${String(ped.tipo_frete||'')=='5'?'selected':''}>5 — Redespacho</option>
+              <option value="9" ${String(ped.tipo_frete||'')=='9'?'selected':''}>9 — Sem Ocorrência de Transporte</option>
+              </select>
+            </div>
+            <div>
+              <label>Código ANTT / RNTRC</label>
+              <input name="rntrc" value="${esc(ped.rntrc)}" placeholder="Registro na ANTT" maxlength="20" />
+            </div>
+            <div>
+              <label>Placa do Veículo</label>
+              <input name="placa_veiculo" value="${esc(ped.placa_veiculo)}" placeholder="ABC1D23" maxlength="10" style="text-transform:uppercase" />
+            </div>
+            <div>
+              <label>UF do Veículo</label>
+              <input name="veiculo_uf" value="${esc(ped.veiculo_uf)}" placeholder="SP" maxlength="2" style="text-transform:uppercase" />
+            </div>
+          </div>
+          <!-- Espelha a regra do XML: veicTransp exige placa E UF; com só uma delas o
+               bloco inteiro é omitido, porque rejeição é pior que nota sem placa. -->
+          <p class="nota">Placa e UF do veículo andam juntas: informe as duas ou nenhuma — com só uma delas o
+             bloco do veículo é omitido do XML de propósito, para não arriscar rejeição na SEFAZ.</p>
+          <div class="quadro q4" style="margin-top:12px">
+            <div class="cel cel-2"><span class="rot">CNPJ / CPF do transportador</span><span class="val">${esc(ped.transp_cnpj || '—')}</span></div>
+            <div class="cel"><span class="rot">Inscrição Estadual</span><span class="val">${esc(ped.transp_ie || '—')}</span></div>
+            <div class="cel"><span class="rot">Município / UF</span><span class="val">${esc([ped.transp_cidade, ped.transp_uf].filter(Boolean).join(' / ') || '—')}</span></div>
+            <div class="cel cel-4"><span class="rot">Endereço</span><span class="val">${esc(ped.transp_endereco || '—')}</span></div>
+          </div>
+        </div>
+
+        <!-- Cadastro rápido. Os inputs daqui NÃO têm atributo name de propósito:
+             estão dentro do form da NF-e, e sem name o FormData os ignora — nada
+             deste bloco vaza para o /espelho-nfe-patch. -->
+        <div id="painel-nova-transp" hidden>
+          <h4>Cadastrar nova transportadora</h4>
+          <div class="grid3">
+            <div class="span2"><label class="req" for="nt-razao">Razão Social</label><input id="nt-razao" placeholder="Razão social como consta no CNPJ" /></div>
+            <div><label for="nt-fantasia">Nome Fantasia</label><input id="nt-fantasia" placeholder="Como é conhecida" /></div>
+            <div><label for="nt-cnpj">CNPJ / CPF</label><input id="nt-cnpj" placeholder="00.000.000/0000-00" inputmode="numeric" /></div>
+            <div><label for="nt-ie">Inscrição Estadual</label><input id="nt-ie" placeholder="Inscrição confirmada na SEFAZ" /></div>
+            <div><label for="nt-contato">Contato</label><input id="nt-contato" placeholder="Pessoa de contato" /></div>
+            <div class="span2"><label for="nt-endereco">Endereço</label><input id="nt-endereco" placeholder="Rua, número" /></div>
+            <div><label for="nt-bairro">Bairro</label><input id="nt-bairro" /></div>
+            <div><label for="nt-numero">Número</label><input id="nt-numero" /></div>
+            <div><label for="nt-complemento">Complemento</label><input id="nt-complemento" /></div>
+            <div><label for="nt-ibge">Código IBGE</label><input id="nt-ibge" maxlength="7" /></div>
+            <div><label for="nt-cidade">Município</label><input id="nt-cidade" /></div>
+            <div><label for="nt-uf">UF</label><input id="nt-uf" maxlength="2" placeholder="SP" /></div>
+            <div><label for="nt-cep">CEP</label><input id="nt-cep" placeholder="00000-000" inputmode="numeric" /></div>
+            <div><label for="nt-telefone">Telefone</label><input id="nt-telefone" /></div>
+            <div class="span2"><label for="nt-email">E-mail</label><input id="nt-email" type="email" /></div>
+          </div>
+          <p class="erro" id="nt-erro"></p>
+          <div class="acoes">
+            <button type="button" class="btn btn-secondary" id="nt-cancelar">Cancelar</button>
+            <button type="button" class="btn btn-secondary" id="nt-consultar-fiscal">Consultar SEFAZ/IBGE</button>
+            <button type="button" class="btn btn-primary" id="nt-salvar">Cadastrar e vincular</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3>Volumes transportados <span class="resumo">Bloco &lt;vol&gt; do XML</span></h3>
+          <div class="grid3">
+            <div>
+              <label>Quantidade de volumes</label>
+              <input name="qtd_volumes" value="${ped.qtd_volumes != null && parseFloat(ped.qtd_volumes) ? esc(parseInt(ped.qtd_volumes, 10)) : ''}"
+                     data-num inputmode="numeric" placeholder="0" class="num" />
+            </div>
+            <div>
+              <label>Espécie</label>
+              <input name="especie_volumes" value="${esc(ped.especie_volumes)}" placeholder="CAIXA, PALLET, ROLO..." maxlength="60" />
+            </div>
+            <div>
+              <label>Marca</label>
+              <input name="marca_volumes" value="${esc(ped.marca_volumes)}" placeholder="Marca dos volumes" maxlength="60" />
+            </div>
+            <div>
+              <label>Numeração</label>
+              <input name="numeracao_volumes" value="${esc(ped.numeracao_volumes)}" placeholder="1/3, 2/3, 3/3..." maxlength="60" />
+            </div>
+            <div>
+              <label>Peso bruto <span class="un">(kg)</span></label>
+              <input name="peso_bruto" value="${fmtInput(ped.peso_bruto, 3)}" data-num inputmode="decimal" placeholder="0,000" class="num" />
+            </div>
+            <div>
+              <label>Peso líquido <span class="un">(kg)</span></label>
+              <input name="peso_liquido" value="${fmtInput(ped.peso_liquido, 3)}" data-num inputmode="decimal" placeholder="0,000" class="num" />
+            </div>
+          </div>
+          <p class="nota">O bloco de volumes só entra no XML se ao menos um destes campos estiver preenchido.
+             Deixe tudo em branco quando não houver transporte de mercadoria.</p>
+        </div>
+      </div>
+
+      <div class="painel" id="painel-impostos" role="tabpanel" aria-labelledby="tab-impostos" hidden>
+        <div class="section">
+          <h3>Cálculo do imposto <span class="resumo">Quadro central da DANFE</span></h3>
+          <div class="linha-acoes">
+            <span class="cresce">Cada campo abre com o valor que o espelho imprimiria hoje. O que você gravar aqui
+              passa a valer sobre o cálculo automático; <strong>em branco</strong> volta a calcular pelos itens e
+              <strong>0,00</strong> declara isenção — e é 0,00 que sai impresso na nota.</span>
+            <button type="button" class="btn-mini" id="btn-recalcular">↻ Recalcular pelos itens</button>
+          </div>
+          <div class="linha-acoes st-modo" role="group" aria-label="ICMS-ST desta nota">
+            <span class="cresce"><strong>ICMS-ST desta nota:</strong>
+              <span id="st-modo-atual">${ped.st_modo === 'calcular' ? 'calcular (forçado)' : ped.st_modo === 'remover' ? 'removido' : 'automático (regra fiscal)'}</span>
+              <span class="un"> — vale para o espelho, o XML e a emissão; troca também o CFOP dos itens (5101⇄5401, 5102⇄5403, 6101⇄6401, 6102⇄6403).</span></span>
+            <button type="button" class="btn-mini${ped.st_modo === 'calcular' ? ' ativo' : ''}" data-st-modo="calcular">+ Calcular ST</button>
+            <button type="button" class="btn-mini${ped.st_modo === 'remover' ? ' ativo' : ''}" data-st-modo="remover">− Remover ST</button>
+            <button type="button" class="btn-mini${!ped.st_modo ? ' ativo' : ''}" data-st-modo="auto">Automático</button>
+          </div>
+          ${!permiteIcmsProprioManual ? `<p class="aviso"><strong>ICMS próprio não editável nesta nota:</strong>
+            a emitente está no Simples Nacional e os itens usam CSOSN (como o 102), cujo grupo no XML não possui
+            base nem valor de ICMS próprio. Esses dois campos permanecem em 0,00 para o espelho e o XML ficarem
+            iguais e para evitar rejeição da SEFAZ. Não altere o CSOSN sem validação fiscal/contábil.</p>` : ''}
+          <div class="mapa">
+            <div class="campo${!permiteIcmsProprioManual ? ' calculado' : ''}"><label>Base de cálculo do ICMS</label><input name="base_calculo_icms" value="${mapaTxt.vBC}" data-num data-total inputmode="decimal" placeholder="0,00" class="num" ${!permiteIcmsProprioManual ? 'readonly aria-readonly="true" title="CSOSN do Simples Nacional não destaca ICMS próprio"' : ''} /></div>
+            <div class="campo${!permiteIcmsProprioManual ? ' calculado' : ''}"><label>Valor do ICMS</label><input name="total_icms" value="${mapaTxt.vICMS}" data-num data-total inputmode="decimal" placeholder="0,00" class="num" ${!permiteIcmsProprioManual ? 'readonly aria-readonly="true" title="CSOSN do Simples Nacional não destaca ICMS próprio"' : ''} /></div>
+            <div class="campo"><label>Base de cálculo do ICMS ST</label><input name="base_calculo_icms_st" value="${mapaTxt.vBCST}" data-num data-total inputmode="decimal" placeholder="0,00" class="num" /></div>
+            <div class="campo"><label>Valor do ICMS ST</label><input name="total_icms_st" value="${mapaTxt.vST}" data-num data-total data-soma inputmode="decimal" placeholder="0,00" class="num" /></div>
+
+            <div class="campo calculado"><label>Valor total dos produtos</label><input id="mapa-vprod" value="${fmtDin(mapa.vProd)}" readonly class="num" /></div>
+            <div class="campo"><label>Valor do frete</label><input name="frete" value="${fmtInput(mapa.vFrete)}" data-num data-total data-soma inputmode="decimal" placeholder="0,00" class="num" /></div>
+            <div class="campo"><label>Valor do seguro</label><input name="valor_seguro" value="${fmtInput(mapa.vSeg)}" data-num data-total data-soma inputmode="decimal" placeholder="0,00" class="num" /></div>
+            <div class="campo"><label>Desconto</label><input name="desconto" value="${fmtInput(mapa.vDesc)}" data-num data-total data-soma inputmode="decimal" placeholder="0,00" class="num" /></div>
+
+            <div class="campo"><label>Outras despesas acessórias</label><input name="outras_despesas" value="${fmtInput(mapa.vOutro)}" data-num data-total data-soma inputmode="decimal" placeholder="0,00" class="num" /></div>
+            <div class="campo"><label>Valor do IPI</label><input name="total_ipi" value="${mapaTxt.vIPI}" data-num data-total data-soma inputmode="decimal" placeholder="0,00" class="num" /></div>
+            <div class="campo"><label>Valor do FCP ST retido</label><input name="total_fcp_st" value="${mapaTxt.vFCPST}" data-num data-total data-soma inputmode="decimal" placeholder="0,00" class="num" /></div>
+            <div class="campo"><label>DIFAL <span class="un">(ICMSUFDest — venda interestadual a consumidor final ou uso e consumo)</span></label><input name="total_difal" value="${mapaTxt.vDIFAL}" data-num data-total data-soma inputmode="decimal" placeholder="0,00" class="num" /></div>
+            <div class="campo"><label>FCP partilha destino <span class="un">(ICMSUFDest)</span></label><input name="total_fcp" value="${mapaTxt.vFCPDest}" data-num data-total data-soma inputmode="decimal" placeholder="0,00" class="num" /></div>
+            <div class="campo"><label>Valor aprox. dos tributos</label><input name="total_impostos" value="${mapaTxt.vTotTrib}" data-num data-total inputmode="decimal" placeholder="0,00" class="num" /></div>
+
+            <div class="campo"><label>Valor do PIS <span class="un">(não impresso na DANFE)</span></label><input name="total_pis" value="${mapaTxt.vPIS}" data-num data-total inputmode="decimal" placeholder="0,00" class="num" /></div>
+            <div class="campo"><label>Valor da COFINS <span class="un">(não impresso na DANFE)</span></label><input name="total_cofins" value="${mapaTxt.vCOFINS}" data-num data-total inputmode="decimal" placeholder="0,00" class="num" /></div>
+            <div class="campo calculado"><label>Valor total do II</label><input value="0,00" readonly class="num" /></div>
+            <div class="campo destaque"><label>Valor total da nota</label><input id="mapa-vnf" value="${fmtDin(mapa.vNF)}" readonly class="num" /></div>
+          </div>
+          <div class="conferencia" id="conferencia">
+            <span>Produtos + IPI + ICMS ST + FCP ST + frete + seguro + outras − desconto</span>
+            <span class="val" id="conferencia-val">${fmtDin(mapa.vNF)}</span>
+          </div>
+          <!-- Aviso honesto: essas colunas são reescritas pela rota que recalcula o pedido
+               (recalcularImpostosPedidoVenda: UPDATE pedidos SET total_ipi = ?, total_icms_st = ?,
+               total_difal = ?, total_fcp = ?) sempre que um item é incluído, alterado ou removido. -->
+          <p class="nota"><strong>IPI</strong>, <strong>ICMS ST</strong>, <strong>DIFAL</strong> e <strong>FCP
+             partilha destino</strong> são os campos recalculados automaticamente a partir dos itens sempre
+             que o pedido é alterado. Por isso, neles, um 0,00 <em>não</em> declara isenção: volta a calcular,
+             como o campo em branco. E se você ajustar algum deles aqui e depois mexer nos itens, o valor
+             digitado se perde — ajuste no item, não aqui. DIFAL/FCP destino saem do tipo de venda
+             (Consumidor Final) e da condição de contribuinte do cliente, definidos no pedido — inclusive
+             para compra de uso e consumo por empresa contribuinte fora do estado.</p>
+        </div>
+
+        <div class="section">
+          <h3>Cálculo do ISSQN</h3>
+          <div class="quadro q4">
+            <div class="cel"><span class="rot">Inscrição Municipal</span><span class="val">${esc(cfgEmpresa.inscricao_municipal || empCfg.inscricao_municipal || 'não possui')}</span></div>
+            <div class="cel"><span class="rot">Valor total dos serviços</span><span class="val">—</span></div>
+            <div class="cel"><span class="rot">Base de cálculo do ISSQN</span><span class="val">—</span></div>
+            <div class="cel"><span class="rot">Valor do ISSQN</span><span class="val">—</span></div>
+          </div>
+          <p class="nota">A empresa não tem inscrição municipal e esta é uma nota de mercadoria (modelo 55):
+             o quadro do ISSQN sai em branco na DANFE.</p>
+        </div>
+
+        <div class="section">
+          <h3>Fatura / Duplicatas <span class="resumo" id="dup-resumo">${duplicatas.length ? duplicatas.length + (duplicatas.length === 1 ? ' parcela' : ' parcelas') : 'à vista'}</span></h3>
+          <!-- Marca que o corpo do POST veio desta tela: sem ele o servidor NAO mexe no
+               parcelamento, para que uma chamada parcial nao apague o que ja estava gravado. -->
+          <input type="hidden" name="dup_presente" value="1" />
+          <table>
+            <colgroup><col style="width:16%"><col style="width:36%"><col style="width:36%"><col style="width:12%"></colgroup>
+            <thead><tr><th>Número</th><th>Vencimento</th><th style="text-align:right">Valor</th><th></th></tr></thead>
+            <tbody id="dup-tbody">${duplicatasRows}
+              <tr id="dup-vazio" ${duplicatas.length ? 'hidden' : ''}><td colspan="4" class="c-vazio">Sem parcelamento — a nota sai à vista, sem quadro de duplicatas.</td></tr>
+            </tbody>
+          </table>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+            <button type="button" class="btn btn-secondary" id="dup-add">+ Adicionar parcela</button>
+            <button type="button" class="btn btn-secondary" id="dup-recalc">Recalcular pela previsão de faturamento</button>
+            <span id="dup-msg" role="status" aria-live="polite" style="font-size:12px"></span>
+          </div>
+          <p class="nota">Os vencimentos contam da <strong>Previsão de Faturamento</strong> do pedido
+             (aba <em>Dados da NF-e</em>) mais os prazos da condição de pagamento${prazosCondicao.length ? ' — hoje ' + esc(String(ped.condicao_pagamento || '')) : ''}.
+             Aqui dá para ajustar cada parcela: o que ficar nesta tabela é o que sai na
+             <strong>duplicata da NF-e</strong> e é o que o faturamento usa para gerar o
+             <strong>Contas a Receber</strong>. Valor em branco divide o total igualmente, e a soma é
+             sempre reescalonada para fechar com o valor da nota.
+             Em venda <strong>à vista</strong>, deixe a tabela vazia: informar cobrança nesse caso é a
+             rejeição 853 da SEFAZ.</p>
+        </div>
+      </div>
+
+      <div class="painel" id="painel-adicionais" role="tabpanel" aria-labelledby="tab-adicionais" hidden>
+        <div class="section">
+          <h3>Dados adicionais</h3>
+          <label>Informações Complementares <span class="un">(infCpl — campo 61 da NF-e)</span></label>
+          <textarea name="info_complementar" rows="7" placeholder="Observações que constarão na NF-e...">${esc(infoComplementar)}</textarea>
+          <p class="nota">O quadro "Dados Adicionais" da DANFE mostra <strong>exatamente</strong> este texto — nada é
+             acrescentado pelo sistema. É o mesmo campo da aba <strong>Informações Adicionais</strong> do pedido
+             ("Dados Adicionais para a Nota Fiscal"): editar aqui ou lá dá no mesmo. Em branco, o quadro sai vazio.</p>
+        </div>
+        <div class="section">
+          <label>Reservado ao Fisco <span class="un">(infAdFisco)</span></label>
+          <textarea name="info_fisco" rows="4" placeholder="Texto de interesse do Fisco...">${esc(ped.info_fisco)}</textarea>
+          <p class="nota">Campo separado das informações complementares de propósito: um é texto para o
+             destinatário, o outro é para a fiscalização.</p>
+        </div>
+      </div>
+    </form>
+  </div>
 </div>
 
 <div class="footer">
-  <button type="button" class="btn btn-secondary" onclick="window.parent && window.parent.voltarEspelho ? window.parent.voltarEspelho() : history.back()">
-    Cancelar
-  </button>
-  <button type="button" class="btn btn-primary" id="btn-salvar" onclick="salvarEdicao()">
-    <span id="btn-salvar-txt">Salvar e Atualizar Espelho</span>
-  </button>
+  <div class="wrap">
+    <span class="hint">As alterações valem só para esta nota.</span>
+    <button type="button" class="btn btn-secondary" onclick="window.parent && window.parent.voltarEspelho ? window.parent.voltarEspelho() : history.back()">
+      Cancelar
+    </button>
+    <button type="button" class="btn btn-primary" id="btn-salvar" onclick="salvarEdicao()">
+      <span id="btn-salvar-txt">Salvar e Atualizar Espelho</span>
+    </button>
+  </div>
 </div>
 
 <script>
+// ===== Abas =====
+var abas = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+
+function ativarAba(aba) {
+  abas.forEach(function (t) {
+    var ativo = t === aba;
+    t.setAttribute('aria-selected', ativo ? 'true' : 'false');
+    t.tabIndex = ativo ? 0 : -1;
+    var painel = document.getElementById(t.dataset.painel);
+    if (painel) painel.hidden = !ativo;
+  });
+  // É o que solta a largura na aba de itens (ver .wrap no CSS).
+  document.body.dataset.aba = aba.dataset.painel;
+  window.scrollTo(0, 0);
+}
+document.body.dataset.aba = 'painel-dados';
+
+abas.forEach(function (aba) {
+  aba.addEventListener('click', function () { ativarAba(aba); });
+  aba.addEventListener('keydown', function (ev) {
+    var i = abas.indexOf(aba);
+    var alvo = null;
+    if (ev.key === 'ArrowRight') alvo = abas[(i + 1) % abas.length];
+    else if (ev.key === 'ArrowLeft') alvo = abas[(i - 1 + abas.length) % abas.length];
+    else if (ev.key === 'Home') alvo = abas[0];
+    else if (ev.key === 'End') alvo = abas[abas.length - 1];
+    if (!alvo) return;
+    ev.preventDefault();
+    ativarAba(alvo);
+    alvo.focus();
+  });
+});
+
+// Tira o destaque âmbar assim que o NCM/CFOP deixa de estar vazio (e devolve se apagar).
+document.addEventListener('input', function (ev) {
+  var el = ev.target;
+  if (!el.classList || !el.classList.contains('cell-input') || !el.classList.contains('mono')) return;
+  el.classList.toggle('warn', !el.value.trim());
+  // O ponto de alerta da aba "Itens" some quando não sobra nenhum campo pendente.
+  var pontinho = document.getElementById('tab-itens-alerta');
+  var aviso = document.querySelector('.aviso');
+  var pendentes = document.querySelectorAll('.cell-input.mono.warn').length;
+  if (pontinho) pontinho.classList.toggle('oculto', pendentes === 0);
+  if (aviso) aviso.style.display = pendentes === 0 ? 'none' : '';
+
+  // A natureza no cabeçalho acompanha o CFOP do item. O operador continua podendo
+  // editar o texto, mas trocar 5102 por 5901 atualiza imediatamente a área de
+  // identificação para "Remessa para industrialização por encomenda".
+  if (/^item_\d+_cfop$/.test(el.name || '')) {
+    var cfops = Array.from(document.querySelectorAll('input[name$="_cfop"]'))
+      .map(function (input) { return String(input.value || '').replace(/\D/g, '').slice(0, 4); })
+      .filter(Boolean);
+    var unicos = Array.from(new Set(cfops));
+    var naturezas = ${JSON.stringify({
+      '5101':'Venda de produção do estabelecimento','6101':'Venda de produção do estabelecimento',
+      '5102':'Venda de mercadoria adquirida ou recebida de terceiros','6102':'Venda de mercadoria adquirida ou recebida de terceiros',
+      '5401':'Venda de produção do estabelecimento sujeita à substituição tributária','6401':'Venda de produção do estabelecimento sujeita à substituição tributária',
+      '5403':'Venda de mercadoria de terceiros sujeita à substituição tributária','6403':'Venda de mercadoria de terceiros sujeita à substituição tributária',
+      '5901':'Remessa para industrialização por encomenda','6901':'Remessa para industrialização por encomenda',
+      '5902':'Retorno de mercadoria utilizada na industrialização por encomenda','6902':'Retorno de mercadoria utilizada na industrialização por encomenda',
+      '5915':'Remessa para conserto ou reparo','6915':'Remessa para conserto ou reparo',
+      '5916':'Retorno de mercadoria recebida para conserto ou reparo','6916':'Retorno de mercadoria recebida para conserto ou reparo',
+      '5922':'Simples faturamento decorrente de venda para entrega futura','6922':'Simples faturamento decorrente de venda para entrega futura',
+      '5949':'Outra saída de mercadoria ou prestação de serviço não especificada','6949':'Outra saída de mercadoria ou prestação de serviço não especificada',
+      '7101':'Venda de produção do estabelecimento para o exterior','7102':'Venda de mercadoria adquirida ou recebida de terceiros para o exterior'
+    })};
+    var natureza = campo('natureza_operacao');
+    if (natureza && unicos.length === 1 && naturezas[unicos[0]]) natureza.value = naturezas[unicos[0]];
+  }
+});
+
+// ===== Mapa de impostos: recálculo ao vivo =====
+// Os campos são texto (não type="number") porque o usuário digita em pt-BR — "1.234,56".
+// O PATCH aceita os dois formatos; aqui só precisamos ler o número de volta.
+var DADOS = ${dadosJs};
+
+function num(v) {
+  var s = String(v == null ? '' : v).trim();
+  if (!s) return 0;
+  // Com vírgula, o ponto é separador de milhar; sem vírgula, o ponto é decimal.
+  if (s.indexOf(',') >= 0) s = s.replace(/\\./g, '').replace(',', '.');
+  var n = parseFloat(s.replace(/[^0-9.-]/g, ''));
+  return isFinite(n) ? n : 0;
+}
+function moeda(n) {
+  return (isFinite(n) ? n : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function campo(nome) { return document.querySelector('[name="' + nome + '"]'); }
+function valorDe(nome) { var el = campo(nome); return el ? num(el.value) : 0; }
+function porNome(nome, valor) {
+  var el = campo(nome);
+  // 0 vira campo vazio: em branco significa "sem valor informado, use o cálculo",
+  // que é exatamente o que um zero representa aqui.
+  if (el) el.value = valor ? moeda(valor) : '';
+}
+
+// Percorre as linhas de itens somando o que a DANFE precisa. Espelha a resolução do
+// danfe-renderer: o valor digitado manda; sem ele, alíquota x subtotal.
+function totaisDosItens() {
+  var t = { bcIcms: 0, bcSt: 0, vIcms: 0, vIpi: 0, vSt: 0, vPis: 0, vCofins: 0, vProd: 0,
+            vDifal: 0, vFcp: 0, vFcpSt: 0 };
+  Array.prototype.forEach.call(document.querySelectorAll('tr[data-item]'), function (tr) {
+    var sub = parseFloat(tr.dataset.subtotal) || 0;
+    var id = tr.dataset.item;
+    var aliqIcms = valorDe('item_' + id + '_aliquota_icms');
+    var vIcms = valorDe('item_' + id + '_icms_value') || (sub * aliqIcms / 100);
+    var aliqIpi = valorDe('item_' + id + '_aliquota_ipi');
+    var vIpi = valorDe('item_' + id + '_valor_ipi') || (sub * aliqIpi / 100);
+    var vSt = valorDe('item_' + id + '_valor_icms_st');
+    var bc = aliqIcms > 0 ? (vIcms > 0 ? vIcms / (aliqIcms / 100) : sub) : 0;
+
+    var celBc = tr.querySelector('[data-bc]');
+    if (celBc) celBc.textContent = moeda(bc);
+
+    t.vProd += sub; t.bcIcms += bc; t.bcSt += parseFloat(tr.dataset.bcSt) || 0;
+    t.vIcms += vIcms; t.vIpi += vIpi; t.vSt += vSt;
+    // PIS/COFINS pela alíquota do PRÓPRIO item (item > produto > padrão), a mesma
+    // precedência do servidor. Usar só o padrão da empresa divergia do espelho sempre
+    // que o produto tinha alíquota própria.
+    t.vPis += sub * (parseFloat(tr.dataset.aliqPis) || 0) / 100;
+    t.vCofins += sub * (parseFloat(tr.dataset.aliqCofins) || 0) / 100;
+    t.vDifal += parseFloat(tr.dataset.difal) || 0;
+    t.vFcp += parseFloat(tr.dataset.fcp) || 0;
+    t.vFcpSt += parseFloat(tr.dataset.fcpSt) || 0;
+  });
+  return t;
+}
+
+// Trocar a ALÍQUOTA de um item recalcula o VALOR daquele imposto sobre a base da linha.
+// Antes o valor ficava parado e a base era deduzida dele (valor / nova alíquota): passar
+// o ICMS de 18% para 12% mantinha o mesmo imposto e inflava a base.
+function aliquotaDoItemMudou(el) {
+  var m = /^item_(\\d+)_aliquota_(icms|ipi)$/.exec(el.name || '');
+  if (!m) return;
+  var tr = document.querySelector('tr[data-item="' + m[1] + '"]');
+  if (!tr) return;
+  var sub = parseFloat(tr.dataset.subtotal) || 0;
+  var aliq = num(el.value);
+  if (m[2] === 'icms') {
+    var base = parseFloat(tr.dataset.bcIcms) || 0;
+    if (!(base > 0)) base = sub;
+    porNome('item_' + m[1] + '_icms_value', base * aliq / 100);
+  } else {
+    var baseIpi = parseFloat(tr.dataset.bcIpi) || 0;
+    if (!(baseIpi > 0)) baseIpi = sub;
+    porNome('item_' + m[1] + '_valor_ipi', baseIpi * aliq / 100);
+  }
+}
+
+// Mesma fórmula do danfe-renderer — se as duas divergirem, a tela mente sobre o espelho.
+function atualizarTotalNota() {
+  var vProd = num((document.getElementById('mapa-vprod') || {}).value);
+  var total = vProd + valorDe('total_ipi') + valorDe('total_icms_st') + valorDe('total_fcp_st') +
+              valorDe('frete') + valorDe('valor_seguro') + valorDe('outras_despesas') -
+              valorDe('desconto');
+  var alvo = document.getElementById('mapa-vnf');
+  var conf = document.getElementById('conferencia-val');
+  if (alvo) alvo.value = moeda(total);
+  if (conf) conf.textContent = moeda(total);
+  return total;
+}
+
+function recalcularPelosItens() {
+  var t = totaisDosItens();
+  porNome('base_calculo_icms', t.bcIcms);
+  porNome('base_calculo_icms_st', t.bcSt);
+  porNome('total_icms', t.vIcms);
+  porNome('total_ipi', t.vIpi);
+  porNome('total_icms_st', t.vSt);
+  porNome('total_pis', t.vPis);
+  porNome('total_cofins', t.vCofins);
+  porNome('total_fcp_st', t.vFcpSt);
+  porNome('total_difal', t.vDifal);
+  porNome('total_fcp', t.vFcp);
+  // Mesma composição que o servidor grava em pedidos.total_impostos.
+  porNome('total_impostos', t.vIcms + t.vSt + t.vIpi + t.vPis + t.vCofins + t.vDifal + t.vFcp + t.vFcpSt);
+  var vprod = document.getElementById('mapa-vprod');
+  if (vprod) vprod.value = moeda(t.vProd);
+  atualizarTotalNota();
+}
+
+// Aplica na tela o resultado do motor fiscal (POST /atualizar-impostos), item a item.
+// O motor devolve o pedido INTEIRO; a linha da tela pode ser meia nota ou faturamento
+// parcial por itens, então cada valor é escalado por subtotal da tela / subtotal do motor.
+function aplicarResultadoMotor(itensMotor) {
+  var porId = {};
+  (itensMotor || []).forEach(function (it) { porId[String(it.id)] = it; });
+  Array.prototype.forEach.call(document.querySelectorAll('tr[data-item]'), function (tr) {
+    var it = porId[tr.dataset.item];
+    if (!it) return;
+    var id = tr.dataset.item;
+    var sub = parseFloat(tr.dataset.subtotal) || 0;
+    var subMotor = parseFloat(it.subtotal) || 0;
+    var f = subMotor > 0 ? sub / subMotor : 1;
+    var n = function (v) { return (parseFloat(v) || 0) * f; };
+    var campoIcms = campo('item_' + id + '_icms_value');
+    var icmsEditavel = campoIcms && !campoIcms.readOnly;
+    if (icmsEditavel) {
+      porNome('item_' + id + '_icms_value', n(it.valor_icms));
+      porNome('item_' + id + '_aliquota_icms', parseFloat(it.aliquota_icms) || 0);
+    }
+    porNome('item_' + id + '_valor_ipi', n(it.valor_ipi));
+    porNome('item_' + id + '_aliquota_ipi', parseFloat(it.aliquota_ipi) || 0);
+    porNome('item_' + id + '_valor_icms_st', n(it.valor_icms_st));
+    tr.dataset.bcIcms = n(it.base_calculo_icms);
+    tr.dataset.bcSt = n(it.base_calculo_icms_st);
+    tr.dataset.difal = n(it.valor_difal);
+    tr.dataset.fcp = n(it.valor_fcp_destino);
+    tr.dataset.fcpSt = n(it.valor_fcp_st);
+    var aliqIpi = parseFloat(it.aliquota_ipi) || 0;
+    tr.dataset.bcIpi = aliqIpi > 0 && n(it.valor_ipi) > 0 ? n(it.valor_ipi) / (aliqIpi / 100) : sub;
+    if (subMotor > 0) {
+      tr.dataset.aliqPis = (parseFloat(it.valor_pis) || 0) / subMotor * 100;
+      tr.dataset.aliqCofins = (parseFloat(it.valor_cofins) || 0) / subMotor * 100;
+    }
+  });
+  var t = totaisDosItens();
+  // Base do ICMS do motor (com redução de base, frete rateado etc.), não a deduzida.
+  var bcMotor = 0, pisMotor = 0, cofinsMotor = 0;
+  Array.prototype.forEach.call(document.querySelectorAll('tr[data-item]'), function (tr) {
+    var it = porId[tr.dataset.item];
+    var sub = parseFloat(tr.dataset.subtotal) || 0;
+    var subMotor = it ? (parseFloat(it.subtotal) || 0) : 0;
+    var f = subMotor > 0 ? sub / subMotor : 1;
+    bcMotor += it ? (parseFloat(it.base_calculo_icms) || 0) * f : 0;
+    pisMotor += it ? (parseFloat(it.valor_pis) || 0) * f : 0;
+    cofinsMotor += it ? (parseFloat(it.valor_cofins) || 0) * f : 0;
+    var celBc = tr.querySelector('[data-bc]');
+    if (celBc && it) celBc.textContent = moeda((parseFloat(it.base_calculo_icms) || 0) * f);
+  });
+  var icmsCab = campo('total_icms');
+  if (!icmsCab || !icmsCab.readOnly) {
+    porNome('base_calculo_icms', bcMotor);
+    porNome('total_icms', t.vIcms);
+  }
+  porNome('base_calculo_icms_st', t.bcSt);
+  porNome('total_ipi', t.vIpi);
+  porNome('total_icms_st', t.vSt);
+  porNome('total_pis', pisMotor);
+  porNome('total_cofins', cofinsMotor);
+  porNome('total_fcp_st', t.vFcpSt);
+  porNome('total_difal', t.vDifal);
+  porNome('total_fcp', t.vFcp);
+  porNome('total_impostos', t.vIcms + t.vSt + t.vIpi + pisMotor + cofinsMotor + t.vDifal + t.vFcp + t.vFcpSt);
+  var vprod = document.getElementById('mapa-vprod');
+  if (vprod) vprod.value = moeda(t.vProd);
+  atualizarTotalNota();
+}
+
+var btnRecalc = document.getElementById('btn-recalcular');
+if (btnRecalc) btnRecalc.addEventListener('click', async function () {
+  if (btnRecalc.disabled) return;
+  var textoOriginal = btnRecalc.textContent;
+  btnRecalc.disabled = true;
+  btnRecalc.textContent = 'Recalculando...';
+  try {
+    var resposta = await fetch('/api/vendas/pedidos/${pedidoId}/atualizar-impostos', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    var dados = await resposta.json().catch(function () { return {}; });
+    if (!resposta.ok) throw new Error(dados.message || dados.error || 'Falha ao recalcular os impostos.');
+    // Sem recarregar a página: o reload descartava tudo o que ainda não tinha sido salvo
+    // nas outras abas (transporte, volumes, dados adicionais, duplicatas).
+    aplicarResultadoMotor(dados.itens);
+    msgErr.style.display = 'none';
+    btnRecalc.textContent = '✓ Recalculado';
+    if (typeof atualizarChecklist === 'function') atualizarChecklist();
+    setTimeout(function () { btnRecalc.textContent = textoOriginal; btnRecalc.disabled = false; }, 1800);
+  } catch (erro) {
+    msgErr.style.display = 'block';
+    msgErr.textContent = 'Não foi possível recalcular: ' + erro.message;
+    btnRecalc.disabled = false;
+    btnRecalc.textContent = textoOriginal;
+  }
+});
+
+// Checklist de emissão: "ir para" abre a aba da pendência; os botões de ST reaproveitam
+// os de "Calcular ST" / "Remover ST" (mesma confirmação, mesma rota).
+document.addEventListener('click', function (ev) {
+  var ir = ev.target.closest && ev.target.closest('[data-ir-aba]');
+  if (ir) {
+    var tab = document.getElementById('tab-' + ir.getAttribute('data-ir-aba'));
+    if (tab) { tab.click(); tab.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    return;
+  }
+  var st = ev.target.closest && ev.target.closest('[data-check-st]');
+  if (st) {
+    var alvo = document.querySelector('[data-st-modo="' + st.getAttribute('data-check-st') + '"]');
+    if (alvo) alvo.click();
+    return;
+  }
+  // Correções no próprio modal: o cenário sugerido já vem marcado no campo — basta gravar
+  // pelo mesmo "Salvar e Atualizar Espelho" (espelho + XML); os demais levam ao campo.
+  var fix = ev.target.closest && ev.target.closest('[data-fix]');
+  if (fix && fix.getAttribute('data-fix') === 'cfop-uf') {
+    // CFOP × destino: 5xxx (interna) ⇄ 6xxx (interestadual) em todos os itens, e grava.
+    var para = fix.getAttribute('data-para');
+    var trocados = 0;
+    Array.prototype.forEach.call(document.querySelectorAll('input[name$="_cfop"]'), function (inp) {
+      var v = String(inp.value || '').replace(/\\D/g, '');
+      if (v.length === 4 && v[0] !== para && (v[0] === '5' || v[0] === '6')) {
+        inp.value = para + v.slice(1); trocados++;
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    if (trocados && confirm(trocados + ' CFOP(s) ajustado(s). Salvar agora e atualizar o espelho/XML?') && typeof salvarEdicao === 'function') salvarEdicao();
+    return;
+  }
+  if (fix && fix.getAttribute('data-fix') === 'cenario') {
+    var sel = document.querySelector('[name="cenario_fiscal_id"]');
+    if (sel && !sel.value) { var tab0 = document.getElementById('tab-dados'); if (tab0) tab0.click(); sel.focus(); return; }
+    if (typeof salvarEdicao === 'function') salvarEdicao();
+    return;
+  }
+  var foco = ev.target.closest && ev.target.closest('[data-fix-foco]');
+  if (foco) {
+    var aba = document.getElementById('tab-' + foco.getAttribute('data-fix-aba'));
+    if (aba) aba.click();
+    var campoFoco = document.querySelector(foco.getAttribute('data-fix-foco'));
+    if (campoFoco) { campoFoco.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(function () { campoFoco.focus(); }, 250); }
+  }
+});
+
+// ── Prévia do XML: gera a nota como a emissão faria (sem gravar), valida no schema da
+// SEFAZ e compara com o espelho. Roda ao abrir e depois de cada correção salva.
+var _vxSeq = 0;
+function moedaXml(v) { var n = parseFloat(v); return isFinite(n) ? n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'; }
+function escXml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function validarXmlPrevia(consultarSefaz) {
+  var box = document.getElementById('validacao-xml');
+  if (!box) return;
+  var seq = ++_vxSeq;
+  var status = document.getElementById('vx-status'), corpo = document.getElementById('vx-corpo');
+  box.className = 'checklist validacao-xml';
+  status.textContent = consultarSefaz ? 'consultando o cadastro na SEFAZ e validando o XML…' : 'gerando o XML desta nota e validando no schema oficial…';
+  corpo.innerHTML = '';
+  fetch('/api/vendas/pedidos/${pedidoId}/validar-xml' + (consultarSefaz ? '?sefaz=1' : ''), { credentials: 'include', cache: 'no-store' })
+    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (r) {
+      if (seq !== _vxSeq) return;
+      var j = r.j || {};
+      if (!r.ok) { status.textContent = 'não foi possível validar: ' + (j.message || 'erro no servidor'); return; }
+      var itens = [];
+      (j.erros || []).forEach(function (e) {
+        var acao = '';
+        var msg = escXml(e.mensagem).replace(/\\n/g, '<br>');
+        if (e.codigo === 'ESPELHO_FISCAL_DIVERGENTE') acao = '<button type="button" class="btn-mini" data-vx="recalcular">Recalcular pelos itens</button>';
+        else if (e.codigo === 'CEST_OBRIGATORIO_ST') acao = '<button type="button" class="btn-mini" data-check-st="remover">Remover o ST</button>';
+        itens.push('<li class="bloqueia"><span class="ic">✖</span><span class="tx"><strong>' + escXml(e.etapa || 'XML') + ':</strong> ' + msg + '</span><span class="ac">' + acao + '</span></li>');
+      });
+      // O XML precisa bater com o espelho que o usuário está conferindo (caso NF-e 970).
+      var res = j.resumo;
+      if (res) {
+        var vnfTela = num((document.getElementById('mapa-vnf') || {}).value);
+        var vstTela = valorDe('total_icms_st');
+        var vnfXml = parseFloat(res.vNF) || 0, vstXml = parseFloat(res.vST) || 0;
+        if (Math.abs(vnfXml - vnfTela) > 0.05 || Math.abs(vstXml - vstTela) > 0.05) {
+          itens.push('<li class="bloqueia"><span class="ic">✖</span><span class="tx"><strong>XML diferente do espelho:</strong> a nota sairia com total <strong>R$ ' + moedaXml(vnfXml)
+            + '</strong> e ICMS-ST <strong>R$ ' + moedaXml(vstXml) + '</strong>; o espelho mostra R$ ' + moedaXml(vnfTela) + ' e ST R$ ' + moedaXml(vstTela)
+            + '. Defina o ST desta nota para os dois ficarem iguais.</span><span class="ac">'
+            + (vstXml > vstTela ? '<button type="button" class="btn-mini" data-check-st="calcular">Manter o ST (como no XML)</button> <button type="button" class="btn-mini" data-check-st="remover">Remover o ST</button>'
+                                : '<button type="button" class="btn-mini" data-vx="recalcular">Recalcular pelos itens</button>')
+            + '</span></li>');
+        }
+      }
+      (j.avisos || []).forEach(function (a) {
+        itens.push('<li class="atencao"><span class="ic">!</span><span class="tx">' + escXml(a) + '</span><span class="ac"></span></li>');
+      });
+      var bloq = itens.filter(function (h) { return h.indexOf('class="bloqueia"') >= 0; }).length;
+      box.className = 'checklist validacao-xml ' + (bloq ? 'tem-bloqueio' : itens.length ? 'so-atencao' : 'ok');
+      status.textContent = bloq ? (bloq + ' problema(s) que a SEFAZ rejeitaria ou que mudam a nota — corrija antes de enviar')
+        : (j.consultouSefaz ? 'XML válido no schema e cadastro conferido na SEFAZ' : 'XML válido no schema oficial da SEFAZ');
+      corpo.innerHTML = (itens.length ? '<ul>' + itens.join('') + '</ul>' : '')
+        + (res ? '<div class="vx-resumo">A nota sairá com: CFOP <strong>' + escXml((res.cfops || []).join(', '))
+          + '</strong> · ' + ((res.csosn || []).length ? 'CSOSN <strong>' + escXml(res.csosn.join(', ')) + '</strong>' : 'CST <strong>' + escXml((res.cst || []).join(', ')) + '</strong>')
+          + ' · ICMS-ST R$ <strong>' + moedaXml(res.vST) + '</strong> · Total R$ <strong>' + moedaXml(res.vNF) + '</strong><br>Natureza: ' + escXml(res.natOp || '') + '</div>' : '');
+    })
+    .catch(function () { if (seq === _vxSeq) status.textContent = 'não foi possível validar agora (conexão).'; });
+}
+document.addEventListener('click', function (ev) {
+  if (ev.target.closest && ev.target.closest('#vx-sefaz')) { validarXmlPrevia(true); return; }
+  if (ev.target.closest && ev.target.closest('#vx-refazer')) { validarXmlPrevia(false); return; }
+  var vx = ev.target.closest && ev.target.closest('[data-vx="recalcular"]');
+  if (vx) { var br = document.getElementById('btn-recalcular'); if (br) br.click(); }
+});
+setTimeout(function () { validarXmlPrevia(false); }, 300);
+
+// Recarrega só o quadro de pendências (o servidor recalcula a partir do que foi gravado),
+// sem recarregar a página — o que ainda não foi salvo nas outras abas continua na tela.
+function atualizarChecklist() {
+  fetch(window.location.pathname + window.location.search, { credentials: 'include', cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.text() : ''; })
+    .then(function (html) {
+      if (!html) return;
+      var novo = new DOMParser().parseFromString(html, 'text/html').getElementById('checklist-emissao');
+      var atual = document.getElementById('checklist-emissao');
+      if (novo && atual) atual.outerHTML = novo.outerHTML;
+      var aviso = document.getElementById('aviso-cenario');
+      var novoAviso = new DOMParser().parseFromString(html, 'text/html').getElementById('aviso-cenario');
+      if (aviso && !novoAviso) aviso.remove();
+    })
+    .catch(function () {});
+  // O XML também muda com a correção: valida de novo.
+  validarXmlPrevia(false);
+}
+
+// Calcular / remover ICMS-ST desta nota (POST /st-modo). Atualiza CFOP dos itens e o
+// mapa sem recarregar a página, como o "Recalcular pelos itens".
+Array.prototype.forEach.call(document.querySelectorAll('[data-st-modo]'), function (btn) {
+  btn.addEventListener('click', async function () {
+    var modo = btn.getAttribute('data-st-modo');
+    var textos = { calcular: 'Calcular o ICMS-ST desta nota (CFOP 5101 vira 5401 etc.)?',
+      remover: 'Remover o ICMS-ST desta nota (CFOP 5401 vira 5101 etc.)?',
+      auto: 'Voltar o ICMS-ST para o cálculo automático da regra fiscal?' };
+    if (!confirm(textos[modo] + '\\n\\nO CFOP dos itens e os impostos são gravados agora no pedido.')) return;
+    var todos = document.querySelectorAll('[data-st-modo]');
+    Array.prototype.forEach.call(todos, function (b) { b.disabled = true; });
+    try {
+      var resposta = await fetch('/api/vendas/pedidos/${pedidoId}/st-modo', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo: modo })
+      });
+      var dados = await resposta.json().catch(function () { return {}; });
+      if (!resposta.ok) throw new Error(dados.message || dados.error || 'Falha ao alterar o ICMS-ST.');
+      (dados.cfops || []).forEach(function (l) {
+        var el = campo('item_' + l.id + '_cfop');
+        if (el && l.cfop) el.value = l.cfop;
+      });
+      aplicarResultadoMotor(dados.itens);
+      // CFOP e ST acabaram de ficar coerentes: o checklist é recalculado pelo servidor.
+      atualizarChecklist();
+      Array.prototype.forEach.call(todos, function (b) { b.classList.toggle('ativo', b === btn); });
+      var atual = document.getElementById('st-modo-atual');
+      if (atual) atual.textContent = modo === 'calcular' ? 'calcular (forçado)' : modo === 'remover' ? 'removido' : 'automático (regra fiscal)';
+      msgErr.style.display = 'block';
+      msgErr.style.color = '#047857';
+      msgErr.textContent = dados.message + (dados.nfe_atualizada ? ' XML da NF-e ' + (dados.nfe_atualizada.numero || '') + ' regerado (não transmitido).' : '');
+    } catch (erro) {
+      msgErr.style.display = 'block';
+      msgErr.style.color = '';
+      msgErr.textContent = 'Não foi possível alterar o ICMS-ST: ' + erro.message;
+    } finally {
+      Array.prototype.forEach.call(todos, function (b) { b.disabled = false; });
+    }
+  });
+});
+
+// Mexeu num imposto de item: o mapa de totais acompanha na hora.
+//
+// Ate 04/09/2026 aqui so rodava totaisDosItens(), que atualiza a BC da LINHA e devolve
+// os totais sem escreve-los — o mapa so se preenchia quando a pessoa clicava em
+// "Recalcular pelos itens". Quem nao clicava salvava a nota com o quadro central em
+// branco. Agora o recalculo e automatico: editar qualquer imposto de item ja reflete no
+// mapa, e o botao continua ali so como confirmacao visual.
+// (sem crase nestes comentarios: o editor inteiro e um template literal JS)
+//
+// O efeito colateral aceito: o que era coluna NULA ("sem valor informado, calcule pelos
+// itens") passa a ser gravada com o número calculado. Como o mapa agora recalcula a CADA
+// mudança de item, o valor não congela — que era o risco que a regra do NULL evitava.
+document.addEventListener('input', function (ev) {
+  var el = ev.target;
+  if (!el.name) return;
+  if (el.hasAttribute('data-imposto')) { aliquotaDoItemMudou(el); recalcularPelosItens(); }
+  if (el.hasAttribute('data-soma')) atualizarTotalNota();
+});
+
+// Na abertura, preserve o retrato fiscal real vindo do servidor. O cálculo simplificado
+// do navegador não pode sobrescrever bases e totais oficiais antes de uma ação do usuário.
+totaisDosItens();
+atualizarTotalNota();
+
+// Normaliza o que foi digitado assim que o campo perde o foco ("1234,5" -> "1.234,50").
+document.addEventListener('blur', function (ev) {
+  var el = ev.target;
+  if (!el.hasAttribute || !el.hasAttribute('data-num') || !el.value.trim()) return;
+  var casas = el.name === 'peso_bruto' || el.name === 'peso_liquido' ? 3
+            : el.name === 'qtd_volumes' ? 0 : 2;
+  // Formata SEMPRE, inclusive o zero: o campo vazio já foi descartado acima, então um "0"
+  // aqui foi digitado de propósito. Apagá-lo viraria "não informado" e a isenção declarada
+  // no mapa de impostos se desfaria sozinha ao sair do campo.
+  el.value = num(el.value).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+  if (el.hasAttribute('data-soma')) atualizarTotalNota();
+}, true);
+
+// ===== Local de entrega: autocomplete de cadastros =====
+// Digitar o nome OU o CPF/CNPJ busca em CLIENTES, TRANSPORTADORAS e FORNECEDORES (a entrega tanto e no
+// cliente quanto num redespacho ou no endereco de um fornecedor) e, ao escolher, preenche os
+// 8 campos restantes do quadro.
+// NÃO trava o campo: o local de entrega muitas vezes é uma obra que não está cadastrada, então
+// texto livre continua valendo — a sugestão é atalho, nunca obrigação (mesma regra da etiqueta).
+(function () {
+  var campoNome = document.getElementById('entrega_nome');
+  var campoDoc = document.getElementById('entrega_cnpj_cpf');
+  var listaNome = document.getElementById('entrega-lista');
+  var listaDoc = document.getElementById('entrega-doc-lista');
+  if (!campoNome || !campoDoc || !listaNome || !listaDoc) return;
+
+  var campo = campoNome, lista = listaNome;
+  var opcoes = [], indice = -1, timer = null, ultimo = null, cache = {}, buscaAtual = 0;
+  var alvo = {
+    entrega_cnpj_cpf: 'cnpj_cpf', entrega_ie: 'ie', entrega_endereco: 'endereco',
+    entrega_bairro: 'bairro', entrega_cep: 'cep', entrega_municipio: 'municipio',
+    entrega_uf: 'uf', entrega_fone: 'fone'
+  };
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fechar() {
+    listaNome.hidden = true; listaDoc.hidden = true;
+    campoNome.setAttribute('aria-expanded', 'false');
+    campoDoc.setAttribute('aria-expanded', 'false');
+    indice = -1;
+  }
+
+  function ativar(campoAtivo) {
+    fechar();
+    campo = campoAtivo;
+    lista = campoAtivo === campoDoc ? listaDoc : listaNome;
+  }
+
+  function pintar(termo) {
+    var ROTULO = { cliente: 'Cliente', transportadora: 'Transportadora', fornecedor: 'Fornecedor' };
+    var html = opcoes.map(function (o, i) {
+      // O tipo vem primeiro: o mesmo nome pode existir nas tres bases, e quem escolhe
+      // precisa saber de qual cadastro veio o endereco que acabou de preencher a tela.
+      var linha2 = [ROTULO[o.tipo] || '', o.cnpj_cpf, o.municipio && o.uf ? (o.municipio + '/' + o.uf) : o.municipio].filter(Boolean).join(' · ');
+      return '<div class="combo-op' + (indice === i ? ' ativo' : '') + '" role="option" data-i="' + i + '">'
+        + '<div class="l1">' + esc(o.nome) + '</div>'
+        + (linha2 ? '<div class="l2">' + esc(linha2) + '</div>' : '') + '</div>';
+    }).join('');
+    if (!opcoes.length) {
+      html = '<div class="combo-vazio">Nenhum cadastro encontrado' + (termo ? ' para "' + esc(termo) + '"' : '')
+           + '. O texto digitado vale assim mesmo.</div>';
+    }
+    lista.innerHTML = html;
+    lista.hidden = false;
+    campo.setAttribute('aria-expanded', 'true');
+  }
+
+  function escolher(i) {
+    var o = opcoes[i];
+    if (!o) return;
+    // Independentemente de qual dos dois campos iniciou a busca, escolher um cadastro
+    // preenche o quadro inteiro, inclusive nome e documento.
+    campoNome.value = o.nome || '';
+    Object.keys(alvo).forEach(function (id) {
+      var el = document.getElementById(id);
+      // Só preenche o que veio: campo vazio no cadastro não apaga o que já estava na tela.
+      if (el && o[alvo[id]]) el.value = o[alvo[id]];
+    });
+    fechar();
+  }
+
+  async function buscar(termo) {
+    if (termo.length < 2) { opcoes = []; fechar(); return; }
+    var chave = termo.toLowerCase();
+    var minhaBusca = ++buscaAtual;
+    if (cache[chave]) { opcoes = cache[chave]; indice = -1; pintar(termo); return; }
+    try {
+      var r = await fetch('/api/vendas/clientes-busca-entrega?termo=' + encodeURIComponent(termo), {
+        credentials: 'include', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      opcoes = r.ok ? await r.json() : [];
+      if (minhaBusca !== buscaAtual) return;
+      if (!Array.isArray(opcoes)) opcoes = [];
+      cache[chave] = opcoes;
+    } catch (e) { opcoes = []; }
+    indice = -1;
+    pintar(termo);
+  }
+
+  function agendar(campoAtivo) {
+    ativar(campoAtivo);
+    var termo = campoAtivo.value.trim();
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(function () {
+      if (termo === ultimo && !lista.hidden) return;
+      ultimo = termo;
+      buscar(termo);
+    }, 250);
+  }
+
+  [campoNome, campoDoc].forEach(function (el) {
+    el.addEventListener('input', function () { agendar(el); });
+    el.addEventListener('focus', function () { ultimo = null; agendar(el); });
+    el.addEventListener('keydown', function (ev) {
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      if (lista.hidden || !opcoes.length) return;
+      ev.preventDefault();
+      indice = ev.key === 'ArrowDown'
+        ? (indice + 1) % opcoes.length
+        : (indice <= 0 ? opcoes.length - 1 : indice - 1);
+      pintar(campo.value.trim());
+      var ativo = lista.querySelector('.combo-op.ativo');
+      if (ativo && ativo.scrollIntoView) ativo.scrollIntoView({ block: 'nearest' });
+    } else if (ev.key === 'Enter' && !lista.hidden && indice >= 0) {
+      ev.preventDefault(); escolher(indice);
+    } else if (ev.key === 'Escape') { fechar(); }
+    });
+  });
+  // mousedown e não click: o blur do input fecharia a lista antes de o clique resolver.
+  [listaNome, listaDoc].forEach(function (el) {
+    el.addEventListener('mousedown', function (ev) {
+      var op = ev.target.closest ? ev.target.closest('.combo-op') : null;
+      if (!op) return;
+      ev.preventDefault();
+      escolher(parseInt(op.getAttribute('data-i'), 10));
+    });
+  });
+  document.addEventListener('click', function (ev) {
+    if (ev.target !== campoNome && ev.target !== campoDoc &&
+        !listaNome.contains(ev.target) && !listaDoc.contains(ev.target)) fechar();
+  });
+})();
+
+// ===== Transportadora: autocomplete + cadastro rápido =====
+// O campo era texto livre e só gravava pedidos.transportadora_nome, então a DANFE
+// saía com o nome e SEM CNPJ/IE/endereço do transportador (o /danfe lê esses dados
+// pelo JOIN em transportadora_id). Agora o campo vincula o cadastro de verdade.
+(function () {
+  var combo = document.getElementById('combo-transp');
+  var busca = document.getElementById('transp-busca');
+  var hidden = document.getElementById('transp-id');
+  var lista = document.getElementById('transp-lista');
+  var selMsg = document.getElementById('transp-sel');
+  var selTxt = document.getElementById('transp-sel-txt');
+  var livreMsg = document.getElementById('transp-livre');
+  var btnX = document.getElementById('transp-x');
+  var painelNovo = document.getElementById('painel-nova-transp');
+  if (!combo || !busca) return;
+
+  document.getElementById('transp-atualizar-fiscal').addEventListener('click', async function () {
+    var feedback = document.getElementById('transp-fiscal-feedback');
+    if (!hidden.value) { feedback.textContent = 'Selecione uma transportadora cadastrada.'; return; }
+    this.disabled = true; feedback.textContent = 'Consultando SEFAZ e IBGE…';
+    try {
+      var response = await fetch('/api/vendas/transportadoras/' + encodeURIComponent(hidden.value) + '/atualizar-fiscal', { method: 'POST', credentials: 'include' });
+      var result = await response.json();
+      if (result.success) { selecionar(result.transportadora); cache = {}; }
+      feedback.textContent = (result.success ? 'Cadastro atualizado. ' : 'Cadastro requer revisão. ') + (result.warnings || []).join(' ') + (result.error || '');
+    } catch (e) { feedback.textContent = 'Falha na consulta: ' + e.message; }
+    finally { this.disabled = false; }
+  });
+  document.getElementById('nt-consultar-fiscal').addEventListener('click', async function () {
+    var feedback = document.getElementById('nt-erro');
+    this.disabled = true; feedback.style.display = 'block'; feedback.textContent = 'Consultando SEFAZ e IBGE…';
+    try {
+      var response = await fetch('/api/vendas/transportadoras/consultar-fiscal', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cnpj_cpf: document.getElementById('nt-cnpj').value, razao_social: document.getElementById('nt-razao').value, estado: document.getElementById('nt-uf').value, inscricao_estadual: document.getElementById('nt-ie').value }) });
+      var result = await response.json();
+      if (result.success) {
+        var fields = { razao_social: 'razao', nome_fantasia: 'fantasia', cnpj_cpf: 'cnpj', inscricao_estadual: 'ie', endereco: 'endereco', numero: 'numero', complemento: 'complemento', bairro: 'bairro', cidade: 'cidade', estado: 'uf', cep: 'cep', codigo_ibge: 'ibge' };
+        Object.keys(fields).forEach(function (key) { if (result.dados[key] != null) document.getElementById('nt-' + fields[key]).value = result.dados[key]; });
+      }
+      feedback.textContent = (result.success ? 'Dados preenchidos. ' : 'Revise o cadastro. ') + (result.warnings || []).join(' ') + (result.error || '');
+    } catch (e) { feedback.textContent = 'Falha na consulta: ' + e.message; }
+    finally { this.disabled = false; }
+  });
+
+  var timer = null, opcoes = [], indice = -1, ultimoTermo = null, cache = {};
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function realcar(texto, termo) {
+    var t = esc(texto);
+    if (!termo) return t;
+    var i = t.toLowerCase().indexOf(esc(termo).toLowerCase());
+    if (i < 0) return t;
+    return t.slice(0, i) + '<mark>' + t.slice(i, i + termo.length) + '</mark>' + t.slice(i + termo.length);
+  }
+  // ATENÇÃO: este script é servido de dentro de um template literal do Node, onde
+  // "\d" vira "d" (escape não reconhecido). Por isso as regexes aqui usam [0-9] /
+  // [^0-9] em vez de \d / \D — não troque de volta.
+  function fmtDoc(d) {
+    var n = String(d || '').replace(/[^0-9]/g, '');
+    if (n.length === 14) return n.replace(/([0-9]{2})([0-9]{3})([0-9]{3})([0-9]{4})([0-9]{2})/, '$1.$2.$3/$4-$5');
+    if (n.length === 11) return n.replace(/([0-9]{3})([0-9]{3})([0-9]{3})([0-9]{2})/, '$1.$2.$3-$4');
+    return String(d || '');
+  }
+  function resumo(t) {
+    return [t.cnpj ? 'CNPJ ' + fmtDoc(t.cnpj) : '', [t.cidade, t.uf || t.estado].filter(Boolean).join('/')]
+      .filter(Boolean).join(' · ');
+  }
+
+  function fechar() {
+    lista.hidden = true;
+    busca.setAttribute('aria-expanded', 'false');
+    indice = -1;
+  }
+  function marcarVinculo(t) {
+    hidden.value = t ? t.id : '';
+    combo.classList.toggle('tem-sel', !!t);
+    selMsg.hidden = !t;
+    if (t) selTxt.textContent = resumo(t) || 'Vinculada ao cadastro';
+    // Só alerta sobre texto livre quando há algo digitado sem vínculo.
+    livreMsg.hidden = !!t || !busca.value.trim();
+  }
+  function selecionar(t) {
+    // Grava a razão social: é o que a SEFAZ espera em transp/transporta/xNome.
+    busca.value = t.razao_social || t.nome || '';
+    marcarVinculo(t);
+    fechar();
+    if (painelNovo) painelNovo.hidden = true;
+  }
+
+  function pintar(termo) {
+    var html = '';
+    opcoes.forEach(function (t, i) {
+      html += '<div class="combo-op' + (i === indice ? ' ativo' : '') + '" role="option" data-i="' + i + '"' +
+              ' aria-selected="' + (i === indice ? 'true' : 'false') + '">' +
+              '<div class="l1">' + realcar(t.razao_social || t.nome, termo) + '</div>' +
+              '<div class="l2">' + (esc(resumo(t)) || 'sem CNPJ cadastrado') + '</div></div>';
+    });
+    if (!opcoes.length) {
+      html += '<div class="combo-vazio">Nenhuma transportadora encontrada' + (termo ? ' para "' + esc(termo) + '"' : '') + '.</div>';
+    }
+    if (termo) {
+      var iNovo = opcoes.length;
+      html += '<div class="combo-op combo-novo' + (indice === iNovo ? ' ativo' : '') + '" role="option" data-novo="1" data-i="' + iNovo + '">' +
+              '<div class="l1">+ Cadastrar "' + esc(termo) + '" como nova transportadora</div>' +
+              '<div class="l2">Abre o formulário de cadastro já preenchido</div></div>';
+    }
+    lista.innerHTML = html;
+    lista.hidden = false;
+    busca.setAttribute('aria-expanded', 'true');
+  }
+
+  async function buscar(termo) {
+    var chave = termo.toLowerCase();
+    if (cache[chave]) { opcoes = cache[chave]; indice = -1; pintar(termo); return; }
+    try {
+      var r = await fetch('/api/vendas/transportadoras?termo=' + encodeURIComponent(termo), {
+        credentials: 'include', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      opcoes = r.ok ? await r.json() : [];
+      if (!Array.isArray(opcoes)) opcoes = [];
+      cache[chave] = opcoes;
+    } catch (e) { opcoes = []; }
+    indice = -1;
+    pintar(termo);
+  }
+
+  function agendar() {
+    var termo = busca.value.trim();
+    if (timer) clearTimeout(timer);
+    // 250ms segura a digitação sem deixar o campo parecendo travado.
+    timer = setTimeout(function () {
+      if (termo === ultimoTermo && !lista.hidden) return;
+      ultimoTermo = termo;
+      buscar(termo);
+    }, 250);
+  }
+
+  busca.addEventListener('input', function () {
+    // Digitou depois de escolher: o vínculo antigo não vale mais para o texto novo.
+    if (hidden.value) marcarVinculo(null);
+    livreMsg.hidden = !busca.value.trim();
+    agendar();
+  });
+  busca.addEventListener('focus', function () { ultimoTermo = null; agendar(); });
+  busca.addEventListener('keydown', function (ev) {
+    var total = opcoes.length + (busca.value.trim() ? 1 : 0);
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      if (lista.hidden) { agendar(); return; }
+      ev.preventDefault();
+      if (!total) return;
+      indice = ev.key === 'ArrowDown'
+        ? (indice + 1) % total
+        : (indice <= 0 ? total - 1 : indice - 1);
+      pintar(busca.value.trim());
+      var ativo = lista.querySelector('.combo-op.ativo');
+      if (ativo && ativo.scrollIntoView) ativo.scrollIntoView({ block: 'nearest' });
+    } else if (ev.key === 'Enter') {
+      if (lista.hidden || indice < 0) return;
+      ev.preventDefault();
+      if (indice < opcoes.length) selecionar(opcoes[indice]);
+      else abrirCadastro(busca.value.trim());
+    } else if (ev.key === 'Escape') {
+      if (!lista.hidden) { ev.stopPropagation(); fechar(); }
+    }
+  });
+
+  lista.addEventListener('mousedown', function (ev) {
+    // mousedown (e não click) porque o blur do input fecharia a lista antes.
+    var op = ev.target.closest('.combo-op');
+    if (!op) return;
+    ev.preventDefault();
+    if (op.dataset.novo) abrirCadastro(busca.value.trim());
+    else selecionar(opcoes[parseInt(op.dataset.i, 10)]);
+  });
+
+  document.addEventListener('mousedown', function (ev) {
+    if (!combo.contains(ev.target)) fechar();
+  });
+
+  btnX.addEventListener('click', function () {
+    busca.value = '';
+    marcarVinculo(null);
+    livreMsg.hidden = true;
+    fechar();
+    busca.focus();
+  });
+
+  // ---- Cadastro rápido ----
+  function abrirCadastro(termo) {
+    fechar();
+    if (!painelNovo) return;
+    var digitos = String(termo || '').replace(/[^0-9]/g, '');
+    // Se a pessoa digitou o CNPJ em vez do nome, o texto vai para o campo certo.
+    var pareceDoc = digitos.length >= 11 && !/[a-zA-ZÀ-ÿ]/.test(String(termo || ''));
+    document.getElementById('nt-razao').value = pareceDoc ? '' : (termo || '');
+    document.getElementById('nt-cnpj').value = pareceDoc ? termo : '';
+    document.getElementById('nt-erro').style.display = 'none';
+    painelNovo.hidden = false;
+    painelNovo.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    document.getElementById(pareceDoc ? 'nt-razao' : 'nt-fantasia').focus();
+  }
+
+  var btnCancelar = document.getElementById('nt-cancelar');
+  var btnSalvarNovo = document.getElementById('nt-salvar');
+  if (btnCancelar) btnCancelar.addEventListener('click', function () {
+    painelNovo.hidden = true;
+    busca.focus();
+  });
+  if (btnSalvarNovo) btnSalvarNovo.addEventListener('click', async function () {
+    var erro = document.getElementById('nt-erro');
+    var v = function (id) { return (document.getElementById(id).value || '').trim(); };
+    if (!v('nt-razao')) {
+      erro.textContent = 'Informe a Razão Social.';
+      erro.style.display = 'block';
+      document.getElementById('nt-razao').focus();
+      return;
+    }
+    btnSalvarNovo.disabled = true;
+    btnSalvarNovo.textContent = 'Cadastrando...';
+    erro.style.display = 'none';
+    try {
+      var r = await fetch('/api/vendas/transportadoras', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({
+          razao_social: v('nt-razao'), nome_fantasia: v('nt-fantasia'),
+          cnpj_cpf: v('nt-cnpj'), inscricao_estadual: v('nt-ie'), numero: v('nt-numero'), complemento: v('nt-complemento'), codigo_ibge: v('nt-ibge'),
+          contato: v('nt-contato'), endereco: v('nt-endereco'), bairro: v('nt-bairro'),
+          cidade: v('nt-cidade'), estado: v('nt-uf'), cep: v('nt-cep'),
+          telefone: v('nt-telefone'), email: v('nt-email')
+        })
+      });
+      var j = await r.json().catch(function () { return {}; });
+      if (!r.ok || !j.success) throw new Error(j.error || 'Não foi possível cadastrar.');
+      cache = {};                       // a lista mudou; o cache anterior está velho
+      selecionar(j.transportadora || { id: j.id, razao_social: v('nt-razao'), cnpj: v('nt-cnpj'), cidade: v('nt-cidade'), uf: v('nt-uf') });
+      if (j.ja_existia) selTxt.textContent = 'Já cadastrada — ' + (resumo(j.transportadora || {}) || 'vinculada à nota');
+      ['nt-razao','nt-fantasia','nt-cnpj','nt-ie','nt-contato','nt-endereco','nt-bairro','nt-cidade','nt-uf','nt-cep','nt-telefone','nt-email']
+        .forEach(function (id) { document.getElementById(id).value = ''; });
+    } catch (e) {
+      erro.textContent = e.message;
+      erro.style.display = 'block';
+    } finally {
+      btnSalvarNovo.disabled = false;
+      btnSalvarNovo.textContent = 'Cadastrar e vincular';
+    }
+  });
+})();
+
+// ===== Fatura / Duplicatas: parcelas editaveis =====
+// Esta tabela e a fonte do <cobr> da NF-e E dos titulos do Contas a Receber (o PATCH grava
+// em pedidos.parcelas_conta_receber). Por isso ela vive aqui, e nao so na aba Parcelas do
+// pedido: quem confere a nota antes de transmitir e quem sabe quando o cliente vai pagar.
+(function () {
+  var tbody = document.getElementById('dup-tbody');
+  if (!tbody) return;
+  var PRAZOS = ${JSON.stringify(prazosCondicao)};
+  var msg = document.getElementById('dup-msg');
+
+  function linhas() { return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-dup]')); }
+
+  // Os names carregam o numero da parcela; removida uma linha do meio, as que sobram
+  // precisam voltar a ser 1..N — o servidor le a ordem, nao o id da linha.
+  function renumerar() {
+    var todas = linhas();
+    todas.forEach(function (tr, i) {
+      var n = i + 1;
+      var num = tr.querySelector('.dup-num');
+      if (num) num.textContent = ('00' + n).slice(-3);
+      var venc = tr.querySelector('input[data-dup-venc]');
+      var val = tr.querySelector('input[data-dup-valor]');
+      if (venc) venc.name = 'dup_' + n + '_vencimento';
+      if (val) val.name = 'dup_' + n + '_valor';
+    });
+    var vazio = document.getElementById('dup-vazio');
+    if (vazio) vazio.hidden = todas.length > 0;
+    var resumo = document.getElementById('dup-resumo');
+    if (resumo) resumo.textContent = todas.length
+      ? (todas.length + (todas.length === 1 ? ' parcela' : ' parcelas'))
+      : 'a vista';
+  }
+
+  function novaLinha() {
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-dup', '');
+    tr.innerHTML = '<td class="mono"><span class="dup-num"></span></td>'
+      + '<td><input type="date" data-dup-venc /></td>'
+      + '<td><input data-num data-dup-valor style="text-align:right" /></td>'
+      + '<td class="dup-acao"><button type="button" class="dup-x" title="Remover parcela" aria-label="Remover parcela">&times;</button></td>';
+    var vazio = document.getElementById('dup-vazio');
+    if (vazio) tbody.insertBefore(tr, vazio); else tbody.appendChild(tr);
+    renumerar();
+    return tr;
+  }
+
+  // Data sem fuso: new Date('2026-09-10') seria lido como UTC e, em BRT, voltaria um dia.
+  function somaDias(iso, dias) {
+    var p = String(iso).split('-');
+    if (p.length !== 3) return '';
+    var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12, 0, 0);
+    d.setDate(d.getDate() + (Number(dias) || 0));
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  function aviso(texto, cor) {
+    if (!msg) return;
+    msg.style.color = cor || '';
+    msg.textContent = texto || '';
+  }
+
+  document.getElementById('dup-add').addEventListener('click', function () {
+    var tr = novaLinha();
+    var venc = tr.querySelector('input[data-dup-venc]');
+    var campo = document.getElementById('previsao_faturamento');
+    var base = campo ? campo.value : '';
+    var i = linhas().length - 1;
+    if (base && PRAZOS.length) venc.value = somaDias(base, PRAZOS[Math.min(i, PRAZOS.length - 1)]);
+    venc.focus();
+    aviso('');
+  });
+
+  tbody.addEventListener('click', function (ev) {
+    var botao = ev.target && ev.target.closest ? ev.target.closest('.dup-x') : null;
+    if (!botao) return;
+    var tr = botao.closest('tr');
+    if (tr && tr.parentNode) tr.parentNode.removeChild(tr);
+    renumerar();
+    aviso('Parcela removida — salve para valer.');
+  });
+
+  document.getElementById('dup-recalc').addEventListener('click', function () {
+    var campo = document.getElementById('previsao_faturamento');
+    var base = campo ? campo.value : '';
+    if (!base) {
+      aviso('Preencha a Previsao de Faturamento (aba Dados da NF-e) antes de recalcular.', '#b91c1c');
+      return;
+    }
+    var todas = linhas();
+    if (!todas.length) { novaLinha(); todas = linhas(); }
+    todas.forEach(function (tr, i) {
+      var venc = tr.querySelector('input[data-dup-venc]');
+      var dias = PRAZOS.length ? PRAZOS[Math.min(i, PRAZOS.length - 1)] : 0;
+      if (venc) venc.value = somaDias(base, dias);
+    });
+    aviso('Vencimentos recalculados a partir de ' + base.split('-').reverse().join('/') + '. Salve para valer.', '#15803d');
+  });
+
+  renumerar();
+})();
+
+async function lerRespostaApi(response, acao) {
+  var bruto = await response.text();
+  var dados = null;
+  try { dados = bruto ? JSON.parse(bruto) : {}; } catch (_) {
+    // Proxy/nginx e páginas de autenticação respondem HTML. Nunca mostrar esse HTML nem
+    // o erro técnico "Unexpected token <" para quem está conferindo uma nota fiscal.
+    if ([502,503,504].indexOf(response.status) >= 0) {
+      throw new Error('O servidor fiscal estava reiniciando ou temporariamente indisponível. Não foi possível confirmar a atualização. Aguarde alguns segundos e tente novamente.');
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Sua sessão expirou ou não possui permissão. Recarregue a página e entre novamente.');
+    }
+    throw new Error((acao || 'A operação') + ' recebeu uma resposta inválida do servidor (HTTP ' + response.status + '). Tente novamente; se persistir, contate o suporte.');
+  }
+  if (!response.ok) throw new Error(dados.error || dados.message || ((acao || 'A operação') + ' falhou (HTTP ' + response.status + ').'));
+  return dados;
+}
+
+// Inclusão real de item. O editor antigo só desenhava as linhas já existentes:
+// qualquer produto digitado/selecionado fora delas nunca chegava ao pedido nem ao XML.
+(function prepararInclusaoItem() {
+  var abrir = document.getElementById('btn-item-novo');
+  var caixa = document.getElementById('item-add');
+  var busca = document.getElementById('item-add-produto');
+  var opcoes = document.getElementById('item-add-opcoes');
+  var qtd = document.getElementById('item-add-qtd');
+  var preco = document.getElementById('item-add-preco');
+  var confirmar = document.getElementById('item-add-confirmar');
+  var cancelar = document.getElementById('item-add-cancelar');
+  var mensagem = document.getElementById('item-add-msg');
+  if (!abrir || !caixa) return;
+  var produto = null, timer = null, buscaSeq = 0;
+  function num(v) { var s=String(v||'').trim(); if(s.indexOf(',')>=0)s=s.replace(/\\./g,'').replace(',','.'); return Number(s); }
+  function msg(t, classe) { mensagem.textContent=t; mensagem.className='item-add-msg'+(classe?' '+classe:''); }
+  function fecharOpcoes(){ opcoes.hidden=true; opcoes.innerHTML=''; }
+  abrir.addEventListener('click', function(){ caixa.hidden=false; busca.focus(); });
+  cancelar.addEventListener('click', function(){ caixa.hidden=true; produto=null; busca.value=''; confirmar.disabled=true; fecharOpcoes(); msg('Selecione um produto do cadastro. O item será gravado no pedido e recalculado antes de atualizar o espelho.'); });
+  busca.addEventListener('input', function(){
+    produto=null; confirmar.disabled=true; var termo=busca.value.trim(); clearTimeout(timer); fecharOpcoes();
+    if(termo.length<2) return;
+    var minha=++buscaSeq;
+    timer=setTimeout(async function(){
+      try {
+        var r=await fetch('/api/vendas/produtos/autocomplete/'+encodeURIComponent(termo)+'?limit=20',{credentials:'include'});
+        var lista=r.ok?await r.json():[]; if(minha!==buscaSeq)return;
+        opcoes.innerHTML='';
+        (Array.isArray(lista)?lista:[]).forEach(function(p){
+          var b=document.createElement('button'); b.type='button'; b.className='item-opcao'; b.setAttribute('role','option');
+          var forte=document.createElement('strong'); forte.textContent=(p.codigo||'')+' — '+(p.descricao||p.nome||'Produto'); b.appendChild(forte);
+          var det=document.createElement('small'); det.textContent='NCM '+(p.ncm||'não informado')+' · '+(p.unidade||'UN')+' · '+Number(p.preco_venda||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); b.appendChild(det);
+          b.addEventListener('click',function(){ produto=p; busca.value=(p.codigo||'')+' — '+(p.descricao||p.nome||''); preco.value=Number(p.preco_venda||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:4}); confirmar.disabled=false; fecharOpcoes(); msg('Produto selecionado. Confira quantidade e valor unitário.'); });
+          opcoes.appendChild(b);
+        });
+        opcoes.hidden=!opcoes.children.length; if(!opcoes.children.length)msg('Nenhum produto encontrado.','erro');
+      } catch(e){ msg('Falha ao buscar produtos: '+e.message,'erro'); }
+    },250);
+  });
+  confirmar.addEventListener('click', async function(){
+    var quantidade=num(qtd.value), valor=num(preco.value);
+    if(!produto){msg('Selecione um produto da lista.','erro');return;}
+    if(!(quantidade>0)){msg('Informe uma quantidade maior que zero.','erro');qtd.focus();return;}
+    if(!(valor>0)){msg('Informe um valor unitário maior que zero.','erro');preco.focus();return;}
+    confirmar.disabled=true; confirmar.textContent='Adicionando...'; msg('Gravando o item e recalculando os impostos...');
+    try {
+      var cenario=document.querySelector('[name="cenario_fiscal_id"]');
+      var r=await fetch('/api/vendas/pedidos/${pedidoId}/itens',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({produto_id:produto.id,codigo:produto.codigo,descricao:produto.descricao||produto.nome,quantidade:quantidade,unidade:produto.unidade||'UN',preco_unitario:valor,cfop:produto.cfop||null,cenario_fiscal:cenario&&cenario.value||null})});
+      await lerRespostaApi(r,'A inclusão do produto');
+      // Reconstrói eventual XML pendente/rejeitado usando a lista nova de itens.
+      var s=await fetch('/api/vendas/pedidos/${pedidoId}/espelho-nfe-patch',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({_fator:${fatorFat},_incluir_todos_itens:true})});
+      var sj=await lerRespostaApi(s,'A atualização do espelho e do XML'); if(!sj.ok)throw new Error(sj.error||'Item gravado, mas o XML não pôde ser atualizado.');
+      msg('Produto adicionado. Atualizando itens, espelho e XML...','ok');
+      if(window.parent&&window.parent!==window)window.parent.postMessage({type:'espelho-saved',pedidoId:${pedidoId},itensAlterados:true},'*');
+      setTimeout(function(){window.location.reload();},350);
+    } catch(e){msg(e.message,'erro');confirmar.disabled=false;confirmar.textContent='Adicionar';}
+  });
+})();
+
 async function salvarEdicao() {
   const btn = document.getElementById('btn-salvar');
   const txt = document.getElementById('btn-salvar-txt');
   const msgOk = document.getElementById('msg-success');
   const msgErr = document.getElementById('msg-error');
-  btn.disabled = true; txt.textContent = 'Salvando...';
+  btn.disabled = true; txt.textContent = 'Atualizando espelho e XML...';
   msgOk.style.display = 'none'; msgErr.style.display = 'none';
 
   const form = document.getElementById('form-nfe-edit');
   const data = {};
   new FormData(form).forEach((v, k) => { data[k] = v; });
+  // Em meia nota a tela mostra os valores proporcionais; o pedido guarda os cheios.
+  // O PATCH divide por este fator antes de gravar.
+  data._fator = ${fatorFat};
 
   try {
     const r = await fetch('/api/vendas/pedidos/${pedidoId}/espelho-nfe-patch', {
@@ -6195,16 +16075,26 @@ async function salvarEdicao() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    const j = await r.json();
-    if (!r.ok || !j.ok) throw new Error(j.error || 'Erro ao salvar');
+    const j = await lerRespostaApi(r, 'O salvamento da NF-e');
+    if (!j.ok) throw new Error(j.error || 'Erro ao salvar');
+    // Salvou, mas algo pode ter sido ignorado (NCM inválido, item sem produto vinculado).
+    if (j.avisos && j.avisos.length) {
+      msgOk.textContent = 'Dados salvos, com ressalvas: ' + j.avisos.join(' ');
+    } else if (j.nfeAtualizada) {
+      msgOk.textContent = 'Dados salvos. Espelho e XML da NF-e ' + (j.nfeAtualizada.numero || '') + ' atualizados automaticamente.';
+    } else {
+      msgOk.textContent = 'Dados salvos. Espelho atualizado automaticamente; o XML será gerado com estes dados na emissão.';
+    }
     msgOk.style.display = 'block';
     btn.disabled = false; txt.textContent = 'Salvar e Atualizar Espelho';
+    // O que foi corrigido sai das pendências na hora.
+    if (typeof atualizarChecklist === 'function') atualizarChecklist();
     // notify parent to reload the DANFE preview
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: 'espelho-saved', pedidoId: ${pedidoId} }, '*');
     }
   } catch(e) {
-    msgErr.style.display = 'block'; msgErr.textContent = '✗ ' + e.message;
+    msgErr.style.display = 'block'; msgErr.textContent = e.message;
     btn.disabled = false; txt.textContent = 'Salvar e Atualizar Espelho';
   }
 }
@@ -6226,24 +16116,397 @@ async function salvarEdicao() {
             const pedidoId = parseInt(req.params.id, 10);
             if (!pedidoId) return res.status(400).json({ ok: false, error: 'ID inválido' });
 
-            const { natureza_operacao, campos_obs_nfe, transportadora_nome, tipo_frete, ...rest } = req.body;
+            // Documento autorizado é imutável: editar o pedido depois da autorização criaria
+            // um espelho diferente do XML protocolado. Correções legais seguem por CC-e ou,
+            // quando a legislação exigir, cancelamento e nova emissão.
+            const [[nfeAutorizada]] = await pool.query(
+                `SELECT id, numero, chave_acesso FROM nfes
+                  WHERE pedido_id = ? AND LOWER(COALESCE(status, '')) = 'autorizada'
+                  LIMIT 1`, [pedidoId]
+            ).catch(() => [[]]);
+            if (nfeAutorizada) {
+                return res.status(409).json({
+                    ok: false,
+                    error: `A NF-e ${nfeAutorizada.numero || ''} já foi autorizada e seu XML é imutável. Use CC-e ou cancele e emita uma nova nota.`
+                });
+            }
 
-            // Update pedido-level fields
-            await pool.query(
-                `UPDATE pedidos SET
-                    natureza_operacao = ?,
-                    campos_obs_nfe    = ?,
-                    transportadora_nome = ?,
-                    tipo_frete        = ?
-                 WHERE id = ?`,
-                [natureza_operacao || null, campos_obs_nfe || null,
-                 transportadora_nome || null, tipo_frete || null, pedidoId]
+            const corpo = req.body || {};
+            const { natureza_operacao, transportadora_nome, transportadora_id, tipo_frete } = corpo;
+
+            // Os campos numéricos chegam como o usuário digitou, em pt-BR ("1.234,56").
+            // Com vírgula presente, o ponto é separador de milhar; sem ela, o ponto é o
+            // decimal — aceitar os dois evita que "1.234" vire mil duzentos e trinta e
+            // quatro em uma tela e um e vinte e três em outra.
+            const numeroBr = v => {
+                if (v === undefined || v === null) return null;
+                let s = String(v).trim();
+                if (!s) return null;
+                if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+                s = s.replace(/[^0-9.-]/g, '');
+                const n = parseFloat(s);
+                return isFinite(n) ? n : null;
+            };
+            const texto = (v, limite) => {
+                const s = String(v == null ? '' : v).trim();
+                if (!s) return null;
+                return limite ? s.slice(0, limite) : s;
+            };
+
+            // Em meia nota o editor exibe valores proporcionais (ver GET .../espelho-nfe-edit),
+            // mas `pedidos` e `pedido_itens` guardam o pedido INTEIRO. O que chega da tela tem
+            // de voltar à escala cheia antes de gravar — senão salvar durante uma meia nota
+            // reduziria o pedido de forma permanente, e a próxima nota sairia menor ainda.
+            // Alíquotas ficam de fora: são percentuais e não escalam.
+            const fatorTela = (() => {
+                const n = parseFloat(corpo._fator);
+                return (isFinite(n) && n > 0 && n <= 1) ? n : 1;
+            })();
+            const numeroCheio = v => {
+                const n = numeroBr(v);
+                return (n === null || fatorTela === 1) ? n : n / fatorTela;
+            };
+
+            // Validação antes de qualquer UPDATE: no Simples Nacional o XML usa ICMSSN,
+            // que não possui destaque de base/valor de ICMS próprio. Antes o endpoint
+            // aceitava esses números, respondia sucesso e depois o XML os descartava.
+            const [[cfgRegimeEditor]] = await pool.query(
+                'SELECT regime_tributario FROM config_fiscal_empresa LIMIT 1'
+            ).catch(() => [[]]);
+            const editorSimples = String(cfgRegimeEditor?.regime_tributario || '').toLowerCase() === 'simples_nacional';
+            const icmsCabecalhoPositivo = Number(numeroCheio(corpo.base_calculo_icms) || 0) > 0
+                || Number(numeroCheio(corpo.total_icms) || 0) > 0;
+            const icmsItemPositivo = Object.entries(corpo).some(([chave, valor]) =>
+                /^item_\d+_(icms_value|aliquota_icms)$/.test(chave) && Number(numeroBr(valor) || 0) > 0
             );
+            if (editorSimples && (icmsCabecalhoPositivo || icmsItemPositivo)) {
+                return res.status(422).json({
+                    ok: false,
+                    code: 'ICMS_PROPRIO_INCOMPATIVEL_SIMPLES',
+                    error: 'A emitente está no Simples Nacional e o CSOSN do item não permite destacar base/valor de ICMS próprio. Os campos devem permanecer em 0,00 para o espelho e o XML ficarem consistentes. Revise o enquadramento com o fiscal/contador antes de alterar o CSOSN.'
+                });
+            }
 
-            // Update item-level fields (item_<id>_<field>)
+            // O nome sozinho só preenche xNome na DANFE. CNPJ, IE, endereço e município
+            // do transportador vêm do JOIN por transportadora_id — sem o vínculo o
+            // quadro TRANSPORTADOR sai pela metade.
+            const nomeTransp = String(transportadora_nome || '').trim();
+            let transpId = parseInt(transportadora_id, 10);
+            if (!Number.isFinite(transpId) || transpId <= 0) transpId = null;
+            if (transpId) {
+                const [[existe]] = await pool.query(
+                    'SELECT id FROM transportadoras WHERE id = ? LIMIT 1', [transpId]
+                ).catch(() => [[]]);
+                if (!existe) transpId = null;
+            }
+            // Digitou o nome exato de uma cadastrada mas não clicou na lista: vincula
+            // mesmo assim, em vez de gravar texto solto.
+            if (!transpId && nomeTransp) {
+                const [[achou]] = await pool.query(
+                    `SELECT id FROM transportadoras
+                      WHERE razao_social = ? OR nome_fantasia = ? LIMIT 1`,
+                    [nomeTransp, nomeTransp]
+                ).catch(() => [[]]);
+                if (achou) transpId = achou.id;
+            }
+
+            const avisos = [];
+
+            // ── Campos do pedido ──────────────────────────────────────────────
+            // Montado dinamicamente: só entra no UPDATE o que veio no corpo. Assim uma
+            // chamada parcial (ou uma versão antiga da tela em cache) não zera o que não
+            // mandou — o inverso do que aconteceria com um UPDATE de lista fixa.
+            const sets = [], vals = [];
+            const set = (coluna, valor) => { sets.push(`${coluna} = ?`); vals.push(valor); };
+
+            if ('natureza_operacao' in corpo) set('natureza_operacao', texto(natureza_operacao, 120));
+            // Uso/consumo é uma DESTINAÇÃO fiscal, não um simples sinônimo de consumidor.
+            // Guardamos no campo tipo_venda já usado pelo emissor, sem criar uma segunda
+            // parametrização que pudesse divergir. Ao desmarcar, só desfazemos o próprio
+            // valor uso_consumo; pedidos de revenda continuam como revenda.
+            if ('uso_consumo' in corpo) {
+                const ativarUsoConsumo = ['1', 'true', 'on', 'sim'].includes(
+                    String(corpo.uso_consumo || '').trim().toLowerCase()
+                );
+                const [[tipoAtual]] = await pool.query(
+                    'SELECT tipo_venda FROM pedidos WHERE id = ? LIMIT 1', [pedidoId]
+                ).catch(() => [[]]);
+                if (ativarUsoConsumo) set('tipo_venda', 'uso_consumo');
+                else if (String(tipoAtual?.tipo_venda || '').toLowerCase() === 'uso_consumo') {
+                    set('tipo_venda', 'consumidor');
+                }
+            }
+            // Cenário fiscal: grava o id E o nome. A trava de faturamento (CV-005) aceita
+            // qualquer um dos dois, e outras telas leem o texto — manter os dois em sincronia
+            // evita que o pedido pareça sem cenário dependendo de quem o consulta.
+            if ('cenario_fiscal_id' in corpo) {
+                const cenId = parseInt(corpo.cenario_fiscal_id, 10);
+                if (Number.isFinite(cenId) && cenId > 0) {
+                    const [[cen]] = await pool.query(
+                        'SELECT id, nome FROM cenarios_fiscais WHERE id = ? AND ativo = 1 LIMIT 1', [cenId]
+                    ).catch(() => [[]]);
+                    if (cen) {
+                        set('cenario_fiscal_id', cen.id);
+                        set('cenario_fiscal', texto(cen.nome, 100));
+                    } else {
+                        avisos.push('Cenário fiscal informado não existe ou está inativo — não foi gravado.');
+                    }
+                } else {
+                    set('cenario_fiscal_id', null);
+                    set('cenario_fiscal', null);
+                }
+            }
+            if ('transportadora_nome' in corpo) {
+                set('transportadora_nome', nomeTransp || null);
+                set('transportadora_id', transpId);
+            }
+            if ('tipo_frete' in corpo) set('tipo_frete', texto(tipo_frete, 20));
+
+            // Veículo e volumes — quadro "Transportador / Volumes transportados".
+            if ('placa_veiculo' in corpo) set('placa_veiculo', texto(String(corpo.placa_veiculo || '').toUpperCase(), 10));
+            if ('veiculo_uf' in corpo) set('veiculo_uf', texto(String(corpo.veiculo_uf || '').toUpperCase(), 2));
+            if ('rntrc' in corpo) set('rntrc', texto(corpo.rntrc, 20));
+            if ('qtd_volumes' in corpo) {
+                const q = numeroBr(corpo.qtd_volumes);
+                set('qtd_volumes', q === null ? null : Math.max(0, Math.round(q)));
+            }
+            if ('especie_volumes' in corpo) set('especie_volumes', texto(corpo.especie_volumes, 60));
+            if ('marca_volumes' in corpo) set('marca_volumes', texto(corpo.marca_volumes, 60));
+            if ('numeracao_volumes' in corpo) set('numeracao_volumes', texto(corpo.numeracao_volumes, 60));
+            if ('peso_bruto' in corpo) set('peso_bruto', numeroBr(corpo.peso_bruto));
+            if ('peso_liquido' in corpo) set('peso_liquido', numeroBr(corpo.peso_liquido));
+
+            // Mapa de impostos e verbas do quadro "Cálculo do imposto".
+            // Divididas em dois grupos por causa da meia nota: as de imposto são exibidas
+            // proporcionais e voltam pela escala cheia; frete, seguro, outras despesas e
+            // desconto não são escalados na tela (o espelho também não escala), então vão
+            // como digitados.
+            const MAPA_ESCALADO = ['base_calculo_icms', 'total_icms', 'base_calculo_icms_st',
+                'total_icms_st', 'total_ipi', 'total_pis', 'total_cofins', 'total_fcp_st',
+                'total_difal', 'total_fcp', 'total_impostos'];
+            const MAPA_LITERAL = ['frete', 'valor_seguro', 'outras_despesas', 'desconto'];
+            for (const coluna of MAPA_ESCALADO) {
+                if (coluna in corpo) set(coluna, numeroCheio(corpo[coluna]));
+            }
+            for (const coluna of MAPA_LITERAL) {
+                if (coluna in corpo) set(coluna, numeroBr(corpo[coluna]));
+            }
+
+            // Dados adicionais. `info_complementar` é a coluna que o espelho E o XML leem;
+            // até 13/08/2026 esta tela gravava em `campos_obs_nfe`, que nenhum dos dois lia —
+            // dava para digitar, salvar e o texto nunca aparecer na nota. As duas são
+            // gravadas juntas para não deixar o valor legado ressurgir quando o campo é
+            // esvaziado (o renderer usa campos_obs_nfe como último fallback).
+            if ('info_complementar' in corpo || 'campos_obs_nfe' in corpo) {
+                const info = texto(corpo.info_complementar !== undefined ? corpo.info_complementar : corpo.campos_obs_nfe, 5000);
+                set('info_complementar', info);
+                set('campos_obs_nfe', info);
+                // `dados_adicionais_nf` é o alias que o modal de NOVO orçamento grava. Sem
+                // escrevê-lo aqui, editar pela tela de NF-e deixava as duas colunas com textos
+                // diferentes — e a aba "Informações Adicionais" do pedido continuaria mostrando
+                // o texto velho quando `info_complementar` fosse esvaziado.
+                set('dados_adicionais_nf', info);
+            }
+            if ('info_fisco' in corpo) set('info_fisco', texto(corpo.info_fisco, 2000));
+
+            // Datas do quadro de identificação da DANFE (emissão, saída e hora da saída).
+            // Guardadas no pedido; quem valida contra a SEFAZ é NFePedidoMapper.mapearDatas,
+            // no momento da emissão — aqui a tela só registra a intenção, e uma data
+            // impossível não pode impedir de salvar o resto da nota.
+            if ('nfe_data_emissao' in corpo) {
+                const dEmi = String(corpo.nfe_data_emissao || '').trim();
+                set('data_emissao', /^\d{4}-\d{2}-\d{2}$/.test(dEmi) ? `${dEmi} 00:00:00` : null);
+            }
+            if ('nfe_data_saida' in corpo || 'nfe_hora_saida' in corpo) {
+                const dSai = String(corpo.nfe_data_saida || '').trim();
+                const hSai = String(corpo.nfe_hora_saida || '').trim();
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dSai)) {
+                    // Hora sozinha não vira nada: DATETIME precisa da data. Sem hora, fica
+                    // meia-noite — e a DANFE, por regra, não imprime "00:00" como hora de saída.
+                    const hora = /^\d{2}:\d{2}$/.test(hSai) ? `${hSai}:00` : '00:00:00';
+                    set('data_saida', `${dSai} ${hora}`);
+                    const emi = String(corpo.nfe_data_emissao || '').trim();
+                    // Comparação de strings ISO funciona como comparação de datas (AAAA-MM-DD).
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(emi) && dSai < emi) {
+                        avisos.push('Data de saída anterior à de emissão: a SEFAZ recusa (rejeição 506) e a emissão vai usar a data de emissão.');
+                    }
+                } else {
+                    set('data_saida', null);
+                    if (hSai) avisos.push('Hora da saída ignorada: informe também a data de saída.');
+                }
+            }
+
+            // Previsão de faturamento — data-base dos vencimentos das parcelas e, por
+            // consequência, dos títulos do Contas a Receber (services/faturamento-shared).
+            // Grava em `pedidos.data_previsao`, a mesma coluna do campo "Previsão de
+            // Faturamento" do modal do pedido.
+            if ('previsao_faturamento' in corpo) {
+                const dPrev = String(corpo.previsao_faturamento || '').trim();
+                set('data_previsao', /^\d{4}-\d{2}-\d{2}$/.test(dPrev) ? dPrev : null);
+            }
+
+            if (sets.length) {
+                vals.push(pedidoId);
+                await pool.query(`UPDATE pedidos SET ${sets.join(', ')} WHERE id = ?`, vals);
+            }
+
+            // ── Local de entrega (entrega_<campo>) → colunas do PRÓPRIO PEDIDO ───
+            // Diferente do destinatário: o local de entrega é desta remessa, não do cadastro
+            // do cliente — a mesma empresa pode receber em obras diferentes a cada nota.
+            {
+                const eSets = [], eVals = [];
+                const eSet = (col, val) => { eSets.push(`\`${col}\` = ?`); eVals.push(val); };
+                const soDig = v => String(v == null ? '' : v).replace(/\D/g, '');
+                const CAMPOS_ENTREGA = {
+                    entrega_nome: v => texto(v, 120),
+                    entrega_cnpj_cpf: v => soDig(v) || null,
+                    entrega_ie: v => texto(v, 20),
+                    entrega_endereco: v => texto(v, 160),
+                    entrega_bairro: v => texto(v, 60),
+                    entrega_cep: v => soDig(v) || null,
+                    entrega_municipio: v => texto(v, 60),
+                    entrega_uf: v => (String(v || '').toUpperCase().slice(0, 2) || null),
+                    entrega_fone: v => texto(v, 20)
+                };
+                for (const [col, prep] of Object.entries(CAMPOS_ENTREGA)) {
+                    if (corpo[col] !== undefined) eSet(col, prep(corpo[col]));
+                }
+                // Data a partir da qual o título de Contas a Receber vale. Campo vazio LIMPA a
+                // programação (volta ao comportamento padrão) — por isso não usa `texto()`,
+                // que devolveria null e cairia no mesmo caminho, mas de forma menos explícita.
+                if (corpo.cr_gerar_em !== undefined) {
+                    const d = String(corpo.cr_gerar_em || '').trim();
+                    eSet('cr_gerar_em', /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null);
+                }
+                if (eSets.length) {
+                    eVals.push(pedidoId);
+                    await pool.query(`UPDATE pedidos SET ${eSets.join(', ')} WHERE id = ?`, eVals);
+                }
+            }
+
+            // ── Fatura / Duplicatas (dup_<n>_*) → `pedidos.parcelas_conta_receber` ──
+            // Este JSON é a FONTE ÚNICA do parcelamento: dele saem a duplicata impressa na
+            // DANFE, o grupo <cobr> do XML e os títulos do Contas a Receber gerados no
+            // faturamento. `dup_presente` marca que o corpo veio desta tela — sem ele uma
+            // chamada parcial (ou uma versão em cache do editor) não mexe no parcelamento.
+            if (corpo.dup_presente !== undefined) {
+                const [[pedParc]] = await pool.query(
+                    'SELECT parcelas_conta_receber FROM pedidos WHERE id = ? LIMIT 1', [pedidoId]
+                ).catch(() => [[]]);
+                let parcelasAtuais = {};
+                try {
+                    const bruto = pedParc && pedParc.parcelas_conta_receber;
+                    const json = typeof bruto === 'string' ? JSON.parse(bruto) : bruto;
+                    if (json && typeof json === 'object' && !Array.isArray(json)) parcelasAtuais = json;
+                } catch (_) { parcelasAtuais = {}; }
+
+                const numerosEnviados = new Set();
+                for (const chave of Object.keys(corpo)) {
+                    const m = /^dup_(\d+)_(vencimento|valor)$/.exec(chave);
+                    if (m) numerosEnviados.add(parseInt(m[1], 10));
+                }
+
+                const parcelasNovas = {};
+                [...numerosEnviados].sort((a, b) => a - b).forEach((n, i) => {
+                    const venc = String(corpo[`dup_${n}_vencimento`] || '').slice(0, 10);
+                    const valor = numeroCheio(corpo[`dup_${n}_valor`]);
+                    // Linha em branco não vira parcela (é a linha que o usuário adicionou e
+                    // não preencheu) — mas linha só com vencimento vale: valor vazio manda
+                    // dividir o total igualmente, regra do duplicatas-pedido.service.
+                    if (!venc && (valor === null || valor <= 0)) return;
+                    // O modal "Conta a Receber" do pedido grava MAIS coisas nesta mesma chave
+                    // (categoria, conta corrente, retenções, departamentos). Aqui só mudam
+                    // data e valor: o resto é preservado, senão salvar a NF-e apagaria o que
+                    // o financeiro já tinha combinado.
+                    const anterior = (parcelasAtuais[String(n)] && typeof parcelasAtuais[String(n)] === 'object')
+                        ? parcelasAtuais[String(n)] : {};
+                    parcelasNovas[String(i + 1)] = {
+                        ...anterior,
+                        numero: i + 1,
+                        vencimento: /^\d{4}-\d{2}-\d{2}$/.test(venc) ? venc : null,
+                        valor: valor === null ? null : Math.round(valor * 100) / 100
+                    };
+                });
+
+                const temParcelas = Object.keys(parcelasNovas).length > 0;
+                await pool.query(
+                    'UPDATE pedidos SET parcelas_conta_receber = ? WHERE id = ?',
+                    [temParcelas ? JSON.stringify(parcelasNovas) : null, pedidoId]
+                );
+                if (!temParcelas && Object.keys(parcelasAtuais).length) {
+                    avisos.push('Parcelamento removido: a nota sai à vista, sem quadro de duplicatas.');
+                }
+            }
+
+            // ── Destinatário (dest_<campo>) → FICHA DO CLIENTE ────────────────
+            // O espelho, a DANFE e o XML leem o destinatário do JOIN com `clientes`, não de
+            // colunas do pedido: gravar aqui é o que faz a correção aparecer no documento.
+            // Por isso vale para as próximas notas do cliente — está dito na tela.
+            {
+                const [[pedDest]] = await pool.query('SELECT cliente_id FROM pedidos WHERE id = ? LIMIT 1', [pedidoId]);
+                const clienteId = pedDest && pedDest.cliente_id;
+                const temDest = Object.keys(corpo).some(k => k.startsWith('dest_'));
+                if (clienteId && temDest) {
+                    const cSets = [], cVals = [];
+                    const cSet = (col, val) => { cSets.push(`\`${col}\` = ?`); cVals.push(val); };
+                    const digitos = v => String(v == null ? '' : v).replace(/\D/g, '');
+
+                    if (corpo.dest_razao_social !== undefined) cSet('razao_social', texto(corpo.dest_razao_social, 60));
+                    if (corpo.dest_endereco !== undefined) cSet('endereco', texto(corpo.dest_endereco, 120));
+                    if (corpo.dest_bairro !== undefined) cSet('bairro', texto(corpo.dest_bairro, 60));
+                    if (corpo.dest_cidade !== undefined) cSet('cidade', texto(corpo.dest_cidade, 60));
+                    // Grava nas DUAS colunas de UF do cadastro. Elas nunca divergem hoje (medido),
+                    // mas leitores diferentes usam uma ou outra — atualizar só `uf` deixaria
+                    // `estado` desatualizado e a nota sairia com a UF antiga em algum caminho.
+                    if (corpo.dest_uf !== undefined) {
+                        const _uf = String(corpo.dest_uf || '').toUpperCase().slice(0, 2) || null;
+                        cSet('uf', _uf);
+                        cSet('estado', _uf);
+                    }
+                    if (corpo.dest_cep !== undefined) cSet('cep', digitos(corpo.dest_cep) || null);
+                    if (corpo.dest_telefone !== undefined) cSet('telefone', texto(corpo.dest_telefone, 20));
+                    if (corpo.dest_email !== undefined) cSet('email', texto(corpo.dest_email, 120));
+
+                    // CNPJ/CPF e IE são PII: têm de voltar CRIPTOGRAFADOS, senão o
+                    // decryptPII do leitor devolve vazio e o campo "some" da nota.
+                    const _encPII = (lgpdCrypto && lgpdCrypto.encryptPII) ? lgpdCrypto.encryptPII : (v => v);
+                    if (corpo.dest_cnpj_cpf !== undefined) {
+                        const doc = digitos(corpo.dest_cnpj_cpf);
+                        // A coluna é decidida pelo COMPRIMENTO; a outra é limpa para não
+                        // sobrar documento antigo nas duas ao mesmo tempo.
+                        if (doc.length === 14) { cSet('cnpj', _encPII(doc)); cSet('cpf', null); }
+                        else if (doc.length === 11) { cSet('cpf', _encPII(doc)); cSet('cnpj', null); }
+                    }
+
+                    // Indicador de IE e a IE andam juntos: o código 2 exige o texto EXATO
+                    // "ISENTO" na inscrição, e o 9 exige inscrição vazia. Gravar só o
+                    // indicador deixaria o par incoerente e a SEFAZ rejeitaria.
+                    const ind = corpo.dest_ind_ie === undefined ? null : String(corpo.dest_ind_ie).trim();
+                    if (ind === '1') {
+                        cSet('fiscal_contribuinte_icms', 1);
+                        if (corpo.dest_ie !== undefined) cSet('inscricao_estadual', _encPII(texto(corpo.dest_ie, 20) || ''));
+                    } else if (ind === '2') {
+                        cSet('fiscal_contribuinte_icms', 0);
+                        cSet('inscricao_estadual', _encPII('ISENTO'));
+                    } else if (ind === '9') {
+                        cSet('fiscal_contribuinte_icms', 0);
+                        cSet('inscricao_estadual', _encPII(''));
+                    } else if (corpo.dest_ie !== undefined) {
+                        cSet('inscricao_estadual', _encPII(texto(corpo.dest_ie, 20) || ''));
+                    }
+
+                    if (cSets.length) {
+                        cVals.push(clienteId);
+                        await pool.query(`UPDATE clientes SET ${cSets.join(', ')} WHERE id = ?`, cVals);
+                    }
+                }
+            }
+
+            // ── Campos de item (item_<id>_<campo>) ────────────────────────────
+            const CAMPOS_ITEM = 'descricao|cfop|ncm|origem|cst|unidade|icms_value|aliquota_icms|valor_ipi|aliquota_ipi|valor_icms_st';
             const itemUpdates = {};
-            for (const [key, val] of Object.entries(rest)) {
-                const m = key.match(/^item_(\d+)_(descricao|cfop)$/);
+            for (const [key, val] of Object.entries(corpo)) {
+                const m = key.match(new RegExp(`^item_(\\d+)_(${CAMPOS_ITEM})$`));
                 if (m) {
                     const itemId = parseInt(m[1], 10);
                     if (!itemUpdates[itemId]) itemUpdates[itemId] = {};
@@ -6251,19 +16514,157 @@ async function salvarEdicao() {
                 }
             }
             for (const [itemId, fields] of Object.entries(itemUpdates)) {
-                const sets = [], vals = [];
-                if (fields.descricao !== undefined) { sets.push('descricao = ?'); vals.push(fields.descricao); }
-                if (fields.cfop !== undefined) { sets.push('cfop = ?'); vals.push(fields.cfop || null); }
-                if (sets.length) {
-                    vals.push(parseInt(itemId, 10), pedidoId);
-                    await pool.query(`UPDATE pedido_itens SET ${sets.join(', ')} WHERE id = ? AND pedido_id = ?`, vals);
+                const iSets = [], iVals = [];
+                const iSet = (coluna, valor) => { iSets.push(`${coluna} = ?`); iVals.push(valor); };
+
+                if (fields.descricao !== undefined) iSet('descricao', fields.descricao);
+                if (fields.cfop !== undefined) iSet('cfop', texto(fields.cfop, 20));
+                if (fields.unidade !== undefined) iSet('unidade', texto(String(fields.unidade || '').toUpperCase(), 6));
+                // Valores monetários do item: voltam à escala cheia em meia nota.
+                if (fields.icms_value !== undefined) iSet('icms_value', numeroCheio(fields.icms_value));
+                if (fields.valor_ipi !== undefined) iSet('valor_ipi', numeroCheio(fields.valor_ipi));
+                if (fields.valor_icms_st !== undefined) iSet('valor_icms_st', numeroCheio(fields.valor_icms_st));
+                // A alíquota de ICMS vive em DUAS colunas (`aliquota_icms` e `icms_percent`)
+                // e o espelho lê a primeira que estiver positiva — gravar só uma deixaria a
+                // outra, antiga, mandando quando a nova fosse zerada.
+                if (fields.aliquota_icms !== undefined) {
+                    const a = numeroBr(fields.aliquota_icms);
+                    iSet('aliquota_icms', a);
+                    iSet('icms_percent', a);
+                }
+                if (fields.aliquota_ipi !== undefined) iSet('aliquota_ipi', numeroBr(fields.aliquota_ipi));
+
+                if (iSets.length) {
+                    iVals.push(parseInt(itemId, 10), pedidoId);
+                    await pool.query(`UPDATE pedido_itens SET ${iSets.join(', ')} WHERE id = ? AND pedido_id = ?`, iVals);
+                }
+
+                // NCM e CST/CSOSN são atributos da MERCADORIA, não da nota: a mesma peça não
+                // pode sair com NCM diferente em notas diferentes. Por isso vão para `produtos`
+                // — `pedido_itens` nem tem essas colunas.
+                const gravarNoProduto = async (coluna, valor, rotulo) => {
+                    const [r] = await pool.query(
+                        `UPDATE produtos p
+                            JOIN pedido_itens i ON i.produto_id = p.id
+                            SET p.${coluna} = ?
+                          WHERE i.id = ? AND i.pedido_id = ? AND COALESCE(p.${coluna}, '') <> ?`,
+                        [valor, parseInt(itemId, 10), pedidoId, valor]
+                    );
+                    if (r.affectedRows) {
+                        console.log(`[Vendas/EspelhoPatch] ${rotulo} do produto atualizado p/ ${valor} (item ${itemId}, pedido ${pedidoId})`);
+                        return true;
+                    }
+                    // 0 linhas = já estava com esse valor, ou o item não tem produto vinculado
+                    const [[chk]] = await pool.query(
+                        'SELECT produto_id FROM pedido_itens WHERE id = ? AND pedido_id = ?',
+                        [parseInt(itemId, 10), pedidoId]
+                    ).catch(() => [[]]);
+                    if (chk && chk.produto_id == null) {
+                        avisos.push('Um item não está vinculado a nenhum produto do cadastro, então NCM e CST não puderam ser gravados.');
+                    }
+                    return false;
+                };
+
+                if (fields.ncm !== undefined) {
+                    const ncm = String(fields.ncm || '').replace(/\D/g, '');
+                    if (!ncm) { /* vazio: não apaga o cadastro */ }
+                    else if (ncm.length !== 8) avisos.push(`NCM "${fields.ncm}" ignorado (precisa ter 8 dígitos).`);
+                    else await gravarNoProduto('ncm', ncm, 'NCM');
+                }
+
+                if (fields.origem !== undefined) {
+                    const origem = String(fields.origem || '').replace(/\D/g, '');
+                    if (!origem) { /* vazio: não apaga classificação fiscal confirmada */ }
+                    else if (!/^[0-8]$/.test(origem)) avisos.push(`Origem fiscal "${fields.origem}" ignorada (use um código de 0 a 8).`);
+                    else await gravarNoProduto('origem', origem, 'Origem fiscal');
+                }
+
+                if (fields.cst !== undefined) {
+                    // CST do ICMS tem 2 dígitos; CSOSN (Simples Nacional) tem 3. O comprimento
+                    // é o que define a coluna de destino — não o regime configurado, para que
+                    // uma nota atípica não grave o código na coluna errada em silêncio.
+                    const cst = String(fields.cst || '').replace(/\D/g, '');
+                    if (!cst) { /* vazio: não apaga o cadastro */ }
+                    else if (cst.length === 3) await gravarNoProduto('csosn_icms', cst, 'CSOSN');
+                    else if (cst.length <= 2) await gravarNoProduto('cst_icms', cst.padStart(2, '0'), 'CST');
+                    else avisos.push(`CST "${fields.cst}" ignorado (CST tem 2 dígitos e CSOSN tem 3).`);
                 }
             }
 
-            return res.json({ ok: true });
+            // Se já existe XML ainda não autorizado, salvá-lo sem reconstruir deixaria
+            // a tela nova e o documento fiscal antigo. Regera o MESMO registro/número,
+            // sem transmitir à SEFAZ; a transmissão continua sendo uma ação explícita.
+            let nfeAtualizada = null;
+            const [[nfeRegeravel]] = await pool.query(
+                `SELECT id, numero, status
+                   FROM nfes
+                  WHERE pedido_id = ?
+                    AND protocolo_autorizacao IS NULL
+                    AND LOWER(COALESCE(status, '')) IN ('pendente','rejeitada','erro','processando')
+                  ORDER BY id DESC LIMIT 1`, [pedidoId]
+            ).catch(() => [[]]);
+            if (nfeRegeravel) {
+                // Em edição comum preserva o recorte da NF-e (importante para meia nota).
+                // Quando a própria tela acaba de ADICIONAR um produto, a intenção expressa
+                // é refazer a nota com a lista atual do pedido, incluindo a nova linha.
+                const incluirTodos = corpo._incluir_todos_itens === true || corpo._incluir_todos_itens === 'true';
+                const [itensFonte] = await pool.query(incluirTodos
+                    ? `SELECT produto_id, quantidade, preco_unitario AS valor_unitario, cfop
+                         FROM pedido_itens WHERE pedido_id = ? ORDER BY id`
+                    : `SELECT produto_id, quantidade, valor_unitario, cfop
+                         FROM nfe_itens WHERE nfe_id = ? ORDER BY id`,
+                [incluirTodos ? pedidoId : nfeRegeravel.id]);
+                const itensRegeneracao = (itensFonte || []).map(it => ({
+                    produto_id: Number(it.produto_id),
+                    quantidade: Number(it.quantidade),
+                    valor_unitario: Number(it.valor_unitario),
+                    cfop: it.cfop || null
+                })).filter(it => it.produto_id > 0 && it.quantidade > 0 && it.valor_unitario > 0);
+                if (!itensRegeneracao.length) {
+                    throw new Error(`Os dados foram salvos, mas a NF-e ${nfeRegeravel.numero || ''} não possui itens válidos para reconstruir o XML.`);
+                }
+                const { emitirNFePedido } = require('../services/nfe-emitter.service');
+                const regerada = await emitirNFePedido(pool, {
+                    pedidoId,
+                    itens: itensRegeneracao,
+                    usuarioId: req.user?.id || null,
+                    transmitir: false,
+                    regerarNfeId: nfeRegeravel.id
+                });
+                nfeAtualizada = {
+                    id: regerada.nfeId,
+                    numero: regerada.numero,
+                    chaveAcesso: regerada.chaveAcesso,
+                    status: regerada.status
+                };
+            }
+
+            return res.json({ ok: true, avisos, nfeAtualizada });
         } catch (err) {
             console.error('[Vendas/EspelhoPatch] Erro:', err);
             return res.status(500).json({ ok: false, error: err.message });
+        }
+    });
+
+    // Alerta de CFOP para o modal "Faturar Pedido" (passo do espelho): avisa ANTES do envio
+    // à SEFAZ quando um item usa CFOP de remessa/retorno/bonificação/amostra/conserto — essa
+    // é a origem do problema relatado (nota saindo com duplicata ou imposto destacado onde a
+    // operação não é venda). Meramente informativo: nunca bloqueia o faturamento sozinho, a
+    // decisão final continua com quem está faturando.
+    router.get('/pedidos/:id/cfop-alerta', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { classificarCfop } = require('../services/cfop-operacao.service');
+            const [itens] = await pool.query(
+                'SELECT descricao, cfop FROM pedido_itens WHERE pedido_id = ?', [id]
+            );
+            const itensAlerta = itens
+                .map(it => ({ descricao: it.descricao, ...classificarCfop(it.cfop, it.descricao) }))
+                .filter(it => it.alerta);
+            res.json({ success: true, alerta: itensAlerta.length > 0, itens: itensAlerta });
+        } catch (e) {
+            // Alerta é acessório: uma falha aqui não pode travar o modal de faturamento.
+            res.json({ success: true, alerta: false, itens: [] });
         }
     });
 
@@ -6276,7 +16677,13 @@ async function salvarEdicao() {
         const connection = await pool.getConnection();
         try {
             const { id } = req.params;
-            const { gerarNFe = true } = req.body;
+            // Emitir NF-e é OPT-IN explícito. Antes o default era `true`: qualquer chamada
+            // a esta rota que esquecesse o campo transmitia uma nota à SEFAZ — e nota
+            // transmitida não se desfaz, só se cancela dentro do prazo. Emissão fiscal é o
+            // tipo de efeito que tem de ser pedido, nunca herdado de um default.
+            // Os três caminhos legítimos da tela já mandam `gerarNFe: true` explicitamente
+            // (Faturamento: executarNormal; Vendas: faturar individual e "Faturar Todos").
+            const gerarNFe = req.body?.gerarNFe === true || req.body?.gerarNFe === 'true';
             const user = req.user || {};
 
             // AUDIT-FIX BUG-04: Verificar permissão de faturamento antes de processar
@@ -6322,11 +16729,55 @@ async function salvarEdicao() {
 
             const pedido = pedidoRows[0];
 
+            // ── TRAVA DE CRÉDITO DO CLIENTE (porta 4: emissão da NF-e) ───────────────
+            // Faturar é a porta que mais importa: é aqui que a exposição vira título. O
+            // pedido pode ter sido aprovado ontem e o cliente ter vencido um boleto hoje.
+            if (pedido.cliente_id) {
+                const _avaliacaoFat = await creditoCliente.avaliarCreditoCliente(connection, {
+                    clienteId: pedido.cliente_id, valorPedido: parseFloat(pedido.valor || 0), pedidoId: id, porta: 'faturar'
+                });
+                if (_avaliacaoFat.bloqueado) {
+                    const _forcar = req.body?.forcar_credito === true || req.body?.forcar_credito === 'true';
+                    if (!(faturamentoShared.isAdmin(user) && _forcar)) {
+                        // Sem `connection.release()` aqui: esta rota já solta a conexão no
+                        // `finally`. (Os returns antigos deste handler soltam nos dois lugares
+                        // — não repetir o padrão.)
+                        await connection.rollback();
+                        return res.status(409).json(creditoCliente.respostaBloqueio(_avaliacaoFat, 'faturar este pedido'));
+                    }
+                    await creditoCliente.registrarLiberacaoForcada(connection, {
+                        pedidoId: id, usuario: user, avaliacao: _avaliacaoFat, acao: 'faturamento do pedido'
+                    });
+                    console.warn(`[CREDITO-GATE] Admin ${user?.nome || user?.email} faturou o pedido #${id} com pendência de crédito.`);
+                }
+            }
+
             // Validar: pedido já faturado não pode ser faturado novamente
             if (['faturado', 'entregue', 'cancelado'].includes(pedido.status)) {
                 await connection.rollback();
                 connection.release();
                 return res.status(400).json({ message: `Pedido já está com status "${pedido.status}" e não pode ser faturado novamente.` });
+            }
+
+            // AUDIT-FIX M-06: pedido com faturamento parcial ativo não pode receber faturamento
+            // total — a NF-e/CR integral sobreporia os valores já faturados parcialmente.
+            try {
+                const [parciaisAtivos] = await connection.query(
+                    `SELECT COUNT(*) AS count FROM pedido_faturamentos
+                     WHERE pedido_id = ? AND tipo = 'faturamento'
+                       AND COALESCE(nfe_status, 'pendente') <> 'cancelada'`,
+                    [id]
+                );
+                if (parciaisAtivos[0].count > 0) {
+                    await connection.rollback();
+                    connection.release();
+                    return res.status(409).json({
+                        message: 'Pedido possui faturamento(s) parcial(is) ativo(s). Conclua o saldo restante pelo faturamento parcial para não duplicar NF-e/contas a receber.',
+                        code: 'FATURAMENTO_PARCIAL_EXISTENTE'
+                    });
+                }
+            } catch (_parciaisErr) {
+                // Tabela pedido_faturamentos ainda não existe neste schema — não há parciais possíveis
             }
 
             // Bloquear faturamento de pedido cujo cliente está bloqueado por inadimplência
@@ -6379,8 +16830,19 @@ async function salvarEdicao() {
             // ========================================
             {
                 const cenarioFiscalDef = pedido.cenario_fiscal_id || pedido.cenario_fiscal;
-                const semCenario = cenarioFiscalDef === null || cenarioFiscalDef === undefined ||
+                // Não basta o campo ter texto: pedidos importados do Omie guardavam o código
+                // de cenário de lá ("8419184876") e passavam pela trava sem cenário real
+                // (convertidos em 25/09/2026 pelo destino). Exige um cenário que exista —
+                // mesma resolução por id/nome/código do motor fiscal.
+                const cenarioVazio = cenarioFiscalDef === null || cenarioFiscalDef === undefined ||
                     String(cenarioFiscalDef).trim() === '';
+                const cenarioResolvidoFat = cenarioVazio ? null
+                    : await buscarCenarioFiscalVenda(cenarioFiscalDef, connection).catch(() => null);
+                // Instância sem cenários cadastrados (ou sem a tabela) mantém a regra antiga:
+                // exigir um cenário que não existe bloquearia todo faturamento.
+                const [[qtdCenarios]] = await connection.query('SELECT COUNT(*) AS n FROM cenarios_fiscais WHERE ativo = 1')
+                    .catch(() => [[{ n: 0 }]]);
+                const semCenario = cenarioVazio || (Number(qtdCenarios?.n) > 0 && !cenarioResolvidoFat);
                 if (semCenario) {
                     console.log(`🚫 [CV-005] Bloqueado faturamento do pedido #${id}: cenário fiscal não definido`);
                     await connection.rollback();
@@ -6396,54 +16858,10 @@ async function salvarEdicao() {
             let novaNf = null;
             let nfeData = null;
 
-            // 3. Tentar gerar NFe via módulo externo (não bloqueia o faturamento se falhar)
-            if (gerarNFe && itensRows.length > 0) {
-                try {
-                    const nfePayload = {
-                        pedido_id: id,
-                        cliente: {
-                            nome: pedido.cliente_nome_join || pedido.cliente,
-                            cpf_cnpj: pedido.cpf_cnpj || pedido.cnpj,
-                            email: pedido.cliente_email,
-                            telefone: pedido.cliente_telefone,
-                            endereco: pedido.endereco,
-                            numero: pedido.num_endereco,
-                            complemento: pedido.complemento,
-                            bairro: pedido.bairro,
-                            cidade: pedido.cidade,
-                            uf: pedido.uf,
-                            cep: pedido.cep
-                        },
-                        produtos: itensRows.map(item => ({
-                            codigo: item.codigo_produto || item.codigo,
-                            descricao: item.descricao || item.produto,
-                            ncm: item.ncm || '00000000',
-                            quantidade: item.quantidade,
-                            valor_unitario: item.preco_unitario || item.valor_unitario,
-                            valor_total: parseFloat(item.quantidade) * parseFloat(item.preco_unitario || item.valor_unitario || 0)
-                        })),
-                        valor_total: pedido.valor,
-                        observacoes: pedido.observacoes || ''
-                    };
-                    const axios = require('axios');
-                    const nfeResponse = await axios.post('http://localhost:3003/api/nfe/gerar', nfePayload, {
-                        timeout: 30000,
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    if (nfeResponse.data && nfeResponse.data.numero) {
-                        novaNf = nfeResponse.data.numero;
-                        nfeData = {
-                            numero: nfeResponse.data.numero,
-                            chave: nfeResponse.data.chave,
-                            protocolo: nfeResponse.data.protocolo,
-                            danfe_url: nfeResponse.data.danfe_url
-                        };
-                        console.log(`[FATURAR] NFe ${novaNf} gerada para pedido #${id}`);
-                    }
-                } catch (nfeError) {
-                    console.error('[FATURAR] Erro ao gerar NFe (não crítico):', nfeError.message);
-                }
-            }
+            // 3. A emissão fiscal é feita exclusivamente pelo emissor in-process após o
+            // commit (bloco 4g). A antiga chamada a localhost:3003 apontava para um serviço
+            // que não existe nas quatro instâncias, adicionava 30 s de espera e mascarava a
+            // falha antes de cair no emissor real.
 
             try {
                 // 4a. NF sequencial via serviço compartilhado (usa colunas reais: nf, numero_nf)
@@ -6484,17 +16902,28 @@ async function salvarEdicao() {
 
                 // 4d. Gerar conta a receber (evita duplicação)
                 let contaReceberGerada = null;
+                let itensSemDuplicataInfo = null;
                 try {
-                    const valorPedido = parseFloat(pedido.valor || 0);
-                    let valorFaturamento = valorPedido;
+                    const { classificarCfop } = require('../services/cfop-operacao.service');
+                    // Itens com CFOP de remessa/retorno/bonificação/amostra/conserto não são
+                    // venda: cobrá-los no Contas a Receber criaria um título sem contrapartida
+                    // comercial real. Preferir a soma dos itens FATURÁVEIS sobre pedido.valor
+                    // (que segue sendo o fallback quando o pedido não tem itens gravados).
+                    const itensComCfop = (itensRows || []).map(it => ({ ...it, _classe: classificarCfop(it.cfop) }));
+                    const itensSemDuplicata = itensComCfop.filter(it => !it._classe.gerarDuplicata);
+                    const itensFaturaveis = itensComCfop.filter(it => it._classe.gerarDuplicata);
 
-                    // Preferir SUM(itens.subtotal) sobre pedido.valor para precisão
-                    const [itensSum] = await connection.query(
-                        'SELECT COUNT(*) as count, COALESCE(SUM(subtotal), 0) as total_itens FROM pedido_itens WHERE pedido_id = ?',
-                        [id]
-                    );
-                    if (itensSum[0].count > 0 && parseFloat(itensSum[0].total_itens) > 0) {
-                        valorFaturamento = parseFloat(itensSum[0].total_itens);
+                    let valorFaturamento = parseFloat(pedido.valor || 0);
+                    if (itensComCfop.length > 0) {
+                        valorFaturamento = itensFaturaveis.reduce((acc, it) => acc + (parseFloat(it.subtotal) || 0), 0);
+                    }
+
+                    if (itensSemDuplicata.length > 0) {
+                        itensSemDuplicataInfo = {
+                            quantidade: itensSemDuplicata.length,
+                            motivo: itensSemDuplicata[0]._classe.natureza || 'CFOP sem faturamento'
+                        };
+                        console.log(`[FATURAR] Pedido #${id}: ${itensSemDuplicata.length} item(ns) com CFOP sem faturamento (${itensSemDuplicataInfo.motivo}) — excluído(s) do Contas a Receber.`);
                     }
 
                     if (valorFaturamento > 0) {
@@ -6508,12 +16937,18 @@ async function salvarEdicao() {
                                 descricao: `Faturamento Pedido #${id} - ${pedido.cliente || 'Cliente'}`,
                                 valor: valorFaturamento,
                                 tipo: 'faturamento',
-                                pedido
+                                pedido,
+                                // Vínculo fiscal: sem ele o cancelamento da NF-e não acha o
+                                // título e a cobrança segue aberta sem documento fiscal.
+                                nfe_id: pedido.nfe_id || null,
+                                nota_fiscal: pedido.nfe_faturamento_numero || pedido.numero_nf || pedido.nf || null
                             });
                             console.log(`[FATURAR] Conta a receber #${contaReceberGerada?.insertId} gerada para pedido #${id} (R$${valorFaturamento})`);
                         } else {
                             console.log(`[FATURAR] Conta a receber já existe para pedido #${id} — pulando`);
                         }
+                    } else if (itensSemDuplicata.length > 0) {
+                        console.log(`[FATURAR] Pedido #${id}: nenhuma conta a receber gerada — todos os itens têm CFOP sem faturamento.`);
                     }
                 } catch (financeiroError) {
                     console.error('[FATURAR] Erro ao gerar conta a receber (não crítico):', financeiroError.message);
@@ -6549,38 +16984,107 @@ async function salvarEdicao() {
             // 4g. EMISSÃO REAL DA NF-e À SEFAZ (in-process, fora da transação).
             // Substitui o antigo POST a localhost:3003 (serviço inexistente). Usa o motor
             // comprovado (cStat 100). Falha não desfaz o faturamento — NF fica pendente.
+            let falhaEmissaoFiscal = null;
+            let nfePendente = null;
+            let pedidoRevertido = null; // rollback automático após rejeição definitiva da SEFAZ
             if (gerarNFe && !nfeData && itensRows.length > 0) {
                 try {
                     const { emitirNFePedido } = require('../services/nfe-emitter.service');
                     const itensEmitir = itensRows
                         .filter(it => Number(it.produto_id) > 0)
-                        .map(it => ({
-                            produto_id: Number(it.produto_id),
-                            quantidade: Number(it.quantidade),
-                            valor_unitario: Number(it.preco_unitario || it.valor_unitario) || 0
-                        }))
+                         .map(it => ({
+                             produto_id: Number(it.produto_id),
+                             quantidade: Number(it.quantidade),
+                             valor_unitario: Number(it.preco_unitario || it.valor_unitario) || 0,
+                             // Preservar o CFOP definido na linha do pedido. Sem este campo o
+                             // emissor recai no cadastro do produto (ex.: 5102), ignorando uma
+                             // remessa 5901 deliberadamente configurada no pedido.
+                             cfop: it.cfop || null
+                         }))
                         .filter(it => it.quantidade > 0 && it.valor_unitario > 0);
                     if (itensEmitir.length > 0) {
                         const em = await emitirNFePedido(pool, {
-                            pedidoId: parseInt(id), itens: itensEmitir, usuarioId: user.id || null
+                            pedidoId: parseInt(id), itens: itensEmitir, usuarioId: user.id || null,
+                            reverterFaturamentoAoFalhar: true
                         });
                         if (em.autorizado) {
                             novaNf = em.numero;
-                            nfeData = { numero: em.numero, chave: em.chaveAcesso, protocolo: em.protocolo };
+                            // `nfe_id` na resposta é o que permite à tela baixar o XML sozinha
+                            // logo após a autorização, em vez de obrigar a pessoa a procurar a
+                            // nota na listagem e baixar uma a uma.
+                            nfeData = { numero: em.numero, chave: em.chaveAcesso, protocolo: em.protocolo, nfe_id: em.nfeId };
                             await pool.query(
                                 'UPDATE pedidos SET nf = ?, numero_nf = ?, nfe_chave = ?, nfe_id = COALESCE(nfe_id, ?) WHERE id = ?',
                                 [String(em.numero), String(em.numero), em.chaveAcesso, em.nfeId, id]
                             );
+
+                            // Toda NF-e autorizada segue para a logística com DANFE + XML em anexo.
+                            // Sem await: a nota já está autorizada na SEFAZ, um SMTP lento não pode
+                            // atrasar a resposta nem derrubar o faturamento.
+                            const { notificarNfeEmitida } = require('../services/nfe-notificacao.service');
+                            notificarNfeEmitida({
+                                pool,
+                                pedidoId: parseInt(id),
+                                nfeId: em.nfeId,
+                                chave: em.chaveAcesso,
+                                protocolo: em.protocolo,
+                                numero: em.numero,
+                                serie: em.serie || 1,
+                                ambiente: process.env.NFE_AMBIENTE || process.env.SEFAZ_AMBIENTE
+                            }).catch(e => console.error('[NFE-EMAIL] emissão (faturar):', e.message));
                         } else {
+                            nfePendente = {
+                                nfe_id: em.nfeId || null,
+                                numero: em.numero || null,
+                                status: em.status || 'rejeitada',
+                                codigo_status: em.codigoStatus || null,
+                                motivo: em.motivo || 'NF-e não autorizada pela SEFAZ.'
+                            };
                             console.error(`[FATURAR] NF-e não autorizada p/ pedido ${id}: ${em.codigoStatus} ${em.motivo}`);
+                            if (em.rollback && em.rollback.revertida) {
+                                // O faturamento foi desfeito: não há rascunho pendente a corrigir.
+                                pedidoRevertido = {
+                                    numero: em.numero, codigo: em.codigoStatus, motivo: em.motivo,
+                                    statusAnterior: em.rollback.plano ? em.rollback.plano.statusAnterior : null,
+                                    numeroLacuna: em.rollback.plano ? em.rollback.plano.numeroLacuna : null
+                                };
+                                nfePendente = null;
+                            } else if (em.rollback) {
+                                console.warn(`[FATURAR] Rollback automático não executado (pedido ${id}): ${em.rollback.codigo} ${em.rollback.motivo}`);
+                            }
                         }
+                    } else {
+                        falhaEmissaoFiscal = new Error('Nenhum item do pedido possui produto fiscal válido para emissão da NF-e.');
                     }
                 } catch (emitErr) {
+                    falhaEmissaoFiscal = emitErr;
                     console.error('[FATURAR] Emissão SEFAZ falhou (pedido faturado, NF pendente):', emitErr.message);
                 }
             }
-            // Fallback: se nenhuma NF-e real foi emitida, garante número legado ao pedido.
-            if (!novaNf) {
+            // O motivo da falha fica gravado no pedido: a Listagem de NF-e mostra o pedido
+            // faturado sem nota com status "erro" e este texto, no topo, com a ação de
+            // reemitir. Antes a falha só existia na resposta desta chamada (mesmo problema
+            // do faturamento parcial do pedido 3663, 24/09/2026).
+            if (gerarNFe && !pedidoRevertido) {
+                const motivoPersistir = nfeData ? null
+                    : String(nfePendente?.motivo || falhaEmissaoFiscal?.message || 'A NF-e não foi autorizada pela SEFAZ.').slice(0, 500);
+                try {
+                    await pool.query('UPDATE pedidos SET nfe_erro = ? WHERE id = ?', [motivoPersistir, id]);
+                } catch (e) {
+                    try {
+                        // Instância em que a Listagem de NF-e ainda não criou a coluna.
+                        if (e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+                        await pool.query('ALTER TABLE pedidos ADD COLUMN nfe_erro VARCHAR(500) NULL');
+                        await pool.query('UPDATE pedidos SET nfe_erro = ? WHERE id = ?', [motivoPersistir, id]);
+                    } catch (e2) {
+                        console.error('[FATURAR] Não foi possível gravar o motivo da falha da NF-e:', e2.message);
+                    }
+                }
+            }
+            // Fallback: só para faturamento SEM emissão de NF-e. Quando a emissão foi pedida e
+            // falhou antes de numerar, reservar um número aqui QUEIMAVA a sequência (número
+            // nunca transmitido = buraco a inutilizar); a reemissão numera na hora certa.
+            if (!novaNf && !gerarNFe) {
                 const conn2 = await pool.getConnection();
                 try {
                     await conn2.beginTransaction();
@@ -6594,6 +17098,23 @@ async function salvarEdicao() {
                 } finally {
                     conn2.release();
                 }
+            }
+
+            // Rollback automático: a SEFAZ rejeitou e o faturamento foi desfeito. Sem
+            // notificação de "faturado" e sem rascunho pendente — o pedido voltou à fila.
+            if (pedidoRevertido) {
+                console.warn(`[FATURAR] Pedido #${id}: NF-e ${pedidoRevertido.numero} rejeitada (cStat ${pedidoRevertido.codigo}); faturamento revertido para "${pedidoRevertido.statusAnterior}".`);
+                return res.status(422).json({
+                    success: false,
+                    errorCode: 'NFE_REJEITADA_FATURAMENTO_REVERTIDO',
+                    pedido_faturado: false,
+                    pedido_revertido: true,
+                    pedido_status: pedidoRevertido.statusAnterior,
+                    numero_lacuna: pedidoRevertido.numeroLacuna,
+                    codigo: pedidoRevertido.codigo,
+                    message: `A SEFAZ rejeitou a NF-e (cStat ${pedidoRevertido.codigo}): ${pedidoRevertido.motivo}. `
+                        + `O faturamento foi desfeito e o pedido voltou para "${pedidoRevertido.statusAnterior}". Corrija o cadastro e fature novamente.`
+                });
             }
 
             // 5. Notificação (fora da transação)
@@ -6614,7 +17135,20 @@ async function salvarEdicao() {
             }
 
             console.log(`[FATURAR] ✅ Pedido #${id} faturado — NF: ${novaNf} | por: ${user.nome || user.email || 'Usuário'}`);
+            if (gerarNFe && !nfeData) {
+                const motivoFiscal = nfePendente?.motivo || falhaEmissaoFiscal?.message
+                    || 'A NF-e não foi autorizada pela SEFAZ.';
+                return res.status(502).json({
+                    success: false,
+                    errorCode: 'NFE_NAO_AUTORIZADA',
+                    pedido_faturado: true,
+                    nfe_pendente: nfePendente,
+                    message: `O pedido foi processado, mas a NF-e não foi autorizada. Corrija o rascunho fiscal e reenvie à SEFAZ: ${motivoFiscal}`
+                });
+            }
+
             res.json({
+                success: true,
                 message: nfeData ? 'Pedido faturado e NFe gerada com sucesso!' : 'Pedido faturado com sucesso!',
                 nf_numero: novaNf,
                 nfe_gerada: !!nfeData,
@@ -6646,13 +17180,16 @@ async function salvarEdicao() {
             const { id } = req.params;
             const {
                 tipo_faturamento = 'parcial_50',
-                percentual = 50,
+                percentual: percentualSolicitado = 50,
                 cfop: cfopManual,
                 gerarNFe = true,
                 gerarFinanceiro = true,
                 observacoes = '',
                 itens_faturar = null
             } = req.body;
+            // F9 (parcial_50) não aceita mais faixas de 10% a 40%: a primeira
+            // etapa é sempre exatamente 50%, independentemente do payload enviado.
+            const percentual = tipo_faturamento === 'parcial_50' ? 50 : percentualSolicitado;
 
             // Lock do pedido para evitar faturamento concorrente
             const [pedidoRows] = await connection.query('SELECT p.*, c.estado as cliente_uf, e.estado as empresa_uf FROM pedidos p LEFT JOIN clientes c ON p.cliente_id = c.id LEFT JOIN empresas e ON p.empresa_id = e.id WHERE p.id = ? FOR UPDATE', [id]);
@@ -6812,7 +17349,10 @@ async function salvarEdicao() {
                         descricao: `Faturamento ${percentualFaturar}% - Pedido #${id}`,
                         valor: valorFaturar,
                         tipo: 'faturamento_parcial',
-                        pedido: pedido
+                        pedido: pedido,
+                        // Com faturamento parcial o pedido tem várias notas: sem o número
+                        // gravado no título, cancelar uma delas não sabe qual recebível estornar.
+                        nota_fiscal: novoNfNumero || null
                     });
                     contaReceberId = contaResult.insertId;
                     await connection.query('UPDATE pedido_faturamentos SET conta_receber_id = ? WHERE id = ?', [contaReceberId, fatResult.insertId]);
@@ -6974,7 +17514,8 @@ async function salvarEdicao() {
                         descricao: `Remessa/Entrega - Pedido #${id}`,
                         valor: valorRestante,
                         tipo: 'remessa_entrega',
-                        pedido: pedido
+                        pedido: pedido,
+                        nota_fiscal: novoNfRemessa || null
                     });
                     contaReceberId = contaResult.insertId;
                     await connection.query('UPDATE pedido_faturamentos SET conta_receber_id = ? WHERE id = ?', [contaReceberId, fatResult.insertId]);
@@ -7058,7 +17599,11 @@ async function salvarEdicao() {
         try {
             await ensureFaturamentoParcialTables();
             const [rows] = await pool.query(`
-                SELECT p.*, e.nome_fantasia as empresa_nome, u.nome as vendedor_nome
+                SELECT p.*, e.nome_fantasia as empresa_nome,
+                       COALESCE(
+                           NULLIF(CASE WHEN LOWER(TRIM(COALESCE(p.vendedor_nome, ''))) = 'mel' THEN 'Melissa Navarro' ELSE TRIM(p.vendedor_nome) END, ''),
+                           NULLIF(TRIM(u.nome), '')
+                       ) as vendedor_nome
                 FROM pedidos p LEFT JOIN empresas e ON p.empresa_id = e.id LEFT JOIN usuarios u ON p.vendedor_id = u.id
                 WHERE p.tipo_faturamento IN ('parcial_50', 'entrega_futura') AND (p.percentual_faturado < 100 OR p.estoque_baixado = 0) AND p.status NOT IN ('cancelado', 'denegado')
                 ORDER BY p.created_at DESC
@@ -7074,7 +17619,7 @@ async function salvarEdicao() {
     // DANFE — Geração de Documento Auxiliar da NF-e
     // GET /api/vendas/pedidos/:id/danfe
     // ============================================================
-    router.get('/pedidos/:id/danfe', authenticateToken, async (req, res, next) => {
+    router.get('/pedidos/:id/danfe', authenticateToken, pedidoOwnership, async (req, res, next) => {
         try {
             const { id } = req.params;
             const isPreview = req.query.preview === '1';
@@ -7101,7 +17646,10 @@ async function salvarEdicao() {
                        t.nome_fantasia AS transportadora_nome_fantasia,
                        t.cnpj_cpf AS transportadora_cnpj_cpf,
                        t.inscricao_estadual AS transportadora_inscricao_estadual,
-                       t.endereco AS transportadora_endereco,
+                       -- Rua E numero: a tabela transportadoras guarda os dois separados, e o alias
+                       -- so trazia a rua. A DANFE le este campo direto (danfe-renderer, xEnder),
+                       -- entao o endereco da transportadora saia impresso sem o numero.
+                       NULLIF(CONCAT_WS(', ', NULLIF(TRIM(t.endereco), ''), NULLIF(TRIM(t.numero), '')), '') AS transportadora_endereco,
                        t.cidade AS transportadora_cidade,
                        t.estado AS transportadora_estado
                 FROM pedidos p
@@ -7113,6 +17661,13 @@ async function salvarEdicao() {
 
             if (!pedido) {
                 return res.status(404).json({ message: 'Pedido não encontrado' });
+            }
+
+            // Mesmo motivo do espelho: o JOIN traz o documento cru, e as linhas
+            // legadas "ENC:..." iriam para o quadro TRANSPORTADOR da DANFE.
+            if (lgpdCrypto && lgpdCrypto.decryptPII) {
+                pedido.transportadora_cnpj_cpf = lgpdCrypto.decryptPII(pedido.transportadora_cnpj_cpf || '') || '';
+                pedido.transportadora_inscricao_estadual = lgpdCrypto.decryptPII(pedido.transportadora_inscricao_estadual || '') || '';
             }
 
             // Se cliente_id NULL mas temos cliente_nome, tentar resolver pelo nome
@@ -7190,6 +17745,24 @@ async function salvarEdicao() {
                 }
             }
 
+            // 19/09/2026: esta rota montava o contexto só de `pedido`/`pedido_itens` mesmo
+            // pra uma nota JÁ AUTORIZADA — os mesmos impostos recalculados das colunas do
+            // pedido, sem nunca olhar o XML realmente transmitido. Se algo recalculasse ou
+            // editasse essas colunas depois da emissão, este DANFE divergiria do documento
+            // que a SEFAZ autorizou (o /espelho-nfe já corrige isso desde <ver comentário em
+            // routes/danfe-renderer.js:1484> — esta rota tinha ficado de fora do mesmo fix).
+            let _nfeAutorizadaDanfe = null;
+            if (!isPreview) {
+                try {
+                    [[_nfeAutorizadaDanfe]] = await pool.query(
+                        `SELECT xml_assinado, xml_nfe, status FROM nfes
+                          WHERE (id = ? OR pedido_id = ?) AND LOWER(COALESCE(status, '')) IN ('autorizada', 'cancelada')
+                          ORDER BY (LOWER(COALESCE(status, '')) = 'autorizada') DESC, id DESC LIMIT 1`,
+                        [pedido.nfe_id || 0, id]
+                    );
+                } catch (_) { /* tabela nfes pode não existir nesta instância */ }
+            }
+
             // Buscar itens do pedido com dados fiscais
             let itens = [];
             try {
@@ -7246,8 +17819,13 @@ async function salvarEdicao() {
             }
 
             // Gerar HTML da DANFE usando template oficial (routes/danfe-renderer.js)
-            const { renderDanfe, buildDanfeCtx } = require('./danfe-renderer');
-            const danfeHTML = renderDanfe(buildDanfeCtx(pedido, itens, { preview: isPreview, cfgFiscal, logoDataUri }));
+            const { renderDanfe, buildDanfeCtx, aplicarXmlAutorizadoNoCtx } = require('./danfe-renderer');
+            const ctxDanfe = buildDanfeCtx(pedido, itens, { preview: isPreview, cfgFiscal, logoDataUri });
+            if (_nfeAutorizadaDanfe) {
+                // xml_protocolo fica FORA de propósito: é o envelope SOAP da autorização, sem infNFe.
+                aplicarXmlAutorizadoNoCtx(ctxDanfe, _nfeAutorizadaDanfe.xml_assinado, _nfeAutorizadaDanfe.xml_nfe);
+            }
+            const danfeHTML = renderDanfe(ctxDanfe);
 
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
             res.setHeader('Content-Disposition', `inline; filename="danfe-pedido-${id}.html"`);
@@ -7259,7 +17837,7 @@ async function salvarEdicao() {
         }
     });
 
-    router.get('/pedidos/:id/recibo', authenticateToken, async (req, res, next) => {
+    router.get('/pedidos/:id/recibo', authenticateToken, pedidoOwnership, async (req, res, next) => {
         try {
             const { id } = req.params;
 
@@ -7292,7 +17870,58 @@ async function salvarEdicao() {
                 estado: ''
             };
 
-            const valor = Number(pedido.valor_total || pedido.valor || 0);
+            // O documento serve como recibo/romaneio para envio ao cliente. Incluímos
+            // os itens reais do pedido para que ele também funcione como conferência
+            // de entrega (e não apenas como um comprovante sem conteúdo operacional).
+            let itens = [];
+            try {
+                const [rows] = await pool.query(
+                    `SELECT codigo, descricao, quantidade, unidade, preco_unitario, subtotal
+                       FROM pedido_itens
+                      WHERE pedido_id = ?
+                      ORDER BY id ASC`,
+                    [id]
+                );
+                itens = rows || [];
+            } catch (_) { /* pedido legado sem tabela/itens: mantém o recibo resumido */ }
+
+            const valorPedido = Number(pedido.valor_total || pedido.valor || 0);
+            const valorParcial = Number(pedido.valor_faturado || 0);
+            // O recibo financeiro precisa separar a parcela/NF-e deste documento
+            // do faturamento acumulado e do valor integral do pedido. Sem isso, uma
+            // meia-nota parecia ser a quitação do pedido completo para fundos/carteira.
+            let faturamentos = [];
+            try {
+                const [rows] = await pool.query(
+                    `SELECT id, valor, percentual, nfe_numero, nfe_cfop, conta_receber_id, created_at
+                       FROM pedido_faturamentos
+                      WHERE pedido_id = ? AND tipo = 'faturamento'
+                      ORDER BY sequencia ASC, id ASC`,
+                    [id]
+                );
+                faturamentos = rows || [];
+            } catch (_) { /* pedido/instância legado sem histórico de faturamento */ }
+            const ultimoFaturamento = faturamentos[faturamentos.length - 1] || null;
+            const valorHistoricoFaturado = faturamentos.reduce((total, item) => total + (Number(item.valor) || 0), 0);
+            const valorFaturado = Math.min(valorPedido, Math.max(valorParcial, valorHistoricoFaturado));
+            const valorDocumento = Number(ultimoFaturamento?.valor) || (valorParcial > 0 ? valorParcial : valorPedido);
+            const valorPendente = Math.max(0, valorPedido - valorFaturado);
+            const percentualFaturado = valorPedido > 0 ? (valorFaturado / valorPedido) * 100 : 0;
+            const percentualPendente = valorPedido > 0 ? (valorPendente / valorPedido) * 100 : 0;
+            let contaReceber = null;
+            try {
+                const [contas] = await pool.query(
+                    `SELECT id, descricao, valor, data_vencimento, status
+                       FROM contas_receber
+                      WHERE pedido_id = ?
+                      ORDER BY id DESC LIMIT 1`,
+                    [id]
+                );
+                contaReceber = contas[0] || null;
+            } catch (_) { /* carteira ainda não criada ou tabela legado */ }
+            const moeda = value => (Number(value) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const pct = value => (Math.round(value * 100) / 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+            const valor = valorDocumento;
             const valorFmt = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
             const dataEmissao = new Date(pedido.data_faturamento || pedido.updated_at || pedido.created_at || Date.now());
             const dataFmt = dataEmissao.toLocaleDateString('pt-BR');
@@ -7307,89 +17936,396 @@ async function salvarEdicao() {
             const esc = s => String(s == null ? '' : s)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-            const html = `<!DOCTYPE html>
+            const formatarDocumento = doc => {
+                const digits = String(doc || '').replace(/\D/g, '');
+                if (digits.length === 14) return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+                if (digits.length === 11) return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+                return doc || '—';
+            };
+
+            // Soma dos itens, para reconciliar com o valor em destaque — em pedidos com
+            // faturamento parcial (valorParcial), os itens listados são os do pedido
+            // inteiro, então o total da tabela pode não bater com o valor do recibo.
+            // Deixar isso explícito evita que o fundo/instituição leia como inconsistência.
+            const itensTotalCalc = itens.reduce((s, item) => {
+                const qtd = Number(item.quantidade) || 0;
+                const unit = Number(item.preco_unitario) || 0;
+                return s + (Number(item.subtotal) || qtd * unit);
+            }, 0);
+            const itensTotalFmt = itensTotalCalc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const valorDivergeDosItens = itens.length > 0 && Math.abs(itensTotalCalc - valor) > 0.01;
+
+            const codigoReferencia = require('crypto')
+                .createHash('sha256')
+                .update(`${pedido.id}|${valor}|${dataEmissao.toISOString()}`)
+                .digest('hex')
+                .slice(0, 12)
+                .toUpperCase();
+
+            // tipo=romaneio (padrão): comprovante de entrega ao cliente.
+            // tipo=financeiro: recibo formal do pedido para uso em operações com
+            // fundos/instituições financeiras (antecipação de recebíveis, fomento
+            // mercantil) — mesmo pedido, enquadramento documental diferente.
+            const tipoDocumento = String(req.query.tipo || 'romaneio').toLowerCase() === 'financeiro'
+                ? 'financeiro' : 'romaneio';
+
+            // CSS compartilhado pelos dois documentos abaixo (romaneio e financeiro) —
+            // MESMO padrão visual do orçamento (public/relatorios/orcamento.html): mesmas
+            // variáveis de cor, mesma .report-page/.report-header/.meta-bar/.summary-cards/
+            // .kv-grid/.note-box/table.data-table/.report-footer. Pedido de 22/09/2026: o
+            // recibo tinha um visual "cartão moderno" próprio, destoante do resto dos
+            // documentos impressos do sistema.
+            const CSS_RECIBO = `
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #27406b; --primary-fg: #ffffff; --accent: #1f7a8c;
+    --text: #1f2430; --muted: #6b7280; --border: #d4d9e0; --bg-soft: #f5f7fa;
+    --green:#2f7d3a; --green-bg:#e8f5ea; --green-bd:#bcdcc1;
+    --amber:#9a6a12; --amber-bg:#fbf2dd; --amber-bd:#e8d49b;
+    --red:#b3261e; --red-bg:#fbe9e8; --red-bd:#eec1bd;
+  }
+  html, body { height:auto; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--text); background:#e9ecf1; font-size:12px; line-height:1.5; }
+  .report-page { width:100%; max-width:210mm; margin:0 auto; padding:14mm; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08),0 8px 24px rgba(0,0,0,.08); }
+  .report-header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; border-bottom:2px solid var(--primary); padding-bottom:8px; }
+  .report-header .brand { display:flex; gap:12px; align-items:flex-start; flex:1; min-width:0; }
+  .report-header img.logo { height:38px; width:auto; max-width:130px; object-fit:contain; flex-shrink:0; }
+  .brand-info { min-width:0; }
+  .company-name { font-size:11.5px; font-weight:700; color:var(--primary); line-height:1.3; }
+  .company-line { font-size:9.5px; color:var(--muted); line-height:1.4; }
+  .report-id { text-align:right; flex-shrink:0; }
+  .report-id h1 { font-size:16px; font-weight:700; text-transform:uppercase; color:var(--primary); letter-spacing:-.2px; white-space:nowrap; }
+  .report-id .subtitle { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-top:2px; }
+  .doc-number { display:inline-block; background:var(--primary); color:#fff; font-size:17px; font-weight:800; letter-spacing:-.5px; padding:3px 14px; border-radius:6px; margin-top:5px; white-space:nowrap; }
+  .report-body { margin-top:10px; display:flex; flex-direction:column; gap:12px; }
+  .section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--primary); border-bottom:1px solid #e5e7eb; padding-bottom:2px; margin-bottom:6px; }
+
+  .meta-bar { display:grid; grid-template-columns:repeat(3,1fr); background:var(--bg-soft); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+  .meta-bar .meta-item { display:flex; flex-direction:column; justify-content:center; gap:2px; min-height:30px; padding:5px 12px; border-right:1px solid var(--border); }
+  .meta-bar .meta-item:last-child { border-right:none; }
+  .meta-item .m-label { font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); line-height:1; }
+  .meta-item .m-value { font-size:10.5px; font-weight:600; color:var(--text); line-height:1.2; }
+
+  .summary-cards { display:grid; gap:10px; }
+  .summary-cards.cols-3 { grid-template-columns:repeat(3,1fr); }
+  .summary-cards.cols-4 { grid-template-columns:repeat(4,1fr); }
+  .summary-card { border:1px solid #e5e7eb; background:var(--bg-soft); border-radius:6px; padding:8px 12px; }
+  .summary-card .label { font-size:8.5px; text-transform:uppercase; letter-spacing:.3px; color:var(--muted); }
+  .summary-card .value { font-size:15px; font-weight:700; margin-top:2px; }
+  .summary-card .value.accent { color:var(--accent); }
+  .summary-card .hint { font-size:9px; color:var(--muted); margin-top:2px; }
+
+  .kv-grid { display:grid; gap:0 16px; } .kv-grid.cols-1 { grid-template-columns:1fr; } .kv-grid.cols-2 { grid-template-columns:1fr 1fr; }
+  .kv-grid .kv { display:flex; justify-content:space-between; gap:8px; border-bottom:1px dashed #e5e7eb; padding:3px 0; }
+  .kv .k { color:var(--muted); font-size:10px; } .kv .v { font-weight:600; text-align:right; font-size:10px; }
+
+  .optional-info-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 20px; }
+  @media (max-width:620px) { .optional-info-grid { grid-template-columns:1fr; } }
+
+  .note-box { border:1px solid #e5e7eb; background:var(--bg-soft); border-radius:6px; padding:10px 12px; font-size:11px; color:#444; }
+  .note-box .note-title { font-weight:700; text-transform:uppercase; font-size:9px; letter-spacing:.4px; color:var(--primary); margin-bottom:5px; }
+  .note-box p { line-height:1.6; }
+  .note-box b { color:var(--primary); }
+  .note-box.tone-success { background:var(--green-bg); border-color:var(--green-bd); }
+  .note-box.tone-success .note-title { color:var(--green); }
+  .note-box.tone-warning { background:var(--amber-bg); border-color:var(--amber-bd); }
+  .note-box.tone-warning .note-title { color:var(--amber); }
+  .note-box.tone-danger { background:var(--red-bg); border-color:var(--red-bd); }
+  .note-box.tone-danger .note-title { color:var(--red); }
+
+  table.data-table { width:100%; border-collapse:collapse; font-size:11px; }
+  table.data-table thead tr { background:var(--primary); color:var(--primary-fg); }
+  table.data-table th { border:1px solid rgba(255,255,255,.25); padding:6px 8px; font-weight:600; text-align:left; }
+  table.data-table td { border:1px solid #e5e7eb; padding:5px 8px; color:#333; }
+  table.data-table .num { text-align:right; }
+  table.data-table tbody tr:nth-child(even) { background:var(--bg-soft); }
+  table.data-table tfoot tr { background:#eef0f3; font-weight:700; }
+  table.data-table tfoot td { border:1px solid var(--border); padding:6px 8px; }
+
+  .signature-block { margin-top:30px; display:grid; grid-template-columns:repeat(2,1fr); gap:40px; }
+  .signature { text-align:center; }
+  .signature .line { border-top:1px solid #333; margin:0 auto 4px; padding-top:4px; }
+  .signature .name { font-size:10.5px; font-weight:600; }
+  .signature .role { font-size:9.5px; color:var(--muted); }
+
+  .report-footer { margin-top:16px; border-top:1px solid var(--border); padding-top:8px; font-size:9.5px; color:var(--muted); display:flex; justify-content:space-between; gap:12px; }
+  .report-footer .codigo { font-family:'Courier New', monospace; letter-spacing:1px; }
+
+  .toolbar { max-width:210mm; margin:0 auto 10px; display:flex; gap:8px; }
+  .btn { border:0; padding:9px 16px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600; color:#fff; }
+  .btn-print { background:var(--primary); }
+  .btn-share { background:#0f766e; }
+
+  @media print {
+    @page { size:A4; margin:10mm; }
+    html, body { background:#fff; height:auto; overflow:visible; font-size:10.5px; }
+    .toolbar { display:none; }
+    .report-page { width:auto; margin:0; padding:0; box-shadow:none; }
+    thead { display:table-header-group; } tr { page-break-inside:avoid; }
+    .avoid-break { page-break-inside:avoid; }
+  }
+`;
+
+            const htmlRomaneio = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Recibo Pedido #${esc(pedido.id)}</title>
-<style>
-  body { font-family: 'Inter', Arial, sans-serif; max-width: 780px; margin: 32px auto; padding: 0 24px; color: #111; }
-  .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 24px; }
-  .header h1 { margin: 0; font-size: 28px; letter-spacing: 2px; }
-  .empresa { font-size: 12px; color: #555; text-align: right; }
-  .numero { background: #f4f4f4; padding: 12px 16px; border-radius: 6px; display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 14px; }
-  .valor-destaque { font-size: 32px; font-weight: 700; color: #1e40af; text-align: center; margin: 24px 0; padding: 16px; background: #eff6ff; border-radius: 8px; }
-  .bloco { margin: 16px 0; padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; line-height: 1.6; }
-  .bloco strong { display: inline-block; min-width: 110px; color: #444; }
-  .assinatura { margin-top: 64px; text-align: center; }
-  .assinatura .linha { border-top: 1px solid #111; width: 60%; margin: 0 auto 8px; }
-  .footer { margin-top: 32px; text-align: center; font-size: 11px; color: #888; }
-  @media print {
-    body { margin: 0; }
-    .no-print { display: none; }
-  }
-  .print-btn { background: #1e40af; color: #fff; border: 0; padding: 10px 18px; border-radius: 6px; cursor: pointer; margin-bottom: 16px; }
-</style>
+<title>Romaneio / Recibo Pedido #${esc(pedido.id)}</title>
+<style>${CSS_RECIBO}</style>
 </head>
 <body>
-  <button class="no-print print-btn" onclick="window.print()">🖨️ Imprimir</button>
-
-  <div class="header">
-    <div>
-      <h1>RECIBO</h1>
-      <div style="font-size:11px;color:#666;">Comprovante de recebimento</div>
-    </div>
-    <div class="empresa">
-      <strong>${esc(empresa.razao_social || empresa.nome_fantasia)}</strong><br>
-      ${esc(empresa.cnpj ? 'CNPJ: ' + empresa.cnpj : '')}<br>
-      ${esc([empresa.endereco, empresa.cidade, empresa.estado].filter(Boolean).join(' - '))}
-    </div>
+  <div class="toolbar no-print">
+    <button class="btn btn-print" onclick="window.print()">Imprimir</button>
+    <button class="btn btn-share" onclick="compartilharRomaneio()">Compartilhar</button>
   </div>
 
-  <div class="numero">
-    <div><strong>Recibo nº:</strong> ${String(pedido.id).padStart(6, '0')}</div>
-    <div><strong>Pedido:</strong> #${esc(pedido.numero_pedido || pedido.id)}</div>
-    <div><strong>Data:</strong> ${esc(dataFmt)}</div>
-  </div>
+  <article class="report-page">
+    <header class="report-header avoid-break">
+      <div class="brand">
+        <img class="logo" src="${esc(empresa.logo_path || '/images/logo-danfe.png')}" alt="Logo ${esc(empresa.nome_fantasia || empresa.razao_social || '')}" onerror="this.style.display='none'">
+        <div class="brand-info">
+          <p class="company-name">${esc(empresa.razao_social || empresa.nome_fantasia)}</p>
+          <p class="company-line">${empresa.cnpj ? 'CNPJ: ' + esc(formatarDocumento(empresa.cnpj)) : ''}</p>
+          <p class="company-line">${esc([empresa.endereco, empresa.cidade, empresa.estado].filter(Boolean).join(' - '))}</p>
+        </div>
+      </div>
+      <div class="report-id">
+        <h1>Romaneio</h1>
+        <p class="subtitle">Recibo / comprovante de entrega ao cliente</p>
+        <div class="doc-number">Nº ${String(pedido.numero_pedido || pedido.id).padStart(6, '0')}</div>
+      </div>
+    </header>
 
-  <div class="valor-destaque">
-    ${esc(valorFmt)}
-  </div>
+    <main class="report-body">
+      <div class="meta-bar avoid-break">
+        <div class="meta-item"><p class="m-label">Recibo nº</p><p class="m-value">${String(pedido.numero_pedido || pedido.id).padStart(6, '0')}</p></div>
+        <div class="meta-item"><p class="m-label">Pedido</p><p class="m-value">#${esc(pedido.numero_pedido || pedido.id)}</p></div>
+        <div class="meta-item"><p class="m-label">Data</p><p class="m-value">${esc(dataFmt)}</p></div>
+      </div>
 
-  <div class="bloco">
-    Recebi(emos) de <strong>${esc(pedido.cliente_nome)}</strong>${pedido.cliente_doc ? ' (CNPJ/CPF: ' + esc(pedido.cliente_doc) + ')' : ''},
-    a importância de <strong>${esc(valorFmt)}</strong> (${esc(valorExtenso(valor))}),
-    referente ao pedido nº <strong>#${esc(pedido.numero_pedido || pedido.id)}</strong>${pedido.nf || pedido.numero_nf ? ', NF-e nº ' + esc(pedido.nf || pedido.numero_nf) : ''},
-    emitido em ${esc(dataFmt)}.
-  </div>
+      <div class="summary-card avoid-break" style="text-align:center;">
+        <div class="label">Valor</div>
+        <div class="value accent" style="font-size:26px;">${esc(valorFmt)}</div>
+        <div class="hint">${esc(valorExtenso(valor))}</div>
+      </div>
 
-  <div class="bloco">
-    <strong>Cliente:</strong> ${esc(pedido.cliente_nome)}<br>
-    <strong>Documento:</strong> ${esc(pedido.cliente_doc || '—')}<br>
-    <strong>Endereço:</strong> ${esc([pedido.cliente_endereco, pedido.cliente_cidade, pedido.cliente_estado].filter(Boolean).join(' - ') || '—')}<br>
-    <strong>Vendedor:</strong> ${esc(pedido.vendedor_nome || '—')}<br>
-    <strong>Cond. pagto:</strong> ${esc(pedido.condicao_pagamento || '—')}
-  </div>
+      <div class="note-box">
+        <p>Entrega referente ao pedido nº <b>#${esc(pedido.numero_pedido || pedido.id)}</b>${pedido.nf || pedido.numero_nf ? ', NF-e nº ' + esc(pedido.nf || pedido.numero_nf) : ''}, no valor de <b>${esc(valorFmt)}</b> (${esc(valorExtenso(valor))}), emitida em ${esc(dataFmt)}.</p>
+      </div>
 
-  <div class="bloco">
-    Para clareza, firmo(amos) o presente recibo, dando plena, geral e irrevogável quitação
-    do valor acima descrito.
-  </div>
+      <section>
+        <h2 class="section-title">Cliente</h2>
+        <div class="kv-grid cols-2">
+          <div class="kv"><span class="k">Cliente</span><span class="v">${esc(pedido.cliente_nome)}</span></div>
+          <div class="kv"><span class="k">Documento</span><span class="v">${esc(pedido.cliente_doc || '—')}</span></div>
+          <div class="kv"><span class="k">Endereço</span><span class="v">${esc([pedido.cliente_endereco, pedido.cliente_cidade, pedido.cliente_estado].filter(Boolean).join(' - ') || '—')}</span></div>
+          <div class="kv"><span class="k">Vendedor</span><span class="v">${esc(pedido.vendedor_nome || '—')}</span></div>
+          <div class="kv"><span class="k">Cond. pagamento</span><span class="v">${esc(pedido.condicao_pagamento || '—')}</span></div>
+        </div>
+      </section>
 
-  <div class="assinatura">
-    <div class="linha"></div>
-    <div>${esc(empresa.razao_social || empresa.nome_fantasia)}</div>
-    <div style="font-size:11px;color:#666;">${esc(empresa.cnpj ? 'CNPJ: ' + empresa.cnpj : '')}</div>
-  </div>
+      <section>
+        <h2 class="section-title">Itens da entrega</h2>
+        ${itens.length ? `<table class="data-table"><thead><tr><th>Código</th><th>Descrição</th><th class="num">Quantidade</th><th>Un.</th><th class="num">Vlr. unit.</th><th class="num">Total</th></tr></thead><tbody>${itens.map(item => {
+            const qtd = Number(item.quantidade) || 0;
+            const unit = Number(item.preco_unitario) || 0;
+            const total = Number(item.subtotal) || qtd * unit;
+            return `<tr><td>${esc(item.codigo || '—')}</td><td>${esc(item.descricao || '—')}</td><td class="num">${qtd.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</td><td>${esc(item.unidade || 'UN')}</td><td class="num">${unit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td><td class="num">${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td></tr>`;
+        }).join('')}</tbody></table>` : '<div class="note-box"><p>Itens não disponíveis para este pedido.</p></div>'}
+      </section>
 
-  <div class="footer">
-    Documento gerado eletronicamente por Zyntra ERP em ${new Date().toLocaleString('pt-BR')}
-  </div>
+      <div class="note-box">
+        <p>Documento emitido para conferência e envio ao cliente. A assinatura abaixo confirma o recebimento físico dos itens descritos.</p>
+      </div>
+
+      <div class="note-box tone-warning">
+        <p>Este romaneio é um documento operacional e não substitui a NF-e ou outro documento fiscal obrigatório.</p>
+      </div>
+
+      <div class="signature-block avoid-break">
+        <div class="signature">
+          <div class="line"></div>
+          <div class="name">${esc(empresa.razao_social || empresa.nome_fantasia)}</div>
+          <div class="role">${empresa.cnpj ? 'CNPJ: ' + esc(formatarDocumento(empresa.cnpj)) : ''}</div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="report-footer avoid-break">
+      <span>${esc(empresa.razao_social || empresa.nome_fantasia)} — Zyntra ERP</span>
+      <span>Documento gerado em ${new Date().toLocaleString('pt-BR')}</span>
+    </footer>
+  </article>
+<script>
+function compartilharRomaneio() {
+  var dados = { title: document.title, text: 'Romaneio do pedido #${esc(pedido.numero_pedido || pedido.id)}', url: window.location.href };
+  if (navigator.share) { navigator.share(dados).catch(function () {}); return; }
+  if (navigator.clipboard) { navigator.clipboard.writeText(window.location.href).then(function () { alert('Link do romaneio copiado.'); }); return; }
+  window.prompt('Copie o link do romaneio:', window.location.href);
+}
+</script>
 </body>
 </html>`;
 
+            // Recibo do Pedido (financeiro) — documento formal para envio a fundos e
+            // instituições financeiras em operações de fomento mercantil/antecipação
+            // de recebíveis. Não é comprovante de entrega: é comprovação da existência
+            // e legitimidade da venda que originou o direito creditório.
+            const htmlFinanceiro = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Recibo do Pedido #${esc(pedido.id)}</title>
+<style>${CSS_RECIBO}</style>
+</head>
+<body>
+  <div class="toolbar no-print">
+    <button class="btn btn-print" onclick="window.print()">Imprimir</button>
+    <button class="btn btn-share" onclick="compartilharRecibo()">Compartilhar</button>
+  </div>
+
+  <article class="report-page">
+    <header class="report-header avoid-break">
+      <div class="brand">
+        <img class="logo" src="${esc(empresa.logo_path || '/images/logo-danfe.png')}" alt="Logo ${esc(empresa.nome_fantasia || empresa.razao_social || '')}" onerror="this.style.display='none'">
+        <div class="brand-info">
+          <p class="company-name">${esc(empresa.razao_social || empresa.nome_fantasia)}</p>
+          <p class="company-line">${empresa.cnpj ? 'CNPJ: ' + esc(formatarDocumento(empresa.cnpj)) : ''}</p>
+          <p class="company-line">${esc([empresa.endereco, empresa.cidade, empresa.estado].filter(Boolean).join(' - '))}</p>
+        </div>
+      </div>
+      <div class="report-id">
+        <h1>Recibo</h1>
+        <p class="subtitle">Recibo do pedido — uso em operações financeiras</p>
+        <div class="doc-number">Nº ${String(pedido.numero_pedido || pedido.id).padStart(6, '0')}</div>
+      </div>
+    </header>
+
+    <main class="report-body">
+      <div class="meta-bar avoid-break">
+        <div class="meta-item"><p class="m-label">Recibo nº</p><p class="m-value">${String(pedido.numero_pedido || pedido.id).padStart(6, '0')}</p></div>
+        <div class="meta-item"><p class="m-label">Pedido de venda</p><p class="m-value">#${esc(pedido.numero_pedido || pedido.id)}</p></div>
+        <div class="meta-item"><p class="m-label">Data de emissão</p><p class="m-value">${esc(dataFmt)}</p></div>
+      </div>
+
+      <section class="avoid-break">
+        <h2 class="section-title">Valores</h2>
+        <div class="summary-cards cols-4">
+          <div class="summary-card">
+            <div class="label">Faturado nesta NF-e / parcela</div>
+            <div class="value accent">${esc(valorFmt)}</div>
+            <div class="hint">${esc(pct(valorPedido > 0 ? (valorDocumento / valorPedido) * 100 : 0))}% do pedido</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">Valor total do pedido</div>
+            <div class="value">${esc(moeda(valorPedido))}</div>
+            <div class="hint">Base integral da operação</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">Total já faturado</div>
+            <div class="value">${esc(moeda(valorFaturado))}</div>
+            <div class="hint">${esc(pct(percentualFaturado))}% do pedido</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">Saldo a faturar</div>
+            <div class="value">${esc(moeda(valorPendente))}</div>
+            <div class="hint">${esc(pct(percentualPendente))}% pendente</div>
+          </div>
+        </div>
+        <p style="font-size:10.5px;color:#333;margin-top:6px;line-height:1.6;">${esc(valorExtenso(valor))} por extenso.</p>
+      </section>
+
+      <div class="note-box">
+        <p class="note-title">Declaração</p>
+        <p>
+          Recebemos de <b>${esc(pedido.cliente_nome)}</b>${pedido.cliente_doc ? ', ' + esc(formatarDocumento(pedido.cliente_doc)) : ''},
+          a quantia faturada de <b>${esc(valorFmt)}</b> (${esc(valorExtenso(valor))}), referente à parcela/NF-e da venda objeto do
+          Pedido de Venda nº <b>#${esc(pedido.numero_pedido || pedido.id)}</b>${pedido.nf || pedido.numero_nf ? `, NF-e nº ${esc(pedido.nf || pedido.numero_nf)}` : ''},
+          emitido em ${esc(dataFmt)}. O valor integral do pedido é <b>${esc(moeda(valorPedido))}</b>, dos quais <b>${esc(moeda(valorFaturado))}</b> já foram faturados, restando <b>${esc(moeda(valorPendente))}</b> a faturar.
+        </p>
+      </div>
+
+      <section>
+        <h2 class="section-title">Partes envolvidas</h2>
+        <div class="optional-info-grid avoid-break">
+          <div class="note-box">
+            <p class="note-title">Emitente</p>
+            <div class="kv-grid cols-1">
+              <div class="kv"><span class="k">Razão social</span><span class="v">${esc(empresa.razao_social || empresa.nome_fantasia)}</span></div>
+              <div class="kv"><span class="k">CNPJ</span><span class="v">${esc(formatarDocumento(empresa.cnpj) || '—')}</span></div>
+              <div class="kv"><span class="k">Endereço</span><span class="v">${esc([empresa.endereco, empresa.cidade, empresa.estado].filter(Boolean).join(' - ') || '—')}</span></div>
+            </div>
+          </div>
+          <div class="note-box">
+            <p class="note-title">Cliente</p>
+            <div class="kv-grid cols-1">
+              <div class="kv"><span class="k">Nome / Razão social</span><span class="v">${esc(pedido.cliente_nome)}</span></div>
+              <div class="kv"><span class="k">Documento</span><span class="v">${esc(formatarDocumento(pedido.cliente_doc) || '—')}</span></div>
+              <div class="kv"><span class="k">Endereço</span><span class="v">${esc([pedido.cliente_endereco, pedido.cliente_cidade, pedido.cliente_estado].filter(Boolean).join(' - ') || '—')}</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="section-title">Dados do pedido</h2>
+        <div class="kv-grid cols-2">
+          <div class="kv"><span class="k">Vendedor</span><span class="v">${esc(pedido.vendedor_nome || '—')}</span></div>
+          <div class="kv"><span class="k">Condição de pagamento</span><span class="v">${esc(pedido.condicao_pagamento || '—')}</span></div>
+          ${pedido.nf || pedido.numero_nf ? `<div class="kv"><span class="k">NF-e vinculada</span><span class="v">${esc(pedido.nf || pedido.numero_nf)}</span></div>` : ''}
+          <div class="kv"><span class="k">Faturado nesta parcela</span><span class="v">${esc(moeda(valorDocumento))}</span></div>
+          <div class="kv"><span class="k">Faturado acumulado</span><span class="v">${esc(moeda(valorFaturado))}</span></div>
+          <div class="kv"><span class="k">Saldo do pedido</span><span class="v">${esc(moeda(valorPendente))}</span></div>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="section-title">Controle financeiro / carteira</h2>
+        <div class="kv-grid cols-2">
+          <div class="kv"><span class="k">Título a receber</span><span class="v">${esc(contaReceber?.id ? '#' + contaReceber.id : 'Não vinculado')}</span></div>
+          <div class="kv"><span class="k">Descrição</span><span class="v">${esc(contaReceber?.descricao || 'Título vinculado ao pedido')}</span></div>
+          <div class="kv"><span class="k">Valor</span><span class="v">${esc(moeda(contaReceber?.valor || valorDocumento))}</span></div>
+          <div class="kv"><span class="k">Vencimento</span><span class="v">${esc(contaReceber?.data_vencimento ? new Date(contaReceber.data_vencimento).toLocaleDateString('pt-BR') : '—')}</span></div>
+          <div class="kv"><span class="k">Situação</span><span class="v">${esc(contaReceber?.status || 'Não informado')}</span></div>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="section-title">Itens do pedido</h2>
+        ${itens.length ? `<table class="data-table"><thead><tr><th>Código</th><th>Descrição</th><th class="num">Quantidade</th><th>Un.</th><th class="num">Vlr. unit.</th><th class="num">Total</th></tr></thead><tbody>${itens.map(item => {
+            const qtd = Number(item.quantidade) || 0;
+            const unit = Number(item.preco_unitario) || 0;
+            const total = Number(item.subtotal) || qtd * unit;
+            return `<tr><td>${esc(item.codigo || '—')}</td><td>${esc(item.descricao || '—')}</td><td class="num">${qtd.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</td><td>${esc(item.unidade || 'UN')}</td><td class="num">${unit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td><td class="num">${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td></tr>`;
+        }).join('')}</tbody><tfoot><tr><td colspan="5">Total dos itens do pedido</td><td class="num">${esc(itensTotalFmt)}</td></tr></tfoot></table>` : '<div class="note-box"><p>Itens não disponíveis para este pedido.</p></div>'}
+        ${valorDivergeDosItens ? `<div class="note-box tone-danger avoid-break" style="margin-top:8px;"><p class="note-title">Divergência</p><p>O valor deste recibo (${esc(valorFmt)}) refere-se à parcela faturada do pedido e não coincide com o total dos itens acima (${esc(itensTotalFmt)}), que lista o pedido completo.</p></div>` : ''}
+      </section>
+      <!-- Pedido de 22/09/2026: ocultados os 3 blocos de rodapé (Declaração legal, Finalidade,
+           Aviso) do recibo financeiro. A "Declaração" com "Recebemos de..." continua — é o
+           conteúdo do recibo, não um texto legal de rodapé. -->
+    </main>
+
+    <footer class="report-footer avoid-break">
+      <span>${esc(empresa.razao_social || empresa.nome_fantasia)} — Zyntra ERP</span>
+      <span>Gerado em ${new Date().toLocaleString('pt-BR')} · <span class="codigo">${esc(codigoReferencia)}</span></span>
+    </footer>
+  </article>
+<script>
+function compartilharRecibo() {
+  var dados = { title: document.title, text: 'Recibo do pedido #${esc(pedido.numero_pedido || pedido.id)}', url: window.location.href };
+  if (navigator.share) { navigator.share(dados).catch(function () {}); return; }
+  if (navigator.clipboard) { navigator.clipboard.writeText(window.location.href).then(function () { alert('Link do recibo copiado.'); }); return; }
+  window.prompt('Copie o link do recibo:', window.location.href);
+}
+</script>
+</body>
+</html>`;
+
+            const html = tipoDocumento === 'financeiro' ? htmlFinanceiro : htmlRomaneio;
+            const nomeArquivo = tipoDocumento === 'financeiro' ? `recibo-financeiro-${id}.html` : `recibo-pedido-${id}.html`;
+
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
-            res.setHeader('Content-Disposition', `inline; filename="recibo-pedido-${id}.html"`);
+            res.setHeader('Content-Disposition', `inline; filename="${nomeArquivo}"`);
             res.send(html);
         } catch (error) {
             console.error('[RECIBO] Erro ao gerar:', error.message);
@@ -7459,71 +18395,200 @@ async function salvarEdicao() {
     // =============================================================
     // ENVIAR EMAIL AO CLIENTE
     // =============================================================
+    // GET /pedidos/:id/email-preparo — o que o modal de composição precisa para nascer
+    // preenchido: destinatários sugeridos, assunto/mensagem padrão e se há NF-e para anexar.
+    router.get('/pedidos/:id/email-preparo', authenticateToken, async (req, res, next) => {
+        try {
+            const pedidoId = parseInt(req.params.id, 10);
+            if (!pedidoId) return res.status(400).json({ success: false, message: 'Pedido inválido' });
+
+            const [[p]] = await pool.query(
+                `SELECT p.id, p.numero_pedido, p.valor, p.email_cliente, p.email_assunto, p.email_mensagem,
+                        p.nfe_id, p.nf, p.numero_nf, p.nfe_chave,
+                        COALESCE(c.razao_social, c.nome_fantasia, c.nome, p.cliente_nome, p.cliente) AS cliente_nome,
+                        c.email AS cliente_email
+                   FROM pedidos p LEFT JOIN clientes c ON c.id = p.cliente_id
+                  WHERE p.id = ? LIMIT 1`, [pedidoId]);
+            if (!p) return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
+
+            const [[emp]] = await pool.query('SELECT razao_social, nome_fantasia FROM configuracoes_empresa LIMIT 1')
+                .catch(() => [[null]]);
+            const empresa = (emp && (emp.nome_fantasia || emp.razao_social)) || 'Zyntra';
+
+            // Anexos só quando existe NF-e com XML gravado — não oferecer o que não dá para anexar.
+            const [[nfe]] = await pool.query(
+                `SELECT id, numero, chave_acesso,
+                        (xml_assinado IS NOT NULL OR xml_nfe IS NOT NULL) AS tem_xml,
+                        status
+                   FROM nfes
+                  WHERE (id = ? OR pedido_id = ?) AND COALESCE(status,'') <> 'rejeitada'
+                  ORDER BY id DESC LIMIT 1`, [p.nfe_id || 0, pedidoId]).catch(() => [[null]]);
+
+            const numero = p.numero_pedido || String(p.id);
+            const destinatarios = [p.email_cliente, p.cliente_email]
+                .map(e => String(e || '').trim()).filter(Boolean);
+
+            res.json({
+                success: true,
+                pedido_id: p.id,
+                numero_pedido: numero,
+                cliente_nome: p.cliente_nome || '',
+                empresa,
+                destinatario_sugerido: [...new Set(destinatarios)].join(', '),
+                assunto_sugerido: p.email_assunto
+                    || `${empresa} — Pedido nº ${numero}${nfe && nfe.numero ? ' / NF-e ' + nfe.numero : ''}`,
+                mensagem_sugerida: p.email_mensagem
+                    || `Olá${p.cliente_nome ? ', ' + p.cliente_nome : ''},\n\n`
+                     + `Segue a documentação referente ao pedido nº ${numero}.\n\n`
+                     + `Qualquer dúvida, estamos à disposição.\n\nAtenciosamente,\n${empresa}`,
+                nfe: nfe ? {
+                    id: nfe.id, numero: nfe.numero, chave: nfe.chave_acesso,
+                    status: nfe.status, pode_anexar: !!Number(nfe.tem_xml)
+                } : null
+            });
+        } catch (err) { next(err); }
+    });
+
+    // POST /pedidos/:id/enviar-email — envio manual pela tela do pedido.
+    //
+    // Reescrito em 19/08/2026:
+    //  - aceita VÁRIOS destinatários e cópia (CC);
+    //  - anexa DANFE (PDF) e/ou XML da NF-e quando pedido;
+    //  - o cabeçalho do e-mail usa a empresa DA INSTÂNCIA — estava fixo em "ALUFORCE /
+    //    Esquadrias de Alumínio", errado nas Labor/Cobal e errado até na aluforce, que é
+    //    indústria de condutores;
+    //  - REGISTRA o envio em `emails_enviados` aqui no servidor. Antes quem registrava era o
+    //    front, num segundo POST com catch silencioso — se falhasse, o e-mail saía e sumia do
+    //    histórico. Uma linha por destinatário, igual aos outros caminhos de e-mail.
     router.post('/pedidos/:id/enviar-email', async (req, res) => {
         try {
             const { id } = req.params;
-            // O frontend envia o campo como `email`; aceitamos ambos por robustez.
-            const destinatario = req.body.destinatario || req.body.email;
-            const { assunto, mensagem } = req.body;
+            const corpo = req.body || {};
+            const assunto = String(corpo.assunto || '').trim();
+            const mensagem = String(corpo.mensagem || '');
             const user = req.user || {};
 
-            if (!destinatario || !assunto) {
-                return res.status(400).json({ message: 'Destinatário e assunto são obrigatórios' });
+            // Aceita "a@x.com, b@y.com; c@z.com" e o campo legado `email`.
+            const listar = v => String(v || '')
+                .split(/[,;\s]+/).map(e => e.trim().toLowerCase())
+                .filter(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+            const paraLista = [...new Set(listar(corpo.destinatario || corpo.email))];
+            const ccLista = [...new Set(listar(corpo.cc))].filter(e => !paraLista.includes(e));
+
+            if (!paraLista.length) return res.status(400).json({ message: 'Informe ao menos um destinatário válido.' });
+            if (!assunto) return res.status(400).json({ message: 'Assunto é obrigatório.' });
+
+            const [[pedido]] = await pool.query('SELECT * FROM pedidos WHERE id = ?', [id]);
+            if (!pedido) return res.status(404).json({ message: 'Pedido não encontrado' });
+
+            const [[emp]] = await pool.query('SELECT razao_social, nome_fantasia FROM configuracoes_empresa LIMIT 1')
+                .catch(() => [[null]]);
+            const empresaNome = (emp && (emp.nome_fantasia || emp.razao_social)) || 'Zyntra';
+
+            // ── Anexos ────────────────────────────────────────────────────────
+            const anexos = [];
+            const querDanfe = corpo.anexar_danfe === true || corpo.anexar_danfe === 'true';
+            const querXml = corpo.anexar_xml === true || corpo.anexar_xml === 'true';
+            const avisos = [];
+            if (querDanfe || querXml) {
+                const [[nfe]] = await pool.query(
+                    `SELECT id, numero, chave_acesso, xml_assinado, xml_nfe, xml_protocolo
+                       FROM nfes WHERE (id = ? OR pedido_id = ?) AND COALESCE(status,'') <> 'rejeitada'
+                      ORDER BY id DESC LIMIT 1`, [pedido.nfe_id || 0, id]).catch(() => [[null]]);
+                if (!nfe) {
+                    avisos.push('Este pedido não tem NF-e — nada foi anexado.');
+                } else {
+                    if (querXml) {
+                        // Mesmo nfeProc do download da nota: assinado + protocolo de autorização.
+                        const assinada = (String(nfe.xml_assinado || '').match(/<NFe[\s>][\s\S]*<\/NFe>/) || [])[0];
+                        const prot = (String(nfe.xml_protocolo || '').match(/<protNFe[\s\S]*?<\/protNFe>/) || [])[0];
+                        const conteudo = (assinada && prot)
+                            ? '<?xml version="1.0" encoding="UTF-8"?>'
+                              + '<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">'
+                              + assinada + prot + '</nfeProc>'
+                            : (nfe.xml_assinado || nfe.xml_nfe);
+                        if (conteudo) {
+                            const chave = String(nfe.chave_acesso || '').replace(/\D/g, '');
+                            anexos.push({
+                                filename: (chave || 'nfe_' + (nfe.numero || id)) + '.xml',
+                                content: Buffer.from(String(conteudo), 'utf8'),
+                                contentType: 'application/xml'
+                            });
+                        } else avisos.push('O XML desta NF-e ainda não está disponível.');
+                    }
+                    if (querDanfe) {
+                        try {
+                            const DANFEService = require('../src/nfe/services/DANFEService');
+                            const pdf = await new DANFEService(pool).gerarDANFE(nfe.id);
+                            anexos.push({
+                                filename: `DANFE-${nfe.numero || id}.pdf`,
+                                content: pdf, contentType: 'application/pdf'
+                            });
+                        } catch (e) {
+                            // Falhar o PDF não pode impedir o e-mail — avisa e segue.
+                            console.warn('[PEDIDO-EMAIL] DANFE não anexada:', e.message);
+                            avisos.push('Não foi possível gerar a DANFE para anexar.');
+                        }
+                    }
+                }
             }
 
-            // Buscar dados do pedido
-            const [pedidos] = await pool.query('SELECT * FROM pedidos WHERE id = ?', [id]);
-            if (!pedidos || pedidos.length === 0) {
-                return res.status(404).json({ message: 'Pedido não encontrado' });
-            }
-            const pedido = pedidos[0];
-
-            // Tentar enviar via nodemailer
-            let nodemailer;
-            try { nodemailer = require('nodemailer'); } catch(e) {
-                return res.status(500).json({ message: 'Serviço de e-mail não disponível' });
-            }
-
-            const transporter = nodemailer.createTransport({
-                host: 'mail.aluforce.ind.br',
-                port: 465,
-                secure: true,
-                auth: {
-                    user: process.env.SMTP_USER || 'noreply@aluforce.ind.br',
-                    pass: process.env.SMTP_PASS || 'noreplyalu'
-                },
-                tls: { rejectUnauthorized: false }
-            });
-
-            const pedidoNum = String(pedido.id).padStart(5, '0');
+            const numeroPedido = pedido.numero_pedido || String(pedido.id).padStart(5, '0');
+            const esc = s => String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const htmlBody = `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                     <div style="background: #0b2842; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-                        <h2 style="margin: 0;">ALUFORCE</h2>
-                        <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.8;">Esquadrias de Alumínio</p>
+                        <h2 style="margin: 0;">${esc(empresaNome)}</h2>
                     </div>
                     <div style="padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-                        <h3 style="color: #1e293b; margin: 0 0 16px;">${assunto}</h3>
-                        <p style="color: #475569; line-height: 1.6; white-space: pre-wrap;">${mensagem || ''}</p>
+                        <h3 style="color: #1e293b; margin: 0 0 16px;">${esc(assunto)}</h3>
+                        <p style="color: #475569; line-height: 1.6; white-space: pre-wrap;">${esc(mensagem)}</p>
                         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-                        <p style="font-size: 12px; color: #94a3b8;">Pedido Nº ${pedidoNum} | Cliente: ${pedido.cliente || '-'}</p>
+                        <p style="font-size: 12px; color: #94a3b8;">Pedido Nº ${esc(numeroPedido)} | Cliente: ${esc(pedido.cliente_nome || pedido.cliente || '-')}</p>
                     </div>
-                </div>
-            `;
+                </div>`;
 
-            await transporter.sendMail({
-                from: `"Aluforce ERP" <${process.env.SMTP_USER || 'noreply@aluforce.ind.br'}>`,
-                to: destinatario,
-                subject: assunto,
-                html: htmlBody
+            const { enviarEmail } = require('../utils/email');
+            const { registrarEmailEnviado } = require('../services/nfe-notificacao.service');
+
+            // Uma mensagem por destinatário: um endereço suprimido no provedor não pode
+            // derrubar a entrega dos demais (mesma regra do módulo de Faturamento).
+            const entregas = [];
+            for (const para of paraLista) {
+                const r = await enviarEmail({
+                    rota: 'fiscal', para, cc: ccLista.length ? ccLista.join(',') : undefined,
+                    assunto, html: htmlBody, anexos: anexos.length ? anexos : undefined
+                });
+                entregas.push({ para, ok: !!r.success, erro: r.error });
+                await registrarEmailEnviado(pool, {
+                    pedidoId: parseInt(id, 10), destinatario: para, assunto, corpo: htmlBody,
+                    status: r.success ? 'enviado' : 'erro',
+                    usuarioId: user.id || null, usuarioNome: user.nome || user.email || 'Usuário'
+                });
+            }
+
+            const ok = entregas.filter(e => e.ok);
+            if (!ok.length) {
+                return res.status(502).json({
+                    success: false,
+                    message: 'Erro ao enviar e-mail: ' + (entregas[0] && entregas[0].erro || 'sem detalhe')
+                });
+            }
+
+            // Mantém o último envio no pedido (comportamento legado da aba de e-mail).
+            await pool.query(
+                'UPDATE pedidos SET email_cliente = ?, email_assunto = ?, email_mensagem = ? WHERE id = ?',
+                [paraLista.join(', '), assunto, mensagem, id]);
+
+            res.json({
+                success: true,
+                message: `E-mail enviado para ${ok.length} destinatário(s).`,
+                enviados: ok.map(e => e.para),
+                falhas: entregas.filter(e => !e.ok).map(e => ({ destinatario: e.para, erro: e.erro })),
+                anexos: anexos.map(a => a.filename),
+                avisos
             });
-
-            // Salvar no pedido que email foi enviado
-            await pool.query('UPDATE pedidos SET email_cliente = ?, email_assunto = ?, email_mensagem = ? WHERE id = ?',
-                [destinatario, assunto, mensagem || '', id]);
-
-            res.json({ success: true, message: 'E-mail enviado com sucesso' });
-
         } catch (error) {
             console.error('Erro ao enviar e-mail:', error);
             res.status(500).json({ message: 'Erro ao enviar e-mail: ' + (error.message || 'Erro desconhecido') });
@@ -7571,5 +18636,8 @@ async function salvarEdicao() {
         });
     });
 
+    // Expõe o calculador para os sub-routers legados que ainda criam pedidos
+    // por aliases. Assim todos os caminhos de criação usam a mesma regra fiscal.
+    deps.recalcularImpostosPedidoVenda = recalcularImpostosPedidoVenda;
     return router;
 };

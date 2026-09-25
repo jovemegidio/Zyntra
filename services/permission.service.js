@@ -21,6 +21,10 @@
  * Criado: 10/03/2026 — Refatoração Ponto 3 (consolidação de permissões)
  */
 
+// Escopo da SESSÃO (login por CPF → só RH). É um teto aplicado por cima de
+// tudo que este serviço decide: recorta o resultado, nunca concede nada.
+const loginScope = require('../utils/login-scope');
+
 // Fallback para período de transição (será removido quando todos os users estiverem no DB)
 let _hardcodedPermissions = null;
 function getHardcodedPermissions() {
@@ -70,16 +74,23 @@ setInterval(() => {
  * @returns {Promise<boolean>}
  */
 async function isAdmin(user, pool, userId) {
-    // Checagem rápida via JWT (sem DB)
-    if (user) {
+    // Sessão restrita (login por CPF) nunca é admin — senão o próprio
+    // `if (isAdmin) return next()` no topo de cada guard furaria o escopo.
+    if (loginScope.isEscopoRestrito(user)) return false;
+
+    // O claim do token é PISTA, não prova. Um token assinado com o segredo de
+    // outra instância carrega o role/is_admin de um usuário que não é o desta
+    // base — foi assim que um admin da Cobal virava admin da Aluforce enquanto
+    // as duas compartilhavam JWT_SECRET. O banco decide sempre que der.
+    const claimDizAdmin = !!user && (() => {
         const role = String(user.role || '').toLowerCase().trim();
         if (role === 'admin' || role === 'administrador') return true;
-        if (user.is_admin === 1 || user.is_admin === true || user.is_admin === '1') return true;
-    }
+        return user.is_admin === 1 || user.is_admin === true || user.is_admin === '1';
+    })();
 
-    // Se não tem pool ou userId, resposta definitiva é pelo JWT
+    // Sem banco para conferir, o claim é tudo que resta.
     const id = userId || user?.id || user?.userId;
-    if (!pool || !id) return false;
+    if (!pool || !id) return claimDizAdmin;
 
     // Cache
     const cached = _adminCache.get(id);
@@ -121,6 +132,10 @@ async function isAdmin(user, pool, userId) {
  */
 async function hasModuleAccess(pool, userId, module, user) {
     if (!userId || !module) return false;
+
+    // Teto do escopo: numa sessão por CPF, só o RH passa — independente
+    // do que permissoes_modulos/areas concedam ao cadastro.
+    if (!loginScope.moduloLiberado(user, module)) return false;
 
     const moduleLower = module.toLowerCase();
 
@@ -165,9 +180,9 @@ async function getUserModules(pool, userId, user) {
 
     const cached = _moduleCache.get(userId);
     if (cached && Date.now() - cached.ts < CACHE_TTL) {
-        if (cached.modules) return cached.modules;
+        if (cached.modules) return loginScope.filtrarModulos(user, cached.modules);
         // Fallback
-        return _hardcodedFallbackModules(user);
+        return loginScope.filtrarModulos(user, _hardcodedFallbackModules(user));
     }
 
     if (pool) {
@@ -178,14 +193,17 @@ async function getUserModules(pool, userId, user) {
             );
             if (rows.length > 0) {
                 const modules = new Set(rows.map(r => r.modulo.toLowerCase()));
+                // Cacheia o conjunto REAL do usuário; o recorte do escopo é
+                // aplicado na saída, senão a sessão por CPF envenenaria o
+                // cache (TTL 5 min) compartilhado com a sessão por e-mail.
                 _moduleCache.set(userId, { modules, ts: Date.now() });
-                return modules;
+                return loginScope.filtrarModulos(user, modules);
             }
             _moduleCache.set(userId, { modules: null, ts: Date.now() });
         } catch (e) { /* fallthrough */ }
     }
 
-    return _hardcodedFallbackModules(user);
+    return loginScope.filtrarModulos(user, _hardcodedFallbackModules(user));
 }
 
 // ============================================================
@@ -205,6 +223,9 @@ async function getUserModules(pool, userId, user) {
  */
 async function hasActionPermission(pool, userId, module, action, user) {
     if (!userId || !module || !action) return false;
+
+    // Nenhuma ação fora do RH numa sessão restrita (login por CPF).
+    if (!loginScope.moduloLiberado(user, module)) return false;
 
     const cacheKey = `${userId}:${module}`;
     const cached = _actionCache.get(cacheKey);
@@ -258,10 +279,13 @@ async function filterPermittedActions(pool, userId, module, actions, user) {
  * @param {number} userId
  * @param {string} moduloCodigo
  * @param {string} tipoPermissao - visualizar|criar|editar|excluir|aprovar
+ * @param {Object} [user] - Objeto JWT (para aplicar o escopo da sessão)
  * @returns {Promise<boolean>}
  */
-async function checkModulePermission(pool, userId, moduloCodigo, tipoPermissao = 'visualizar') {
+async function checkModulePermission(pool, userId, moduloCodigo, tipoPermissao = 'visualizar', user) {
     if (!pool || !userId || !moduloCodigo) return false;
+
+    if (!loginScope.moduloLiberado(user, moduloCodigo)) return false;
 
     try {
         const [result] = await pool.query(`
@@ -281,7 +305,7 @@ async function checkModulePermission(pool, userId, moduloCodigo, tipoPermissao =
         return result[0]?.tem_permissao > 0;
     } catch (e) {
         // View pode não existir → fallback para permissoes_modulos
-        return hasModuleAccess(pool, userId, moduloCodigo);
+        return hasModuleAccess(pool, userId, moduloCodigo, user);
     }
 }
 
@@ -295,6 +319,9 @@ async function checkModulePermission(pool, userId, moduloCodigo, tipoPermissao =
  * @returns {boolean}
  */
 function isConsultoria(user) {
+    // Os guards liberam consultoria ANTES de checar o módulo; numa sessão
+    // restrita (login por CPF) esse atalho furaria o escopo.
+    if (loginScope.isEscopoRestrito(user)) return false;
     return String(user?.role || '').toLowerCase() === 'consultoria';
 }
 
